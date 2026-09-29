@@ -1,0 +1,238 @@
+/* ==========================================================================
+   Material Square — Refined Modern Design System & CSS Reset
+   Clean, Professional, Enterprise-Grade Construction Marketplace
+   ========================================================================== */
+
+:root {
+  /* Color Palette */
+  --ms-primary: #ea580c;         /* Construction Amber / Terracotta */
+  --ms-primary-hover: #c2410c;
+  --ms-primary-light: #fff7ed;
+  --ms-primary-subtle: #ffedd5;
+  --ms-primary-border: #fed7aa;
+
+  --ms-slate-900: #0f172a;       /* Deep Obsidian Slate */
+  --ms-slate-800: #1e293b;
+  --ms-slate-700: #334155;
+  --ms-slate-600: #475569;
+  --ms-slate-500: #64748b;
+  --ms-slate-400: #94a3b8;
+  --ms-slate-200: #e2e8f0;       /* Hairline border */
+  --ms-slate-100: #f1f5f9;       /* Subtle neutral */
+  --ms-slate-50:  #f8fafc;       /* Canvas background */
+
+  --ms-white: #ffffff;
+  --ms-whatsapp: #16a34a;
+  --ms-whatsapp-hover: #15803d;
+  --ms-whatsapp-light: #f0fdf4;
+
+  /* Typography */
+  --font-heading: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 2px 6px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 6px 20px -2px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 16px 36px -4px rgba(15, 23, 42, 0.12);
+  --shadow-orange: 0 6px 20px rgba(234, 88, 12, 0.22);
+  --shadow-drawer: -12px 0 40px rgba(15, 23, 42, 0.2);
+
+  /* Radii */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  /* Transitions */
+  --transition-fast: 0.16s ease;
+  --transition-medium: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* CSS Reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--ms-slate-50);
+  color: var(--ms-slate-900);
+  line-height: 1.55;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Layout Container */
+.container {
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--ms-slate-900);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: 1px solid transparent;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background-color: var(--ms-primary);
+  color: #ffffff;
+  border-color: var(--ms-primary);
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.2);
+}
+
+.btn-primary:hover {
+  background-color: var(--ms-primary-hover);
+  border-color: var(--ms-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-orange);
+}
+
+.btn-secondary {
+  background-color: #ffffff;
+  color: var(--ms-slate-800);
+  border-color: var(--ms-slate-200);
+  box-shadow: var(--shadow-xs);
+}
+
+.btn-secondary:hover {
+  background-color: var(--ms-slate-100);
+  border-color: var(--ms-slate-300);
+  color: var(--ms-slate-900);
+}
+
+.btn-dark {
+  background-color: var(--ms-slate-900);
+  color: #ffffff;
+  border-color: var(--ms-slate-900);
+}
+
+.btn-dark:hover {
+  background-color: var(--ms-slate-800);
+  border-color: var(--ms-slate-800);
+}
+
+.btn-whatsapp {
+  background-color: var(--ms-whatsapp);
+  color: #ffffff;
+  border-color: var(--ms-whatsapp);
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.2);
+}
+
+.btn-whatsapp:hover {
+  background-color: var(--ms-whatsapp-hover);
+  border-color: var(--ms-whatsapp-hover);
+  transform: translateY(-1px);
+}
+
+.btn-sm {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  border-radius: var(--radius-xs);
+}
+
+.btn-lg {
+  padding: 0.85rem 1.6rem;
+  font-size: 0.95rem;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+/* Badges */
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  background-color: var(--ms-slate-100);
+  color: var(--ms-slate-600);
+  border: 1px solid var(--ms-slate-200);
+}
+
+.badge-orange-pill {
+  background-color: var(--ms-primary-light);
+  color: var(--ms-primary);
+  border-color: var(--ms-primary-border);
+}
+
+.badge-green-pill {
+  background-color: var(--ms-whatsapp-light);
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: var(--ms-slate-50);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--ms-slate-300, #cbd5e1);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ms-slate-400);
+}

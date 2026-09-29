@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Rebar lines -->
+  <line x1="42" y1="6" x2="42" y2="40" stroke="#141518" stroke-width="3" stroke-linecap="round" />
+  <line x1="42" y1="12" x2="46" y2="15" stroke="#141518" stroke-width="1.8" />
+  <line x1="42" y1="20" x2="46" y2="23" stroke="#141518" stroke-width="1.8" />
+  
+  <line x1="48" y1="4" x2="48" y2="35" stroke="#141518" stroke-width="3" stroke-linecap="round" />
+  <line x1="48" y1="10" x2="52" y2="13" stroke="#141518" stroke-width="1.8" />
+  <line x1="48" y1="18" x2="52" y2="21" stroke="#141518" stroke-width="1.8" />
+
+  <!-- Concrete Frame Outline -->
+  <path d="M 54 18 L 86 18 L 86 54 L 74 54 L 74 30 L 54 30 Z" fill="#9da3af" />
+
+  <!-- Bold Black M -->
+  <path d="M 20 84 L 20 26 L 34 26 L 48 55 L 62 26 L 76 26 L 76 56 L 64 56 L 64 42 L 53 65 L 43 65 L 32 42 L 32 84 Z" fill="#141518" />
+
+  <!-- 3 Red Terracotta Bricks (1 on top, 2 below) -->
+  <rect x="68" y="58" width="16" height="7.5" rx="0.5" fill="#d9531e" stroke="#ffffff" stroke-width="1" />
+  <rect x="62" y="66.5" width="13" height="7.5" rx="0.5" fill="#d9531e" stroke="#ffffff" stroke-width="1" />
+  <rect x="76" y="66.5" width="13" height="7.5" rx="0.5" fill="#d9531e" stroke="#ffffff" stroke-width="1" />
+</svg>
