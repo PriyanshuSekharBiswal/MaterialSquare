@@ -164,12 +164,12 @@ export default function App() {
         <aside className="floating-action-dock" aria-label="Quick Actions">
           <button
             type="button"
-            className="dock-bom-btn"
+            className={`dock-bom-btn ${bomList.length > 0 ? 'has-items' : ''}`}
             onClick={() => setIsBOMOpen(true)}
             title="Open Material List"
             aria-label={`Open Material List with ${bomList.length} items`}
           >
-            <FileText size={18} />
+            <FileText size={20} />
             <span className="dock-label">Material List</span>
             {bomList.length > 0 && <span className="dock-badge">{bomList.length}</span>}
           </button>
@@ -182,7 +182,7 @@ export default function App() {
             title="Chat with Procurement Coordinator on WhatsApp"
             aria-label="Chat on WhatsApp"
           >
-            <WhatsAppIcon size={20} color="#ffffff" />
+            <WhatsAppIcon size={22} color="#ffffff" />
             <span className="dock-label">WhatsApp</span>
           </a>
         </aside>
