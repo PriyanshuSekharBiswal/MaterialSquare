@@ -23,13 +23,13 @@
 
   --ms-white: #ffffff;
   --ms-whatsapp: #25d366;
-  --ms-whatsapp-teal: #128c7e;
-  --ms-whatsapp-hover: #20ba5a;
+  --ms-whatsapp-teal: #1fa855;
+  --ms-whatsapp-hover: #22c35e;
   --ms-whatsapp-light: #f0fdf4;
-  --ms-whatsapp-gradient: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
-  --ms-whatsapp-gradient-hover: linear-gradient(135deg, #2ae16d 0%, #0e7368 100%);
-  --shadow-whatsapp: 0 4px 14px rgba(18, 140, 126, 0.28);
-  --shadow-whatsapp-hover: 0 6px 20px rgba(18, 140, 126, 0.36);
+  --ms-whatsapp-gradient: linear-gradient(135deg, #25d366 0%, #20bd5a 100%);
+  --ms-whatsapp-gradient-hover: linear-gradient(135deg, #2ae16d 0%, #22c35e 100%);
+  --shadow-whatsapp: 0 4px 14px rgba(37, 211, 102, 0.32);
+  --shadow-whatsapp-hover: 0 6px 20px rgba(37, 211, 102, 0.42);
 
   /* Typography */
   --font-heading: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;

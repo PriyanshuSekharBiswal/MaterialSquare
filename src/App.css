@@ -91,7 +91,7 @@
 .btn-whatsapp {
   background: var(--ms-whatsapp-gradient);
   color: #ffffff;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: var(--shadow-whatsapp);
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
   transition: all var(--transition-fast);
@@ -106,7 +106,7 @@
 
 .btn-whatsapp:active {
   transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(18, 140, 126, 0.22);
+  box-shadow: 0 2px 8px rgba(37, 211, 102, 0.28);
 }
 
 .btn-outline {
@@ -1984,13 +1984,18 @@
 }
 
 .home-cta-banner .btn-whatsapp {
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
-  border: 2px solid transparent;
+  background: linear-gradient(135deg, #25d366 0%, #20bd5a 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(37, 211, 102, 0.3) !important;
+  border: 2px solid rgba(255, 255, 255, 0.35) !important;
+  font-weight: 700;
 }
 
 .home-cta-banner .btn-whatsapp:hover {
+  background: linear-gradient(135deg, #2ae16d 0%, #22c35e 100%) !important;
+  border-color: #ffffff !important;
   transform: translateY(-2px);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.38);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.35), 0 4px 14px rgba(37, 211, 102, 0.4) !important;
 }
 
 /* --------------------------------------------------------------------------
@@ -5317,12 +5322,12 @@
   align-items: center;
   gap: 0.85rem;
   padding: 0.85rem 1.15rem;
-  background: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
+  background: linear-gradient(135deg, #25d366 0%, #20bd5a 100%);
   color: #ffffff;
   border: none;
   border-radius: 12px;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(18, 140, 126, 0.28), 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 16px rgba(37, 211, 102, 0.32), 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   text-align: left;
   position: relative;
