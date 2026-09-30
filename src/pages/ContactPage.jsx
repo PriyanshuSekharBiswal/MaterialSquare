@@ -1,19 +1,17 @@
 import React, { useState } from 'react';
 import {
   Phone,
-  MessageCircle,
   MapPin,
   Clock,
-  Mail,
   Truck,
   ShieldCheck,
   Send,
   CheckCircle2,
-  Building2,
 } from 'lucide-react';
 import { COMPANY_INFO } from '../data/materialsData';
 import InstagramIcon from '../components/icons/InstagramIcon';
 import WhatsAppIcon from '../components/icons/WhatsAppIcon';
+import DirectionGoogleMaps from '../components/DirectionGoogleMaps';
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -128,18 +126,29 @@ export default function ContactPage() {
             </div>
 
             {/* Depot Card */}
-            <div className="contact-info-card">
+            <div className="contact-info-card highlighted">
               <div className="info-card-icon depot">
                 <MapPin size={24} />
               </div>
-              <h3>Central Logistics Hub</h3>
+              <h3>Central Office & Logistics Hub</h3>
               <p>Equipped with overhead cranes, sheltered cement docks, and dedicated fleet vehicles.</p>
-              <span className="depot-address">{COMPANY_INFO.depotAddress}</span>
-              <span className="channel-sub">Delhi NCR Expressway Corridor</span>
+              <span className="depot-address">{COMPANY_INFO.officeAddress}</span>
+              <a
+                href={COMPANY_INFO.officeGoogleMapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="channel-link"
+              >
+                Open Office in Google Maps ↗
+              </a>
+              <span className="channel-sub">Ghaziabad HQ · Dedicated fleet to all 6 NCR zones</span>
             </div>
           </div>
         </div>
       </section>
+
+      {/* Google Maps Directions to Ghaziabad Office with Ola/Uber Animated Trucks */}
+      <DirectionGoogleMaps />
 
       {/* Coverage Areas & Delivery Timelines */}
       <section className="coverage-zones-section">

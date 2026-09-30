@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Search,
@@ -6,7 +6,6 @@ import {
   Check,
   Plus,
   Info,
-  MessageCircle,
   Truck,
   ShieldCheck,
   FileCheck,
@@ -17,6 +16,7 @@ import {
 import { PRODUCTS, CATEGORIES, COMPANY_INFO } from '../data/materialsData';
 import { BRAND_LIST, BrandLogo, getBrandMeta } from '../components/icons/BrandBadges';
 import BrandRoster from '../components/BrandRoster';
+import SearchSuggestions from '../components/SearchSuggestions';
 import WhatsAppIcon from '../components/icons/WhatsAppIcon';
 
 export default function MarketplacePage({
@@ -34,6 +34,19 @@ export default function MarketplacePage({
   const [selectedBrand, setSelectedBrand] = useState(initialBrand);
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [onlyInStock, setOnlyInStock] = useState(false);
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+  const searchRef = useRef(null);
+
+  // Close suggestions on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setIsSuggestionsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Sync state when URL params change
   useEffect(() => {
@@ -158,25 +171,67 @@ export default function MarketplacePage({
           <div className="catalog-controls-card">
             {/* Search and Brand row */}
             <div className="controls-top-row">
-              <div className="search-field-wrap">
+              <div ref={searchRef} className="search-field-wrap">
                 <Search size={18} className="search-field-icon" />
                 <input
                   type="text"
                   placeholder="Search by material, brand, IS standard (e.g. UltraTech, Fe 550D, CPVC, 2.5mm)..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setIsSuggestionsOpen(true);
+                  }}
+                  onFocus={() => setIsSuggestionsOpen(true)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setIsSuggestionsOpen(false);
+                  }}
                   className="catalog-search-input"
+                  autoComplete="off"
                 />
                 {searchQuery && (
                   <button
                     type="button"
-                    onClick={() => setSearchQuery('')}
+                    onClick={() => {
+                      setSearchQuery('');
+                      setIsSuggestionsOpen(true);
+                    }}
                     className="search-clear-btn"
                     aria-label="Clear search"
                   >
                     <X size={16} />
                   </button>
                 )}
+
+                {/* Instant Search Suggestions Dropdown */}
+                <SearchSuggestions
+                  query={searchQuery}
+                  isOpen={isSuggestionsOpen}
+                  onSelectSuggestion={(val) => {
+                    setSearchQuery(val);
+                    setIsSuggestionsOpen(false);
+                    setSearchParams((prev) => {
+                      const p = new URLSearchParams(prev);
+                      p.set('q', val);
+                      return p;
+                    });
+                  }}
+                  onSelectCategory={(catId) => {
+                    setIsSuggestionsOpen(false);
+                    handleCategoryChange(catId);
+                  }}
+                  onSelectBrand={(brandName) => {
+                    setIsSuggestionsOpen(false);
+                    handleBrandChange(brandName);
+                  }}
+                  onSelectProduct={(product) => {
+                    setIsSuggestionsOpen(false);
+                    if (onOpenProductModal) {
+                      onOpenProductModal(product);
+                    } else {
+                      setSearchQuery(product.name);
+                    }
+                  }}
+                />
               </div>
 
               {/* Brand Selector */}

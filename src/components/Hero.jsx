@@ -118,8 +118,8 @@ export default function Hero({
               rel="noopener noreferrer"
               className="btn btn-whatsapp btn-lg"
             >
-              <MessageCircle size={18} />
-              <span>WhatsApp: {COMPANY_INFO.phoneDisplay}</span>
+              <WhatsAppIcon size={20} color="#ffffff" />
+              <span>Connect on WhatsApp</span>
             </a>
           </div>
         </div>

@@ -16,7 +16,11 @@ export const COMPANY_INFO = {
   handle: '@materialsquare.in',
   instagramUrl: 'https://www.instagram.com/materialsquare.in',
   location: 'Serving Delhi NCR (Noida, Greater Noida, Delhi, Gurugram, Ghaziabad & Faridabad)',
-  depotAddress: 'Central Fulfillment Depot, NH-24 / Express Logistics Hub, Delhi NCR',
+  officeCity: 'Ghaziabad',
+  officeAddress: 'Plot 42, Mohan Nagar Link Road, Industrial Area, Ghaziabad, Uttar Pradesh 201007',
+  officeCoordinates: { lat: 28.6791, lng: 77.382 },
+  officeGoogleMapsUrl: 'https://www.google.com/maps/search/?api=1&query=28.6791,77.3820+(Material+Square+Central+Office+Ghaziabad)',
+  depotAddress: 'Central Fulfillment Depot, Plot 42, Mohan Nagar Link Road, Ghaziabad, Delhi NCR',
   email: 'orders@materialsquare.in',
   hours: 'Mon — Sat: 8:00 AM – 8:00 PM (Emergency Site Dispatch Available)',
 };

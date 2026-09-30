@@ -150,7 +150,7 @@ export default function Navbar({ onOpenBOM, onNavigateSection }) {
               <FileText size={16} /> Send Material List (BOM)
             </button>
             <a href={COMPANY_INFO.whatsappUrl} target="_blank" rel="noopener noreferrer" className="mobile-wa-btn">
-              <MessageCircle size={16} /> WhatsApp: {COMPANY_INFO.phoneDisplay}
+              <WhatsAppIcon size={16} color="#ffffff" /> Connect on WhatsApp
             </a>
           </div>
         </div>

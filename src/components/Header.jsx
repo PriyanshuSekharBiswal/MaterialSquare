@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, Link, useLocation } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { Phone, FileText, Menu, X, MapPin } from 'lucide-react';
 import MaterialSquareLogo from './icons/MaterialSquareLogo';
 import WhatsAppIcon from './icons/WhatsAppIcon';
@@ -7,7 +7,6 @@ import { COMPANY_INFO } from '../data/materialsData';
 
 export default function Header({ bomCount, onOpenBOMDrawer }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const location = useLocation();
 
   const closeMenu = () => setMobileMenuOpen(false);
 
@@ -24,7 +23,6 @@ export default function Header({ bomCount, onOpenBOMDrawer }) {
           </div>
 
           <div className="top-bar-right">
-            <span className="slogan-hindi">"{COMPANY_INFO.sloganHindi}"</span>
             <a href={`tel:${COMPANY_INFO.phone}`} className="hotline-phone">
               <Phone size={12} /> {COMPANY_INFO.phoneDisplay}
             </a>
@@ -127,16 +125,16 @@ export default function Header({ bomCount, onOpenBOMDrawer }) {
               Marketplace
             </NavLink>
             <NavLink to="/why-us" onClick={closeMenu} className="mobile-nav-item">
-              Why Us (5 Calls vs 1 Call)
+              Why Us
             </NavLink>
             <NavLink to="/guides" onClick={closeMenu} className="mobile-nav-item">
-              Tools & Guides (Wire & Plumbing)
+              Tools & Guides
             </NavLink>
             <NavLink to="/get-quote" onClick={closeMenu} className="mobile-nav-item">
               Get Quote
             </NavLink>
             <NavLink to="/contact" onClick={closeMenu} className="mobile-nav-item">
-              Contact & Depot
+              Contact
             </NavLink>
 
             <div className="mobile-actions-stack">
@@ -158,7 +156,7 @@ export default function Header({ bomCount, onOpenBOMDrawer }) {
                 className="btn btn-whatsapp btn-block"
               >
                 <WhatsAppIcon size={18} color="#ffffff" />
-                <span>WhatsApp: {COMPANY_INFO.phoneDisplay}</span>
+                <span>Connect on WhatsApp</span>
               </a>
             </div>
           </div>

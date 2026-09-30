@@ -249,7 +249,7 @@ export default function GetQuotePage({ onAddCustomToBOM }) {
                 {/* Upload Handwritten List Notice */}
                 <div className="quick-upload-banner">
                   <div className="upload-icon-circle">
-                    <Upload size={20} />
+                    <Upload size={22} />
                   </div>
                   <div className="upload-text">
                     <h4>Have a Handwritten Contractor List or Structural Drawing?</h4>
@@ -262,10 +262,12 @@ export default function GetQuotePage({ onAddCustomToBOM }) {
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="whatsapp-upload-link"
+                      className="whatsapp-upload-btn"
                     >
-                      <WhatsAppIcon size={16} color="currentColor" />
-                      <span>Send Photo/PDF via WhatsApp: {COMPANY_INFO.phoneDisplay}</span>
+                      <span className="upload-btn-wa-icon">
+                        <WhatsAppIcon size={18} color="#ffffff" />
+                      </span>
+                      <span>Send Photo / PDF via WhatsApp</span>
                     </a>
                   </div>
                 </div>
@@ -413,7 +415,7 @@ export default function GetQuotePage({ onAddCustomToBOM }) {
                         className="btn btn-whatsapp btn-block btn-lg"
                       >
                         <WhatsAppIcon size={20} color="#ffffff" />
-                        <span>Send to WhatsApp Hotline (+91 97735 05015)</span>
+                        <span>Send to WhatsApp Hotline</span>
                       </a>
 
                       <button type="submit" className="btn btn-primary btn-block">

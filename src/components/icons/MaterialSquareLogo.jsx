@@ -50,50 +50,92 @@ export default function MaterialSquareLogo({ size = 42, showText = true, lightMo
       </svg>
 
       {showText && (
-        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            lineHeight: 1,
+            userSelect: 'none',
+          }}
+        >
+          {/* 1. Brand Main Name: MATERIAL */}
           <span
             style={{
               fontFamily: "'Plus Jakarta Sans', sans-serif",
-              fontSize: '1.2rem',
+              fontSize: '1.22rem',
               fontWeight: 800,
               letterSpacing: '0.08em',
               color: primaryColor,
+              textAlign: 'center',
+              display: 'block',
+              width: '100%',
             }}
           >
             MATERIAL
           </span>
 
+          {/* 2. Sub-Brand Tag: — SQUARE — with full-width expanding lines */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              width: '100%',
               gap: '0.35rem',
-              margin: '3px 0 2px 0',
+              margin: '3px 0',
             }}
           >
-            <span style={{ height: '1.5px', width: '10px', backgroundColor: brickColor }}></span>
+            <span
+              style={{
+                flex: 1,
+                height: '1.5px',
+                backgroundColor: brickColor,
+                borderRadius: '1px',
+                minWidth: '8px',
+              }}
+            />
             <span
               style={{
                 fontFamily: "'Plus Jakarta Sans', sans-serif",
                 fontSize: '0.68rem',
                 fontWeight: 800,
-                letterSpacing: '0.2em',
+                letterSpacing: '0.22em',
                 color: brickColor,
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+                paddingLeft: '0.22em', // Offsets trailing letter-spacing for optical centering
               }}
             >
               SQUARE
             </span>
-            <span style={{ height: '1.5px', width: '10px', backgroundColor: brickColor }}></span>
+            <span
+              style={{
+                flex: 1,
+                height: '1.5px',
+                backgroundColor: brickColor,
+                borderRadius: '1px',
+                minWidth: '8px',
+              }}
+            />
           </div>
 
+          {/* 3. Official Tagline: BUILDING BETTER TOGETHER */}
           <span
             style={{
+              fontFamily: "'Inter', sans-serif",
               fontSize: '0.52rem',
               fontWeight: 600,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
               color: subtextColor,
+              textAlign: 'center',
+              whiteSpace: 'nowrap',
+              display: 'block',
+              width: '100%',
+              paddingLeft: '0.12em', // Offsets trailing letter-spacing for optical centering
             }}
           >
             BUILDING BETTER TOGETHER

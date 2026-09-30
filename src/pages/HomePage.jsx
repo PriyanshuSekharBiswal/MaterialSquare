@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -7,7 +7,6 @@ import {
   Truck,
   Layers,
   Phone,
-  MessageCircle,
   CheckCircle2,
   FileText,
   Clock,
@@ -15,18 +14,34 @@ import {
   Droplet,
   Package,
 } from 'lucide-react';
-import { COMPANY_INFO, CATEGORIES } from '../data/materialsData';
+import { COMPANY_INFO } from '../data/materialsData';
 import { BRAND_LIST, BrandLogo } from '../components/icons/BrandBadges';
 import HeroShowcaseCarousel from '../components/HeroShowcaseCarousel';
 import SiteDeliveriesCarousel from '../components/SiteDeliveriesCarousel';
+import DirectionGoogleMaps from '../components/DirectionGoogleMaps';
+import SearchSuggestions from '../components/SearchSuggestions';
 import WhatsAppIcon from '../components/icons/WhatsAppIcon';
 
 export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+  const searchRef = useRef(null);
   const navigate = useNavigate();
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setIsSuggestionsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
+    setIsSuggestionsOpen(false);
     if (searchQuery.trim()) {
       navigate(`/marketplace?q=${encodeURIComponent(searchQuery.trim())}`);
     } else {
@@ -98,19 +113,71 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM })
               a single delivery vehicle directly to your construction site with factory-certified pricing and zero counterfeit risk.
             </p>
 
-            {/* Quick Search */}
-            <form onSubmit={handleSearchSubmit} className="hero-search-form">
+            {/* Quick Search with Autocomplete Suggestions */}
+            <form ref={searchRef} onSubmit={handleSearchSubmit} className="hero-search-form">
               <Search size={18} className="search-icon" />
               <input
                 type="text"
                 className="search-input"
                 placeholder="Search products or brands (e.g. UltraTech, Astral CPVC, Polycab 2.5mm)..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setIsSuggestionsOpen(true);
+                }}
+                onFocus={() => setIsSuggestionsOpen(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setIsSuggestionsOpen(false);
+                }}
+                autoComplete="off"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="search-clear-btn"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setIsSuggestionsOpen(true);
+                  }}
+                  aria-label="Clear search input"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                    padding: '0 8px',
+                    fontSize: '14px',
+                  }}
+                >
+                  ✕
+                </button>
+              )}
               <button type="submit" className="btn btn-primary search-submit-btn">
                 Search
               </button>
+
+              {/* Live Search Suggestions Dropdown */}
+              <SearchSuggestions
+                query={searchQuery}
+                isOpen={isSuggestionsOpen}
+                onSelectSuggestion={(val) => {
+                  setSearchQuery(val);
+                  setIsSuggestionsOpen(false);
+                  navigate(`/marketplace?q=${encodeURIComponent(val)}`);
+                }}
+                onSelectCategory={(catId) => {
+                  setIsSuggestionsOpen(false);
+                  navigate(`/marketplace?category=${catId}`);
+                }}
+                onSelectBrand={(brandName) => {
+                  setIsSuggestionsOpen(false);
+                  navigate(`/marketplace?brand=${encodeURIComponent(brandName)}`);
+                }}
+                onSelectProduct={(product) => {
+                  setIsSuggestionsOpen(false);
+                  navigate(`/marketplace?q=${encodeURIComponent(product.name)}`);
+                }}
+              />
             </form>
 
             {/* Quick Action Buttons */}
@@ -247,6 +314,9 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM })
         </div>
       </section>
 
+      {/* Google Maps Directions to Ghaziabad Office with Ola/Uber Animated Trucks */}
+      <DirectionGoogleMaps />
+
       {/* "Why Make 5 Calls?" Highlight Teaser */}
       <section className="home-why-teaser-section">
         <div className="container why-teaser-box">
@@ -337,7 +407,7 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM })
               className="btn btn-whatsapp btn-lg"
             >
               <WhatsAppIcon size={20} color="#ffffff" />
-              <span>WhatsApp: {COMPANY_INFO.phoneDisplay}</span>
+              <span>Connect on WhatsApp</span>
             </a>
           </div>
         </div>

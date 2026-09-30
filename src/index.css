@@ -22,9 +22,14 @@
   --ms-slate-50:  #f8fafc;       /* Canvas background */
 
   --ms-white: #ffffff;
-  --ms-whatsapp: #16a34a;
-  --ms-whatsapp-hover: #15803d;
+  --ms-whatsapp: #25d366;
+  --ms-whatsapp-teal: #128c7e;
+  --ms-whatsapp-hover: #20ba5a;
   --ms-whatsapp-light: #f0fdf4;
+  --ms-whatsapp-gradient: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
+  --ms-whatsapp-gradient-hover: linear-gradient(135deg, #2ae16d 0%, #0e7368 100%);
+  --shadow-whatsapp: 0 4px 14px rgba(18, 140, 126, 0.28);
+  --shadow-whatsapp-hover: 0 6px 20px rgba(18, 140, 126, 0.36);
 
   /* Typography */
   --font-heading: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -79,10 +84,70 @@ img {
   display: block;
 }
 
-button, input, select, textarea {
+button {
   font-family: inherit;
   font-size: inherit;
-  color: inherit;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: 0.92rem;
+  color: var(--ms-slate-900);
+  background-color: #ffffff;
+  border: 1.5px solid var(--ms-slate-400);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.85rem;
+  outline: none;
+  transition: all var(--transition-fast);
+}
+
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
+  background-size: 16px 16px;
+  padding-right: 2.5rem !important;
+  cursor: pointer;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--ms-slate-500);
+  opacity: 1;
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--ms-slate-600);
+}
+
+select:hover {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%230f172a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--ms-primary);
+  box-shadow: 0 0 0 3.5px rgba(234, 88, 12, 0.2);
+}
+
+select:focus {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23ea580c' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+label {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--ms-slate-900);
+  margin-bottom: 0.35rem;
 }
 
 a {
@@ -168,16 +233,24 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .btn-whatsapp {
-  background-color: var(--ms-whatsapp);
+  background: var(--ms-whatsapp-gradient);
   color: #ffffff;
-  border-color: var(--ms-whatsapp);
-  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.2);
+  border: none;
+  box-shadow: var(--shadow-whatsapp);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
+  transition: all var(--transition-fast);
 }
 
 .btn-whatsapp:hover {
-  background-color: var(--ms-whatsapp-hover);
-  border-color: var(--ms-whatsapp-hover);
-  transform: translateY(-1px);
+  background: var(--ms-whatsapp-gradient-hover);
+  color: #ffffff;
+  box-shadow: var(--shadow-whatsapp-hover);
+  transform: translateY(-1.5px);
+}
+
+.btn-whatsapp:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(18, 140, 126, 0.22);
 }
 
 .btn-sm {

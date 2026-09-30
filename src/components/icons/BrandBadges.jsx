@@ -154,12 +154,21 @@ export function getBrandMeta(brandNameOrId) {
 /**
  * Authentic vector brand logos based directly on Material Square brand creatives
  */
-export function BrandLogo({ id, className = '' }) {
+export function BrandLogo({ id, className = '', style = {} }) {
   // If a full name or unrecognized id was passed, resolve via getBrandMeta
   const resolvedId = getBrandMeta(id)?.id || id;
+  const isMini = className.includes('mini');
 
   switch (resolvedId) {
     case 'ultratech':
+      if (isMini) {
+        return (
+          <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="UltraTech Icon">
+            <rect x="2" y="2" width="28" height="28" rx="4" fill="#FFCC00" />
+            <text x="16" y="23" fontFamily="system-ui, -apple-system, sans-serif" fontSize="21" fontWeight="900" fontStyle="italic" fill="#000000" textAnchor="middle">U</text>
+          </svg>
+        );
+      }
       return (
         <svg viewBox="0 0 160 50" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="UltraTech Cement Logo">
           {/* Yellow banner background */}
@@ -175,36 +184,37 @@ export function BrandLogo({ id, className = '' }) {
       );
 
     case 'ambuja':
+      if (isMini) {
+        return (
+          <img
+            src="/images/brands/ambuja_giant_emblem.png"
+            alt="Ambuja Cement Icon"
+            className={className}
+            style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', objectFit: 'contain', display: 'block', ...style }}
+          />
+        );
+      }
       return (
-        <svg viewBox="0 0 150 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ambuja Cement Logo">
-          <text
-            x="75"
-            y="22"
-            fontFamily="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-            fontSize="23"
-            fontWeight="900"
-            fill="#0B2D64"
-            textAnchor="middle"
-            letterSpacing="-0.5"
-          >
-            Ambuja
-          </text>
-          <text
-            x="75"
-            y="43"
-            fontFamily="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-            fontSize="21"
-            fontWeight="900"
-            fill="#0B2D64"
-            textAnchor="middle"
-            letterSpacing="-0.2"
-          >
-            Cement
-          </text>
-        </svg>
+        <img
+          src="/images/brands/ambuja_horizontal_official.png"
+          alt="Ambuja Cement Official Logo"
+          className={className}
+          style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', objectFit: 'contain', display: 'block', ...style }}
+        />
       );
 
     case 'jk-cement':
+      if (isMini) {
+        return (
+          <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="JK Cement Icon">
+            <circle cx="16" cy="16" r="14" fill="#ffffff" />
+            <path d="M5 16 A11 11 0 0 1 16 5 L16 16 Z" fill="#2E7D32" />
+            <path d="M16 16 L16 5 A11 11 0 0 1 27 12 L16 16 Z" fill="#66BB6A" />
+            <path d="M5 16 A11 11 0 0 0 16 27 L16 16 Z" fill="#4A148C" />
+            <path d="M16 16 L16 27 A11 11 0 0 0 27 16 L16 16 Z" fill="#7B1FA2" />
+          </svg>
+        );
+      }
       return (
         <svg viewBox="0 0 150 45" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="JK Cement Logo">
           {/* Pie emblem: green and purple halves */}
@@ -217,6 +227,14 @@ export function BrandLogo({ id, className = '' }) {
       );
 
     case 'shree-cement':
+      if (isMini) {
+        return (
+          <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Shree Cement Icon">
+            <rect x="2" y="2" width="28" height="28" rx="4" fill="#D32F2F" />
+            <text x="16" y="22" fontFamily="Georgia, serif" fontSize="19" fontStyle="italic" fontWeight="900" fill="#FFFFFF" textAnchor="middle">sh</text>
+          </svg>
+        );
+      }
       return (
         <svg viewBox="0 0 150 45" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Shree Cement Logo">
           {/* Red stylized 'sh' lettermark badge */}
@@ -229,6 +247,14 @@ export function BrandLogo({ id, className = '' }) {
       );
 
     case 'astral':
+      if (isMini) {
+        return (
+          <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Astral Icon">
+            <polygon points="16,3 29,27 3,27" stroke="#D9531E" strokeWidth="3.2" strokeLinejoin="round" fill="none" />
+            <polygon points="16,10 24,24 8,24" stroke="#E67E22" strokeWidth="2" strokeLinejoin="round" fill="#FDF2E9" />
+          </svg>
+        );
+      }
       return (
         <svg viewBox="0 0 160 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Astral Pipes Logo">
           {/* Double outlined orange/gold isometric triangle */}
@@ -240,6 +266,14 @@ export function BrandLogo({ id, className = '' }) {
       );
 
     case 'supreme':
+      if (isMini) {
+        return (
+          <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Supreme Icon">
+            <circle cx="16" cy="16" r="14" fill="#E31E24" />
+            <text x="16" y="22" fontFamily="'Brush Script MT', 'Segoe Script', cursive, sans-serif" fontSize="20" fontStyle="italic" fontWeight="900" fill="#FFFFFF" textAnchor="middle">S</text>
+          </svg>
+        );
+      }
       return (
         <svg viewBox="0 0 160 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Supreme Industries Logo">
           <text x="80" y="27" fontFamily="'Brush Script MT', 'Segoe Script', cursive, sans-serif" fontSize="28" fontStyle="italic" fontWeight="900" fill="#E31E24" textAnchor="middle">Supreme</text>
@@ -248,6 +282,14 @@ export function BrandLogo({ id, className = '' }) {
       );
 
     case 'finolex-pipes':
+      if (isMini) {
+        return (
+          <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Finolex Pipes Icon">
+            <rect x="2" y="2" width="28" height="28" rx="4" fill="#FFD100" />
+            <text x="16" y="23" fontFamily="system-ui, -apple-system, sans-serif" fontSize="20" fontWeight="900" fill="#003875" textAnchor="middle">F</text>
+          </svg>
+        );
+      }
       return (
         <svg viewBox="0 0 150 46" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Finolex Pipes & Fittings Logo">
           {/* Authentic vibrant yellow box from brand creative */}
@@ -280,6 +322,14 @@ export function BrandLogo({ id, className = '' }) {
       );
 
     case 'zoloto':
+      if (isMini) {
+        return (
+          <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zoloto Valves Icon">
+            <rect x="2" y="2" width="28" height="28" rx="4" fill="#00843D" />
+            <path d="M7 8 H25 L10 24 H28" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        );
+      }
       return (
         <svg viewBox="0 0 150 46" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zoloto Valves Logo">
           {/* Green hexagon gear badge */}
@@ -291,6 +341,14 @@ export function BrandLogo({ id, className = '' }) {
       );
 
     case 'polycab':
+      if (isMini) {
+        return (
+          <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Polycab Icon">
+            <circle cx="16" cy="16" r="14" fill="#E21B22" />
+            <text x="16" y="22" fontFamily="system-ui, -apple-system, sans-serif" fontSize="19" fontWeight="900" fill="#FFFFFF" textAnchor="middle">P</text>
+          </svg>
+        );
+      }
       return (
         <svg viewBox="0 0 160 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Polycab Wires Logo">
           <text x="80" y="26" fontFamily="system-ui, -apple-system, sans-serif" fontSize="20" fontWeight="900" fill="#E21B22" textAnchor="middle" letterSpacing="1">POLYCAB</text>
@@ -301,6 +359,14 @@ export function BrandLogo({ id, className = '' }) {
       );
 
     case 'havells':
+      if (isMini) {
+        return (
+          <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Havells Icon">
+            <rect x="2" y="2" width="28" height="28" rx="4" fill="#E31B23" />
+            <text x="16" y="22" fontFamily="system-ui, -apple-system, sans-serif" fontSize="19" fontWeight="900" fill="#FFFFFF" textAnchor="middle">H</text>
+          </svg>
+        );
+      }
       return (
         <svg viewBox="0 0 150 46" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Havells Logo">
           {/* Dual red arc emblem */}
@@ -311,6 +377,14 @@ export function BrandLogo({ id, className = '' }) {
       );
 
     case 'finolex-cables':
+      if (isMini) {
+        return (
+          <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Finolex Cables Icon">
+            <rect x="2" y="2" width="28" height="28" rx="4" fill="#0072CE" />
+            <text x="16" y="23" fontFamily="system-ui, -apple-system, sans-serif" fontSize="20" fontWeight="900" fill="#FFFFFF" textAnchor="middle">F</text>
+          </svg>
+        );
+      }
       return (
         <svg viewBox="0 0 150 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Finolex Cables Limited Logo">
           <text
@@ -343,19 +417,36 @@ export function BrandLogo({ id, className = '' }) {
       );
 
     case 'asian-paints':
+      if (isMini) {
+        return (
+          <svg viewBox="0 0 34 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Asian Paints Icon">
+            <circle cx="11" cy="14" r="6.5" stroke="#F15A24" strokeWidth="3.5" fill="none" />
+            <path d="M14.5 14 V26" stroke="#F15A24" strokeWidth="3.5" strokeLinecap="round" />
+            <circle cx="23" cy="18" r="6.5" stroke="#9E1F63" strokeWidth="3.5" fill="none" />
+            <path d="M19.5 10 V26" stroke="#9E1F63" strokeWidth="3.5" strokeLinecap="round" />
+          </svg>
+        );
+      }
       return (
-        <svg viewBox="0 0 160 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Asian Paints Logo">
-          {/* Iconic dual-color ribbon 'ap' mark */}
-          <circle cx="20" cy="18" r="8" stroke="#F15A24" strokeWidth="4.5" fill="none" />
-          <path d="M24 18 V34" stroke="#F15A24" strokeWidth="4.5" strokeLinecap="round" />
-          <circle cx="34" cy="24" r="8" stroke="#9E1F63" strokeWidth="4.5" fill="none" />
-          <path d="M30 14 V34" stroke="#9E1F63" strokeWidth="4.5" strokeLinecap="round" />
-          {/* Text */}
-          <text x="48" y="29" fontFamily="system-ui, -apple-system, sans-serif" fontSize="18" fontWeight="800" fill="#E31E24" letterSpacing="-0.3">asianpaints</text>
-        </svg>
+        <img
+          src="/images/brands/asian_paints_official_transparent.png"
+          alt="Asian Paints Official Logo"
+          className={className}
+          style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', objectFit: 'contain', display: 'block', ...style }}
+        />
       );
 
     case 'birla-opus':
+      if (isMini) {
+        return (
+          <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Birla Opus Icon">
+            <circle cx="10" cy="10" r="5" fill="#00A651" />
+            <circle cx="22" cy="10" r="5" fill="#2E3192" />
+            <circle cx="10" cy="22" r="5" fill="#F7941D" />
+            <circle cx="22" cy="22" r="5" fill="#ED1C24" />
+          </svg>
+        );
+      }
       return (
         <svg viewBox="0 0 160 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Birla Opus Paints Logo">
           {/* Mosaic geometric dots (green, blue, orange, red) */}
@@ -371,6 +462,14 @@ export function BrandLogo({ id, className = '' }) {
       );
 
     case 'jaquar':
+      if (isMini) {
+        return (
+          <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Jaquar Icon">
+            <rect x="2" y="2" width="28" height="28" rx="4" fill="#006570" />
+            <text x="16" y="23" fontFamily="Georgia, serif" fontSize="20" fontStyle="italic" fontWeight="900" fill="#FFFFFF" textAnchor="middle">J</text>
+          </svg>
+        );
+      }
       return (
         <svg viewBox="0 0 150 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Jaquar Logo">
           <text x="75" y="26" fontFamily="Georgia, serif" fontSize="25" fontStyle="italic" fontWeight="900" fill="#006570" textAnchor="middle" letterSpacing="-0.5">Jaquar</text>
@@ -379,14 +478,32 @@ export function BrandLogo({ id, className = '' }) {
       );
 
     case 'cera':
+      if (isMini) {
+        return (
+          <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CERA Icon">
+            <rect x="2" y="2" width="28" height="28" rx="4" fill="#0099DA" />
+            <text x="16" y="23" fontFamily="system-ui, -apple-system, sans-serif" fontSize="19" fontWeight="900" fill="#FFFFFF" textAnchor="middle">C</text>
+          </svg>
+        );
+      }
       return (
-        <svg viewBox="0 0 150 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CERA Logo">
-          <text x="75" y="26" fontFamily="system-ui, -apple-system, sans-serif" fontSize="25" fontWeight="900" fill="#0099DA" textAnchor="middle" letterSpacing="2">CERA</text>
-          <text x="75" y="39" fontFamily="system-ui, -apple-system, sans-serif" fontSize="6.5" fontWeight="700" fill="#555555" textAnchor="middle" letterSpacing="0.8">Sanitaryware | Faucets | Tiles</text>
-        </svg>
+        <img
+          src="/images/brands/cera_official_transparent.png"
+          alt="CERA Sanitaryware Official Logo"
+          className={className}
+          style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', objectFit: 'contain', display: 'block', ...style }}
+        />
       );
 
     case 'tata-tiscon':
+      if (isMini) {
+        return (
+          <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tata Tiscon Icon">
+            <rect x="2" y="2" width="28" height="28" rx="4" fill="#005696" />
+            <text x="16" y="23" fontFamily="system-ui, -apple-system, sans-serif" fontSize="19" fontWeight="900" fill="#FFFFFF" textAnchor="middle">T</text>
+          </svg>
+        );
+      }
       return (
         <svg viewBox="0 0 160 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tata Tiscon Logo">
           {/* Blue backdrop with TATA emblem */}
@@ -397,17 +514,41 @@ export function BrandLogo({ id, className = '' }) {
       );
 
     case 'myk-laticrete':
+      if (isMini) {
+        return (
+          <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MYK Laticrete Icon">
+            <rect x="2" y="2" width="28" height="28" rx="3" fill="#00529B" />
+            <rect x="6" y="6" width="20" height="20" rx="1.5" fill="#002B5C" stroke="#FFFFFF" strokeWidth="1" />
+            <line x1="6" y1="12.6" x2="26" y2="12.6" stroke="#FFFFFF" strokeWidth="0.8" />
+            <line x1="6" y1="19.3" x2="26" y2="19.3" stroke="#FFFFFF" strokeWidth="0.8" />
+            <line x1="12.6" y1="6" x2="12.6" y2="26" stroke="#FFFFFF" strokeWidth="0.8" />
+            <line x1="19.3" y1="6" x2="19.3" y2="26" stroke="#FFFFFF" strokeWidth="0.8" />
+          </svg>
+        );
+      }
       return (
-        <svg viewBox="0 0 160 46" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MYK Laticrete Logo">
+        <svg viewBox="0 0 180 46" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MYK Laticrete Logo">
           {/* Blue badge */}
-          <rect x="4" y="8" width="152" height="30" rx="3" fill="#00529B" />
+          <rect x="4" y="8" width="172" height="30" rx="3" fill="#00529B" />
           {/* Grid icon */}
-          <rect x="10" y="13" width="18" height="20" rx="1" fill="#003366" stroke="#FFFFFF" strokeWidth="1" />
-          <line x1="10" y1="20" x2="28" y2="20" stroke="#FFFFFF" strokeWidth="0.8" />
-          <line x1="10" y1="26" x2="28" y2="26" stroke="#FFFFFF" strokeWidth="0.8" />
+          <rect x="10" y="13" width="18" height="20" rx="1.5" fill="#002B5C" stroke="#FFFFFF" strokeWidth="1" />
+          <line x1="10" y1="19.7" x2="28" y2="19.7" stroke="#FFFFFF" strokeWidth="0.8" />
+          <line x1="10" y1="26.3" x2="28" y2="26.3" stroke="#FFFFFF" strokeWidth="0.8" />
           <line x1="16" y1="13" x2="16" y2="33" stroke="#FFFFFF" strokeWidth="0.8" />
           <line x1="22" y1="13" x2="22" y2="33" stroke="#FFFFFF" strokeWidth="0.8" />
-          <text x="34" y="27" fontFamily="system-ui, -apple-system, sans-serif" fontSize="13.5" fontWeight="900" fill="#FFFFFF" letterSpacing="1">MYK LATICRETE</text>
+          {/* Centered text with ample breathing room to prevent cropping */}
+          <text
+            x="103"
+            y="27.5"
+            fontFamily="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+            fontSize="12"
+            fontWeight="900"
+            fill="#FFFFFF"
+            textAnchor="middle"
+            letterSpacing="0.6"
+          >
+            MYK LATICRETE
+          </text>
         </svg>
       );
 

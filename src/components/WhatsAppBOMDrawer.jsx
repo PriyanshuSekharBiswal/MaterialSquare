@@ -178,22 +178,43 @@ export default function WhatsAppBOMDrawer({
               </select>
             </div>
 
-            <div className="input-group">
-              <label htmlFor="customList">
-                Type Your Material List (*"Material ki list khatam hi nahi ho rahi!"*)
-              </label>
-              <textarea
-                id="customList"
-                rows="4"
-                placeholder="e.g.&#10;- 200 bags UltraTech Super Cement&#10;- 2 MT Tata Tiscon 12mm TMT&#10;- 5 coils Polycab 2.5mm red/black&#10;- Astral CPVC 1 inch pipes (15 lengths) + fittings&#10;- 2 buckets Asian Paints Apex Ultima"
-                value={customListText}
-                onChange={(e) => setCustomListText(e.target.value)}
-              />
+            <div className="input-group bom-custom-list-group">
+              <div className="bom-field-label-row">
+                <label htmlFor="customList">Required Materials & Quantities</label>
+                <span className="bom-hindi-badge">"Material ki list khatam hi nahi ho rahi!"</span>
+              </div>
+              
+              <div className="bom-textarea-wrapper">
+                <textarea
+                  id="customList"
+                  rows="4"
+                  className="bom-custom-textarea"
+                  placeholder="Type your required materials & quantities (e.g. 200 bags Cement, 2 MT TMT Steel, CPVC fittings, Asian Paints)..."
+                  value={customListText}
+                  onChange={(e) => setCustomListText(e.target.value)}
+                />
+                {customListText && (
+                  <button
+                    type="button"
+                    className="bom-text-clear-btn"
+                    onClick={() => setCustomListText('')}
+                    title="Clear text"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
 
-            <button type="submit" className="btn btn-whatsapp btn-block bom-submit-action">
-              <WhatsAppIcon size={20} color="#ffffff" />
-              <span>Send Material List on WhatsApp (9773505015)</span>
+            <button type="submit" className="bom-whatsapp-submit-btn">
+              <span className="bom-wa-icon-bubble">
+                <WhatsAppIcon size={20} color="#ffffff" />
+              </span>
+              <span className="bom-wa-text-group">
+                <span className="bom-wa-main-text">Send Material List on WhatsApp</span>
+                <span className="bom-wa-sub-text">Direct connect with procurement desk</span>
+              </span>
+              <Send size={16} className="bom-wa-arrow-icon" />
             </button>
 
             <div className="bom-dispatch-guarantee">

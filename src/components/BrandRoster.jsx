@@ -5,7 +5,7 @@ import { BRAND_LIST, BrandLogo } from './icons/BrandBadges';
 export default function BrandRoster({ onSelectBrand, selectedBrand }) {
   const [filterCategory, setFilterCategory] = useState('All');
 
-  const categories = ['All', 'Cement', 'Pipes', 'Wires', 'Paints', 'Sanitary', 'Steel'];
+  const categories = ['All', 'Cement', 'Pipes', 'Wires', 'Paints', 'Sanitary', 'Steel', 'Adhesives'];
 
   const filteredBrands = filterCategory === 'All'
     ? BRAND_LIST
