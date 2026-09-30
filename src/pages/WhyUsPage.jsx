@@ -104,7 +104,7 @@ export default function WhyUsPage({ onOpenBOMDrawer }) {
             </p>
           </div>
 
-          <div className="comparison-table-wrapper">
+          <div className="comparison-table-wrapper reveal-card">
             <table className="comparison-table">
               <thead>
                 <tr>
@@ -143,14 +143,21 @@ export default function WhyUsPage({ onOpenBOMDrawer }) {
       <section className="site-bingo-section">
         <div className="container">
           <div className="section-title-wrap text-center">
-            <span className="badge-pill badge-orange-pill">Real Site Nightmares Solved</span>
-            <h2 className="section-title-clean">Construction Bingo: 6 Common Site Headaches We Eliminate</h2>
-            <p className="section-subtitle-clean">
+            <span className="badge-pill badge-orange-pill reveal-text">Real Site Nightmares Solved</span>
+            <h2 className="section-title-clean reveal-title">
+              <span className="ms-mask-line">
+                <span className="ms-mask-text">Construction Bingo:</span>
+              </span>{' '}
+              <span className="ms-mask-line">
+                <span className="ms-mask-text delay-1">6 Common Site Headaches We Eliminate</span>
+              </span>
+            </h2>
+            <p className="section-subtitle-clean reveal-text">
               Contractors, architects, and site supervisors in Delhi NCR lose up to 14 days per project to preventable supply disruptions. Here is how we fix them.
             </p>
           </div>
 
-          <div className="bingo-cards-grid">
+          <div className="bingo-cards-grid reveal-stagger">
             {CONSTRUCTION_BINGO.map((item, idx) => (
               <div key={item.id} className="bingo-card">
                 <div className="bingo-card-header">
@@ -185,13 +192,20 @@ export default function WhyUsPage({ onOpenBOMDrawer }) {
         <div className="container">
           <div className="fleet-grid-split">
             <div className="fleet-info-col">
-              <span className="badge-pill">Site Logistics Infrastructure</span>
-              <h2 className="section-title-clean">Consolidated Fleet Coverage Across Delhi NCR</h2>
-              <p className="fleet-desc">
+              <span className="badge-pill reveal-text">Site Logistics Infrastructure</span>
+              <h2 className="section-title-clean reveal-title">
+                <span className="ms-mask-line">
+                  <span className="ms-mask-text">Consolidated Fleet Coverage</span>
+                </span>{' '}
+                <span className="ms-mask-line">
+                  <span className="ms-mask-text delay-1">Across Delhi NCR</span>
+                </span>
+              </h2>
+              <p className="fleet-desc reveal-text">
                 From tight residential colonies in South Delhi and Noida sectors to sprawling villa sites in Greater Noida and Gurugram, our specialized logistics fleet delivers materials directly past your site gate.
               </p>
 
-              <div className="fleet-features-list">
+              <div className="fleet-features-list reveal-stagger">
                 <div className="fleet-feat-item">
                   <div className="feat-icon-circle">
                     <Truck size={18} />
@@ -224,7 +238,7 @@ export default function WhyUsPage({ onOpenBOMDrawer }) {
               </div>
 
               {/* Service Areas Pills */}
-              <div className="service-zones-box">
+              <div className="service-zones-box reveal-card">
                 <span className="zones-heading">
                   <MapPin size={15} /> Active Service Zones:
                 </span>
@@ -240,7 +254,7 @@ export default function WhyUsPage({ onOpenBOMDrawer }) {
             </div>
 
             <div className="fleet-media-col">
-              <div className="fleet-visual-card">
+              <div className="fleet-visual-card reveal-card">
                 <img
                   src="https://images.unsplash.com/photo-1541888946425-d0fbb186c5f7?auto=format&fit=crop&w=900&q=80"
                   alt="Material Square Construction Fleet"
@@ -259,14 +273,18 @@ export default function WhyUsPage({ onOpenBOMDrawer }) {
       <section className="authorized-brands-section">
         <div className="container">
           <div className="section-title-wrap text-center">
-            <span className="badge-pill">Direct Manufacturer Relationships</span>
-            <h2 className="section-title-clean">16 Authorized Brand Partners</h2>
-            <p className="section-subtitle-clean">
+            <span className="badge-pill reveal-text">Direct Manufacturer Relationships</span>
+            <h2 className="section-title-clean reveal-title">
+              <span className="ms-mask-line">
+                <span className="ms-mask-text">16 Authorized Brand Partners</span>
+              </span>
+            </h2>
+            <p className="section-subtitle-clean reveal-text">
               Zero middlemen. Direct authorized channel pricing from India's most trusted building product giants.
             </p>
           </div>
 
-          <div className="brands-full-grid">
+          <div className="brands-full-grid reveal-stagger">
             {BRAND_LIST.map((b) => (
               <Link
                 key={b.id}
@@ -295,10 +313,10 @@ export default function WhyUsPage({ onOpenBOMDrawer }) {
 
       {/* Bottom CTA */}
       <section className="why-bottom-cta">
-        <div className="container cta-box-gradient">
+        <div className="container cta-box-gradient reveal-card">
           <div className="cta-left">
-            <h2>Ready to Simplify Your Next Construction Milestone?</h2>
-            <p>"{COMPANY_INFO.sloganHindi}"</p>
+            <h2 className="reveal-title">Ready to Simplify Your Next Construction Milestone?</h2>
+            <p className="reveal-text">"{COMPANY_INFO.sloganHindi}"</p>
           </div>
           <div className="cta-actions">
             <Link to="/get-quote" className="btn btn-primary btn-lg">

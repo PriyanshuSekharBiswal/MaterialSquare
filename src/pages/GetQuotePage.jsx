@@ -2,23 +2,15 @@ import React, { useState } from 'react';
 import {
   FileText,
   Upload,
-  MessageCircle,
-  Phone,
   CheckCircle2,
-  MapPin,
-  Calendar,
-  Layers,
   Building,
   Plus,
   Trash2,
-  Clock,
-  ShieldCheck,
   Send,
 } from 'lucide-react';
-import { COMPANY_INFO, PRODUCTS } from '../data/materialsData';
 import WhatsAppIcon from '../components/icons/WhatsAppIcon';
 
-export default function GetQuotePage({ onAddCustomToBOM }) {
+export default function GetQuotePage({ onAddCustomToBOM: _onAddCustomToBOM }) {
   // Form State
   const [projectStage, setProjectStage] = useState('rcc');
   const [siteLocation, setSiteLocation] = useState('Noida');
@@ -158,7 +150,7 @@ export default function GetQuotePage({ onAddCustomToBOM }) {
             <div className="quote-builder-grid">
               {/* Left Column: BOM Item List Builder */}
               <div className="quote-items-col">
-                <div className="card-box">
+                <div className="card-box reveal-card">
                   <div className="card-box-header">
                     <div className="header-icon-title">
                       <FileText size={20} className="icon-orange" />
@@ -259,7 +251,7 @@ export default function GetQuotePage({ onAddCustomToBOM }) {
                 </div>
 
                 {/* Upload Handwritten List Notice */}
-                <div className="quick-upload-banner">
+                <div className="quick-upload-banner reveal-card">
                   <div className="upload-icon-circle">
                     <Upload size={22} />
                   </div>
@@ -287,7 +279,7 @@ export default function GetQuotePage({ onAddCustomToBOM }) {
 
               {/* Right Column: Site & Contact Details */}
               <div className="quote-details-col">
-                <div className="card-box">
+                <div className="card-box reveal-card">
                   <div className="card-box-header">
                     <div className="header-icon-title">
                       <Building size={20} className="icon-orange" />

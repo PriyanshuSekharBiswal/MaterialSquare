@@ -67,6 +67,8 @@
   box-shadow: 0 10px 35px -5px rgba(60, 64, 67, 0.16), 0 4px 12px rgba(60, 64, 67, 0.08);
   overflow: hidden;
   position: relative;
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 /* Chrome Header (Search Bar & Logo) */
@@ -343,6 +345,8 @@
   aspect-ratio: 1000 / 620;
   background: #f8fafc;
   overflow: hidden;
+  transform: translateZ(0);
+  contain: paint layout;
 }
 
 .gmaps-vector-svg {

@@ -17,15 +17,22 @@ export default function BrandRoster({ onSelectBrand, selectedBrand }) {
         {/* Section Header */}
         <div className="brand-roster-header">
           <div className="roster-header-text">
-            <span className="badge-orange">100% Genuine Manufacturer Partners</span>
-            <h2 className="section-title">Trusted Brands. One Destination.</h2>
-            <p className="section-subtitle">
+            <span className="badge-orange reveal-text">100% Genuine Manufacturer Partners</span>
+            <h2 className="section-title reveal-title">
+              <span className="ms-mask-line">
+                <span className="ms-mask-text">Trusted Brands.</span>
+              </span>{' '}
+              <span className="ms-mask-line">
+                <span className="ms-mask-text delay-1">One Destination.</span>
+              </span>
+            </h2>
+            <p className="section-subtitle reveal-text">
               Zero counterfeit risk. Material Square delivers directly from authorized factory depots with manufacturer GST invoices and batch test certificates.
             </p>
           </div>
 
           {/* Category Filter Pills */}
-          <div className="roster-filter-pills">
+          <div className="roster-filter-pills reveal-text">
             {categories.map((cat) => (
               <button
                 key={cat}
@@ -40,7 +47,7 @@ export default function BrandRoster({ onSelectBrand, selectedBrand }) {
         </div>
 
         {/* Brand Cards Grid */}
-        <div className="brand-cards-grid">
+        <div className="brand-cards-grid reveal-stagger">
           {filteredBrands.map((brand) => {
             const isSelected = selectedBrand === brand.name;
             return (

@@ -158,14 +158,21 @@ export default function ContactPage() {
       <section className="coverage-zones-section">
         <div className="container">
           <div className="section-title-wrap text-center">
-            <span className="badge-pill">Fleet Logistics Infrastructure</span>
-            <h2 className="section-title-clean">Delhi NCR Dedicated Service Coverage</h2>
-            <p className="section-subtitle-clean">
+            <span className="badge-pill reveal-text">Fleet Logistics Infrastructure</span>
+            <h2 className="section-title-clean reveal-title">
+              <span className="ms-mask-line">
+                <span className="ms-mask-text">Delhi NCR Dedicated</span>
+              </span>{' '}
+              <span className="ms-mask-line">
+                <span className="ms-mask-text delay-1">Service Coverage</span>
+              </span>
+            </h2>
+            <p className="section-subtitle-clean reveal-text">
               Our GPS-tracked fleet delivers directly past your site gate across the National Capital Region.
             </p>
           </div>
 
-          <div className="zones-table-wrapper">
+          <div className="zones-table-wrapper reveal-card">
             <table className="zones-table">
               <thead>
                 <tr>
@@ -210,13 +217,20 @@ export default function ContactPage() {
         <div className="container">
           <div className="contact-form-layout">
             <div className="form-info-col">
-              <span className="badge-pill badge-orange-pill">Direct Procurement Inquiry</span>
-              <h2>Schedule a Site Visit or Material Consultation</h2>
-              <p>
+              <span className="badge-pill badge-orange-pill reveal-text">Direct Procurement Inquiry</span>
+              <h2 className="reveal-title">
+                <span className="ms-mask-line">
+                  <span className="ms-mask-text">Schedule a Site Visit</span>
+                </span>{' '}
+                <span className="ms-mask-line">
+                  <span className="ms-mask-text delay-1">or Material Consultation</span>
+                </span>
+              </h2>
+              <p className="reveal-text">
                 Have a new residential villa, apartment project, or commercial build starting in Delhi NCR? Request a site visit from our technical material coordinator to finalize BOQ specifications and bulk contractor pricing.
               </p>
 
-              <div className="guarantees-list">
+              <div className="guarantees-list reveal-stagger">
                 <div className="guarantee-item">
                   <ShieldCheck size={18} className="g-icon" />
                   <div>
@@ -236,7 +250,7 @@ export default function ContactPage() {
             </div>
 
             <div className="form-box-col">
-              <div className="inquiry-form-card">
+              <div className="inquiry-form-card reveal-card">
                 {submitted ? (
                   <div className="inquiry-success">
                     <CheckCircle2 size={40} className="check-green" />

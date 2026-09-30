@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
-import Lenis from 'lenis';
-import 'lenis/dist/lenis.css';
+import LocomotiveScroll from 'locomotive-scroll';
+import 'locomotive-scroll/dist/locomotive-scroll.css';
 
 /**
- * Super smooth momentum inertia scrolling powered by Lenis
- * Gives the website an ultra-luxurious, smooth feel across all browsers and devices
+ * Locomotive Scroll v5 setup
+ * Combines Locomotive's scroll detection & parallax with instantaneous, buttery smooth momentum
  */
 export default function useSmoothScroll() {
   useEffect(() => {
@@ -13,29 +13,25 @@ export default function useSmoothScroll() {
       return;
     }
 
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // Apple-like quintic deceleration curve
-      orientation: 'vertical',
-      gestureOrientation: 'vertical',
-      smoothWheel: true,
-      wheelMultiplier: 1.0,
-      touchMultiplier: 1.6,
-      infinite: false,
+    const locomotiveScroll = new LocomotiveScroll({
+      lenisOptions: {
+        wrapper: window,
+        content: document.documentElement,
+        lerp: 0.095, // Snappy & ultra-responsive momentum without sluggish delay
+        duration: 0.85,
+        smoothWheel: true,
+        wheelMultiplier: 1.15,
+        touchMultiplier: 1.8,
+        infinite: false,
+      },
     });
 
-    window.__lenis = lenis;
-
-    let rafId;
-    function raf(time) {
-      lenis.raf(time);
-      rafId = requestAnimationFrame(raf);
-    }
-    rafId = requestAnimationFrame(raf);
+    window.__locomotiveScroll = locomotiveScroll;
+    window.__lenis = locomotiveScroll.lenisInstance;
 
     return () => {
-      cancelAnimationFrame(rafId);
-      lenis.destroy();
+      locomotiveScroll.destroy();
+      delete window.__locomotiveScroll;
       delete window.__lenis;
     };
   }, []);

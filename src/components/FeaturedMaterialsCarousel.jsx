@@ -6,13 +6,12 @@ import {
   Check,
   Plus,
   ArrowRight,
-  Package,
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 import WhatsAppIcon from './icons/WhatsAppIcon';
 import { BrandLogo, getBrandMeta } from './icons/BrandBadges';
-import { PRODUCTS, COMPANY_INFO } from '../data/materialsData';
+import { PRODUCTS } from '../data/materialsData';
 
 export default function FeaturedMaterialsCarousel({ onToggleBOM, bomList = [] }) {
   // Select top 8 flagship materials across all trades

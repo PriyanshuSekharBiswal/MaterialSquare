@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Phone, MessageCircle, FileText, Menu, X, MapPin } from 'lucide-react';
 import MaterialSquareLogo from './icons/MaterialSquareLogo';
+import WhatsAppIcon from './icons/WhatsAppIcon';
 import { COMPANY_INFO } from '../data/materialsData';
 
 export default function Navbar({ onOpenBOM, onNavigateSection }) {

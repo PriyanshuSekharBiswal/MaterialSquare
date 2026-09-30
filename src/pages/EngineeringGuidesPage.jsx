@@ -172,19 +172,26 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
           {/* TAB 1: WIRE SIZING CALCULATOR */}
           {activeTab === 'wire' && (
             <div className="tab-pane-wire">
-              <div className="guide-intro-card">
+              <div className="guide-intro-card reveal-card">
                 <div className="intro-badge-row">
                   <span className="badge-pill">IS 694 Indian Electrical Standards</span>
                   <span className="note-text">Pure Electrolytic Copper Conductors</span>
                 </div>
-                <h2>Interactive Wire Gauge & Circuit Sizing</h2>
-                <p>
+                <h2 className="reveal-title">
+                  <span className="ms-mask-line">
+                    <span className="ms-mask-text">Interactive Wire Gauge</span>
+                  </span>{' '}
+                  <span className="ms-mask-line">
+                    <span className="ms-mask-text delay-1">& Circuit Sizing</span>
+                  </span>
+                </h2>
+                <p className="reveal-text">
                   Undersized wires overheat inside conduit pipes, trip MCBs prematurely, and cause electrical fire hazards. Use this calculator to match conductor cross-sections with specific appliances.
                 </p>
               </div>
 
               {/* Interactive Calculator Card */}
-              <div className="calculator-box-grid">
+              <div className="calculator-box-grid reveal-card">
                 <div className="calc-controls-col">
                   <h3>Select Circuit / Appliance Type:</h3>
                   <div className="load-options-list">
@@ -310,7 +317,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
               </div>
 
               {/* Reference Table */}
-              <div className="wire-reference-table-wrap">
+              <div className="wire-reference-table-wrap reveal-card">
                 <h3>Full IS 694 Conductor Sizing Reference Sheet</h3>
                 <div className="table-responsive">
                   <table className="engineering-table">
@@ -343,19 +350,26 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
           {/* TAB 2: PLUMBING BASICS (PVC vs CPVC vs uPVC) */}
           {activeTab === 'plumbing' && (
             <div className="tab-pane-plumbing">
-              <div className="guide-intro-card">
+              <div className="guide-intro-card reveal-card">
                 <div className="intro-badge-row">
                   <span className="badge-pill">ASTM D2846 & IS 15778 Standards</span>
                   <span className="note-text">Hot, Cold & Drainage Systems</span>
                 </div>
-                <h2>Plumbing Pipe Selection Matrix & Material Dating</h2>
-                <p>
+                <h2 className="reveal-title">
+                  <span className="ms-mask-line">
+                    <span className="ms-mask-text">Plumbing Pipe Selection Matrix</span>
+                  </span>{' '}
+                  <span className="ms-mask-line">
+                    <span className="ms-mask-text delay-1">& Material Dating</span>
+                  </span>
+                </h2>
+                <p className="reveal-text">
                   Selecting the wrong pipe material or mixing fittings results in hairline fractures behind expensive bathroom tiles. Here is the field guide to CPVC, uPVC, and PVC plumbing.
                 </p>
               </div>
 
               {/* 3 Pipe Comparison Cards */}
-              <div className="plumbing-cards-grid">
+              <div className="plumbing-cards-grid reveal-stagger">
                 {PLUMBING_GUIDE.map((pipe, idx) => (
                   <div key={idx} className="pipe-spec-card">
                     <div className="pipe-header">
@@ -402,7 +416,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
               </div>
 
               {/* Material Dating & Matched Fittings Section */}
-              <div className="material-dating-banner">
+              <div className="material-dating-banner reveal-card">
                 <div className="dating-col">
                   <div className="banner-icon-title">
                     <Calendar size={20} />
@@ -430,19 +444,26 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
           {/* TAB 3: SITE STORAGE RULES */}
           {activeTab === 'storage' && (
             <div className="tab-pane-storage">
-              <div className="guide-intro-card">
+              <div className="guide-intro-card reveal-card">
                 <div className="intro-badge-row">
                   <span className="badge-pill">On-Site Loss Prevention</span>
                   <span className="note-text">Prevent 8-15% Material Scrap</span>
                 </div>
-                <h2>"Pipe Kharid Liya... Rakhenge Kahan?" — Proper Site Storage Guide</h2>
-                <p>
+                <h2 className="reveal-title">
+                  <span className="ms-mask-line">
+                    <span className="ms-mask-text">"Pipe Kharid Liya... Rakhenge Kahan?"</span>
+                  </span>{' '}
+                  <span className="ms-mask-line">
+                    <span className="ms-mask-text delay-1">— Proper Site Storage Guide</span>
+                  </span>
+                </h2>
+                <p className="reveal-text">
                   Improper site stacking causes bent pipes, premature cement hydration (lumping), and corroded TMT steel before casting begins. Protect your investment with these standard field rules.
                 </p>
               </div>
 
               {/* 3 Pillar Storage Guidelines */}
-              <div className="storage-rules-grid">
+              <div className="storage-rules-grid reveal-stagger">
                 {/* Cement Rule */}
                 <div className="storage-card">
                   <div className="storage-card-header">
@@ -543,7 +564,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
           )}
 
           {/* CTA Footer */}
-          <div className="guide-bottom-dispatch-card">
+          <div className="guide-bottom-dispatch-card reveal-card">
             <div>
               <h3>Have Structural or Plumbing Drawings for Your Site?</h3>
               <p>Our engineering procurement team can extract exact BOQ quantities for your project with zero wastage allowance.</p>

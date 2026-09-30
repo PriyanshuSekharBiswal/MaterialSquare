@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import {
   Search,
-  Filter,
   Check,
   Plus,
   Info,
@@ -35,7 +35,17 @@ export default function MarketplacePage({
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [onlyInStock, setOnlyInStock] = useState(false);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+  const [isStickyDismissed, setIsStickyDismissed] = useState(false);
+  const prevBomCountRef = useRef(bomList.length);
   const searchRef = useRef(null);
+
+  // If user adds new items to BOM, re-show notification bar if it was dismissed
+  useEffect(() => {
+    if (bomList.length > prevBomCountRef.current) {
+      setIsStickyDismissed(false);
+    }
+    prevBomCountRef.current = bomList.length;
+  }, [bomList.length]);
 
   // Close suggestions on click outside
   useEffect(() => {
@@ -172,7 +182,7 @@ export default function MarketplacePage({
       <section className="marketplace-main-section">
         <div className="container">
           {/* Controls Bar: Search, Category Tabs, Brand Filter */}
-          <div className="catalog-controls-card">
+          <div className="catalog-controls-card reveal-card">
             {/* Search and Brand row */}
             <div className="controls-top-row">
               <div ref={searchRef} className="search-field-wrap">
@@ -343,7 +353,7 @@ export default function MarketplacePage({
           </div>
 
           {/* Results Summary Bar */}
-          <div className="results-summary-row">
+          <div className="results-summary-row reveal-text">
             <span className="results-count-text">
               Showing <strong>{filteredProducts.length}</strong> verified materials
               {activeCategory !== 'all' && ` in ${CATEGORIES.find((c) => c.id === activeCategory)?.label}`}
@@ -360,7 +370,7 @@ export default function MarketplacePage({
 
           {/* Products Grid */}
           {filteredProducts.length > 0 ? (
-            <div className="products-directory-grid">
+            <div className="products-directory-grid reveal-stagger">
               {filteredProducts.map((product) => {
                 const inBOM = isItemInBOM(product.id);
                 const brandMeta = getBrandMeta(product.brand);
@@ -508,35 +518,51 @@ export default function MarketplacePage({
             </div>
           )}
 
-          {/* Sticky BOM trigger floating bottom bar if items in list */}
-          {bomList.length > 0 && (
-            <div className="sticky-bom-notification-bar">
-              <div className="container sticky-bom-content">
-                <div className="sticky-bom-info">
-                  <span className="badge-count-pill">{bomList.length}</span>
-                  <div>
-                    <strong>{bomList.length} item{bomList.length > 1 ? 's' : ''} in your Material List</strong>
-                    <span className="sticky-sub">Ready to compile for consolidated Delhi NCR site dispatch.</span>
-                  </div>
-                </div>
-
-                <div className="sticky-bom-actions">
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={onOpenBOMDrawer}
-                  >
-                    View & Dispatch Material List
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </section>
 
       {/* Authorized Manufacturer Partner Directory */}
       <BrandRoster onSelectBrand={handleBrandChange} selectedBrand={selectedBrand} />
+
+      {/* Sticky BOM trigger floating bottom bar if items in list and not dismissed (Rendered via Portal to document.body so it is perfectly fixed to the viewport) */}
+      {typeof document !== 'undefined' &&
+        bomList.length > 0 &&
+        !isStickyDismissed &&
+        createPortal(
+          <div className="sticky-bom-notification-bar" role="region" aria-label="Material List Notification">
+            <div className="sticky-bom-content">
+              <div className="sticky-bom-info">
+                <span className="badge-count-pill">{bomList.length}</span>
+                <div className="sticky-bom-text-wrap">
+                  <strong className="sticky-bom-title">
+                    {bomList.length} item{bomList.length > 1 ? 's' : ''} in your Material List
+                  </strong>
+                  <span className="sticky-bom-sub">Ready for consolidated Delhi NCR site dispatch</span>
+                </div>
+              </div>
+
+              <div className="sticky-bom-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary sticky-bom-view-btn"
+                  onClick={onOpenBOMDrawer}
+                >
+                  View &amp; Dispatch List
+                </button>
+                <button
+                  type="button"
+                  className="sticky-bom-close-btn"
+                  onClick={() => setIsStickyDismissed(true)}
+                  title="Dismiss notification"
+                  aria-label="Close notification"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

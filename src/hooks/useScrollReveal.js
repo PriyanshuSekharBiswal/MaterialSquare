@@ -1,30 +1,53 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 
 /**
  * Universal scroll reveal hook inspired by materialsquare.in
- * Uses IntersectionObserver to trigger luxurious upward fade & kinetic text reveals
- * with Apple/Quintic easing: cubic-bezier(0.22, 1, 0.36, 1)
+ * Supports route changes, dynamic tab switching, and Locomotive Scroll / Lenis.
+ * Uses high-performance IntersectionObserver + rAF throttled scroll fallback.
  */
 export default function useScrollReveal() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
+  const rafIdRef = useRef(null);
 
   useEffect(() => {
-    // Small timeout to allow DOM to mount after route transition
-    const timer = setTimeout(() => {
+    let observer;
+    let isCancelled = false;
+
+    const checkAndReveal = () => {
+      if (isCancelled) return;
       const targets = document.querySelectorAll(
         '.reveal-text, .reveal-title, .reveal-stagger, .reveal-card, .ms-mask-line, [data-reveal]'
       );
 
       if (!targets.length) return;
 
-      if (!('IntersectionObserver' in window)) {
-        // Fallback for older browsers
-        targets.forEach((el) => el.classList.add('is-revealed'));
-        return;
-      }
+      const vh = window.innerHeight || document.documentElement.clientHeight;
 
-      const observer = new IntersectionObserver(
+      targets.forEach((el) => {
+        if (el.classList.contains('is-revealed')) return;
+
+        const rect = el.getBoundingClientRect();
+        // If element is in viewport or above it (user already scrolled past)
+        if (rect.top <= vh * 0.92 && rect.bottom >= 0) {
+          el.classList.add('is-revealed');
+        } else if (observer) {
+          observer.observe(el);
+        }
+      });
+    };
+
+    const throttledCheck = () => {
+      if (rafIdRef.current) return;
+      rafIdRef.current = requestAnimationFrame(() => {
+        rafIdRef.current = null;
+        checkAndReveal();
+      });
+    };
+
+    // Initialize IntersectionObserver with a gentle margin
+    if ('IntersectionObserver' in window) {
+      observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
@@ -35,26 +58,53 @@ export default function useScrollReveal() {
         },
         {
           root: null,
-          rootMargin: '0px 0px -60px 0px',
-          threshold: 0.08,
+          rootMargin: '0px 0px -10px 0px',
+          threshold: 0.01,
         }
       );
+    }
 
-      targets.forEach((el) => {
-        // If element is already high in the viewport (e.g. hero), reveal immediately
-        const rect = el.getBoundingClientRect();
-        if (rect.top < window.innerHeight * 0.85) {
-          el.classList.add('is-revealed');
-        } else {
-          observer.observe(el);
-        }
-      });
+    // Run immediately, and also after staggered delays for route transitions and tab changes
+    checkAndReveal();
+    const t1 = setTimeout(checkAndReveal, 60);
+    const t2 = setTimeout(checkAndReveal, 180);
+    const t3 = setTimeout(checkAndReveal, 400);
 
-      return () => {
-        targets.forEach((el) => observer.unobserve(el));
-      };
-    }, 40);
+    // Listen to window scroll (Lenis & native scrolls trigger window scroll)
+    window.addEventListener('scroll', throttledCheck, { passive: true });
 
-    return () => clearTimeout(timer);
-  }, [pathname]);
+    // Safely listen to Lenis scroll if available
+    let lenisUnsub = null;
+    if (window.__lenis && typeof window.__lenis.on === 'function') {
+      lenisUnsub = window.__lenis.on('scroll', throttledCheck);
+    }
+
+    // Watch for dynamic DOM changes (e.g. tabs or filter changes)
+    let mutationTimer = null;
+    const mutationObserver = new MutationObserver(() => {
+      if (mutationTimer) clearTimeout(mutationTimer);
+      mutationTimer = setTimeout(checkAndReveal, 80);
+    });
+
+    mutationObserver.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      if (mutationTimer) clearTimeout(mutationTimer);
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      window.removeEventListener('scroll', throttledCheck);
+      if (typeof lenisUnsub === 'function') {
+        lenisUnsub();
+      } else if (window.__lenis && typeof window.__lenis.off === 'function') {
+        window.__lenis.off('scroll', throttledCheck);
+      }
+      if (observer) {
+        observer.disconnect();
+      }
+      mutationObserver.disconnect();
+    };
+  }, [pathname, search]);
 }
