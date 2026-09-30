@@ -167,18 +167,28 @@ export default function ContactPage() {
                 <tr>
                   <th>Region / Sector</th>
                   <th>Key Areas Covered</th>
-                  <th>Standard Dispatch Window</th>
+                  <th className="th-desktop-timing">Standard Dispatch Window</th>
                 </tr>
               </thead>
               <tbody>
                 {serviceZones.map((z, idx) => (
-                  <tr key={idx}>
+                  <tr key={idx} className="zone-row">
                     <td className="zone-name-cell">
-                      <Truck size={16} className="truck-icon" />
-                      <strong>{z.zone}</strong>
+                      <div className="zone-name-header">
+                        <Truck size={16} className="truck-icon" />
+                        <strong className="zone-title">{z.zone}</strong>
+                      </div>
+                      <div className="zone-mobile-timing">
+                        <span className="timing-badge">
+                          <Clock size={12} /> {z.dispatchTime}
+                        </span>
+                      </div>
                     </td>
-                    <td>{z.coverage}</td>
-                    <td>
+                    <td className="zone-coverage-cell">
+                      <span className="coverage-label-mobile">Areas Covered: </span>
+                      {z.coverage}
+                    </td>
+                    <td className="zone-timing-cell desktop-only">
                       <span className="timing-badge">
                         <Clock size={12} /> {z.dispatchTime}
                       </span>

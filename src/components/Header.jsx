@@ -17,14 +17,16 @@ export default function Header({ bomCount, onOpenBOMDrawer }) {
         <div className="container top-bar-content">
           <div className="top-bar-left">
             <span className="location-tag">
-              <MapPin size={13} className="loc-icon" />
-              <strong>Serving Delhi NCR:</strong> Noida, Greater Noida, Delhi, Gurugram, Ghaziabad & Faridabad
+              <MapPin size={12} className="loc-icon" />
+              <strong className="top-bar-serving">Serving Delhi NCR</strong>
+              <span className="top-bar-cities">: Noida, Greater Noida, Delhi, Gurugram, Ghaziabad &amp; Faridabad</span>
             </span>
           </div>
 
           <div className="top-bar-right">
-            <a href={`tel:${COMPANY_INFO.phone}`} className="hotline-phone">
-              <Phone size={12} /> {COMPANY_INFO.phoneDisplay}
+            <a href={`tel:${COMPANY_INFO.phone}`} className="hotline-phone" title="Call Material Square Hotline">
+              <Phone size={12} />
+              <span className="hotline-text">{COMPANY_INFO.phoneDisplay}</span>
             </a>
           </div>
         </div>
@@ -104,11 +106,11 @@ export default function Header({ bomCount, onOpenBOMDrawer }) {
             {/* Mobile Menu Button */}
             <button
               type="button"
-              className="mobile-nav-toggle"
+              className={`mobile-nav-toggle ${mobileMenuOpen ? 'is-active' : ''}`}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Toggle navigation"
             >
-              {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
           </div>
         </div>

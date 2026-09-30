@@ -1,14 +1,15 @@
 import React from 'react';
 
-export default function MaterialSquareLogo({ size = 42, showText = true, lightMode = false }) {
+export default function MaterialSquareLogo({ size = 42, showText = true, lightMode = false, className = '' }) {
   const primaryColor = lightMode ? '#ffffff' : '#0f172a';
   const brickColor = '#ea580c';
   const frameColor = lightMode ? '#475569' : '#94a3b8';
   const subtextColor = lightMode ? '#94a3b8' : '#64748b';
 
   return (
-    <div className="ms-logo-wrapper" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.75rem' }}>
+    <div className={`ms-logo-wrapper ${className}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.75rem' }}>
       <svg
+        className="ms-logo-svg"
         width={size}
         height={size}
         viewBox="0 0 100 100"
@@ -51,6 +52,7 @@ export default function MaterialSquareLogo({ size = 42, showText = true, lightMo
 
       {showText && (
         <div
+          className="ms-logo-text-col"
           style={{
             display: 'flex',
             flexDirection: 'column',
@@ -63,6 +65,7 @@ export default function MaterialSquareLogo({ size = 42, showText = true, lightMo
         >
           {/* 1. Brand Main Name: MATERIAL */}
           <span
+            className="ms-logo-brand-name"
             style={{
               fontFamily: "'Plus Jakarta Sans', sans-serif",
               fontSize: '1.22rem',
@@ -79,6 +82,7 @@ export default function MaterialSquareLogo({ size = 42, showText = true, lightMo
 
           {/* 2. Sub-Brand Tag: — SQUARE — with full-width expanding lines */}
           <div
+            className="ms-logo-sub-tag"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -124,6 +128,7 @@ export default function MaterialSquareLogo({ size = 42, showText = true, lightMo
 
           {/* 3. Official Tagline: BUILDING BETTER TOGETHER */}
           <span
+            className="ms-logo-tagline"
             style={{
               fontFamily: "'Inter', sans-serif",
               fontSize: '0.52rem',

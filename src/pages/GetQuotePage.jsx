@@ -173,26 +173,31 @@ export default function GetQuotePage({ onAddCustomToBOM }) {
                       <table className="quote-table">
                         <thead>
                           <tr>
-                            <th>Material & Specification</th>
-                            <th>Quantity</th>
-                            <th>Unit</th>
-                            <th>Remove</th>
+                            <th>Material &amp; Specification</th>
+                            <th className="th-desktop-qty">Quantity</th>
+                            <th className="th-desktop-unit">Unit</th>
+                            <th className="th-action">Remove</th>
                           </tr>
                         </thead>
                         <tbody>
                           {lineItems.map((item) => (
-                            <tr key={item.id}>
+                            <tr key={item.id} className="quote-item-row">
                               <td className="item-name-cell">
-                                <strong>{item.material}</strong>
+                                <strong className="item-title">{item.material}</strong>
+                                <div className="item-mobile-meta">
+                                  <span className="mobile-qty-badge">{item.quantity}</span>
+                                  <span className="mobile-unit-label">{item.unit}</span>
+                                </div>
                               </td>
-                              <td className="item-qty-cell">{item.quantity}</td>
-                              <td className="item-unit-cell">{item.unit}</td>
+                              <td className="item-qty-cell td-desktop-qty">{item.quantity}</td>
+                              <td className="item-unit-cell td-desktop-unit">{item.unit}</td>
                               <td className="item-action-cell">
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveItem(item.id)}
                                   className="remove-item-btn"
-                                  aria-label="Remove item"
+                                  aria-label={`Remove ${item.material}`}
+                                  title="Remove item"
                                 >
                                   <Trash2 size={15} />
                                 </button>
@@ -209,40 +214,43 @@ export default function GetQuotePage({ onAddCustomToBOM }) {
                   </div>
 
                   {/* Add Item Form */}
-                  <form onSubmit={handleAddItem} className="add-item-form-row">
-                    <input
-                      type="text"
-                      placeholder="e.g. Ambuja Kawach Cement, Polycab 4.0mm wire..."
-                      value={newItemName}
-                      onChange={(e) => setNewItemName(e.target.value)}
-                      className="add-item-input name"
-                    />
-                    <input
-                      type="number"
-                      placeholder="Qty"
-                      value={newItemQty}
-                      onChange={(e) => setNewItemQty(e.target.value)}
-                      className="add-item-input qty"
-                      min="1"
-                    />
-                    <select
-                      value={newItemUnit}
-                      onChange={(e) => setNewItemUnit(e.target.value)}
-                      className="add-item-select unit"
-                    >
-                      <option value="Bags">Bags (50kg)</option>
-                      <option value="Metric Tons">Metric Tons (MT)</option>
-                      <option value="Lengths (3m)">Lengths (3m)</option>
-                      <option value="Lengths (6m)">Lengths (6m)</option>
-                      <option value="Coils (90m)">Coils (90m)</option>
-                      <option value="Drums (20L)">Drums (20L)</option>
-                      <option value="Boxes">Boxes</option>
-                      <option value="Pieces">Pieces / Sets</option>
-                    </select>
-
-                    <button type="submit" className="btn btn-secondary add-btn">
-                      <Plus size={16} /> Add
-                    </button>
+                  <form onSubmit={handleAddItem} className="add-item-form-wrap">
+                    <div className="add-item-row-name">
+                      <input
+                        type="text"
+                        placeholder="e.g. Ambuja Kawach Cement, Polycab 4.0mm wire..."
+                        value={newItemName}
+                        onChange={(e) => setNewItemName(e.target.value)}
+                        className="add-item-input name"
+                      />
+                    </div>
+                    <div className="add-item-row-controls">
+                      <input
+                        type="number"
+                        placeholder="Qty"
+                        value={newItemQty}
+                        onChange={(e) => setNewItemQty(e.target.value)}
+                        className="add-item-input qty"
+                        min="1"
+                      />
+                      <select
+                        value={newItemUnit}
+                        onChange={(e) => setNewItemUnit(e.target.value)}
+                        className="add-item-select unit"
+                      >
+                        <option value="Bags">Bags (50kg)</option>
+                        <option value="Metric Tons">Metric Tons (MT)</option>
+                        <option value="Lengths (3m)">Lengths (3m)</option>
+                        <option value="Lengths (6m)">Lengths (6m)</option>
+                        <option value="Coils (90m)">Coils (90m)</option>
+                        <option value="Drums (20L)">Drums (20L)</option>
+                        <option value="Boxes">Boxes</option>
+                        <option value="Pieces">Pieces / Sets</option>
+                      </select>
+                      <button type="submit" className="btn btn-secondary add-btn">
+                        <Plus size={16} /> <span>Add</span>
+                      </button>
+                    </div>
                   </form>
                 </div>
 

@@ -176,10 +176,16 @@
 
 .location-tag .loc-icon {
   color: #f97316;
+  flex-shrink: 0;
 }
 
-.location-tag strong {
+.top-bar-serving {
   color: #f8fafc;
+  font-weight: 700;
+}
+
+.top-bar-cities {
+  color: #94a3b8;
 }
 
 .top-bar-right {
@@ -200,7 +206,8 @@
   gap: 0.35rem;
   color: #ffffff;
   font-weight: 700;
-  transition: color var(--transition-fast);
+  text-decoration: none;
+  transition: all var(--transition-fast);
 }
 
 .hotline-phone:hover {
@@ -281,11 +288,25 @@
 
 .mobile-nav-toggle {
   display: none;
-  background: none;
-  border: none;
-  padding: 0.4rem;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 50%;
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
   color: var(--ms-slate-800);
   cursor: pointer;
+  padding: 0;
+  transition: all var(--transition-fast);
+}
+
+.mobile-nav-toggle:hover,
+.mobile-nav-toggle.is-active {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: var(--ms-primary);
 }
 
 /* Mobile Menu Pane */
@@ -295,6 +316,18 @@
   border-bottom: 2px solid var(--ms-primary);
   padding: 1rem 0 1.5rem;
   box-shadow: var(--shadow-lg);
+  animation: slideDownNav 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideDownNav {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .mobile-links-list {
@@ -3685,6 +3718,10 @@
   color: var(--ms-slate-800);
 }
 
+.item-mobile-meta {
+  display: none;
+}
+
 .remove-item-btn {
   background: none;
   border: none;
@@ -3703,6 +3740,44 @@
   text-align: center;
   font-size: 0.85rem;
   color: var(--ms-slate-500);
+}
+
+.add-item-form-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.add-item-row-name {
+  width: 100%;
+}
+
+.add-item-row-name .add-item-input {
+  width: 100%;
+}
+
+.add-item-row-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.add-item-row-controls .add-item-input.qty {
+  width: 90px;
+  flex-shrink: 0;
+}
+
+.add-item-row-controls .add-item-select.unit {
+  flex: 1;
+}
+
+.add-item-row-controls .add-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.65rem 1.25rem;
+  font-weight: 700;
 }
 
 .add-item-form-row {
@@ -4185,14 +4260,26 @@
 }
 
 .zone-name-cell {
-  display: flex;
+  color: var(--ms-slate-900);
+}
+
+.zone-name-header {
+  display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--ms-slate-900);
+}
+
+.zone-mobile-timing {
+  display: none;
+}
+
+.coverage-label-mobile {
+  display: none;
 }
 
 .truck-icon {
   color: var(--ms-primary);
+  flex-shrink: 0;
 }
 
 .timing-badge {
@@ -5417,10 +5504,21 @@
     justify-content: center;
   }
 
+  .ms-top-bar {
+    padding: 0.35rem 0;
+    font-size: 0.74rem;
+  }
+
   .top-bar-content {
-    flex-direction: column;
-    text-align: center;
-    gap: 0.35rem;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+  }
+
+  .top-bar-cities {
+    display: none;
   }
 
   .top-bar-right .slogan-hindi {
@@ -5429,8 +5527,18 @@
 
   .location-tag {
     font-size: 0.72rem;
-    justify-content: center;
-    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .hotline-phone {
+    font-size: 0.72rem;
+    white-space: nowrap;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
   }
 
   /* Hero Section */
@@ -5628,18 +5736,72 @@
     padding-right: 1rem;
   }
 
-  /* Nav Action Buttons: compact icon buttons so header never wraps */
+  /* Main Nav Row & Layout */
+  .ms-nav-main {
+    padding: 0.6rem 0;
+  }
+
+  .nav-content {
+    gap: 0.5rem;
+  }
+
+  /* Logo: proportionally scaled so it leaves comfortable breathing room */
+  .nav-logo {
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  .nav-logo .ms-logo-wrapper {
+    gap: 0.55rem !important;
+  }
+
+  .nav-logo .ms-logo-svg {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  .nav-logo .ms-logo-brand-name {
+    font-size: 1.05rem !important;
+    letter-spacing: 0.06em !important;
+  }
+
+  .nav-logo .ms-logo-sub-tag span:nth-child(2) {
+    font-size: 0.6rem !important;
+    letter-spacing: 0.18em !important;
+  }
+
+  .nav-logo .ms-logo-tagline {
+    font-size: 0.44rem !important;
+    letter-spacing: 0.08em !important;
+  }
+
+  /* Nav Action Buttons: cohesive, premium Apple-style button trio */
+  .nav-action-buttons {
+    gap: 0.45rem;
+    flex-shrink: 0;
+  }
+
   .nav-wa-btn span {
     display: none;
   }
 
   .nav-wa-btn {
-    padding: 0.5rem;
+    padding: 0;
     border-radius: 50%;
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    display: flex;
+    align-items: center;
     justify-content: center;
-    min-width: 38px;
+    background: #25D366;
+    border: 1px solid #22c55e;
+    box-shadow: 0 2px 8px rgba(37, 211, 102, 0.28);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  }
+
+  .nav-wa-btn:active {
+    transform: scale(0.94);
   }
 
   .nav-bom-trigger span:not(.bom-counter) {
@@ -5647,13 +5809,30 @@
   }
 
   .nav-bom-trigger {
-    padding: 0.5rem;
+    padding: 0;
     border-radius: 50%;
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    display: flex;
+    align-items: center;
     justify-content: center;
-    min-width: 38px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: var(--ms-slate-700);
     position: relative;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    transition: all var(--transition-fast);
+  }
+
+  .nav-bom-trigger:active {
+    transform: scale(0.94);
+  }
+
+  .nav-bom-trigger.has-items {
+    border-color: #fed7aa;
+    background: #fffaf5;
+    color: #ea580c;
   }
 
   .nav-bom-trigger .bom-counter {
@@ -5661,13 +5840,45 @@
     top: -4px;
     right: -4px;
     margin-left: 0;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 4px;
-    font-size: 0.65rem;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 3px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    background: #ea580c;
+    color: #ffffff;
+    border: 2px solid #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .mobile-nav-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    border-radius: 50%;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: var(--ms-slate-800);
+    padding: 0;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    transition: all var(--transition-fast);
+  }
+
+  .mobile-nav-toggle:active {
+    transform: scale(0.94);
+  }
+
+  .mobile-nav-toggle.is-active {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: var(--ms-primary);
   }
 
   /* Hero CTA Group */
@@ -5725,31 +5936,382 @@
     gap: 0.4rem;
   }
 
-  /* Quote Page Forms */
-  .form-field-row {
+  /* Quote Page Forms & Section */
+  .quote-form-section {
+    padding: 1.5rem 0 3.5rem;
+  }
+
+  .quote-builder-grid {
     grid-template-columns: 1fr;
+    gap: 1.25rem;
   }
 
-  .add-item-form-row {
-    flex-direction: column;
-    align-items: stretch;
+  .card-box {
+    padding: 1.15rem 1rem;
+    border-radius: var(--radius-md);
+    margin-bottom: 1.25rem;
   }
 
-  .add-item-input.name {
-    width: 100%;
+  .card-box-header {
+    flex-wrap: wrap;
+    gap: 0.4rem;
   }
 
-  .add-item-form-row .add-btn {
-    width: 100%;
+  .header-icon-title h3 {
+    font-size: 1.05rem;
   }
 
+  /* Quote Items Table -> Mobile Card List View (No horizontal cutoff!) */
   .quote-items-table-wrap {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: visible;
+    border: 1px solid var(--ms-slate-200);
+    border-radius: var(--radius-sm);
+    background-color: #ffffff;
+    margin-bottom: 1.25rem;
   }
 
   .quote-table {
-    min-width: 480px;
+    min-width: 100% !important;
+    width: 100%;
+    display: block;
+  }
+
+  .quote-table thead {
+    display: none; /* Hide wide table column headers on mobile */
+  }
+
+  .quote-table tbody {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .quote-item-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 0.95rem;
+    border-bottom: 1px solid var(--ms-slate-100);
+    gap: 0.75rem;
+  }
+
+  .quote-item-row:last-child {
+    border-bottom: none;
+  }
+
+  .quote-table td.td-desktop-qty,
+  .quote-table td.td-desktop-unit {
+    display: none;
+  }
+
+  .quote-table td.item-name-cell {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: none;
+  }
+
+  .item-title {
+    display: block;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--ms-slate-900);
+    line-height: 1.35;
+    margin-bottom: 0.25rem;
+    word-break: break-word;
+  }
+
+  .item-mobile-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+  }
+
+  .mobile-qty-badge {
+    background-color: #fff7ed;
+    color: var(--ms-primary);
+    border: 1px solid #fed7aa;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+  }
+
+  .mobile-unit-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--ms-slate-600);
+  }
+
+  .quote-table td.item-action-cell {
+    padding: 0;
+    border: none;
+    flex-shrink: 0;
+  }
+
+  .remove-item-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background-color: #fef2f2;
+    color: #ef4444;
+    border: 1px solid #fee2e2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+
+  .remove-item-btn:active {
+    background-color: #fee2e2;
+    transform: scale(0.95);
+  }
+
+  /* Add Item Form on Mobile: structured 2-tier layout */
+  .add-item-form-wrap {
+    gap: 0.55rem;
+  }
+
+  .add-item-row-name .add-item-input {
+    width: 100%;
+    font-size: 0.88rem;
+    padding: 0.65rem 0.85rem;
+  }
+
+  .add-item-row-controls {
+    display: grid;
+    grid-template-columns: 80px 1fr auto;
+    gap: 0.45rem;
+    width: 100%;
+  }
+
+  .add-item-row-controls .add-item-input.qty {
+    width: 100%;
+    min-width: 0;
+    padding: 0.65rem 0.6rem;
+    font-size: 0.88rem;
+  }
+
+  .add-item-row-controls .add-item-select.unit {
+    width: 100%;
+    min-width: 0;
+    padding: 0.65rem 1.8rem 0.65rem 0.65rem;
+    font-size: 0.82rem;
+  }
+
+  .add-item-row-controls .add-btn {
+    padding: 0.65rem 0.85rem;
+    font-size: 0.85rem;
+  }
+
+  /* Quick Upload Handwritten List Banner */
+  .quick-upload-banner {
+    padding: 1.15rem 1rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .upload-icon-circle {
+    width: 40px;
+    height: 40px;
+  }
+
+  .whatsapp-upload-btn {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+    padding: 0.75rem 1rem;
+    font-size: 0.86rem;
+  }
+
+  /* Section 2 Details Form Controls */
+  .quote-details-form {
+    gap: 0.85rem;
+  }
+
+  .form-field-row {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .form-field label {
+    font-size: 0.84rem;
+  }
+
+  .form-input,
+  .form-select,
+  .form-textarea {
+    font-size: 0.88rem;
+    padding: 0.65rem 0.85rem;
+  }
+
+  .radio-pill {
+    padding: 0.65rem 0.8rem;
+    font-size: 0.84rem;
+  }
+
+  .form-submit-actions {
+    gap: 0.65rem;
+    margin-top: 0.5rem;
+  }
+
+  .form-submit-actions .btn {
+    padding: 0.75rem 1rem;
+    font-size: 0.92rem;
+  }
+
+  /* Contact Page & Coverage Zones on Mobile */
+  .contact-channels-section {
+    padding: 1.75rem 0;
+  }
+
+  .contact-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .contact-info-card {
+    padding: 1.25rem 1rem;
+    border-radius: var(--radius-md);
+  }
+
+  .coverage-zones-section {
+    padding: 2rem 0;
+  }
+
+  /* Coverage Zones Table -> Responsive Logistics Cards */
+  .zones-table-wrapper {
+    overflow: visible;
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  .zones-table {
+    display: block;
+    width: 100%;
+    min-width: 100% !important;
+  }
+
+  .zones-table thead {
+    display: none; /* Hide 3-column table header on mobile */
+  }
+
+  .zones-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    width: 100%;
+  }
+
+  .zone-row {
+    display: flex;
+    flex-direction: column;
+    background-color: #ffffff;
+    border: 1px solid var(--ms-slate-200);
+    border-radius: var(--radius-md);
+    padding: 1rem 1rem 1.1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    gap: 0.55rem;
+  }
+
+  .zones-table td.zone-name-cell {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    padding: 0;
+    border: none;
+  }
+
+  .zone-name-header {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .zone-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--ms-slate-900);
+  }
+
+  .zone-mobile-timing {
+    display: block;
+  }
+
+  .zone-timing-cell.desktop-only {
+    display: none;
+  }
+
+  .zones-table td.zone-coverage-cell {
+    padding: 0;
+    border: none;
+    font-size: 0.84rem;
+    color: var(--ms-slate-600);
+    line-height: 1.45;
+    background-color: var(--ms-slate-50);
+    padding: 0.6rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--ms-slate-100);
+  }
+
+  .coverage-label-mobile {
+    display: inline;
+    font-weight: 700;
+    color: var(--ms-slate-700);
+  }
+
+  /* Contact Form Section on Mobile */
+  .contact-form-section {
+    padding: 2rem 0 3.5rem;
+  }
+
+  .contact-form-layout {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .form-info-col h2 {
+    font-size: 1.45rem;
+    margin-bottom: 0.65rem;
+  }
+
+  .form-info-col p {
+    font-size: 0.88rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .guarantees-list {
+    gap: 0.85rem;
+  }
+
+  .inquiry-form-card {
+    padding: 1.25rem 1rem;
+    border-radius: var(--radius-md);
+  }
+
+  .inquiry-form-card h3 {
+    font-size: 1.15rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .inquiry-form {
+    gap: 0.85rem;
+  }
+
+  .inquiry-form .form-group label {
+    font-size: 0.84rem;
+  }
+
+  .inquiry-form .btn {
+    padding: 0.75rem 1rem;
+    font-size: 0.92rem;
   }
 
   /* Slide-in WhatsApp BOM Drawer: full width on mobile */
@@ -6271,4 +6833,52 @@
   font-weight: 600;
   color: #ea580c;
 }
+
+/* ULTRA-COMPACT SCREENS (<= 420px) - Header Polish */
+@media (max-width: 420px) {
+  .nav-logo .ms-logo-tagline {
+    display: none;
+  }
+  .nav-logo .ms-logo-wrapper {
+    gap: 0.45rem !important;
+  }
+  .nav-logo .ms-logo-svg {
+    width: 30px !important;
+    height: 30px !important;
+  }
+  .nav-logo .ms-logo-brand-name {
+    font-size: 0.98rem !important;
+  }
+  .nav-action-buttons {
+    gap: 0.35rem;
+  }
+  .nav-wa-btn,
+  .nav-bom-trigger,
+  .mobile-nav-toggle {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+  }
+  .hotline-phone {
+    font-size: 0.68rem;
+    padding: 0.15rem 0.45rem;
+  }
+  .location-tag {
+    font-size: 0.68rem;
+  }
+
+  /* Quote add item controls on extra narrow screens */
+  .add-item-row-controls {
+    grid-template-columns: 75px 1fr;
+    grid-template-rows: auto auto;
+  }
+
+  .add-item-row-controls .add-btn {
+    grid-column: 1 / -1;
+    width: 100%;
+    justify-content: center;
+    padding: 0.65rem 1rem;
+  }
+}
+
 
