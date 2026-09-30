@@ -431,13 +431,13 @@
 
 /* Dynamic Commercial Fleet Delivery Vehicles */
 .moving-ola-uber-truck {
-  filter: drop-shadow(0 6px 12px rgba(15, 23, 42, 0.42));
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.35));
+  transition: filter 0.25s ease;
+  will-change: transform;
 }
 
 .moving-ola-uber-truck:hover {
   filter: drop-shadow(0 8px 20px rgba(234, 88, 12, 0.75)) brightness(1.15);
-  transform: scale(1.08);
 }
 
 .route-group {

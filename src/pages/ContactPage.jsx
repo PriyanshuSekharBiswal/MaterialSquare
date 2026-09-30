@@ -63,9 +63,13 @@ export default function ContactPage() {
       <section className="page-hero-header">
         <div className="container">
           <div className="page-hero-content">
-            <span className="badge-pill badge-orange-pill">Central Procurement Desk</span>
-            <h1 className="page-title">Contact & Central Depots</h1>
-            <p className="page-subtitle">
+            <span className="badge-pill badge-orange-pill reveal-text">Central Procurement Desk</span>
+            <h1 className="page-title">
+              <span className="ms-mask-line">
+                <span className="ms-mask-text">Contact & Central Depots</span>
+              </span>
+            </h1>
+            <p className="page-subtitle reveal-text">
               Need urgent site delivery, a wholesale quotation, or a technical consultation for your project? Connect with our dedicated procurement coordinators.
             </p>
           </div>
@@ -75,7 +79,7 @@ export default function ContactPage() {
       {/* Contact Cards Grid */}
       <section className="contact-channels-section">
         <div className="container">
-          <div className="contact-cards-grid">
+          <div className="contact-cards-grid reveal-stagger">
             {/* Phone Card */}
             <div className="contact-info-card">
               <div className="info-card-icon phone">

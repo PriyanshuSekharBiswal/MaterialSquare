@@ -110,21 +110,29 @@ export default function DirectionGoogleMaps({ className = '' }) {
       <div className="container">
         {/* Section Header */}
         <div className="dmap-header">
-          <div className="dmap-badge">
+          <div className="dmap-badge reveal-text">
             <span className="google-pin-icon">📍</span>
             <span>Google Maps Office Directions & Service Network</span>
           </div>
           <h2 className="dmap-title">
-            Directions to Our <span className="text-red">Ghaziabad Office</span> & Service Network
+            <span className="ms-mask-line">
+              <span className="ms-mask-text">Directions to Our</span>
+            </span>{' '}
+            <span className="ms-mask-line">
+              <span className="ms-mask-text text-red delay-1">Ghaziabad Office</span>
+            </span>{' '}
+            <span className="ms-mask-line">
+              <span className="ms-mask-text delay-2">& Service Network</span>
+            </span>
           </h2>
-          <p className="dmap-subtitle">
+          <p className="dmap-subtitle reveal-text">
             Serving construction sites across <strong>Noida, Greater Noida, Delhi, Gurugram, Ghaziabad & Faridabad</strong> from our{' '}
             <strong>Ghaziabad Central Office & Depot</strong>.
           </p>
         </div>
 
         {/* Clean, Full-Width Google Maps Window */}
-        <div className="google-maps-card">
+        <div className="google-maps-card reveal-card">
           {/* Top Google Maps Search Bar Header */}
           <div className="gmaps-chrome-header">
             {/* Google Logo */}
@@ -399,7 +407,15 @@ export default function DirectionGoogleMaps({ className = '' }) {
                         strokeDasharray="8 16"
                         strokeLinecap="round"
                         className="ola-uber-flow-dots"
-                      />
+                      >
+                        <animate
+                          attributeName="stroke-dashoffset"
+                          from="0"
+                          to="-48"
+                          dur="1s"
+                          repeatCount="indefinite"
+                        />
+                      </path>
 
                       {/* Second energetic amber trail on active routes */}
                       {isHighlighted && (
@@ -411,7 +427,15 @@ export default function DirectionGoogleMaps({ className = '' }) {
                           strokeDasharray="4 24"
                           strokeLinecap="round"
                           className="route-energy-pulse"
-                        />
+                        >
+                          <animate
+                            attributeName="stroke-dashoffset"
+                            from="0"
+                            to="-56"
+                            dur="1.4s"
+                            repeatCount="indefinite"
+                          />
+                        </path>
                       )}
 
                       {/* ========================================================
@@ -423,17 +447,13 @@ export default function DirectionGoogleMaps({ className = '' }) {
                         cursor="pointer"
                         onClick={() => handleOpenGoogleMaps(route.name)}
                       >
-                        <use href="#ola-uber-truck-vehicle">
-                          <animateMotion
-                            dur={route.speed}
-                            repeatCount="indefinite"
-                            rotate="auto"
-                            keyPoints="0;1"
-                            keyTimes="0;1"
-                          >
-                            <mpath href={`#${route.routePathId}`} />
-                          </animateMotion>
-                        </use>
+                        <use href="#ola-uber-truck-vehicle" xlinkHref="#ola-uber-truck-vehicle" />
+                        <animateMotion
+                          path={route.pathD}
+                          dur={route.speed}
+                          repeatCount="indefinite"
+                          rotate="auto"
+                        />
                       </g>
                     </g>
                   );
@@ -469,12 +489,14 @@ export default function DirectionGoogleMaps({ className = '' }) {
                       <circle
                         cx="0"
                         cy="0"
-                        r="18"
+                        r="12"
                         fill="#1a73e8"
-                        opacity="0.2"
-                        className="origin-pulse-ring"
+                        opacity="0.3"
                         style={{ pointerEvents: 'none' }}
-                      />
+                      >
+                        <animate attributeName="r" values="8;24;32" dur="2.4s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0.7;0.2;0" dur="2.4s" repeatCount="indefinite" />
+                      </circle>
 
                       {/* Google Maps Blue Start Origin Circle */}
                       <circle
@@ -532,10 +554,18 @@ export default function DirectionGoogleMaps({ className = '' }) {
                 aria-label="Material Square Central Office (Click for Google Maps Directions)"
               >
                 {/* Animated Concentric Radar Rings & Glowing Core */}
-                <circle cx="0" cy="0" r="64" fill="url(#officeRadarGrad)" className="gmap-dest-radar-sweep" />
-                <circle cx="0" cy="0" r="48" fill="#ea4335" opacity="0.14" className="gmap-dest-pulse-1" />
-                <circle cx="0" cy="0" r="28" fill="#ea4335" opacity="0.28" className="gmap-dest-pulse-2" />
-                <circle cx="0" cy="0" r="14" fill="#ea4335" opacity="0.45" className="gmap-dest-pulse-3" />
+                <circle cx="0" cy="0" r="20" fill="url(#officeRadarGrad)">
+                  <animate attributeName="r" values="16;76;105" dur="2.8s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0.8;0.25;0" dur="2.8s" repeatCount="indefinite" />
+                </circle>
+                <circle cx="0" cy="0" r="14" fill="#ea4335" opacity="0.45">
+                  <animate attributeName="r" values="12;50;75" dur="2.8s" begin="0.7s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0.55;0.18;0" dur="2.8s" begin="0.7s" repeatCount="indefinite" />
+                </circle>
+                <circle cx="0" cy="0" r="10" fill="#ea4335" opacity="0.3">
+                  <animate attributeName="r" values="8;30;50" dur="2.8s" begin="1.4s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0.6;0.2;0" dur="2.8s" begin="1.4s" repeatCount="indefinite" />
+                </circle>
 
                 {/* Ground Shadow under Pin */}
                 <ellipse cx="0" cy="3" rx="16" ry="6" fill="rgba(15, 23, 42, 0.45)" />

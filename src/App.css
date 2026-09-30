@@ -250,19 +250,26 @@
   color: var(--ms-slate-900);
 }
 
-.nav-link.active {
-  color: var(--ms-primary);
-}
-
-.nav-link.active::after {
+.nav-link::after {
   content: '';
   position: absolute;
   bottom: -0.85rem;
   left: 0;
   right: 0;
-  height: 2px;
-  background-color: var(--ms-primary);
+  height: 2.5px;
+  background: linear-gradient(90deg, #ea580c, #f97316);
   border-radius: 2px;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.nav-link.active {
+  color: var(--ms-primary);
+}
+
+.nav-link.active::after {
+  transform: scaleX(1);
 }
 
 .nav-action-buttons {
@@ -6964,6 +6971,294 @@
     width: 100%;
     justify-content: center;
     padding: 0.65rem 1rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   21. Smooth Page / Section Navigation Transition
+   -------------------------------------------------------------------------- */
+.ms-page-transition-wrapper {
+  animation: msPageSlideFade 0.42s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: opacity, transform;
+}
+
+@keyframes msPageSlideFade {
+  0% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   22. Kinetic Text & Mask Reveals (Inspired by materialsquare.in)
+   -------------------------------------------------------------------------- */
+
+/* Overflow-clipped line mask */
+.ms-mask-line {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  line-height: 1.18;
+}
+
+.ms-mask-text {
+  display: inline-block;
+  transform: translateY(115%);
+  opacity: 0;
+  transition: transform 0.82s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.82s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
+}
+
+/* Automatic reveal when container or self has .is-revealed */
+.is-revealed .ms-mask-text,
+.ms-mask-text.is-revealed,
+.is-revealed.ms-mask-text {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* Reveal Delays */
+.delay-1,
+.ms-mask-text.delay-1,
+.is-revealed .delay-1 {
+  transition-delay: 0.08s !important;
+}
+
+.delay-2,
+.ms-mask-text.delay-2,
+.is-revealed .delay-2 {
+  transition-delay: 0.16s !important;
+}
+
+.delay-3,
+.ms-mask-text.delay-3,
+.is-revealed .delay-3 {
+  transition-delay: 0.24s !important;
+}
+
+.delay-4,
+.ms-mask-text.delay-4,
+.is-revealed .delay-4 {
+  transition-delay: 0.32s !important;
+}
+
+.delay-5,
+.ms-mask-text.delay-5,
+.is-revealed .delay-5 {
+  transition-delay: 0.40s !important;
+}
+
+/* Title Scroll Reveal (drift up with quintic deceleration) */
+.reveal-title {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.78s cubic-bezier(0.22, 1, 0.36, 1), transform 0.78s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.reveal-title.is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Subtitle / Paragraph Scroll Reveal */
+.reveal-text {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.1s, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.1s;
+  will-change: opacity, transform;
+}
+
+.reveal-text.is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Card / Component Scroll Reveal */
+.reveal-card {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1), transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.reveal-card.is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Staggered Children Reveal */
+.reveal-stagger > * {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.62s cubic-bezier(0.22, 1, 0.36, 1), transform 0.62s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.reveal-stagger.is-revealed > *:nth-child(1) {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 0.05s;
+}
+
+.reveal-stagger.is-revealed > *:nth-child(2) {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 0.12s;
+}
+
+.reveal-stagger.is-revealed > *:nth-child(3) {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 0.19s;
+}
+
+.reveal-stagger.is-revealed > *:nth-child(4) {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 0.26s;
+}
+
+.reveal-stagger.is-revealed > *:nth-child(5) {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 0.33s;
+}
+
+.reveal-stagger.is-revealed > *:nth-child(6) {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 0.40s;
+}
+
+.reveal-stagger.is-revealed > *:nth-child(n+7) {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 0.45s;
+}
+
+/* --------------------------------------------------------------------------
+   23. Architectural Marquee Ticker
+   -------------------------------------------------------------------------- */
+.ms-architectural-ticker-wrap {
+  background: #0b0f19;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  padding: 0.95rem 0;
+  user-select: none;
+  position: relative;
+  z-index: 20;
+}
+
+.ms-architectural-ticker-wrap::before,
+.ms-architectural-ticker-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 90px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.ms-architectural-ticker-wrap::before {
+  left: 0;
+  background: linear-gradient(90deg, #0b0f19, transparent);
+}
+
+.ms-architectural-ticker-wrap::after {
+  right: 0;
+  background: linear-gradient(-90deg, #0b0f19, transparent);
+}
+
+.ticker-track {
+  display: flex;
+  width: max-content;
+  animation: msTickerInfinite 32s linear infinite;
+  will-change: transform;
+}
+
+.ticker-track:hover {
+  animation-play-state: paused;
+}
+
+.ticker-segment {
+  display: flex;
+  align-items: center;
+  gap: 1.75rem;
+  padding-right: 1.75rem;
+}
+
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.75rem;
+  white-space: nowrap;
+}
+
+.ticker-word {
+  font-family: var(--font-heading);
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f8fafc;
+}
+
+.ticker-word.is-outline {
+  color: transparent;
+  -webkit-text-stroke: 1.2px #94a3b8;
+}
+
+.ticker-star {
+  color: #ea580c;
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
+@keyframes msTickerInfinite {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-33.333333%);
+  }
+}
+
+@media (max-width: 768px) {
+  .ticker-word {
+    font-size: 0.95rem;
+  }
+  .ticker-segment,
+  .ticker-item {
+    gap: 1.2rem;
+    padding-right: 1.2rem;
+  }
+  .ms-architectural-ticker-wrap {
+    padding: 0.75rem 0;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .ms-page-transition-wrapper,
+  .reveal-title,
+  .reveal-text,
+  .reveal-card,
+  .reveal-stagger > *,
+  .ms-mask-text {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+  .ticker-track {
+    animation-duration: 90s !important;
   }
 }
 

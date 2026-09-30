@@ -123,9 +123,13 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
       <section className="page-hero-header">
         <div className="container">
           <div className="page-hero-content">
-            <span className="badge-pill badge-orange-pill">Engineering & On-Site Standards</span>
-            <h1 className="page-title">Site Engineering & Material Guides</h1>
-            <p className="page-subtitle">
+            <span className="badge-pill badge-orange-pill reveal-text">Engineering & On-Site Standards</span>
+            <h1 className="page-title">
+              <span className="ms-mask-line">
+                <span className="ms-mask-text">Site Engineering & Material Guides</span>
+              </span>
+            </h1>
+            <p className="page-subtitle reveal-text">
               Avoid costly site errors, short circuits, and wall leakages. Practical engineering formulas and manufacturer storage guidelines for Delhi NCR site engineers, contractors, and builders.
             </p>
 

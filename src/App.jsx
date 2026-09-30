@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import './App.css';
 import { PRODUCTS, COMPANY_INFO } from './data/materialsData';
+import useScrollReveal from './hooks/useScrollReveal';
+import useSmoothScroll from './hooks/useSmoothScroll';
 
 // Global Shell Components
 import Header from './components/Header';
@@ -22,7 +24,11 @@ import ContactPage from './pages/ContactPage';
 import { FileText } from 'lucide-react';
 import WhatsAppIcon from './components/icons/WhatsAppIcon';
 
-export default function App() {
+function AppShell() {
+  const location = useLocation();
+  useScrollReveal();
+  useSmoothScroll();
+
   const [isBOMOpen, setIsBOMOpen] = useState(false);
   const [activeProductModal, setActiveProductModal] = useState(null);
 
@@ -60,7 +66,7 @@ export default function App() {
   };
 
   return (
-    <Router>
+    <>
       <ScrollToTop />
       <div className="ms-construction-app">
         {/* Navigation Header with Delhi NCR Hotline & Navigation Links */}
@@ -69,74 +75,76 @@ export default function App() {
           onOpenBOMDrawer={() => setIsBOMOpen(true)}
         />
 
-        {/* Dedicated Route Views */}
+        {/* Dedicated Route Views with smooth transition on section change */}
         <main id="main-content" className="app-main-content">
-          <Routes>
-            {/* 1. Home Page */}
-            <Route
-              path="/"
-              element={
-                <HomePage
-                  onOpenBOMDrawer={() => setIsBOMOpen(true)}
-                  bomList={bomList}
-                  onToggleBOM={handleToggleBOM}
-                />
-              }
-            />
+          <div key={location.pathname} className="ms-page-transition-wrapper">
+            <Routes>
+              {/* 1. Home Page */}
+              <Route
+                path="/"
+                element={
+                  <HomePage
+                    onOpenBOMDrawer={() => setIsBOMOpen(true)}
+                    bomList={bomList}
+                    onToggleBOM={handleToggleBOM}
+                  />
+                }
+              />
 
-            {/* 2. Materials Marketplace Catalog */}
-            <Route
-              path="/marketplace"
-              element={
-                <MarketplacePage
-                  bomList={bomList}
-                  onToggleBOM={handleToggleBOM}
-                  onOpenProductModal={(product) => setActiveProductModal(product)}
-                  onOpenBOMDrawer={() => setIsBOMOpen(true)}
-                />
-              }
-            />
+              {/* 2. Materials Marketplace Catalog */}
+              <Route
+                path="/marketplace"
+                element={
+                  <MarketplacePage
+                    bomList={bomList}
+                    onToggleBOM={handleToggleBOM}
+                    onOpenProductModal={(product) => setActiveProductModal(product)}
+                    onOpenBOMDrawer={() => setIsBOMOpen(true)}
+                  />
+                }
+              />
 
-            {/* 3. Why Material Square (5 Calls vs 1 Call) */}
-            <Route
-              path="/why-us"
-              element={
-                <WhyUsPage
-                  onOpenBOMDrawer={() => setIsBOMOpen(true)}
-                />
-              }
-            />
+              {/* 3. Why Material Square (5 Calls vs 1 Call) */}
+              <Route
+                path="/why-us"
+                element={
+                  <WhyUsPage
+                    onOpenBOMDrawer={() => setIsBOMOpen(true)}
+                  />
+                }
+              />
 
-            {/* 4. Engineering Guides & Wire Load Calculator */}
-            <Route
-              path="/guides"
-              element={
-                <EngineeringGuidesPage
-                  onAddCustomToBOM={handleAddCustomToBOM}
-                  onOpenBOMDrawer={() => setIsBOMOpen(true)}
-                />
-              }
-            />
+              {/* 4. Engineering Guides & Wire Load Calculator */}
+              <Route
+                path="/guides"
+                element={
+                  <EngineeringGuidesPage
+                    onAddCustomToBOM={handleAddCustomToBOM}
+                    onOpenBOMDrawer={() => setIsBOMOpen(true)}
+                  />
+                }
+              />
 
-            {/* 5. Request Quote & Upload BOM */}
-            <Route
-              path="/get-quote"
-              element={
-                <GetQuotePage
-                  onAddCustomToBOM={handleAddCustomToBOM}
-                />
-              }
-            />
+              {/* 5. Request Quote & Upload BOM */}
+              <Route
+                path="/get-quote"
+                element={
+                  <GetQuotePage
+                    onAddCustomToBOM={handleAddCustomToBOM}
+                  />
+                }
+              />
 
-            {/* 6. Contact & Depots */}
-            <Route
-              path="/contact"
-              element={<ContactPage />}
-            />
+              {/* 6. Contact & Depots */}
+              <Route
+                path="/contact"
+                element={<ContactPage />}
+              />
 
-            {/* Fallback to Home */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+              {/* Fallback to Home */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </div>
         </main>
 
         {/* Brand Footer */}
@@ -187,6 +195,14 @@ export default function App() {
           </a>
         </aside>
       </div>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <Router>
+      <AppShell />
     </Router>
   );
 }

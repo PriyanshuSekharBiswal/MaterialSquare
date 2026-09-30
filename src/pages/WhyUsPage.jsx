@@ -59,10 +59,17 @@ export default function WhyUsPage({ onOpenBOMDrawer }) {
       <section className="page-hero-header">
         <div className="container">
           <div className="page-hero-content">
-            <span className="badge-pill badge-orange-pill">The Material Square Advantage</span>
-            <h1 className="page-title">Why Make 5 Calls? One Call. All Materials.</h1>
-            <p className="page-hindi-highlight">"{COMPANY_INFO.sloganHindi}"</p>
-            <p className="page-subtitle">
+            <span className="badge-pill badge-orange-pill reveal-text">The Material Square Advantage</span>
+            <h1 className="page-title">
+              <span className="ms-mask-line">
+                <span className="ms-mask-text">Why Make 5 Calls?</span>
+              </span>{' '}
+              <span className="ms-mask-line">
+                <span className="ms-mask-text accent-text delay-2">One Call. All Materials.</span>
+              </span>
+            </h1>
+            <p className="page-hindi-highlight reveal-text">"{COMPANY_INFO.sloganHindi}"</p>
+            <p className="page-subtitle reveal-text">
               Building a house, commercial structure, or villa in Delhi NCR shouldn’t mean wasting your days coordinating 5 different suppliers.
               Material Square consolidates procurement, logistics, and billing into one seamless workflow.
             </p>
@@ -91,8 +98,8 @@ export default function WhyUsPage({ onOpenBOMDrawer }) {
         <div className="container">
           <div className="section-title-wrap text-center">
             <span className="badge-pill">The Procurement Comparison</span>
-            <h2 className="section-title-clean">Traditional 5-Vendor Hustle vs Material Square</h2>
-            <p className="section-subtitle-clean">
+            <h2 className="section-title-clean reveal-title">Traditional 5-Vendor Hustle vs Material Square</h2>
+            <p className="section-subtitle-clean reveal-text">
               See the direct financial and operational difference when you consolidate your site orders.
             </p>
           </div>

@@ -96,12 +96,16 @@ export default function GetQuotePage({ onAddCustomToBOM }) {
       <section className="page-hero-header">
         <div className="container">
           <div className="page-hero-content">
-            <span className="badge-pill badge-orange-pill">Fast Consolidated Procurement</span>
-            <h1 className="page-title">Request a Site Delivery Quotation</h1>
-            <p className="page-hindi-highlight">
+            <span className="badge-pill badge-orange-pill reveal-text">Fast Consolidated Procurement</span>
+            <h1 className="page-title">
+              <span className="ms-mask-line">
+                <span className="ms-mask-text">Request a Site Delivery Quotation</span>
+              </span>
+            </h1>
+            <p className="page-hindi-highlight reveal-text">
               "Ghar banana tha... Material ki list khatam hi nahi ho rahi!"
             </p>
-            <p className="page-subtitle">
+            <p className="page-subtitle reveal-text">
               Send your handwritten contractor list, structural drawing schedule, or compile required items below. Our procurement team responds within 30 minutes with transparent wholesale pricing.
             </p>
           </div>

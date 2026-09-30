@@ -21,6 +21,7 @@ import SiteDeliveriesCarousel from '../components/SiteDeliveriesCarousel';
 import DirectionGoogleMaps from '../components/DirectionGoogleMaps';
 import SearchSuggestions from '../components/SearchSuggestions';
 import WhatsAppIcon from '../components/icons/WhatsAppIcon';
+import ArchitecturalTicker from '../components/ArchitecturalTicker';
 
 export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,21 +95,26 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM })
         <div className="container hero-grid">
           {/* Left Text */}
           <div className="hero-text-col">
-            <div className="eyebrow-row">
+            <div className="eyebrow-row reveal-text">
               <span className="badge-pill badge-orange-pill">Direct to Consumer · D2C</span>
               <span className="serving-text">Dedicated Logistics across Delhi NCR</span>
             </div>
 
             <h1 className="hero-heading">
-              Why Make 5 Calls? <br />
-              <span className="accent-text">One Call. All Materials.</span>
+              <span className="ms-mask-line">
+                <span className="ms-mask-text">Why Make 5 Calls?</span>
+              </span>
+              <br />
+              <span className="ms-mask-line">
+                <span className="ms-mask-text accent-text delay-2">One Call. All Materials.</span>
+              </span>
             </h1>
 
-            <div className="hero-hindi-quote">
+            <div className="hero-hindi-quote reveal-text">
               <span>"{COMPANY_INFO.sloganHindi}"</span>
             </div>
 
-            <p className="hero-subtext">
+            <p className="hero-subtext reveal-text">
               Material Square consolidates <strong>Cement, TMT Steel, CPVC/UPVC Pipes, Wires, Paints, and Sanitaryware</strong> onto
               a single delivery vehicle directly to your construction site with factory-certified pricing and zero counterfeit risk.
             </p>
@@ -200,9 +206,12 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM })
         </div>
       </section>
 
+      {/* Seamless Architectural Materials Ticker Marquee (Inspired by materialsquare.in) */}
+      <ArchitecturalTicker />
+
       {/* 4 Pillars Trust Strip */}
       <section className="home-trust-strip">
-        <div className="container trust-grid">
+        <div className="container trust-grid reveal-stagger">
           <div className="trust-card">
             <div className="trust-icon-wrap">
               <ShieldCheck size={20} />
@@ -251,8 +260,8 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM })
           <div className="section-header-row">
             <div>
               <span className="badge-pill badge-orange-pill">Explore by Trade</span>
-              <h2 className="section-title-clean">Everything You Need To Build. In One Place.</h2>
-              <p className="section-subtitle-clean">
+              <h2 className="section-title-clean reveal-title">Everything You Need To Build. In One Place.</h2>
+              <p className="section-subtitle-clean reveal-text">
                 Direct supply chains for every construction milestone from foundation to final sanitaryware.
               </p>
             </div>
@@ -263,7 +272,7 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM })
             </Link>
           </div>
 
-          <div className="category-cards-grid">
+          <div className="category-cards-grid reveal-stagger">
             {categoryCards.map((cat) => (
               <Link
                 key={cat.id}
@@ -290,10 +299,10 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM })
         <div className="container">
           <div className="brands-intro">
             <span className="badge-pill">16 Authorized Brand Partners</span>
-            <h3 className="brands-title">Top Brands. Genuine Products. One Source.</h3>
+            <h3 className="brands-title reveal-title">Top Brands. Genuine Products. One Source.</h3>
           </div>
 
-          <div className="brands-logos-grid">
+          <div className="brands-logos-grid reveal-stagger">
             {BRAND_LIST.map((brand) => (
               <Link
                 key={brand.id}
@@ -322,8 +331,8 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM })
         <div className="container why-teaser-box">
           <div className="why-teaser-content">
             <span className="badge-pill badge-orange-pill">The Material Square Difference</span>
-            <h2>"Itna Kyu Bhagna? Sab Alag Alag Jagah."</h2>
-            <p>
+            <h2 className="reveal-title">"Itna Kyu Bhagna? Sab Alag Alag Jagah."</h2>
+            <p className="reveal-text">
               Traditional building involves 5 separate calls, 5 different delivery schedules, multiple freight costs, and the risk of counterfeit materials. 
               Material Square consolidates your entire shopping list onto one truck with guaranteed site arrival.
             </p>
@@ -345,7 +354,7 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM })
 
       {/* Engineering Tools Callout Strip */}
       <section className="home-tools-callout">
-        <div className="container tools-callout-grid">
+        <div className="container tools-callout-grid reveal-stagger">
           <div className="tool-callout-card">
             <div className="tool-icon-box orange">
               <Zap size={22} />
@@ -392,8 +401,8 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM })
         <div className="container banner-inner">
           <div>
             <span className="badge-pill badge-green-pill">Fast Site Quotation</span>
-            <h2>"Ghar banana tha... Material ki list khatam hi nahi ho rahi!"</h2>
-            <p>Send your handwritten list, architect schedule, or structural drawing to our WhatsApp desk for an immediate consolidated quote.</p>
+            <h2 className="reveal-title">"Ghar banana tha... Material ki list khatam hi nahi ho rahi!"</h2>
+            <p className="reveal-text">Send your handwritten list, architect schedule, or structural drawing to our WhatsApp desk for an immediate consolidated quote.</p>
           </div>
           <div className="banner-buttons">
             <Link to="/get-quote" className="btn btn-primary btn-lg">

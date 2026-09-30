@@ -140,13 +140,17 @@ export default function MarketplacePage({
       <section className="page-hero-header">
         <div className="container">
           <div className="page-hero-content">
-            <span className="badge-pill badge-orange-pill">Direct Procurement Depot</span>
-            <h1 className="page-title">Construction Materials Catalog</h1>
-            <p className="page-subtitle">
+            <span className="badge-pill badge-orange-pill reveal-text">Direct Procurement Depot</span>
+            <h1 className="page-title">
+              <span className="ms-mask-line">
+                <span className="ms-mask-text">Construction Materials Catalog</span>
+              </span>
+            </h1>
+            <p className="page-subtitle reveal-text">
               Order certified Cement, TMT Steel, CPVC/UPVC Pipes, Wires, Paints, and Sanitaryware. Direct site delivery across Delhi NCR with official manufacturer GST invoices and batch test certificates.
             </p>
 
-            <div className="page-hero-metrics">
+            <div className="page-hero-metrics reveal-stagger">
               <div className="metric-tag">
                 <Truck size={14} className="metric-icon" />
                 <span>Delhi NCR Fleet Dispatch</span>
