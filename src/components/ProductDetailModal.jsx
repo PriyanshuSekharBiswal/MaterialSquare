@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   X,
   Plus,
@@ -21,19 +21,65 @@ export default function ProductDetailModal({
   inBOM,
   onToggleBOM,
 }) {
+  // Lock background scroll, pause Lenis / Locomotive scroll, and handle ESC
+  useEffect(() => {
+    if (!isOpen || !product) return;
+
+    if (window.__lenis && typeof window.__lenis.stop === 'function') {
+      window.__lenis.stop();
+    }
+    if (window.__locomotiveScroll && typeof window.__locomotiveScroll.stop === 'function') {
+      window.__locomotiveScroll.stop();
+    }
+
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    const prevPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+      document.body.style.paddingRight = prevPaddingRight;
+      window.removeEventListener('keydown', handleKeyDown);
+
+      if (window.__lenis && typeof window.__lenis.start === 'function') {
+        window.__lenis.start();
+      }
+      if (window.__locomotiveScroll && typeof window.__locomotiveScroll.start === 'function') {
+        window.__locomotiveScroll.start();
+      }
+    };
+  }, [isOpen, product, onClose]);
+
   if (!isOpen || !product) return null;
 
   const brandMeta = getBrandMeta(product.brand);
   const waProductUrl = `https://wa.me/919773505015?text=Hello%20Material%20Square,%20I%20am%20inquiring%20about:%20${encodeURIComponent(product.name)}%20(${product.code})%20from%20${encodeURIComponent(product.brand)}.%20Please%20share%20bulk%20pricing%20and%20delivery%20schedule.`;
 
   return (
-    <div className="ms-modal-backdrop" onClick={onClose}>
+    <div className="ms-modal-backdrop" onClick={onClose} data-lenis-prevent>
       <div
         className="ms-modal-card"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-prod-title"
+        data-lenis-prevent
       >
         <button
           type="button"

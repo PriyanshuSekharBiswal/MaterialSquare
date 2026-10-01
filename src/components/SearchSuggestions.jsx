@@ -31,13 +31,11 @@ export default function SearchSuggestions({
   onSelectProduct,
   className = '',
 }) {
-  if (!isOpen) return null;
-
   const trimmed = query.trim().toLowerCase();
 
   // Filter matching products
   const matchingProducts = useMemo(() => {
-    if (!trimmed) return [];
+    if (!isOpen || !trimmed) return [];
     return PRODUCTS.filter((item) => {
       return (
         item.name.toLowerCase().includes(trimmed) ||
@@ -47,25 +45,27 @@ export default function SearchSuggestions({
         (item.categoryLabel && item.categoryLabel.toLowerCase().includes(trimmed))
       );
     }).slice(0, 5); // Limit to top 5
-  }, [trimmed]);
+  }, [isOpen, trimmed]);
 
   // Filter matching brands
   const matchingBrands = useMemo(() => {
-    if (!trimmed) return [];
+    if (!isOpen || !trimmed) return [];
     return BRAND_LIST.filter(
       (b) =>
         b.name.toLowerCase().includes(trimmed) ||
         b.category.toLowerCase().includes(trimmed)
     ).slice(0, 3);
-  }, [trimmed]);
+  }, [isOpen, trimmed]);
 
   // Filter matching categories
   const matchingCategories = useMemo(() => {
-    if (!trimmed) return [];
+    if (!isOpen || !trimmed) return [];
     return CATEGORIES.filter(
       (c) => c.id !== 'all' && c.label.toLowerCase().includes(trimmed)
     ).slice(0, 2);
-  }, [trimmed]);
+  }, [isOpen, trimmed]);
+
+  if (!isOpen) return null;
 
   const hasMatches =
     matchingProducts.length > 0 ||

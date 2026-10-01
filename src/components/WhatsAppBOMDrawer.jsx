@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   MessageCircle,
@@ -27,6 +27,54 @@ export default function WhatsAppBOMDrawer({
   const [contractorName, setContractorName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
 
+  // Lock background scroll, pause Lenis / Locomotive scroll, and handle ESC
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Pause smooth scrolling engines so background cannot be moved while drawer is open
+    if (window.__lenis && typeof window.__lenis.stop === 'function') {
+      window.__lenis.stop();
+    }
+    if (window.__locomotiveScroll && typeof window.__locomotiveScroll.stop === 'function') {
+      window.__locomotiveScroll.stop();
+    }
+
+    // Freeze body & html scrolling, accounting for desktop scrollbar shift
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    const prevPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+      document.body.style.paddingRight = prevPaddingRight;
+      window.removeEventListener('keydown', handleKeyDown);
+
+      // Re-enable smooth scrolling engines
+      if (window.__lenis && typeof window.__lenis.start === 'function') {
+        window.__lenis.start();
+      }
+      if (window.__locomotiveScroll && typeof window.__locomotiveScroll.start === 'function') {
+        window.__locomotiveScroll.start();
+      }
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleSendToWhatsApp = (e) => {
@@ -51,12 +99,14 @@ export default function WhatsAppBOMDrawer({
   };
 
   return (
-    <div className="ms-drawer-backdrop" onClick={onClose}>
+    <div className="ms-drawer-backdrop" onClick={onClose} data-lenis-prevent>
       <aside
         className="ms-drawer-panel"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="true"
         aria-label="Send Material List"
+        data-lenis-prevent
       >
         {/* Drawer Header */}
         <div className="drawer-top-bar">
@@ -75,7 +125,7 @@ export default function WhatsAppBOMDrawer({
         </div>
 
         {/* Drawer Content */}
-        <div className="drawer-body-scroll">
+        <div className="drawer-body-scroll" data-lenis-prevent>
           {/* Selected Materials Strip */}
           <div className="selected-bom-section">
             <div className="bom-header-row">
@@ -102,7 +152,7 @@ export default function WhatsAppBOMDrawer({
                 </span>
               </div>
             ) : (
-              <div className="bom-items-stack">
+              <div className="bom-items-stack" data-lenis-prevent>
                 {bomList.map((item) => {
                   const brandMeta = getBrandMeta(item.brand);
                   return (

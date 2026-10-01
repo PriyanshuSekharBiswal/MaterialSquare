@@ -13,6 +13,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { COMPANY_INFO } from '../data/materialsData';
+import WhatsAppIcon from './icons/WhatsAppIcon';
 import HeroBuildingCanvas from './HeroBuildingCanvas';
 
 export default function Hero({
