@@ -66,6 +66,9 @@ html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 html:not(.lenis) {
@@ -87,7 +90,17 @@ body {
   color: var(--ms-slate-900);
   line-height: 1.55;
   min-height: 100vh;
-  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+  position: relative;
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+  position: relative;
 }
 
 img {
@@ -169,11 +182,13 @@ a {
 
 /* Layout Container */
 .container {
+  width: 100%;
   max-width: 1280px;
   margin-left: auto;
   margin-right: auto;
   padding-left: 1.5rem;
   padding-right: 1.5rem;
+  box-sizing: border-box;
 }
 
 /* Headings */

@@ -13,6 +13,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { COMPANY_INFO } from '../data/materialsData';
+import HeroBuildingCanvas from './HeroBuildingCanvas';
 
 export default function Hero({
   searchQuery,
@@ -32,7 +33,17 @@ export default function Hero({
 
   return (
     <section className="ms-hero-section">
+      <div className="hero-desktop-canvas-wrap">
+        <HeroBuildingCanvas centered={false} />
+      </div>
       <div className="container hero-layout-grid">
+        {/* Mobile 3D Building Showcase (Visible on < 992px at the top before text) */}
+        <div className="hero-mobile-building-col">
+          <div className="hero-mobile-building-frame">
+            <HeroBuildingCanvas centered={true} />
+          </div>
+        </div>
+
         {/* Left Column: Core Value Proposition */}
         <div className="hero-content-col">
           {/* Eyebrow Tag */}
@@ -124,59 +135,8 @@ export default function Hero({
           </div>
         </div>
 
-        {/* Right Column: Visual Campaign Card (Recreating the visual from Image 1 & 4) */}
-        <div className="hero-visual-col">
-          <div className="hero-visual-card">
-            <div className="visual-top-strip">
-              <div className="d2c-badge">
-                <Truck size={14} /> Direct Site Fleet Dispatch
-              </div>
-              <span className="live-status">
-                <span className="status-dot"></span> Serving Delhi NCR
-              </span>
-            </div>
-
-            {/* Visual Mosaic of Key Construction Materials */}
-            <div className="visual-media-showcase">
-              <img
-                src="https://images.unsplash.com/photo-1541888946425-d0fbb186c5f7?auto=format&fit=crop&w=800&q=80"
-                alt="Active Construction Site with Material Square Supplies"
-                className="showcase-bg-img"
-              />
-              <div className="showcase-overlay">
-                <div className="showcase-truck-banner">
-                  <div className="truck-icon-circle">
-                    <Truck size={20} />
-                  </div>
-                  <div>
-                    <h4 className="truck-title">ONE ORDER. ON TIME. EVERY TIME.</h4>
-                    <p className="truck-sub">Consolidated site delivery across Delhi, Noida & Gurugram</p>
-                  </div>
-                </div>
-
-                <div className="showcase-material-pills">
-                  <span className="mat-pill">🧱 Cement (UltraTech, Ambuja, JK)</span>
-                  <span className="mat-pill">🚰 Pipes (Astral, Supreme, Finolex)</span>
-                  <span className="mat-pill">⚡ Wires (Polycab, Havells)</span>
-                  <span className="mat-pill">🎨 Paints (Asian Paints, Birla Opus)</span>
-                  <span className="mat-pill">🚿 Sanitary (Jaquar, CERA)</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Hotline Footer */}
-            <div className="visual-hotline-bar">
-              <div className="hotline-info">
-                <Phone size={18} className="phone-icon" />
-                <div>
-                  <span className="hotline-label">Direct Order Hotline</span>
-                  <span className="hotline-number">{COMPANY_INFO.phoneDisplay}</span>
-                </div>
-              </div>
-              <span className="hotline-slogan">Aap Construction Sambhaliye, Material Hum.</span>
-            </div>
-          </div>
-        </div>
+        {/* Right Column Spacer (Space reserved for 3D building rendering) */}
+        <div className="hero-visual-col" aria-hidden="true" />
       </div>
 
       {/* 4 Pillars Trust Strip */}

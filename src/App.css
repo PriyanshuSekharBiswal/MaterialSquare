@@ -440,26 +440,105 @@
    3. Home Page Styling
    -------------------------------------------------------------------------- */
 .home-page-container {
-  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
-.home-hero-section {
+.home-hero-section,
+.ms-hero-section {
   background: linear-gradient(180deg, #090d16 0%, #0f172a 100%);
   color: #ffffff;
-  padding: 2.5rem 0 2.25rem;
+  padding: 3rem 0 2.5rem;
   position: relative;
+  overflow: hidden;
+  overflow-x: clip;
+  contain: paint;
+  min-height: 560px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Ensure hero content is immediately visible without waiting for scroll animation */
+.home-hero-section .reveal-text,
+.home-hero-section .reveal-title,
+.ms-hero-section .reveal-text,
+.ms-hero-section .reveal-title {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* Full-bleed desktop canvas */
+.hero-desktop-canvas-wrap {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+  z-index: 1;
+}
+
+.hero-desktop-canvas-wrap .hero-3d-building-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: auto;
+}
+
+/* Mobile building showcase column - hidden on desktop */
+.hero-mobile-building-col {
+  display: none;
+}
+
+.home-hero-section .hero-grid,
+.ms-hero-section .hero-layout-grid {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.home-hero-section .hero-text-col,
+.home-hero-section .hero-text-col *,
+.ms-hero-section .hero-content-col,
+.ms-hero-section .hero-content-col *,
+.hero-mobile-building-col,
+.hero-mobile-building-col * {
+  pointer-events: auto;
 }
 
 .hero-grid {
   display: grid;
-  grid-template-columns: 1.2fr 0.95fr;
+  grid-template-columns: 1.15fr 1fr;
   gap: 2.25rem;
   align-items: center;
+  min-height: 480px;
+}
+
+.hero-showcase-col {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 480px;
+  pointer-events: none;
 }
 
 .hero-text-col {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .eyebrow-row {
@@ -483,6 +562,9 @@
   letter-spacing: -0.025em;
   margin-bottom: 0.5rem;
   color: #ffffff;
+  max-width: 100%;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .hero-heading .accent-text {
@@ -490,11 +572,32 @@
   display: block;
 }
 
+.ms-mask-line {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  line-height: 1.18;
+}
+
+.ms-mask-text {
+  display: inline-block;
+  max-width: 100%;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  transform: translateY(115%);
+  opacity: 0;
+  transition: transform 0.82s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.82s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
+}
+
 .hero-hindi-quote {
   font-size: 1.05rem;
   font-weight: 600;
   color: #fed7aa;
   margin-bottom: 0.65rem;
+  max-width: 100%;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .hero-subtext {
@@ -503,6 +606,10 @@
   color: #94a3b8;
   margin-bottom: 1.2rem;
   max-width: 580px;
+  width: 100%;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
 }
 
 .hero-subtext strong {
@@ -518,6 +625,8 @@
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
   margin-bottom: 1.25rem;
   max-width: 540px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .hero-search-form .search-icon {
@@ -530,6 +639,8 @@
   border: none;
   outline: none;
   font-size: 0.92rem;
+  min-width: 0 !important;
+  flex: 1 1 0% !important;
   width: 100%;
   color: var(--ms-slate-900);
   background: transparent;
@@ -548,6 +659,55 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 0.85rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   Hero 3D Isometric Building (Pure Canvas Simulation - No Boxes, No Text)
+   Inspired by cmemp.vercel.app
+   ========================================================================== */
+.hero-3d-building-wrap {
+  position: relative;
+  width: 100%;
+  height: 540px;
+  min-height: 500px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  overflow: visible;
+  pointer-events: auto;
+}
+
+.hero-3d-building-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: auto;
+  background: transparent;
+}
+
+@media (max-width: 991px) {
+  .hero-3d-building-wrap {
+    height: 480px;
+    min-height: 440px;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-3d-building-wrap {
+    height: 380px;
+    min-height: 350px;
+    max-width: 100%;
+  }
 }
 
 /* Right Showcase Carousel Card */
@@ -5550,15 +5710,47 @@
     font-size: 0.78rem;
   }
 
+  .hero-desktop-canvas-wrap {
+    display: none !important;
+  }
+
   .hero-grid {
-    grid-template-columns: 1fr;
-    gap: 2rem;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    min-height: auto !important;
+  }
+
+  .hero-mobile-building-col {
+    display: block !important;
+    width: 100%;
+    margin: 0 auto 0.75rem auto;
+    position: relative;
+    z-index: 5;
+    pointer-events: auto;
+  }
+
+  .hero-mobile-building-frame {
+    width: 100%;
+    max-width: 100%;
+    height: 280px;
+    margin: 0 auto;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-mobile-building-frame .hero-3d-building-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: auto;
   }
 
   .hero-showcase-col {
-    max-width: 420px;
-    width: 100%;
-    margin: 0 auto;
+    display: none !important;
   }
 
   .trust-grid {
@@ -5652,20 +5844,33 @@
   }
 
   /* Hero Section */
+  .home-hero-section,
   .hero-section {
     padding: 2rem 0 1.75rem;
+    min-height: auto;
+  }
+
+  .hero-mobile-building-frame {
+    height: 280px;
+    max-width: 100%;
   }
 
   .hero-heading {
-    font-size: clamp(1.75rem, 5.5vw, 2.35rem);
+    font-size: clamp(1.6rem, 5.2vw, 2.15rem);
+    line-height: 1.18;
+  }
+
+  .hero-hindi-quote {
+    font-size: 0.98rem;
   }
 
   .hero-subtext {
     font-size: 0.88rem;
+    line-height: 1.5;
   }
 
   .hero-showcase-col {
-    max-width: 380px;
+    display: none !important;
   }
 
   /* Brands Grid */
@@ -5958,8 +6163,7 @@
   }
 
   .nav-logo .ms-logo-tagline {
-    font-size: 0.44rem !important;
-    letter-spacing: 0.08em !important;
+    display: none !important;
   }
 
   /* Nav Action Buttons: cohesive, premium Apple-style button trio */
@@ -6068,6 +6272,36 @@
     color: var(--ms-primary);
   }
 
+  /* Hero Section Mobile Refinements */
+  .home-hero-section,
+  .ms-hero-section {
+    padding: 1.5rem 0 2rem;
+  }
+
+  .hero-mobile-building-col {
+    margin-bottom: 0.5rem;
+  }
+
+  .hero-mobile-building-frame {
+    height: 280px;
+    max-width: 100%;
+  }
+
+  .hero-heading {
+    font-size: clamp(1.4rem, 5.8vw, 1.85rem);
+    line-height: 1.2;
+  }
+
+  .hero-hindi-quote {
+    font-size: 0.92rem;
+  }
+
+  .hero-subtext {
+    font-size: 0.84rem;
+    line-height: 1.48;
+    margin-bottom: 1rem;
+  }
+
   /* Hero CTA Group */
   .hero-cta-group {
     flex-direction: column;
@@ -6081,12 +6315,17 @@
   }
 
   .hero-search-form {
-    padding: 0.25rem 0.25rem 0.25rem 0.75rem;
+    padding: 0.25rem 0.25rem 0.25rem 0.65rem;
+    margin-bottom: 1rem;
+  }
+
+  .search-input {
+    font-size: 0.86rem;
   }
 
   .search-submit-btn {
-    padding: 0.55rem 0.95rem;
-    font-size: 0.85rem;
+    padding: 0.5rem 0.85rem;
+    font-size: 0.82rem;
   }
 
   /* Marketplace Controls */
@@ -6924,6 +7163,22 @@
 }
 
 @media (max-width: 480px) {
+  .hero-mobile-building-frame {
+    height: 280px;
+  }
+
+  .hero-heading {
+    font-size: clamp(1.3rem, 6.2vw, 1.7rem);
+  }
+
+  .hero-hindi-quote {
+    font-size: 0.88rem;
+  }
+
+  .hero-subtext {
+    font-size: 0.80rem;
+  }
+
   .brand-partner-card {
     flex: 0 0 100%;
     width: 100%;
@@ -7245,6 +7500,10 @@
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
+  overflow-x: clip;
+  contain: paint;
+  width: 100%;
+  max-width: 100vw;
   padding: 0.95rem 0;
   user-select: none;
   position: relative;

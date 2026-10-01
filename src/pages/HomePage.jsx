@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { COMPANY_INFO } from '../data/materialsData';
 import { BRAND_LIST, BrandLogo } from '../components/icons/BrandBadges';
-import HeroShowcaseCarousel from '../components/HeroShowcaseCarousel';
+import HeroBuildingCanvas from '../components/HeroBuildingCanvas';
 import SiteDeliveriesCarousel from '../components/SiteDeliveriesCarousel';
 import DirectionGoogleMaps from '../components/DirectionGoogleMaps';
 import SearchSuggestions from '../components/SearchSuggestions';
@@ -26,8 +26,19 @@ import ArchitecturalTicker from '../components/ArchitecturalTicker';
 export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+  const [isMobileView, setIsMobileView] = useState(() => {
+    return typeof window !== 'undefined' ? window.innerWidth < 992 : false;
+  });
   const searchRef = useRef(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileView(window.innerWidth < 992);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Close suggestions on outside click
   useEffect(() => {
@@ -92,7 +103,23 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM })
     <div className="home-page-container">
       {/* Hero Section */}
       <section className="home-hero-section">
+        {/* Desktop: Full-bleed 3D Isometric Building Simulation */}
+        {!isMobileView && (
+          <div className="hero-desktop-canvas-wrap">
+            <HeroBuildingCanvas centered={false} />
+          </div>
+        )}
+
         <div className="container hero-grid">
+          {/* Mobile: 3D Building Showcase at the top before text */}
+          {isMobileView && (
+            <div className="hero-mobile-building-col">
+              <div className="hero-mobile-building-frame">
+                <HeroBuildingCanvas centered={true} />
+              </div>
+            </div>
+          )}
+
           {/* Left Text */}
           <div className="hero-text-col">
             <div className="eyebrow-row reveal-text">
@@ -101,13 +128,8 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM })
             </div>
 
             <h1 className="hero-heading">
-              <span className="ms-mask-line">
-                <span className="ms-mask-text">Why Make 5 Calls?</span>
-              </span>
-              <br />
-              <span className="ms-mask-line">
-                <span className="ms-mask-text accent-text delay-2">One Call. All Materials.</span>
-              </span>
+              <span className="ms-mask-line">Why Make 5 Calls?</span>
+              <span className="ms-mask-line accent-text">One Call. All Materials.</span>
             </h1>
 
             <div className="hero-hindi-quote reveal-text">
@@ -125,7 +147,7 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM })
               <input
                 type="text"
                 className="search-input"
-                placeholder="Search products or brands (e.g. UltraTech, Astral CPVC, Polycab 2.5mm)..."
+                placeholder="Search products or brands (e.g. UltraTech, Astral, Polycab)..."
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -199,10 +221,8 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM })
             </div>
           </div>
 
-          {/* Right Visual Carousel Card */}
-          <div className="hero-showcase-col">
-            <HeroShowcaseCarousel />
-          </div>
+          {/* Right Visual Column (Space reserved for 3D building rendering) */}
+          <div className="hero-showcase-col" aria-hidden="true" />
         </div>
       </section>
 
