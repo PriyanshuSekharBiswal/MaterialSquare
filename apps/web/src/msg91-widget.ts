@@ -86,6 +86,7 @@ async function initialize(): Promise<void> {
         window.initSendOTP!({
           ...config,
           exposeMethods: true,
+          captchaRenderId: "msg91-captcha",
           success: () => {},
           failure: () => {},
         });

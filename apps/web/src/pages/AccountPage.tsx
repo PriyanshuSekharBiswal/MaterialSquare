@@ -154,6 +154,11 @@ export default function AccountPage() {
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
               />
             </label>
+            <div
+              id="msg91-captcha"
+              className="msg91-captcha"
+              aria-label="SMS security check"
+            />
             {sent && (
               <>
                 <label>

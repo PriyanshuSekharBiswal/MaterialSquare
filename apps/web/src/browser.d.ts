@@ -16,6 +16,7 @@ declare global {
       widgetId: string;
       tokenAuth: string;
       exposeMethods: true;
+      captchaRenderId?: string;
       success: Msg91WidgetCallback;
       failure: (error: unknown) => void;
     }) => void;
