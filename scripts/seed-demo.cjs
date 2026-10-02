@@ -1,13 +1,12 @@
 const { PrismaClient } = require("@prisma/client");
 const { randomBytes, scryptSync } = require("node:crypto");
 async function main() {
-  if (
-    process.env.APP_ENV !== "demo" ||
-    process.env.DEMO_AUTH_ENABLED !== "true"
-  )
-    throw Error(
-      "Demo seeding requires APP_ENV=demo and DEMO_AUTH_ENABLED=true",
-    );
+  if (process.env.APP_ENV !== "demo")
+    throw Error("Demo seeding is only allowed in APP_ENV=demo");
+  if (process.env.DEMO_AUTH_ENABLED !== "true") {
+    console.log("Demo seeding skipped because demo authentication is disabled.");
+    return;
+  }
   const phone = process.env.DEMO_STAFF_PHONE || "9000000000";
   const password = process.env.DEMO_STAFF_PASSWORD;
   if (!/^[6-9]\d{9}$/.test(phone) || !password || password.length < 12)
