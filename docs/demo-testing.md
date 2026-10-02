@@ -6,14 +6,14 @@ Open `.local/demo-access.md` for the current URLs and local demo credentials. On
 
 ## Customer checks
 
-1. On device A, select `9000000001` and press Send OTP. Read the six-digit demo code displayed on that page or press Use demo code. Verify, then complete the profile.
+1. Customer sign-in uses the configured MSG91 widget and sends a real OTP. It uses the configured MSG91 wallet and delivery rules; no customer demo code is generated or displayed.
 2. Add materials, sizes and quantities. Wait for saving to finish.
-3. On device B, select the same number and request a new code. Codes expire after five minutes, are single-use, and a new request replaces the old code. Demo requests have a five-second cooldown.
+3. On device B, enter the same number and request a new code through MSG91.
 4. Confirm that the same profile and saved list appear. Saved list changes refresh on return to a tab and approximately every 15 seconds while idle. Concurrent edits are rejected with a reload prompt instead of silently overwriting another device.
-5. Sign in with `9000000002` on a separate browser or after logout. It has a separate account and list. `9000000003` is also available.
+5. Sign in with a different number on a separate browser or after logout. It has a separate account and list.
 6. Log out on one device: the other device stays signed in. Refresh the logged-in page to check its session persists.
 
-Only the configured demo numbers can request displayed OTPs. Demo account records are explicitly marked in the database. Disabling demo authentication rejects their sessions and staff credentials, even if a cookie/token has not expired. They do not become verified production customer accounts.
+Demo customer records are explicitly marked in the database. Disabling demo authentication rejects demo customer sessions and staff credentials, even if a cookie/token has not expired.
 
 ## Staff checks
 
@@ -31,6 +31,6 @@ Ctrl+C stops servers started by the demo command. Previously running web/admin s
 
 ## Moving to real authentication
 
-Use a separate production database, `APP_ENV=production`, and `DEMO_AUTH_ENABLED=false`. Create a staff account with `scripts/create-staff.cjs` using STAFF_PHONE, STAFF_EMAIL, STAFF_NAME and a private STAFF_PASSWORD. Integrate the actual OTP provider before enabling customer access. The demo flag is never a fallback for delivery errors.
+Use a separate production database, `APP_ENV=production`, and `DEMO_AUTH_ENABLED=false`. Create a staff account with `scripts/create-staff.cjs` using STAFF_PHONE, STAFF_EMAIL, STAFF_NAME and a private STAFF_PASSWORD. Configure the MSG91 widget and server Authkey. The demo flag is never a fallback for delivery errors.
 
-Hosted setup is described in `deployment/vercel-render.md`. Real phone OTP delivery remains deferred; this demo does not verify ownership of a real mobile number.
+Hosted setup is described in `deployment/vercel-render.md`. Real phone OTP delivery uses the configured MSG91 account and verifies ownership of a real mobile number.

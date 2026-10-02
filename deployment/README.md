@@ -7,7 +7,7 @@ This is a self-hosted deployment option, prepared without choosing or purchasing
 - A Linux server with Docker Engine and Compose, sufficient disk space, and ports 80/443 available.
 - Website and staff subdomain DNS records pointing to that server.
 - Client-approved contact details, catalogue, business claims and policies (see `docs/launch-content-review.md`).
-- An active 2Factor account with any required SMS credits/account setup. The backend supports `TWOFACTOR_API_KEY` or the generic webhook; keep provider keys in the API host's secret settings only.
+- An active MSG91 OTP Widget. Keep its Authkey in the API host's private settings and the widget ID/client token in the customer frontend environment.
 - Independent backup destination and monitoring service.
 
 ## Prepare and launch

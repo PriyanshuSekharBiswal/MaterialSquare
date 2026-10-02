@@ -67,9 +67,8 @@ async function main() {
     "",
     `Staff mobile: ${env.DEMO_STAFF_PHONE}`,
     `Staff password: ${env.DEMO_STAFF_PASSWORD}`,
-    `Customer numbers: ${env.DEMO_CUSTOMER_PHONES}`,
     "",
-    "Customer codes appear on the sign-in page. Data persists in .local/demo-postgres. These are demo accounts. Keep the computer running while testing from a phone.",
+    "Customer sign-in sends a real OTP through MSG91. Data persists in .local/demo-postgres. Staff access uses the local demo credentials above. Keep the computer running while testing from a phone.",
   ].join("\n");
   fs.writeFileSync(path.join(root, ".local/demo-access.md"), access, {
     mode: 0o600,

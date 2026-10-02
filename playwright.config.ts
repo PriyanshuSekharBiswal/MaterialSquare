@@ -13,6 +13,10 @@ export default defineConfig({
         "npm run dev --workspace=@material-square/web -- --host 127.0.0.1 --port 4173 --strictPort",
       url: "http://127.0.0.1:4173",
       reuseExistingServer: false,
+      env: {
+        VITE_MSG91_WIDGET_ID: "browser-test-widget",
+        VITE_MSG91_TOKEN_AUTH: "browser-test-token",
+      },
     },
     {
       command:

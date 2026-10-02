@@ -7,7 +7,6 @@ import { JwtModule } from "@nestjs/jwt";
 import { PassportModule } from "@nestjs/passport";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
-import { TwoFactorService } from "./twofactor.service";
 import { Msg91WidgetService } from "./msg91-widget.service";
 import { JwtStrategy } from "./jwt.strategy";
 
@@ -28,7 +27,6 @@ import { JwtStrategy } from "./jwt.strategy";
     AuthService,
     JwtStrategy,
     StaffGuard,
-    TwoFactorService,
     Msg91WidgetService,
   ],
   exports: [AuthService, JwtModule, StaffGuard],

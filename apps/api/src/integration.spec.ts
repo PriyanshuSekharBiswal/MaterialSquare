@@ -1,4 +1,4 @@
-import { createHmac, createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { publicRateLimit } from "./common/rate-limit";
 import { Test } from "@nestjs/testing";
@@ -6,6 +6,7 @@ import { INestApplication } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { AppModule } from "./app.module";
 import { hashPassword } from "./auth/password";
+import { Msg91WidgetService } from "./auth/msg91-widget.service";
 import { JwtService } from "@nestjs/jwt";
 import request = require("supertest");
 const integration = process.env.TEST_DATABASE_URL ? describe : describe.skip;
@@ -34,7 +35,13 @@ integration("API with isolated PostgreSQL", () => {
     });
     const module = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(Msg91WidgetService)
+      .useValue({
+        verifyAccessToken: async (accessToken: string) =>
+          accessToken.slice(-10),
+      })
+      .compile();
     app = module.createNestApplication();
     app.setGlobalPrefix("api");
     app.use(publicRateLimit());
@@ -224,21 +231,14 @@ integration("API with isolated PostgreSQL", () => {
   });
   it("persists customer lists across sessions, isolates accounts and revokes logout", async () => {
     const phone = "9876543219";
-    const otp = "481962";
     const signIn = async (number: string) => {
-      await db.otpSession.create({
-        data: {
-          phone: number,
-          otpHash: createHmac("sha256", process.env.JWT_SECRET!)
-            .update(`${number}:${otp}`)
-            .digest("hex"),
-          expiresAt: new Date(Date.now() + 60000),
-        },
-      });
       const result = await request(app.getHttpServer())
-        .post("/api/auth/customer/otp/verify")
+        .post("/api/auth/customer/otp/verify-msg91")
         .set("X-Material-Square", "customer")
-        .send({ phone: number, otp })
+        .send({
+          phone: number,
+          accessToken: `mock-msg91-access-token-${number}`,
+        })
         .expect(200);
       expect(result.body).toEqual({ success: true });
       const header = result.headers["set-cookie"][0];
@@ -331,9 +331,6 @@ integration("API with isolated PostgreSQL", () => {
       .set("Cookie", second)
       .expect(401);
     await db.customer.deleteMany({
-      where: { phone: { in: [phone, "9876543218"] } },
-    });
-    await db.otpSession.deleteMany({
       where: { phone: { in: [phone, "9876543218"] } },
     });
   });

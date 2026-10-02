@@ -5,6 +5,7 @@ import request = require("supertest");
 import { AppModule } from "./app.module";
 import { hashPassword } from "./auth/password";
 import { demoAuthEnabled } from "./auth/demo-mode";
+import { Msg91WidgetService } from "./auth/msg91-widget.service";
 const integration = process.env.TEST_DATABASE_URL ? describe : describe.skip;
 integration("Demo accounts and staff workspace with PostgreSQL", () => {
   let app: INestApplication, db: PrismaClient;
@@ -24,12 +25,9 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
       "demo-integration-only-secret-at-least-32-characters";
     process.env.APP_ENV = "demo";
     process.env.DEMO_AUTH_ENABLED = "true";
-    process.env.DEMO_CUSTOMER_PHONES = [a, b, real].join(",");
-    delete process.env.OTP_WEBHOOK_URL;
     delete process.env.REDIS_URL;
     db = new PrismaClient();
     await db.customer.deleteMany({ where: { phone: { in: [a, b, real] } } });
-    await db.otpSession.deleteMany({ where: { phone: { in: [a, b, real] } } });
     await db.staffUser.upsert({
       where: { email: "demo-integration@example.test" },
       update: { isDemo: true, isActive: true, phone: staffPhone },
@@ -44,7 +42,12 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
     });
     const module = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(Msg91WidgetService)
+      .useValue({
+        verifyAccessToken: async (token: string) => token.slice(-10),
+      })
+      .compile();
     app = module.createNestApplication();
     app.setGlobalPrefix("api");
     await app.init();
@@ -53,7 +56,6 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
     if (followupId)
       await db.staffEnquiry.deleteMany({ where: { id: followupId } });
     await db.customer.deleteMany({ where: { phone: { in: [a, b, real] } } });
-    await db.otpSession.deleteMany({ where: { phone: { in: [a, b, real] } } });
     await db.staffUser.deleteMany({
       where: { email: "demo-integration@example.test" },
     });
@@ -61,27 +63,15 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
     await db?.$disconnect();
     delete process.env.DEMO_AUTH_ENABLED;
     delete process.env.APP_ENV;
-    delete process.env.DEMO_CUSTOMER_PHONES;
   });
   async function login(phone: string) {
     const result = await request(app.getHttpServer())
-      .post("/api/auth/customer/otp/request")
+      .post("/api/auth/customer/otp/verify-msg91")
       .set(headers)
-      .send({ phone })
+      .send({ phone, accessToken: `mock-msg91-access-token-${phone}` })
       .expect(200);
     expect(result.headers["cache-control"]).toBe("no-store");
-    expect(result.body.demoOtp).toMatch(/^\d{6}$/);
-    const verified = await request(app.getHttpServer())
-      .post("/api/auth/customer/otp/verify")
-      .set(headers)
-      .send({ phone, otp: result.body.demoOtp })
-      .expect(200);
-    await request(app.getHttpServer())
-      .post("/api/auth/customer/otp/verify")
-      .set(headers)
-      .send({ phone, otp: result.body.demoOtp })
-      .expect(400);
-    return verified.headers["set-cookie"][0].split(";")[0];
+    return result.headers["set-cookie"][0].split(";")[0];
   }
   it("requires valid staff phone and password; anonymous staff reads are denied", async () => {
     await request(app.getHttpServer())
@@ -128,10 +118,6 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
         ],
       })
       .expect(200);
-    await db.otpSession.updateMany({
-      where: { phone: a },
-      data: { createdAt: new Date(Date.now() - 60000) },
-    });
     cookieA2 = await login(a);
     cookieB = await login(b);
     const same = await request(app.getHttpServer())
@@ -208,7 +194,7 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
       .send({ ...record, status: "CLOSED", version: 0 })
       .expect(409);
   });
-  it("does not let displayed demo codes enter a real account", async () => {
+  it("removes the demo OTP endpoints and only accepts MSG91 access tokens", async () => {
     await db.customer.create({
       data: {
         phone: real,
@@ -217,16 +203,21 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
         isDemo: false,
       },
     });
-    const result = await request(app.getHttpServer())
+    await request(app.getHttpServer())
       .post("/api/auth/customer/otp/request")
       .set(headers)
       .send({ phone: real })
-      .expect(200);
+      .expect(404);
     await request(app.getHttpServer())
       .post("/api/auth/customer/otp/verify")
       .set(headers)
-      .send({ phone: real, otp: result.body.demoOtp })
-      .expect(400);
+      .send({ phone: real, otp: "123456" })
+      .expect(404);
+    await request(app.getHttpServer())
+      .post("/api/auth/customer/otp/verify-msg91")
+      .set(headers)
+      .send({ phone: real, accessToken: `mock-msg91-access-token-${real}` })
+      .expect(200);
     const list = await request(app.getHttpServer())
       .get(`/api/workspace/customers?q=${real}`)
       .auth(staffToken, { type: "bearer" })
@@ -248,12 +239,11 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
       .post("/api/auth/staff/login")
       .send({ phone: staffPhone, password: "demo-integration-password" })
       .expect(401);
-    const result = await request(app.getHttpServer())
+    await request(app.getHttpServer())
       .post("/api/auth/customer/otp/request")
       .set(headers)
       .send({ phone: a })
-      .expect(503);
-    expect(result.body.demoOtp).toBeUndefined();
+      .expect(404);
     process.env.DEMO_AUTH_ENABLED = "true";
     expect(() => demoAuthEnabled()).toThrow("requires APP_ENV=demo");
     process.env.DEMO_AUTH_ENABLED = "false";

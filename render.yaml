@@ -29,12 +29,6 @@ services:
         value: "1"
       - key: ENABLE_API_DOCS
         value: "false"
-      - key: OTP_WEBHOOK_URL
-        sync: false
-      - key: OTP_WEBHOOK_TOKEN
-        sync: false
-      - key: TWOFACTOR_API_KEY
-        sync: false
       - key: MSG91_AUTHKEY
         sync: false
 databases:

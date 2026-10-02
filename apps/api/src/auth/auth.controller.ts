@@ -1,4 +1,4 @@
-import { demoAuthEnabled, demoPhones } from "./demo-mode";
+import { demoAuthEnabled } from "./demo-mode";
 import { StaffGuard } from "./access.guard";
 import { PrismaService } from "../prisma/prisma.service";
 import type { Request, Response } from "express";
@@ -18,8 +18,6 @@ import {
 import { AuthService } from "./auth.service";
 import {
   StaffLoginSchema,
-  RequestOtpSchema,
-  VerifyOtpSchema,
   VerifyMsg91AccessTokenSchema,
 } from "@material-square/types";
 
@@ -32,8 +30,7 @@ export class AuthController {
 
   @Get("mode") mode(@Res({ passthrough: true }) res: Response) {
     res.setHeader("Cache-Control", "no-store");
-    const demo = demoAuthEnabled();
-    return { demo, customerPhones: demo ? demoPhones() : [] };
+    return { demo: demoAuthEnabled() };
   }
 
   @Get("staff/me")
@@ -60,41 +57,6 @@ export class AuthController {
   async loginStaff(@Body() body: unknown) {
     const validated = validate(StaffLoginSchema, body);
     return this.authService.loginStaff(validated);
-  }
-
-  @Post("customer/otp/request")
-  @HttpCode(HttpStatus.OK)
-  async requestOtp(
-    @Body() body: unknown,
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    res.setHeader("Cache-Control", "no-store");
-    checkCustomerMutation(req);
-    const validated = validate(RequestOtpSchema, body);
-    return this.authService.requestCustomerOtp(validated);
-  }
-
-  @Post("customer/otp/verify")
-  @HttpCode(HttpStatus.OK)
-  async verifyOtp(
-    @Body() body: unknown,
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    checkCustomerMutation(req);
-    const validated = validate(VerifyOtpSchema, body);
-    const { sessionToken } =
-      await this.authService.verifyCustomerOtp(validated);
-    res.cookie(CUSTOMER_COOKIE, sessionToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/api",
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
-    res.setHeader("Cache-Control", "no-store");
-    return { success: true };
   }
 
   @Post("customer/otp/verify-msg91")

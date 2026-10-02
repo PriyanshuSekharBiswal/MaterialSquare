@@ -1,5 +1,6 @@
 let sdkPromise: Promise<void> | undefined;
-let initialized = false;
+let initializationPromise: Promise<void> | undefined;
+const sdkUrl = "https://verify.msg91.com/otp-provider.js";
 
 function widgetConfig() {
   const widgetId = import.meta.env.VITE_MSG91_WIDGET_ID?.trim();
@@ -16,12 +17,23 @@ async function initialize(): Promise<void> {
   if (!sdkPromise) {
     sdkPromise = new Promise<void>((resolve, reject) => {
       const existing = document.querySelector<HTMLScriptElement>(
-        'script[src="https://verify.msg91.com/otp-provider.js"]',
+        `script[src="${sdkUrl}"]`,
       );
       if (existing) {
         if (window.initSendOTP) resolve();
         else {
-          existing.addEventListener("load", () => resolve(), { once: true });
+          if (existing.dataset.loaded === "true") {
+            reject(new Error("SMS verification could not initialize."));
+            return;
+          }
+          existing.addEventListener(
+            "load",
+            () => {
+              existing.dataset.loaded = "true";
+              resolve();
+            },
+            { once: true },
+          );
           existing.addEventListener(
             "error",
             () => reject(new Error("Could not load SMS verification.")),
@@ -31,26 +43,64 @@ async function initialize(): Promise<void> {
         return;
       }
       const script = document.createElement("script");
-      script.src = "https://verify.msg91.com/otp-provider.js";
+      script.src = sdkUrl;
       script.async = true;
-      script.onload = () => resolve();
+      script.onload = () => {
+        script.dataset.loaded = "true";
+        resolve();
+      };
       script.onerror = () =>
         reject(new Error("Could not load SMS verification."));
       document.head.appendChild(script);
     });
   }
-  await sdkPromise;
-  if (!window.initSendOTP)
-    throw new Error("SMS verification is unavailable. Please try again later.");
-  if (!initialized) {
-    window.initSendOTP({
-      ...config,
-      exposeMethods: true,
-      success: () => {},
-      failure: () => {},
-    });
-    initialized = true;
+  try {
+    await sdkPromise;
+  } catch (error) {
+    sdkPromise = undefined;
+    throw error;
   }
+  if (!window.initSendOTP) {
+    sdkPromise = undefined;
+    throw new Error("SMS verification is unavailable. Please try again later.");
+  }
+  if (!initializationPromise) {
+    initializationPromise = new Promise<void>((resolve, reject) => {
+      let done = false;
+      const timeout = window.setTimeout(() => {
+        if (!done) {
+          done = true;
+          reject(new Error("SMS verification could not initialize."));
+        }
+      }, 5000);
+      const check = () => {
+        if (window.sendOtp && window.retryOtp && window.verifyOtp) {
+          done = true;
+          window.clearTimeout(timeout);
+          resolve();
+          return;
+        }
+        if (!done) window.setTimeout(check, 25);
+      };
+      try {
+        window.initSendOTP!({
+          ...config,
+          exposeMethods: true,
+          success: () => {},
+          failure: () => {},
+        });
+        check();
+      } catch {
+        done = true;
+        window.clearTimeout(timeout);
+        reject(new Error("SMS verification could not initialize."));
+      }
+    }).catch((error) => {
+      initializationPromise = undefined;
+      throw error;
+    });
+  }
+  await initializationPromise;
 }
 
 function sdkCall(
@@ -86,7 +136,10 @@ export async function sendMsg91Otp(phone: string): Promise<string> {
   const result = await sdkCall((success, failure) =>
     window.sendOtp!(`91${phone}`, success, failure),
   );
-  return requestId(result);
+  const reqId = requestId(result);
+  if (!reqId)
+    throw new Error("SMS was not accepted. Please check the number and retry.");
+  return reqId;
 }
 
 export async function retryMsg91Otp(reqId: string): Promise<string> {

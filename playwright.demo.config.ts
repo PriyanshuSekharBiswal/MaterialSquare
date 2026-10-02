@@ -23,7 +23,6 @@ export default defineConfig({
         JWT_SECRET: "browser-demo-test-secret-at-least-32-characters",
         APP_ENV: "demo",
         DEMO_AUTH_ENABLED: "true",
-        DEMO_CUSTOMER_PHONES: "8888000001,8888000002",
         DEMO_STAFF_PHONE: "8888000000",
         DEMO_STAFF_PASSWORD: "BrowserDemo@2026",
         PORT: "4010",
@@ -31,7 +30,6 @@ export default defineConfig({
         CORS_ORIGINS: "http://127.0.0.1:4175,http://127.0.0.1:4176",
         REDIS_URL: "",
         NOTIFICATION_WEBHOOK_URL: "",
-        OTP_WEBHOOK_URL: "",
       },
     },
     {
@@ -39,7 +37,11 @@ export default defineConfig({
         "npm run dev --workspace=@material-square/web -- --host 127.0.0.1 --port 4175 --strictPort",
       url: "http://127.0.0.1:4175",
       reuseExistingServer: false,
-      env: { API_PROXY_TARGET: "http://127.0.0.1:4010" },
+      env: {
+        API_PROXY_TARGET: "http://127.0.0.1:4010",
+        VITE_MSG91_WIDGET_ID: "browser-test-widget",
+        VITE_MSG91_TOKEN_AUTH: "browser-test-token",
+      },
     },
     {
       command:

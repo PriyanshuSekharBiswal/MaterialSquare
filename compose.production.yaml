@@ -30,8 +30,6 @@ services:
       CORS_ORIGINS: https://${SITE_DOMAIN:?Set website domain},https://${ADMIN_DOMAIN:?Set admin domain}
       TRUST_PROXY_HOPS: 1
       ENABLE_API_DOCS: "false"
-      OTP_WEBHOOK_URL: ${OTP_WEBHOOK_URL:-}
-      OTP_WEBHOOK_TOKEN: ${OTP_WEBHOOK_TOKEN:-}
       QUOTE_SELLER_NAME: Material Square
     depends_on:
       postgres:

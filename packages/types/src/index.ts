@@ -47,17 +47,6 @@ export const StaffLoginSchema = z.object({
 }).refine(v => Boolean(v.phone) !== Boolean(v.email), 'Use either mobile number or email');
 export type StaffLoginInput = z.infer<typeof StaffLoginSchema>;
 
-export const RequestOtpSchema = z.object({
-  phone: z.string().regex(/^[6-9]\d{9}$/, 'Must be a valid 10-digit Indian phone number'),
-});
-export type RequestOtpInput = z.infer<typeof RequestOtpSchema>;
-
-export const VerifyOtpSchema = z.object({
-  phone: z.string().regex(/^[6-9]\d{9}$/, 'Must be a valid 10-digit Indian phone number'),
-  otp: z.string().regex(/^\d{6}$/, 'OTP must be 6 digits'),
-});
-export type VerifyOtpInput = z.infer<typeof VerifyOtpSchema>;
-
 export const VerifyMsg91AccessTokenSchema = z.object({
   phone: z.string().regex(/^[6-9]\d{9}$/, 'Must be a valid 10-digit Indian phone number'),
   accessToken: z.string().min(20).max(4096),

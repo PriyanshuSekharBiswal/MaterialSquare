@@ -18,7 +18,6 @@ function setup() {
       [
         "APP_ENV=demo",
         "DEMO_AUTH_ENABLED=true",
-        "DEMO_CUSTOMER_PHONES=9000000001,9000000002,9000000003",
         "DEMO_STAFF_PHONE=9000000000",
         "DEMO_STAFF_PASSWORD=MaterialDemo@2026",
         "DATABASE_URL=postgresql://ms_demo@127.0.0.1:55440/material_square_demo",
@@ -27,7 +26,6 @@ function setup() {
         "NODE_ENV=development",
         "REDIS_URL=",
         "NOTIFICATION_WEBHOOK_URL=",
-        "OTP_WEBHOOK_URL=",
         "",
       ].join("\n"),
       { mode: 0o600 },

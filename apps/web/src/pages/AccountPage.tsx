@@ -40,18 +40,11 @@ export default function AccountPage() {
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [cooldown, setCooldown] = useState(0);
-  const [demoNumbers, setDemoNumbers] = useState<string[]>([]);
-  const [demoOtp, setDemoOtp] = useState("");
   const [msg91ReqId, setMsg91ReqId] = useState("");
   const [activity, setActivity] = useState<CustomerActivity | null>(null);
   const [activityError, setActivityError] = useState("");
   const [activityBusy, setActivityBusy] = useState(false);
   const [pointsToRedeem, setPointsToRedeem] = useState<Record<string, string>>({});
-  useEffect(() => {
-    void customerApi<{ demo: boolean; customerPhones: string[] }>("/auth/mode")
-      .then((mode) => setDemoNumbers(mode.demo ? mode.customerPhones : []))
-      .catch(() => {});
-  }, []);
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const returnTo =
@@ -88,25 +81,13 @@ export default function AccountPage() {
     setBusy(true);
     setError("");
     try {
-      if (demoNumbers.length > 0) {
-        const result = await customerApi<{
-          demoOtp?: string;
-          retryAfterSeconds?: number;
-        }>("/auth/customer/otp/request", "POST", { phone });
-        setDemoOtp(result.demoOtp || "");
-        setCooldown(result.retryAfterSeconds ?? 60);
-      } else {
-        const reqId = sent
-          ? await retryMsg91Otp(msg91ReqId)
-          : await sendMsg91Otp(phone);
-        setMsg91ReqId(reqId);
-        setDemoOtp("");
-        setCooldown(60);
-      }
+      const reqId = sent
+        ? await retryMsg91Otp(msg91ReqId)
+        : await sendMsg91Otp(phone);
+      setMsg91ReqId(reqId);
+      setCooldown(60);
       setSent(true);
-      setNotice(demoNumbers.length > 0
-        ? "Demo code generated below. No SMS was sent."
-        : "A six-digit verification code has been sent by SMS.");
+      setNotice("A six-digit verification code has been sent by SMS.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -118,15 +99,11 @@ export default function AccountPage() {
     setBusy(true);
     setError("");
     try {
-      if (demoNumbers.length > 0) {
-        await customerApi("/auth/customer/otp/verify", "POST", { phone, otp });
-      } else {
-        const accessToken = await verifyMsg91Otp(otp, msg91ReqId);
-        await customerApi("/auth/customer/otp/verify-msg91", "POST", {
-          phone,
-          accessToken,
-        });
-      }
+      const accessToken = await verifyMsg91Otp(otp, msg91ReqId);
+      await customerApi("/auth/customer/otp/verify-msg91", "POST", {
+        phone,
+        accessToken,
+      });
       await load(true);
       setNotice("Signed in. Complete or review your details below.");
       navigate(returnTo, { replace: true });
@@ -152,34 +129,6 @@ export default function AccountPage() {
             New here? Verify your number, then add your name. No password
             needed.
           </p>
-          {demoNumbers.length > 0 && (
-            <div className="demo-login-box">
-              <strong>Demo accounts</strong>
-              <p>
-                Choose the same number on each device to use the same account.
-              </p>
-              <div className="customer-actions">
-                {demoNumbers.map((number) => (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    key={number}
-                    disabled={busy}
-                    onClick={() => {
-                      setPhone(number);
-                      setSent(false);
-                      setOtp("");
-                      setDemoOtp("");
-                      setMsg91ReqId("");
-                      setNotice("");
-                    }}
-                  >
-                    {number}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
           <form
             className="customer-form"
             onSubmit={
@@ -207,25 +156,6 @@ export default function AccountPage() {
             </label>
             {sent && (
               <>
-                {demoOtp && (
-                  <div className="demo-login-box">
-                    <span>Demo OTP for {phone}</span>
-                    <output aria-label="Demo OTP" className="demo-code">
-                      {demoOtp}
-                    </output>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => setOtp(demoOtp)}
-                    >
-                      Use demo code
-                    </button>
-                    <small>
-                      Expires in 5 minutes. A new request replaces the previous
-                      code.
-                    </small>
-                  </div>
-                )}
                 <label>
                   Six-digit OTP
                   <input
@@ -253,7 +183,6 @@ export default function AccountPage() {
                     onClick={() => {
                       setSent(false);
                       setOtp("");
-                      setDemoOtp("");
                       setMsg91ReqId("");
                       setNotice("");
                     }}

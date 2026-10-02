@@ -19,8 +19,6 @@ services:
         value: demo
       - key: DEMO_AUTH_ENABLED
         value: "true"
-      - key: DEMO_CUSTOMER_PHONES
-        value: 9000000001,9000000002,9000000003
       - key: DEMO_STAFF_PHONE
         value: "9000000000"
       - key: DEMO_STAFF_PASSWORD

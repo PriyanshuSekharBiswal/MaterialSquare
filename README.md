@@ -48,7 +48,7 @@ The existing public catalogue still uses curated frontend product content. The d
 
 No provider account is required for the database, admin, RFQ, and PDF flows. Missing provider configuration is reported explicitly.
 
-**OTP:** Set `TWOFACTOR_API_KEY` and an approved `TWOFACTOR_SENDER_ID` to send direct text SMS through 2Factor's transactional SMS endpoint. This avoids the OTP endpoint's voice fallback. `TWOFACTOR_SMS_MESSAGE` must match the approved SMS/DLT template exactly and contain `XXXX`, which is replaced with the generated code. Keep provider credentials server-side. OTPs are six digits, hashed in PostgreSQL, expire in five minutes, and permit five attempts. Requests are limited to one per phone per minute. There is no universal test OTP in live mode or KYC verification based solely on a phone check.
+**Customer OTP:** The website uses MSG91's OTP Widget custom Web SDK. Set `VITE_MSG91_WIDGET_ID` and `VITE_MSG91_TOKEN_AUTH` in the website environment, and set the private `MSG91_AUTHKEY` only in the API environment. The browser requests and verifies OTPs through the widget; the API verifies MSG91's access token before creating the long-lived customer session. Staff demo login is separate. Customer demo codes are not generated or displayed.
 
 **Notifications:** Configure `REDIS_URL`, `NOTIFICATION_WEBHOOK_URL`, and its token. The adapter receives a job type and record identifiers. Handle `quote-published`, `quote-expiry-reminder`, and `dispatch-whatsapp-alert`; use the `Idempotency-Key` header to prevent duplicate delivery after retries. Failed jobs remain in Redis for inspection/retry. The outbox does not claim a message has been delivered until the adapter returns success.
 
@@ -82,7 +82,7 @@ GitHub Actions runs typechecking, builds, PostgreSQL integration tests, and Chro
 
 The normal development API reads the root `.env` and connects to the local `material_square_dev` PostgreSQL database on port 5432. Its restricted database role and private `.env` are created on this Mac; Prisma has applied all four migrations. Run `npm run dev:all` to use this database. The schema stores customers and sessions, staff, saved material lists, products and brands, quotations, orders, dispatch records, audit logs, notifications, and staff follow-ups. The new development database starts empty; the public catalogue is still curated in frontend code and has not been moved into database-managed catalogue tools.
 
-`npm run demo` uses a separate PostgreSQL cluster under `.local/demo-postgres` on port 55440 with demo-only accounts and displayed OTPs. Stop that process in its terminal before starting the normal API on port 4000. Keeping the databases separate prevents demo records and sign-in bypasses from entering the regular development environment.
+`npm run demo` uses a separate PostgreSQL cluster under `.local/demo-postgres` on port 55440 with demo-scoped customer records and staff credentials. Customer login still uses MSG91. Stop that process in its terminal before starting the normal API on port 4000. Keeping the databases separate prevents demo records from entering the regular development environment.
 
 Styling continues to use CSS. Jest/Supertest and Playwright cover testing; Vitest is not required alongside Jest.
 
@@ -94,7 +94,7 @@ Styling continues to use CSS. Jest/Supertest and Playwright cover testing; Vites
 - Guest lists remain in browser storage. Signing in merges guest-only items into the saved account list; the saved account version wins for duplicate IDs. Account lists include quantity, unit and requested specification, save to PostgreSQL, and use version checks to reject conflicting writes. Logout clears the browser view, not the database list. Saving failures are displayed.
 - `/get-quote` asks for verified mobile, name, full address, city and PIN, optional company/delivery date/notes, and email when email is selected. A preview prepares a message, then opens WhatsApp or the customer's mail app. A copy fallback supports long lists or unavailable handlers. Contact-page enquiries remain available to guests with their own message format. Product enquiries include product identity.
 - Request/quotation/order history is **not** provided by this release. Messages sent outside the website cannot be inferred as delivered or imported into account history.
-- Live OTP can use the server-side 2Factor adapter (`TWOFACTOR_API_KEY`) or a configured webhook. The demo environment continues displaying demo-only OTPs and never calls the SMS provider.
+- Customer sign-in always requires MSG91 OTP verification, including in demo mode. Demo mode only affects staff/demo data scoping and staff credentials.
 - Product artwork: all 18 catalogue entries now use category-appropriate studio illustrations, explicitly labelled illustrative. These are representative renders, not exact manufacturer photographs. Manufacturer size/specification verification and client approval remain pending. Existing brand logos and brand text were preserved.
 
 ### Product illustration prompt
@@ -110,6 +110,6 @@ Product detail forms accept separate sizes and quantities for the same catalogue
 
 ## Demo and first-release staff workspace
 
-Run `npm run demo` for persistent local account testing with displayed OTPs and staff mobile/password login. See [demo testing instructions](docs/demo-testing.md) for multi-device checks and data separation. The current staff workspace contains customer accounts, saved material lists and manual follow-ups; the earlier quotation/order screens remain archived for later work.
+Run `npm run demo` for persistent local account testing with MSG91 customer login and staff mobile/password login. See [demo testing instructions](docs/demo-testing.md) for multi-device checks and data separation. The current staff workspace contains customer accounts, saved material lists and manual follow-ups; the earlier quotation/order screens remain archived for later work.
 
 For GitHub + Vercel + Render, follow [managed deployment setup](deployment/vercel-render.md). Cloud resources and real OTP delivery are not activated by these files.

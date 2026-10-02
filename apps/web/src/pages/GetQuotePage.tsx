@@ -2,7 +2,9 @@ import type { MaterialItem } from "../types";
 import { Link } from "react-router-dom";
 import MaterialListEditor from "../components/MaterialListEditor";
 import RequestContactForm from "../components/RequestContactForm";
+import { useCustomer } from "../customer";
 export default function GetQuotePage(_props: { bomList?: MaterialItem[] }) {
+  const { error } = useCustomer();
   return (
     <section className="request-page container">
       <span className="badge-pill badge-orange-pill">
@@ -13,6 +15,11 @@ export default function GetQuotePage(_props: { bomList?: MaterialItem[] }) {
         Build your material list and add your delivery details. Continue the
         conversation with our team directly through WhatsApp or email.
       </p>
+      {error && (
+        <p className="customer-error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="request-grid">
         <div className="request-card">
           <MaterialListEditor />

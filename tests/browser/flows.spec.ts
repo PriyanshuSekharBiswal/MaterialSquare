@@ -13,6 +13,18 @@ const customer = {
   listVersion: 0,
 };
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    window.initSendOTP = () => {};
+    window.sendOtp = (_identifier, success) =>
+      success?.({ reqId: "test-request-id" });
+    window.retryOtp = (_channel, success) =>
+      success?.({ reqId: "test-request-id" });
+    window.verifyOtp = (_otp, success) =>
+      success?.({ "access-token": "mock.jwt.access-token" });
+  });
+  await page.route("https://verify.msg91.com/otp-provider.js", (route) =>
+    route.fulfill({ status: 200, contentType: "application/javascript", body: "" }),
+  );
   await page.route("**/api/customer/me", (route) =>
     route.fulfill({ status: 401, json: { message: "Please sign in" } }),
   );
@@ -82,10 +94,7 @@ test("public browsing stays open; cart and quote actions require OTP and preserv
         : { status: 401, json: { message: "Please sign in" } },
     ),
   );
-  await page.route("**/api/auth/customer/otp/request", (route) =>
-    route.fulfill({ json: { success: true } }),
-  );
-  await page.route("**/api/auth/customer/otp/verify", (route) => {
+  await page.route("**/api/auth/customer/otp/verify-msg91", (route) => {
     signedIn = true;
     return route.fulfill({ json: { success: true } });
   });
@@ -120,10 +129,7 @@ test("OTP sign-in restores account and logout clears browser view", async ({
   await page.route("**/api/customer/me", (route) =>
     route.fulfill(signedIn ? { json: customer } : { status: 401, json: {} }),
   );
-  await page.route("**/api/auth/customer/otp/request", (route) =>
-    route.fulfill({ json: { success: true } }),
-  );
-  await page.route("**/api/auth/customer/otp/verify", (route) => {
+  await page.route("**/api/auth/customer/otp/verify-msg91", (route) => {
     signedIn = true;
     return route.fulfill({ json: { success: true } });
   });
@@ -136,7 +142,7 @@ test("OTP sign-in restores account and logout clears browser view", async ({
   await page.getByRole("button", { name: "Send OTP", exact: true }).click();
   await page.getByLabel("Six-digit OTP").fill("654321");
   await page.getByRole("button", { name: "Verify & sign in" }).click();
-  await expect(page).toHaveURL(/\/get-quote$/);
+  await expect(page).toHaveURL(/\/marketplace$/);
   await page.goto("/account");
   await expect(page.getByLabel("Full name")).toHaveValue("Test Customer");
   await page.reload();
