@@ -1,9 +1,10 @@
-# Separate paid DEMO database. Never reuse the production database for this environment.
+# Temporary hosted test environment. Render Free Postgres expires after 30 days
+# and has no backups. Never use this blueprint for client or production data.
 services:
   - type: web
     name: material-square-demo-api
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: npm ci && npm run db:generate && npm run build --workspace=@material-square/types && npm run build:api
     preDeployCommand: npm run db:deploy && node scripts/seed-demo.cjs
     startCommand: node apps/api/dist/main.js
@@ -37,7 +38,7 @@ services:
         value: "false"
 databases:
   - name: material-square-demo-db
-    plan: basic-256mb
+    plan: free
     databaseName: material_square_demo
     user: material_square_demo
     ipAllowList: []
