@@ -58,6 +58,12 @@ export const VerifyOtpSchema = z.object({
 });
 export type VerifyOtpInput = z.infer<typeof VerifyOtpSchema>;
 
+export const VerifyMsg91AccessTokenSchema = z.object({
+  phone: z.string().regex(/^[6-9]\d{9}$/, 'Must be a valid 10-digit Indian phone number'),
+  accessToken: z.string().min(20).max(4096),
+});
+export type VerifyMsg91AccessTokenInput = z.infer<typeof VerifyMsg91AccessTokenSchema>;
+
 // ==========================================
 // PRODUCT & SPECIFICATION TYPES
 // ==========================================

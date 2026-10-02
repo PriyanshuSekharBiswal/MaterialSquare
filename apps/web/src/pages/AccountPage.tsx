@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { customerApi } from "../api";
 import { useCustomer } from "../customer";
+import { retryMsg91Otp, sendMsg91Otp, verifyMsg91Otp } from "../msg91-widget";
 type CustomerActivity = {
   requests: {
     id: string;
@@ -41,6 +42,7 @@ export default function AccountPage() {
     [cooldown, setCooldown] = useState(0);
   const [demoNumbers, setDemoNumbers] = useState<string[]>([]);
   const [demoOtp, setDemoOtp] = useState("");
+  const [msg91ReqId, setMsg91ReqId] = useState("");
   const [activity, setActivity] = useState<CustomerActivity | null>(null);
   const [activityError, setActivityError] = useState("");
   const [activityBusy, setActivityBusy] = useState(false);
@@ -86,18 +88,25 @@ export default function AccountPage() {
     setBusy(true);
     setError("");
     try {
-      const result = await customerApi<{
-        demoOtp?: string;
-        retryAfterSeconds?: number;
-      }>("/auth/customer/otp/request", "POST", { phone });
-      setDemoOtp(result.demoOtp || "");
+      if (demoNumbers.length > 0) {
+        const result = await customerApi<{
+          demoOtp?: string;
+          retryAfterSeconds?: number;
+        }>("/auth/customer/otp/request", "POST", { phone });
+        setDemoOtp(result.demoOtp || "");
+        setCooldown(result.retryAfterSeconds ?? 60);
+      } else {
+        const reqId = sent
+          ? await retryMsg91Otp(msg91ReqId)
+          : await sendMsg91Otp(phone);
+        setMsg91ReqId(reqId);
+        setDemoOtp("");
+        setCooldown(60);
+      }
       setSent(true);
-      setCooldown(result.retryAfterSeconds ?? 60);
-      setNotice(
-        result.demoOtp
-          ? "Demo code generated below. No SMS was sent."
-          : "A six-digit OTP has been sent to your mobile.",
-      );
+      setNotice(demoNumbers.length > 0
+        ? "Demo code generated below. No SMS was sent."
+        : "A six-digit verification code has been sent by SMS.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -109,7 +118,15 @@ export default function AccountPage() {
     setBusy(true);
     setError("");
     try {
-      await customerApi("/auth/customer/otp/verify", "POST", { phone, otp });
+      if (demoNumbers.length > 0) {
+        await customerApi("/auth/customer/otp/verify", "POST", { phone, otp });
+      } else {
+        const accessToken = await verifyMsg91Otp(otp, msg91ReqId);
+        await customerApi("/auth/customer/otp/verify-msg91", "POST", {
+          phone,
+          accessToken,
+        });
+      }
       await load(true);
       setNotice("Signed in. Complete or review your details below.");
       navigate(returnTo, { replace: true });
@@ -153,6 +170,7 @@ export default function AccountPage() {
                       setSent(false);
                       setOtp("");
                       setDemoOtp("");
+                      setMsg91ReqId("");
                       setNotice("");
                     }}
                   >
@@ -236,6 +254,7 @@ export default function AccountPage() {
                       setSent(false);
                       setOtp("");
                       setDemoOtp("");
+                      setMsg91ReqId("");
                       setNotice("");
                     }}
                   >

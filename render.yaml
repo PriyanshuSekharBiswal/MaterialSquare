@@ -35,6 +35,8 @@ services:
         sync: false
       - key: TWOFACTOR_API_KEY
         sync: false
+      - key: MSG91_AUTHKEY
+        sync: false
 databases:
   - name: material-square-db
     plan: basic-1gb

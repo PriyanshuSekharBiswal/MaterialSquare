@@ -18,12 +18,14 @@ import { PrismaService } from "../prisma/prisma.service";
 import { verifyPassword } from "./password";
 import { jwtSecret } from "./jwt-config";
 import { TwoFactorService } from "./twofactor.service";
+import { Msg91WidgetService } from "./msg91-widget.service";
 @Injectable()
 export class AuthService {
   constructor(
     private jwtService: JwtService,
     private prisma: PrismaService,
     private twoFactor: TwoFactorService,
+    private msg91Widget: Msg91WidgetService,
   ) {}
   async loginStaff(input: StaffLoginInput) {
     const staff = await this.prisma.staffUser.findUnique({
@@ -157,23 +159,47 @@ export class AuthService {
       });
       throw new BadRequestException("Invalid or expired OTP");
     }
+    return this.createCustomerSession(input.phone, demo, session.id);
+  }
+
+  async verifyCustomerMsg91AccessToken(input: {
+    phone: string;
+    accessToken: string;
+  }) {
+    if (demoAuthEnabled())
+      throw new BadRequestException("Use the configured demo sign-in flow");
+    const verifiedPhone = await this.msg91Widget.verifyAccessToken(
+      input.accessToken,
+    );
+    if (verifiedPhone !== input.phone)
+      throw new UnauthorizedException("Verified phone number does not match");
+    return this.createCustomerSession(verifiedPhone, false);
+  }
+
+  private async createCustomerSession(
+    phone: string,
+    demo: boolean,
+    otpSessionId?: string,
+  ) {
     const sessionToken = randomBytes(32).toString("hex");
     await this.prisma.$transaction(async (db) => {
-      const consumed = await db.otpSession.updateMany({
-        where: {
-          id: session.id,
-          isVerified: false,
-          attempts: { lt: 5 },
-          expiresAt: { gt: new Date() },
-        },
-        data: { isVerified: true },
-      });
-      if (consumed.count !== 1)
-        throw new BadRequestException("Invalid or expired OTP");
+      if (otpSessionId) {
+        const consumed = await db.otpSession.updateMany({
+          where: {
+            id: otpSessionId,
+            isVerified: false,
+            attempts: { lt: 5 },
+            expiresAt: { gt: new Date() },
+          },
+          data: { isVerified: true },
+        });
+        if (consumed.count !== 1)
+          throw new BadRequestException("Invalid or expired OTP");
+      }
       const customer = await db.customer.upsert({
-        where: { phone: input.phone },
+        where: { phone },
         update: {},
-        create: { phone: input.phone, name: "", pincode: "", isDemo: demo },
+        create: { phone, name: "", pincode: "", isDemo: demo },
       });
       if (Boolean(customer.isDemo) !== demo)
         throw new BadRequestException(

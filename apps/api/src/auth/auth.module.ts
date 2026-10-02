@@ -8,6 +8,7 @@ import { PassportModule } from "@nestjs/passport";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { TwoFactorService } from "./twofactor.service";
+import { Msg91WidgetService } from "./msg91-widget.service";
 import { JwtStrategy } from "./jwt.strategy";
 
 @Global()
@@ -22,7 +23,14 @@ import { JwtStrategy } from "./jwt.strategy";
     }),
   ],
   controllers: [AuthController, CustomerController],
-  providers: [CustomerGuard, AuthService, JwtStrategy, StaffGuard, TwoFactorService],
+  providers: [
+    CustomerGuard,
+    AuthService,
+    JwtStrategy,
+    StaffGuard,
+    TwoFactorService,
+    Msg91WidgetService,
+  ],
   exports: [AuthService, JwtModule, StaffGuard],
 })
 export class AuthModule {}

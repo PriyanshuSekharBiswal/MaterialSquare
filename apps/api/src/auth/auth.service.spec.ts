@@ -4,6 +4,7 @@ import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../prisma/prisma.service";
 import { createHmac } from "node:crypto";
 import { TwoFactorService } from "./twofactor.service";
+import { Msg91WidgetService } from "./msg91-widget.service";
 describe("Authentication", () => {
   const sign = jest.fn(() => "signed-token");
   const db = {
@@ -27,6 +28,7 @@ describe("Authentication", () => {
       { sign } as unknown as JwtService,
       db as unknown as PrismaService,
       new TwoFactorService(),
+      { verifyAccessToken: jest.fn() } as unknown as Msg91WidgetService,
     );
   });
   it("checks the password, not the email domain", async () => {

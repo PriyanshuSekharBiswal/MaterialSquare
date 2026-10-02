@@ -20,6 +20,7 @@ import {
   StaffLoginSchema,
   RequestOtpSchema,
   VerifyOtpSchema,
+  VerifyMsg91AccessTokenSchema,
 } from "@material-square/types";
 
 @Controller("auth")
@@ -85,6 +86,28 @@ export class AuthController {
     const validated = validate(VerifyOtpSchema, body);
     const { sessionToken } =
       await this.authService.verifyCustomerOtp(validated);
+    res.cookie(CUSTOMER_COOKIE, sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/api",
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+    res.setHeader("Cache-Control", "no-store");
+    return { success: true };
+  }
+
+  @Post("customer/otp/verify-msg91")
+  @HttpCode(HttpStatus.OK)
+  async verifyMsg91Otp(
+    @Body() body: unknown,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    checkCustomerMutation(req);
+    const validated = validate(VerifyMsg91AccessTokenSchema, body);
+    const { sessionToken } =
+      await this.authService.verifyCustomerMsg91AccessToken(validated);
     res.cookie(CUSTOMER_COOKIE, sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
