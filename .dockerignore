@@ -1,0 +1,17 @@
+node_modules
+**/node_modules
+**/dist
+**/dist-cjs
+.git
+.env
+.env.*
+**/.env
+**/.env.*
+**/*.local
+output
+backups
+test-results
+playwright-report
+coverage
+**/*.log
+**/*.tsbuildinfo

@@ -1,27 +1,44 @@
 {
-  "name": "material-square",
+  "name": "material-square-monorepo",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "oxlint",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "lenis": "^1.3.26",
-    "locomotive-scroll": "^5.0.1",
-    "lucide-react": "^1.48.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "react-router-dom": "^7.18.4"
+    "dev": "npm run dev:web",
+    "dev:all": "concurrently \"npm run dev:web\" \"npm run dev:admin\" \"npm run dev:api\"",
+    "dev:web": "npm run dev --workspace=@material-square/web",
+    "dev:admin": "npm run dev --workspace=@material-square/admin",
+    "dev:api": "npm run start:dev --workspace=@material-square/api",
+    "build": "npm run db:generate && npm run build --workspace=@material-square/types && npm run build:api && npm run build:web && npm run build:admin",
+    "build:web": "npm run build --workspace=@material-square/web",
+    "build:admin": "npm run build --workspace=@material-square/admin",
+    "build:api": "npm run build --workspace=@material-square/api",
+    "typecheck": "npm run build --workspace=@material-square/types && npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspace=@material-square/api -- --runInBand",
+    "db:generate": "npm run generate --workspace=@material-square/db",
+    "db:migrate": "npm run migrate --workspace=@material-square/db",
+    "db:deploy": "node scripts/migrate.cjs",
+    "staff:create": "node scripts/create-staff.cjs",
+    "test:browser": "playwright test",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "predev:api": "npm run db:generate && npm run build --workspace=@material-square/types",
+    "pretest": "npm run db:generate && npm run build --workspace=@material-square/types",
+    "demo": "node scripts/start-demo.cjs",
+    "demo:setup": "node scripts/setup-demo.cjs",
+    "test:demo": "playwright test --config=playwright.demo.config.ts"
   },
   "devDependencies": {
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
-    "@vitejs/plugin-react": "^6.1.1",
-    "oxlint": "^1.81.0",
-    "vite": "^8.3.0"
+    "@playwright/test": "^1.63.0",
+    "concurrently": "^9.1.2",
+    "prettier": "^3.9.9",
+    "typescript": "^5.7.3"
+  },
+  "overrides": {
+    "deepmerge-ts": "8.0.2",
+    "js-yaml@>=5.0.0 <5.4.2": "5.4.2"
   }
 }

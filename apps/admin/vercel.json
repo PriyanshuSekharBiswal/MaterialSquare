@@ -1,0 +1,8 @@
+{
+  "framework": "vite",
+  "installCommand": "cd ../.. && npm ci",
+  "buildCommand": "cd ../.. && npm run build --workspace=@material-square/types && npm run build --workspace=@material-square/admin",
+  "outputDirectory": "dist",
+  "headers": [{ "source": "/(.*)", "headers": [{"key":"X-Robots-Tag","value":"noindex, nofollow"}] }],
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}

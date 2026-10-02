@@ -1,0 +1,722 @@
+// Material Square Enterprise PostgreSQL Database Schema
+// Datasource and generator configuration
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum StaffRole {
+  SUPER_ADMIN
+  ADMIN
+  SALES_MANAGER
+  DISPATCH_OFFICER
+  ACCOUNTS_MANAGER
+  PROCUREMENT_HEAD
+}
+
+enum QuoteStatus {
+  DRAFT
+  PENDING_REVIEW
+  MARGIN_ADJUSTED
+  QUOTE_SENT
+  ACCEPTED
+  CONVERTED_TO_ORDER
+  EXPIRED
+  REJECTED
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAYMENT_CONFIRMED
+  PROCESSING_AT_YARD
+  LOADED_ON_TRUCK
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum ProductCategory {
+  TMT_REBAR
+  STRUCTURAL_STEEL
+  BINDING_WIRE
+  CEMENT
+  AGGREGATES
+}
+
+enum SupplierStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum ProcurementStatus {
+  OPEN
+  COMPARING
+  APPROVAL_PENDING
+  APPROVED
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum LoyaltyTransactionType {
+  EARN
+  REDEEM
+  ADJUST
+  EXPIRE
+}
+
+// ----------------------------------------------------
+// STAFF & USERS
+// ----------------------------------------------------
+
+model StaffUser {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String
+  name         String
+  role         StaffRole  @default(SALES_MANAGER)
+  phone        String?    @unique
+  isDemo       Boolean    @default(false)
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  auditLogs    AuditLog[]
+  supplierRatings SupplierRating[] @relation("StaffSupplierRatings")
+  createdProcurementRequests ProcurementRequest[] @relation("ProcurementCreator")
+  approvedPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderApprover")
+  approvedCommissions CommissionRecord[] @relation("CommissionApprover")
+
+  @@map("staff_users")
+}
+
+// ----------------------------------------------------
+// CUSTOMERS & OTP AUTHENTICATION
+// ----------------------------------------------------
+
+model Customer {
+  isDemo          Boolean        @default(false)
+  id              String         @id @default(uuid())
+  phone           String         @unique
+  name            String
+  email           String?
+  companyName     String?
+  gstin           String?
+  billingAddress  String?
+  shippingAddress String?
+  pincode         String
+  creditLimit     Decimal        @default(0.0) @db.Decimal(12, 2)
+  availableCredit Decimal        @default(0.0) @db.Decimal(12, 2)
+  isKycVerified   Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  city            String         @default("")
+  materialList    Json           @default("[]")
+  listVersion     Int            @default(0)
+  sessions        CustomerSession[]
+  otpSessions     OtpSession[]
+  quotations      Quotation[]
+  orders          Order[]
+  rfqs            Rfq[]
+  loyaltyAccount  LoyaltyAccount?
+  commissions     CommissionRecord[]
+
+  @@map("customers")
+}
+
+model OtpSession {
+  isDemo     Boolean   @default(false)
+  id         String    @id @default(uuid())
+  phone      String
+  attempts   Int       @default(0)
+  otpHash    String
+  expiresAt  DateTime
+  isVerified Boolean   @default(false)
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, isVerified])
+  @@map("otp_sessions")
+}
+
+// ----------------------------------------------------
+// PRODUCTS, BRANDS & PRICING
+// ----------------------------------------------------
+
+model Brand {
+  id                  String       @id @default(uuid())
+  name                String       @unique // e.g. Tata Tiscon, Jindal Panther, JSW Neosteel
+  slug                String       @unique
+  tagline             String?
+  isPrimary           Boolean      @default(false)
+  complianceSpec      String       @default("IS 1786:2008")
+  carbonEquivMax      Decimal      @db.Decimal(4, 3)
+  yieldStrengthMinMpa Decimal      @db.Decimal(6, 2)
+  elongationMinPct    Decimal      @db.Decimal(4, 2)
+  products            ProductSKU[]
+  createdAt           DateTime     @default(now())
+
+  @@map("brands")
+}
+
+model ProductSKU {
+  id               String            @id @default(uuid())
+  brandId          String
+  brand            Brand             @relation(fields: [brandId], references: [id])
+  category         ProductCategory   @default(TMT_REBAR)
+  name             String
+  grade            String            // Fe 500, Fe 550D, etc.
+  diameterMm       Int               // 8, 10, 12, 16, 20, 25, 32
+  standardLengthM  Decimal           @default(12.0) @db.Decimal(4, 1)
+  piecesPerBundle  Int               @default(1)
+  weightPerMeterKg Decimal           @db.Decimal(5, 3)
+  unit             String            @default("MT")
+  basePricePerMt   Decimal           @db.Decimal(10, 2)
+  taxPct           Decimal           @default(18.0) @db.Decimal(4, 2)
+  inStock          Boolean           @default(true)
+  availableStockMt Decimal           @default(100.0) @db.Decimal(10, 2)
+  quoteItems       QuotationItem[]
+  orderItems       OrderItem[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([category, grade, diameterMm])
+  @@map("product_skus")
+}
+
+// ----------------------------------------------------
+// QUOTATIONS & RFQ PIPELINE
+// ----------------------------------------------------
+
+model Quotation {
+  id                 String          @id @default(uuid())
+  quoteNumber        String          @unique // MS-QT-2026-XXXX
+  customerId         String?
+  customer           Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName       String
+  customerPhone      String
+  customerEmail      String?
+  projectSiteAddress String
+  sitePincode        String
+  status             QuoteStatus     @default(PENDING_REVIEW)
+  subtotal           Decimal         @db.Decimal(12, 2)
+  marginAmount       Decimal         @default(0.0) @db.Decimal(12, 2)
+  discountAmount     Decimal         @default(0.0) @db.Decimal(12, 2)
+  taxAmount          Decimal         @db.Decimal(12, 2)
+  freightAmount      Decimal         @default(0.0) @db.Decimal(12, 2)
+  totalAmount        Decimal         @db.Decimal(12, 2)
+  validUntil         DateTime
+  drawingFileUrl     String?
+  notes              String?
+  items              QuotationItem[]
+  followups          QuotationFollowUp[]
+  orders             Order[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id          String     @id @default(uuid())
+  quotationId String
+  quotation   Quotation  @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  productId   String
+  product     ProductSKU @relation(fields: [productId], references: [id])
+  quantityMt  Decimal    @db.Decimal(8, 3)
+  unitPrice   Decimal    @db.Decimal(10, 2)
+  lineTotal   Decimal    @db.Decimal(12, 2)
+  notes       String?
+
+  @@map("quotation_items")
+}
+
+// ----------------------------------------------------
+// ORDERS, DISPATCH & LIVE TRACKING
+// ----------------------------------------------------
+
+model Order {
+  id                 String            @id @default(uuid())
+  orderNumber        String            @unique // MS-ORD-2026-XXXX
+  quotationId        String?
+  quotation          Quotation?        @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  customerId         String
+  customer           Customer          @relation(fields: [customerId], references: [id])
+  customerName       String
+  customerPhone      String
+  deliverySite       String
+  pincode            String
+  status             OrderStatus       @default(PENDING_PAYMENT)
+  subtotal           Decimal           @db.Decimal(12, 2)
+  taxAmount          Decimal           @db.Decimal(12, 2)
+  freightAmount      Decimal           @db.Decimal(12, 2)
+  loyaltyDiscountAmount Decimal        @default(0) @db.Decimal(12, 2)
+  grandTotal         Decimal           @db.Decimal(12, 2)
+  paidAmount         Decimal           @default(0.0) @db.Decimal(12, 2)
+  paymentMode        String            @default("NEFT_RTGS")
+  invoiceUrl         String?
+  challanUrl         String?
+  items              OrderItem[]
+  dispatch           DispatchChallan?
+  transportationPlan TransportationPlan?
+  procurementRequests ProcurementRequest[]
+  loyaltyTransactions LoyaltyTransaction[]
+  commissions        CommissionRecord[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String     @id @default(uuid())
+  orderId    String
+  order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  String
+  product    ProductSKU @relation(fields: [productId], references: [id])
+  quantityMt Decimal    @db.Decimal(8, 3)
+  unitPrice  Decimal    @db.Decimal(10, 2)
+  lineTotal  Decimal    @db.Decimal(12, 2)
+
+  @@map("order_items")
+}
+
+model DispatchChallan {
+  id                 String   @id @default(uuid())
+  orderId            String   @unique
+  order              Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  challanNumber      String   @unique // MS-DC-2026-XXXX
+  truckNumber        String   // OD-02-AK-7789
+  driverName         String
+  driverPhone        String
+  weighbridgeGrossKg Decimal  @db.Decimal(10, 2)
+  weighbridgeTareKg  Decimal  @db.Decimal(10, 2)
+  netWeightKg        Decimal  @db.Decimal(10, 2)
+  currentStep        Int      @default(1) // 1 to 5
+  estimatedArrival   DateTime
+  currentLocation    String?
+  latitude           Decimal? @db.Decimal(9, 6)
+  longitude          Decimal? @db.Decimal(9, 6)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("dispatch_challans")
+}
+
+// Procurement and supplier operations
+model Supplier {
+  id                String             @id @default(uuid())
+  name              String
+  legalName         String?
+  phone             String
+  email             String?
+  gstin             String?            @unique
+  address           String
+  city              String
+  state             String              @default("Uttar Pradesh")
+  pincode           String
+  servicePincodes   String[]            @default([])
+  status            SupplierStatus      @default(PENDING)
+  notes             String?
+  products          SupplierProduct[]
+  quotes            SupplierQuote[]
+  ratings           SupplierRating[]
+  purchaseOrders    PurchaseOrder[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([status, city, pincode])
+  @@map("suppliers")
+}
+
+model SupplierProduct {
+  id                String   @id @default(uuid())
+  supplierId        String
+  supplier          Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  productName       String
+  brand             String   @default("")
+  category          String
+  supplierSku       String?
+  unit              String
+  minimumOrderQty   Decimal? @db.Decimal(12, 3)
+  lastQuotedPrice   Decimal? @db.Decimal(12, 2)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([supplierId, productName, brand])
+  @@index([category, productName, isActive])
+  @@map("supplier_products")
+}
+
+model SupplierRating {
+  id                String    @id @default(uuid())
+  supplierId        String
+  supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  staffId           String?
+  staff             StaffUser? @relation("StaffSupplierRatings", fields: [staffId], references: [id], onDelete: SetNull)
+  priceScore        Int
+  deliveryScore     Int
+  availabilityScore Int
+  qualityScore      Int
+  serviceScore      Int
+  comment           String?
+  createdAt         DateTime  @default(now())
+
+  @@index([supplierId, createdAt])
+  @@map("supplier_ratings")
+}
+
+model ProcurementRequest {
+  id                 String          @id @default(uuid())
+  requestNumber      String          @unique
+  orderId            String?         @unique
+  order              Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  status             ProcurementStatus @default(OPEN)
+  deliveryAddress    String
+  deliveryCity       String
+  deliveryPincode    String
+  requiredBy         DateTime?
+  items              Json
+  notes              String?
+  createdById        String?
+  createdBy          StaffUser?      @relation("ProcurementCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  supplierQuotes     SupplierQuote[]
+  purchaseOrders     PurchaseOrder[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([status, createdAt])
+  @@map("procurement_requests")
+}
+
+model SupplierQuote {
+  id                 String             @id @default(uuid())
+  requestId          String
+  request            ProcurementRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  supplierId         String
+  supplier           Supplier           @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  totalAmount        Decimal            @db.Decimal(14, 2)
+  leadTimeDays       Int?
+  available          Boolean            @default(true)
+  validUntil         DateTime?
+  notes              String?
+  status             String             @default("RECEIVED")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  purchaseOrder      PurchaseOrder?
+
+  @@unique([requestId, supplierId])
+  @@index([requestId, totalAmount])
+  @@map("supplier_quotes")
+}
+
+model PurchaseOrder {
+  id                 String              @id @default(uuid())
+  purchaseOrderNumber String             @unique
+  requestId          String
+  request            ProcurementRequest  @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  supplierId         String
+  supplier           Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  supplierQuoteId    String?             @unique
+  supplierQuote      SupplierQuote?      @relation(fields: [supplierQuoteId], references: [id], onDelete: SetNull)
+  status             PurchaseOrderStatus @default(DRAFT)
+  shippingAddress    String
+  shippingContact    String
+  items              Json
+  subtotal           Decimal             @db.Decimal(14, 2)
+  taxAmount          Decimal             @default(0) @db.Decimal(14, 2)
+  freightAmount      Decimal             @default(0) @db.Decimal(14, 2)
+  totalAmount        Decimal             @db.Decimal(14, 2)
+  approvedById       String?
+  approvedBy         StaffUser?          @relation("PurchaseOrderApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt         DateTime?
+  sentAt             DateTime?
+  deliveryChallanUrl String?
+  notes              String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([status, createdAt])
+  @@map("purchase_orders")
+}
+
+model TransportationPlan {
+  id                 String   @id @default(uuid())
+  orderId            String   @unique
+  order              Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  transporter        String?
+  vehicleNumber      String?
+  driverName         String?
+  driverPhone        String?
+  dispatchAt         DateTime?
+  estimatedArrival   DateTime?
+  destination        String
+  freightAmount      Decimal? @db.Decimal(12, 2)
+  status             String   @default("PLANNED")
+  currentLocation    String?
+  latitude           Decimal? @db.Decimal(9, 6)
+  longitude          Decimal? @db.Decimal(9, 6)
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([status, estimatedArrival])
+  @@map("transportation_plans")
+}
+
+// Configurable business rules and customer-facing content
+model DiscountRule {
+  id                 String   @id @default(uuid())
+  name               String
+  description        String?
+  deliveryPincodes   String[] @default([])
+  category           String?
+  minimumQuantity    Decimal? @db.Decimal(12, 3)
+  maximumQuantity    Decimal? @db.Decimal(12, 3)
+  percentageOff      Decimal  @default(0) @db.Decimal(5, 2)
+  fixedAmountOff     Decimal  @default(0) @db.Decimal(12, 2)
+  priority           Int      @default(0)
+  isActive           Boolean  @default(false)
+  startsAt           DateTime?
+  endsAt             DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([isActive, priority])
+  @@map("discount_rules")
+}
+
+model QuotationFollowUp {
+  id                 String    @id @default(uuid())
+  quotationId        String
+  quotation          Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  channel            String
+  scheduledAt        DateTime
+  sentAt             DateTime?
+  status             String    @default("SCHEDULED")
+  notes              String?
+  createdAt          DateTime  @default(now())
+
+  @@index([status, scheduledAt])
+  @@map("quotation_followups")
+}
+
+model ExpertAdvisor {
+  id                 String   @id @default(uuid())
+  name               String
+  serviceType        String
+  expertise          String
+  phone              String?
+  email              String?
+  city               String?
+  servicePincodes    String[] @default([])
+  description        String?
+  imageUrl           String?
+  isPublished        Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([isPublished, serviceType])
+  @@map("expert_advisors")
+}
+
+model BlogPost {
+  id                 String        @id @default(uuid())
+  title              String
+  slug               String        @unique
+  summary            String
+  body               String
+  featuredImageUrl   String?
+  status             ContentStatus @default(DRAFT)
+  publishedAt        DateTime?
+  authorName         String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([status, publishedAt])
+  @@map("blog_posts")
+}
+
+model CommissionRecord {
+  id                 String    @id @default(uuid())
+  customerId         String?
+  customer           Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  orderId            String?
+  order              Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  beneficiaryName    String
+  beneficiaryPhone   String?
+  basisAmount        Decimal   @db.Decimal(14, 2)
+  ratePct            Decimal   @default(0) @db.Decimal(5, 2)
+  amount             Decimal   @db.Decimal(14, 2)
+  status             String    @default("PENDING_REVIEW")
+  approvedById       String?
+  approvedBy         StaffUser? @relation("CommissionApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt         DateTime?
+  paidAt             DateTime?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@map("commission_records")
+}
+
+model LoyaltyAccount {
+  id                 String               @id @default(uuid())
+  customerId         String               @unique
+  customer           Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  pointsBalance      Int                  @default(0)
+  transactions       LoyaltyTransaction[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@map("loyalty_accounts")
+}
+
+model LoyaltyProgramSetting {
+  id                       String   @id @default("default")
+  enabled                  Boolean  @default(false)
+  pointsPer100Inr          Decimal  @default(0) @db.Decimal(8, 3)
+  minimumOrderValueInr      Decimal  @default(0) @db.Decimal(12, 2)
+  redemptionValuePerPoint  Decimal  @default(0) @db.Decimal(8, 4)
+  minimumRedemptionPoints  Int      @default(0)
+  expiryAfterDays          Int?
+  updatedAt                DateTime @updatedAt
+
+  @@map("loyalty_program_settings")
+}
+
+model LoyaltyTransaction {
+  id                 String                @id @default(uuid())
+  accountId          String
+  account            LoyaltyAccount        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  customerId         String
+  orderId            String?
+  order              Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  type               LoyaltyTransactionType
+  points             Int
+  description        String
+  expiresAt          DateTime?
+  isExpired          Boolean               @default(false)
+  createdAt          DateTime              @default(now())
+
+  @@index([customerId, createdAt])
+  @@index([expiresAt])
+  @@unique([orderId, type])
+  @@map("loyalty_transactions")
+}
+
+// ----------------------------------------------------
+// AUDIT LOGS
+// ----------------------------------------------------
+
+model AuditLog {
+  id         String     @id @default(uuid())
+  staffId    String?
+  staff      StaffUser? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  action     String     // e.g. "MARGIN_ADJUSTED", "ORDER_APPROVED", "DISPATCH_TRIGGERED"
+  entityType String     // "QUOTATION", "ORDER", "PRODUCT"
+  entityId   String
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime   @default(now())
+
+  @@map("audit_logs")
+}
+
+model Rfq {
+  id String @id @default(uuid())
+  customerId String?
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName String
+  customerPhone String
+  siteLocation String
+  projectStage String?
+  deliveryTiming String?
+  notes String?
+  items Json
+  status String @default("NEW")
+  createdAt DateTime @default(now())
+  @@index([customerId, createdAt])
+  @@map("rfqs")
+}
+model ContactInquiry {
+  id String @id @default(uuid())
+  name String
+  phone String
+  location String
+  projectType String
+  message String
+  createdAt DateTime @default(now())
+  @@map("contact_inquiries")
+}
+
+model NotificationOutbox {
+  id String @id @default(uuid())
+  type String
+  payload Json
+  runAt DateTime @default(now())
+  queuedAt DateTime?
+  deliveredAt DateTime?
+  failedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([queuedAt, createdAt])
+  @@map("notification_outbox")
+}
+
+model CustomerSession {
+  id String @id
+  customerId String
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([customerId])
+  @@index([expiresAt])
+  @@map("customer_sessions")
+}
+
+
+model StaffEnquiry {
+  id           String   @id @default(uuid())
+  customerName String
+  phone        String
+  email        String   @default("")
+  siteAddress  String   @default("")
+  city         String   @default("")
+  pincode      String   @default("")
+  source       String
+  status       String   @default("NEW")
+  materials    Json     @default("[]")
+  notes        String   @default("")
+  isDemo       Boolean  @default(false)
+  version      Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isDemo, status, updatedAt])
+  @@map("staff_enquiries")
+}

@@ -1,0 +1,881 @@
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  Users,
+  ClipboardList,
+  LayoutDashboard,
+  LogOut,
+  Plus,
+  RefreshCw,
+  ArrowLeft,
+  Search,
+  Truck,
+  Boxes,
+} from "lucide-react";
+import LegacyOperations from "./LegacyOperations";
+import BusinessConsole from "./BusinessConsole";
+import "./workspace.css";
+type Material = {
+  name: string;
+  brand: string;
+  quantity: number;
+  unit: string;
+  specification: string;
+};
+type Customer = {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  companyName?: string;
+  shippingAddress?: string;
+  city: string;
+  pincode: string;
+  materialList: Material[];
+};
+type Followup = {
+  id?: string;
+  version?: number;
+  customerName: string;
+  phone: string;
+  email: string;
+  siteAddress: string;
+  city: string;
+  pincode: string;
+  source: string;
+  status: string;
+  materials: Material[];
+  notes: string;
+  updatedAt?: string;
+};
+type Page<T> = { items: T[]; total: number; page: number };
+type Staff = { name: string; phone: string; role: string; isDemo: boolean };
+type Stats = {
+  customers: number;
+  openFollowups: number;
+  closedFollowups: number;
+  demo: boolean;
+};
+const statuses: Record<string, string> = {
+  NEW: "New",
+  CONTACTED: "Contacted",
+  QUOTED: "Quoted externally",
+  CLOSED: "Closed",
+};
+const blank = (): Followup => ({
+  customerName: "",
+  phone: "",
+  email: "",
+  siteAddress: "",
+  city: "",
+  pincode: "",
+  source: "WHATSAPP",
+  status: "NEW",
+  materials: [],
+  notes: "",
+});
+function restoredToken() {
+  try {
+    return sessionStorage.getItem("ms-staff-token") || "";
+  } catch {
+    return "";
+  }
+}
+function Materials({ items }: { items: Material[] }) {
+  return items.length ? (
+    <div className="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Material</th>
+            <th>Quantity</th>
+            <th>Specification</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((m, i) => (
+            <tr key={i}>
+              <td>
+                <strong>{m.name}</strong>
+                <small>{m.brand}</small>
+              </td>
+              <td>
+                {m.quantity} {m.unit}
+              </td>
+              <td>{m.specification || "To be confirmed"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  ) : (
+    <p className="empty">No materials saved yet.</p>
+  );
+}
+export function App() {
+  const [token, setTokenState] = useState(restoredToken),
+    [staff, setStaff] = useState<Staff | null>(null);
+  const [tab, setTab] = useState<"overview" | "customers" | "followups" | "operations" | "business">(
+    "overview",
+  );
+  const [stats, setStats] = useState<Stats | null>(null),
+    [customers, setCustomers] = useState<Page<Customer>>({
+      items: [],
+      total: 0,
+      page: 1,
+    }),
+    [followups, setFollowups] = useState<Page<Followup>>({
+      items: [],
+      total: 0,
+      page: 1,
+    });
+  const [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
+    [busy, setBusy] = useState(false),
+    [loading, setLoading] = useState(false),
+    [demo, setDemo] = useState(false);
+  const [query, setQuery] = useState(""),
+    [search, setSearch] = useState(""),
+    [status, setStatus] = useState(""),
+    [page, setPage] = useState(1),
+    [revision, setRevision] = useState(0);
+  const [selected, setSelected] = useState<Customer | null>(null),
+    [draft, setDraft] = useState<Followup | null>(null);
+  const setToken = useCallback((value: string) => {
+    setTokenState(value);
+    try {
+      if (value) sessionStorage.setItem("ms-staff-token", value);
+      else sessionStorage.removeItem("ms-staff-token");
+    } catch {}
+  }, []);
+  const signOut = useCallback(() => {
+    setToken("");
+    setStaff(null);
+  }, [setToken]);
+  const request = useCallback(
+    async <T,>(path: string, method = "GET", body?: unknown): Promise<T> => {
+      const r = await fetch(
+        `${import.meta.env.VITE_API_URL || "/api"}${path}`,
+        {
+          method,
+          cache: "no-store",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: body === undefined ? undefined : JSON.stringify(body),
+          signal: AbortSignal.timeout(15000),
+        },
+      );
+      const data = await r.json().catch(() => null);
+      if (!r.ok) {
+        if (r.status === 401) {
+          setToken("");
+          setStaff(null);
+        }
+        throw new Error(
+          data?.message || "Unable to connect. Please try again.",
+        );
+      }
+      return data as T;
+    },
+    [token, setToken],
+  );
+  useEffect(() => {
+    void request<{ demo: boolean }>("/auth/mode")
+      .then((m) => setDemo(m.demo))
+      .catch(() => {});
+  }, [request]);
+  useEffect(() => {
+    if (!token) return;
+    let active = true;
+    setLoading(true);
+    setError("");
+    const params = new URLSearchParams({
+      q: search,
+      page: String(page),
+      status,
+    });
+    void Promise.all([
+      request<Staff>("/auth/staff/me"),
+      request<Stats>("/workspace/overview"),
+      tab === "customers"
+        ? request<Page<Customer>>(`/workspace/customers?${params}`)
+        : tab === "followups"
+          ? request<Page<Followup>>(`/workspace/followups?${params}`)
+          : Promise.resolve(null),
+    ])
+      .then(([user, summary, result]) => {
+        if (!active) return;
+        setStaff(user);
+        setStats(summary);
+        if (result && tab === "customers")
+          setCustomers(result as Page<Customer>);
+        if (result && tab === "followups")
+          setFollowups(result as Page<Followup>);
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [token, tab, page, search, status, revision, request]);
+  const navigate = (next: typeof tab) => {
+    setTab(next);
+    setPage(1);
+    setQuery("");
+    setSearch("");
+    setStatus("");
+    setSelected(null);
+    setDraft(null);
+    setNotice("");
+    setError("");
+  };
+  const login = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const data = new FormData(e.currentTarget);
+    try {
+      const result = await request<{ accessToken: string }>(
+        "/auth/staff/login",
+        "POST",
+        { phone: data.get("phone"), password: data.get("password") },
+      );
+      setToken(result.accessToken);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (token && tab === "operations")
+    return (
+      <LegacyOperations
+        accessToken={token}
+        onBack={() => navigate("overview")}
+        onSignOut={() => {
+          setToken("");
+          setStaff(null);
+        }}
+      />
+    );
+  if (token && tab === "business")
+    return (
+      <BusinessConsole
+        token={token}
+        onBack={() => navigate("overview")}
+        onSignOut={signOut}
+      />
+    );
+  const openCustomer = async (id: string) => {
+    setBusy(true);
+    setError("");
+    try {
+      setSelected(await request<Customer>(`/workspace/customers/${id}`));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!draft) return;
+    setBusy(true);
+    setError("");
+    try {
+      const { id, updatedAt, ...data } = draft;
+      await request(
+        id ? `/workspace/followups/${id}` : "/workspace/followups",
+        id ? "PUT" : "POST",
+        data,
+      );
+      setDraft(null);
+      setSelected(null);
+      setNotice("Follow-up saved.");
+      setRevision((v) => v + 1);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!token)
+    return (
+      <main className="login-shell">
+        <form className="panel-card login-card" onSubmit={login}>
+          <div className="workspace-logo">MS</div>
+          <h1>Material Square</h1>
+          <p>Staff workspace</p>
+          {demo && <span className="mode-badge">Demo environment</span>}
+          <label>
+            Mobile number
+            <input
+              name="phone"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="username"
+              pattern="[6-9][0-9]{9}"
+              maxLength={10}
+              required
+            />
+          </label>
+          <label>
+            Password
+            <input
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              minLength={8}
+              required
+            />
+          </label>
+          {error && (
+            <p role="alert" className="admin-error">
+              {error}
+            </p>
+          )}
+          <button className="btn-sm btn-primary" disabled={busy}>
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+      </main>
+    );
+  const result = tab === "customers" ? customers : followups;
+  return (
+    <div className="admin-layout workspace">
+      <aside className="admin-sidebar">
+        <div className="admin-brand">
+          <div className="workspace-logo">MS</div>
+          <div>
+            <h2>Material Square</h2>
+            <span>Staff workspace</span>
+          </div>
+        </div>
+        {(demo || staff?.isDemo) && (
+          <span className="mode-badge">Demo environment</span>
+        )}
+        <nav>
+          {(
+            [
+              ["overview", "Overview", LayoutDashboard],
+              ["customers", "Customers", Users],
+              ["followups", "Follow-ups", ClipboardList],
+              ["operations", "Sales & dispatch", Truck],
+              ["business", "Business modules", Boxes],
+            ] as const
+          ).map(([id, label, Icon]) => (
+            <button
+              className={`nav-item ${tab === id ? "active" : ""}`}
+              key={id}
+              onClick={() => navigate(id)}
+            >
+              <Icon size={18} />
+              {label}
+            </button>
+          ))}
+        </nav>
+        <div className="staff-footer">
+          <strong>{staff?.name || "Staff"}</strong>
+          <small>{staff?.phone}</small>
+          <button
+            className="nav-item"
+            onClick={() => {
+              setToken("");
+              setStaff(null);
+              setSelected(null);
+              setDraft(null);
+              setStats(null);
+              setError("");
+            }}
+          >
+            <LogOut size={17} />
+            Sign out
+          </button>
+        </div>
+      </aside>
+      <main className="admin-main">
+        <header className="admin-header">
+          <div>
+            <span className="eyebrow">Material Square operations</span>
+            <h1>
+              {tab === "overview"
+                ? "Overview"
+                : tab === "customers"
+                  ? "Customers"
+                  : "Follow-ups"}
+            </h1>
+          </div>
+          <button
+            className="btn-sm btn-secondary"
+            disabled={loading || busy}
+            onClick={() => {
+              setRevision((v) => v + 1);
+              if (selected) void openCustomer(selected.id);
+            }}
+          >
+            <RefreshCw size={16} />
+            Refresh
+          </button>
+        </header>
+        {error && (
+          <p role="alert" className="admin-error">
+            {error}
+          </p>
+        )}
+        {notice && (
+          <p role="status" className="saved-notice">
+            {notice}
+          </p>
+        )}
+        {loading && <p role="status">Loading workspace…</p>}
+        {tab === "overview" && stats && (
+          <>
+            <div className="kpi-grid">
+              {[
+                ["Customer accounts", stats.customers],
+                ["Open follow-ups", stats.openFollowups],
+                ["Closed follow-ups", stats.closedFollowups],
+              ].map(([label, value]) => (
+                <article className="kpi-card" key={label}>
+                  <h2>{label}</h2>
+                  <p className="kpi-value">{value}</p>
+                </article>
+              ))}
+            </div>
+            <section className="panel-card panel-body">
+              <h2>Today’s work</h2>
+              <p>
+                Review customer material lists and record enquiries received
+                through WhatsApp, email or phone.
+              </p>
+              <div className="workspace-actions">
+                <button
+                  className="btn-sm btn-primary"
+                  onClick={() => navigate("customers")}
+                >
+                  View customers
+                </button>
+                <button
+                  className="btn-sm btn-secondary"
+                  onClick={() => {
+                    navigate("followups");
+                    setDraft(blank());
+                  }}
+                >
+                  Record an enquiry
+                </button>
+              </div>
+              <p className="muted">
+                WhatsApp and email conversations are handled outside this
+                workspace. Record each follow-up here when your team receives
+                it.
+              </p>
+            </section>
+          </>
+        )}
+        {tab !== "overview" && !selected && !draft && (
+          <>
+            <form
+              className="workspace-toolbar"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setPage(1);
+                setSearch(query);
+              }}
+            >
+              <label className="search-field">
+                <Search size={18} />
+                <input
+                  aria-label="Search by name or mobile"
+                  placeholder="Search name or mobile number"
+                  value={query}
+                  maxLength={100}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </label>
+              <button className="btn-sm btn-secondary">Search</button>
+              {tab === "followups" && (
+                <>
+                  <select
+                    aria-label="Filter status"
+                    value={status}
+                    onChange={(e) => {
+                      setStatus(e.target.value);
+                      setPage(1);
+                    }}
+                  >
+                    <option value="">All statuses</option>
+                    {Object.entries(statuses).map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn-sm btn-primary"
+                    onClick={() => setDraft(blank())}
+                  >
+                    <Plus size={16} />
+                    New follow-up
+                  </button>
+                </>
+              )}
+            </form>
+            <section className="panel-card panel-body">
+              <p className="muted">
+                {result.total}{" "}
+                {tab === "customers" ? "customer accounts" : "follow-ups"}
+              </p>
+              {!loading && !result.items.length && (
+                <p className="empty">
+                  {tab === "customers"
+                    ? "Customer accounts appear here after their first sign-in."
+                    : "No follow-ups found. Record an enquiry when staff receive it."}
+                </p>
+              )}
+              {tab === "customers"
+                ? customers.items.map((c) => (
+                    <article className="workspace-record" key={c.id}>
+                      <div>
+                        <h3>{c.name || "Profile not completed"}</h3>
+                        <p>
+                          +91 {c.phone}
+                          {c.companyName ? ` · ${c.companyName}` : ""}
+                        </p>
+                        <small>{c.city}</small>
+                      </div>
+                      <button
+                        className="btn-sm btn-secondary"
+                        disabled={busy}
+                        onClick={() => void openCustomer(c.id)}
+                      >
+                        View account
+                      </button>
+                    </article>
+                  ))
+                : followups.items.map((f) => (
+                    <article className="workspace-record" key={f.id}>
+                      <div>
+                        <h3>
+                          {f.customerName}{" "}
+                          <span
+                            className={`status-label status-${f.status.toLowerCase()}`}
+                          >
+                            {statuses[f.status]}
+                          </span>
+                        </h3>
+                        <p>
+                          +91 {f.phone} · {f.source.toLowerCase()} ·{" "}
+                          {f.city || "Location to confirm"}
+                        </p>
+                        <small>
+                          {f.updatedAt
+                            ? new Date(f.updatedAt).toLocaleString("en-IN")
+                            : ""}
+                        </small>
+                      </div>
+                      <button
+                        className="btn-sm btn-secondary"
+                        onClick={() => {
+                          setDraft(f);
+                          setError("");
+                        }}
+                      >
+                        Open follow-up
+                      </button>
+                    </article>
+                  ))}
+            </section>
+            <div className="pagination">
+              <button
+                className="btn-sm btn-secondary"
+                disabled={page === 1 || loading}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                Previous
+              </button>
+              <span>
+                Page {page} of {Math.max(1, Math.ceil(result.total / 20))}
+              </span>
+              <button
+                className="btn-sm btn-secondary"
+                disabled={page * 20 >= result.total || loading}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </button>
+            </div>
+          </>
+        )}
+        {selected && !draft && (
+          <section className="panel-card panel-body">
+            <button
+              className="btn-sm btn-secondary"
+              onClick={() => setSelected(null)}
+            >
+              <ArrowLeft size={16} />
+              Back to customers
+            </button>
+            <h2>{selected.name || "Profile not completed"}</h2>
+            <div className="customer-summary">
+              <p>
+                <strong>Mobile</strong>+91 {selected.phone}
+              </p>
+              <p>
+                <strong>Email</strong>
+                {selected.email || "Not provided"}
+              </p>
+              <p>
+                <strong>Company</strong>
+                {selected.companyName || "Not provided"}
+              </p>
+              <p>
+                <strong>Site address</strong>
+                {[selected.shippingAddress, selected.city, selected.pincode]
+                  .filter(Boolean)
+                  .join(", ") || "Not provided"}
+              </p>
+            </div>
+            <h3>Saved material list</h3>
+            <Materials items={selected.materialList} />
+            <div className="workspace-actions">
+              <button
+                className="btn-sm btn-primary"
+                onClick={() => {
+                  setTab("followups");
+                  setPage(1);
+                  setSearch("");
+                  setQuery("");
+                  setStatus("");
+                  setDraft({
+                    ...blank(),
+                    customerName: selected.name,
+                    phone: selected.phone,
+                    email: selected.email || "",
+                    siteAddress: selected.shippingAddress || "",
+                    city: selected.city,
+                    pincode: selected.pincode,
+                    materials: selected.materialList.map(
+                      ({ name, brand, quantity, unit, specification }) => ({
+                        name,
+                        brand,
+                        quantity,
+                        unit,
+                        specification: specification || "",
+                      }),
+                    ),
+                  });
+                }}
+              >
+                Record follow-up
+              </button>
+              <a
+                className="btn-sm btn-secondary"
+                href={`https://wa.me/91${selected.phone}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open WhatsApp
+              </a>
+            </div>
+          </section>
+        )}
+        {draft && (
+          <form className="panel-card panel-body followup-form" onSubmit={save}>
+            <div className="workspace-actions">
+              <h2>{draft.id ? "Edit follow-up" : "Record an enquiry"}</h2>
+              <button
+                type="button"
+                className="btn-sm btn-secondary"
+                onClick={() => {
+                  setDraft(null);
+                  setSelected(null);
+                  setError("");
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+            <div className="field-grid">
+              {(
+                [
+                  ["customerName", "Customer name", "text"],
+                  ["phone", "Mobile number", "tel"],
+                  ["email", "Email", "email"],
+                  ["siteAddress", "Site / delivery address", "text"],
+                  ["city", "City", "text"],
+                  ["pincode", "PIN code", "text"],
+                ] as const
+              ).map(([key, label, type]) => (
+                <label key={key}>
+                  {label}
+                  <input
+                    value={draft[key]}
+                    type={type}
+                    required={key === "customerName" || key === "phone"}
+                    minLength={key === "customerName" ? 2 : undefined}
+                    maxLength={
+                      key === "phone"
+                        ? 10
+                        : key === "pincode"
+                          ? 6
+                          : key === "siteAddress"
+                            ? 500
+                            : key === "email"
+                              ? 254
+                              : 100
+                    }
+                    pattern={
+                      key === "phone"
+                        ? "[6-9][0-9]{9}"
+                        : key === "pincode"
+                          ? "[1-9][0-9]{5}"
+                          : undefined
+                    }
+                    onChange={(e) =>
+                      setDraft({ ...draft, [key]: e.target.value })
+                    }
+                  />
+                </label>
+              ))}
+              <label>
+                Received through
+                <select
+                  value={draft.source}
+                  onChange={(e) =>
+                    setDraft({ ...draft, source: e.target.value })
+                  }
+                >
+                  <option value="WHATSAPP">WhatsApp</option>
+                  <option value="EMAIL">Email</option>
+                  <option value="PHONE">Phone</option>
+                </select>
+              </label>
+              <label>
+                Status
+                <select
+                  aria-label="Follow-up status"
+                  value={draft.status}
+                  onChange={(e) =>
+                    setDraft({ ...draft, status: e.target.value })
+                  }
+                >
+                  {Object.entries(statuses).map(([key, label]) => (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <h3>Requested materials</h3>
+            {draft.materials.map((m, i) => (
+              <div className="material-row" key={i}>
+                {(
+                  [
+                    ["name", "Material"],
+                    ["brand", "Brand"],
+                    ["quantity", "Quantity"],
+                    ["unit", "Unit"],
+                    ["specification", "Size / specification"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key}>
+                    {label}
+                    <input
+                      aria-label={`${label} ${i + 1}`}
+                      type={key === "quantity" ? "number" : "text"}
+                      min={key === "quantity" ? "0.001" : undefined}
+                      max={key === "quantity" ? "1000000" : undefined}
+                      step="any"
+                      required={["name", "unit", "quantity"].includes(key)}
+                      maxLength={
+                        key === "specification"
+                          ? 500
+                          : key === "name"
+                            ? 300
+                            : key === "unit"
+                              ? 50
+                              : 100
+                      }
+                      value={m[key]}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          materials: draft.materials.map((row, n) =>
+                            n === i
+                              ? {
+                                  ...row,
+                                  [key]:
+                                    key === "quantity"
+                                      ? Number(e.target.value)
+                                      : e.target.value,
+                                }
+                              : row,
+                          ),
+                        })
+                      }
+                    />
+                  </label>
+                ))}
+                <button
+                  type="button"
+                  className="btn-sm btn-secondary"
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      materials: draft.materials.filter((_, n) => n !== i),
+                    })
+                  }
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn-sm btn-secondary"
+              disabled={draft.materials.length >= 100}
+              onClick={() =>
+                setDraft({
+                  ...draft,
+                  materials: [
+                    ...draft.materials,
+                    {
+                      name: "",
+                      brand: "",
+                      quantity: 1,
+                      unit: "Pieces",
+                      specification: "",
+                    },
+                  ],
+                })
+              }
+            >
+              Add material
+            </button>
+            <label>
+              Staff notes
+              <textarea
+                maxLength={5000}
+                rows={4}
+                value={draft.notes}
+                onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+              />
+            </label>
+            <button className="btn-sm btn-primary" disabled={busy}>
+              {busy ? "Saving…" : "Save follow-up"}
+            </button>
+          </form>
+        )}
+      </main>
+    </div>
+  );
+}
+export default App;

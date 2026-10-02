@@ -1,0 +1,43 @@
+# Separate paid DEMO database. Never reuse the production database for this environment.
+services:
+  - type: web
+    name: material-square-demo-api
+    runtime: node
+    plan: starter
+    buildCommand: npm ci && npm run db:generate && npm run build --workspace=@material-square/types && npm run build:api
+    preDeployCommand: npm run db:deploy && node scripts/seed-demo.cjs
+    startCommand: node apps/api/dist/main.js
+    healthCheckPath: /api/health/ready
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: demo
+      - key: DEMO_AUTH_ENABLED
+        value: "true"
+      - key: DEMO_CUSTOMER_PHONES
+        value: 9000000001,9000000002,9000000003
+      - key: DEMO_STAFF_PHONE
+        value: "9000000000"
+      - key: DEMO_STAFF_PASSWORD
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: material-square-demo-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: ENABLE_API_DOCS
+        value: "false"
+databases:
+  - name: material-square-demo-db
+    plan: basic-256mb
+    databaseName: material_square_demo
+    user: material_square_demo
+    ipAllowList: []

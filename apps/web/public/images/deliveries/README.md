@@ -1,0 +1,10 @@
+# Carousel illustrations
+
+Created with the built-in image generation tool. These are illustrative scenes, not photographs of the named client deliveries. Existing business copy is preserved pending client review.
+
+Shared prompt: premium photorealistic editorial construction materials image, natural soft daylight, restrained realistic colors, believable materials, uncluttered landscape 4:3 composition, central subject safe for mobile crop. No people, text, logos, branding, watermarks or invented certification labels.
+
+- cement-illustration.png: Neat stack of plain kraft cement sacks on wooden pallets under the covered ground floor of an unfinished Indian residential concrete building, a parked unbranded delivery truck softly in the distant background. Source: /Users/priyanshubiswal/.codex/generated_images/01a0f841-2c2f-74a0-9481-a00ef722d146/exec-12b466da-29c6-4812-ad54-d7f173899f8f.png
+- steel-illustration.png: Close three-quarter view of neatly bundled ribbed steel reinforcement bars resting safely on timber spacers at a clean concrete construction site, structural columns softly visible in background. Source: /Users/priyanshubiswal/.codex/generated_images/01a0f841-2c2f-74a0-9481-a00ef722d146/exec-387b557b-8580-4803-9608-4ef845347f78.png
+- plumbing-illustration.png: Neatly stacked ivory plastic water pipe lengths with clean open ends resting on a low timber rack, and a small crate of matching simple elbow fittings, inside an unfinished brick residential building. Materials awaiting installation, not an installed plumbing system. Source: /Users/priyanshubiswal/.codex/generated_images/01a0f841-2c2f-74a0-9481-a00ef722d146/exec-bbb5ef7f-fc25-4159-98cb-cf2bd7660b39.png
+- electrical-illustration.png: Neat coils of red blue yellow and black insulated electrical wire on a clean construction workbench, simple unbranded cardboard cartons, unfinished residential interior in soft background. Source: /Users/priyanshubiswal/.codex/generated_images/01a0f841-2c2f-74a0-9481-a00ef722d146/exec-97d25add-842f-452a-b7e0-0e344be5f29f.png
