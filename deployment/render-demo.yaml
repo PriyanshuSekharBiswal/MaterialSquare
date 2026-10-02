@@ -6,8 +6,9 @@ services:
     runtime: node
     plan: free
     buildCommand: npm ci && npm run db:generate && npm run build --workspace=@material-square/types && npm run build:api
-    preDeployCommand: npm run db:deploy && node scripts/seed-demo.cjs
-    startCommand: node apps/api/dist/main.js
+    # Render Free does not support pre-deploy commands. Run setup at startup;
+    # both scripts are safe to repeat and preserve existing demo customer data.
+    startCommand: npm run db:deploy && node scripts/seed-demo.cjs && node apps/api/dist/main.js
     healthCheckPath: /api/health/ready
     envVars:
       - key: NODE_VERSION
