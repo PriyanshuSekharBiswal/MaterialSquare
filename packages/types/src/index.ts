@@ -11,12 +11,14 @@ export enum StaffRole {
   DISPATCH_OFFICER = 'DISPATCH_OFFICER',
   ACCOUNTS_MANAGER = 'ACCOUNTS_MANAGER',
   PROCUREMENT_HEAD = 'PROCUREMENT_HEAD',
+  CATALOG_MANAGER = 'CATALOG_MANAGER',
+  CONTENT_MANAGER = 'CONTENT_MANAGER',
 }
 
 export interface StaffUser {
   id: string;
   name: string;
-  email: string;
+  email?: string | null;
   role: StaffRole;
   phone?: string;
   isActive: boolean;

@@ -78,21 +78,34 @@ const labels: Record<Tab, string> = {
   inquiries: "Contact enquiries",
 };
 const icons = [TrendingUp, FileText, FileText, Truck, Package, Mail];
+const roleTabs: Record<string, Tab[]> = {
+  SUPER_ADMIN: [...tabs],
+  ADMIN: [...tabs],
+  SALES_MANAGER: ["overview", "rfqs", "quotes", "orders", "inventory", "inquiries"],
+  CATALOG_MANAGER: ["overview", "inventory"],
+  PROCUREMENT_HEAD: ["overview", "orders"],
+  DISPATCH_OFFICER: ["overview", "orders"],
+  ACCOUNTS_MANAGER: ["overview", "orders"],
+  CONTENT_MANAGER: ["overview"],
+};
 const money = (value: number | string) =>
   Number(value).toLocaleString("en-IN", { style: "currency", currency: "INR" });
 
 export function App({
   accessToken,
+  role,
   onBack,
   onSignOut,
 }: {
   accessToken: string;
+  role: string;
   onBack: () => void;
   onSignOut: () => void;
 }) {
   const [token, setToken] = useState(accessToken);
   const [staffName, setStaffName] = useState("");
   const [tab, setTab] = useState<Tab>("overview");
+  const visibleTabs = roleTabs[role] || ["overview"];
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [rfqs, setRfqs] = useState<Rfq[]>([]);
@@ -134,26 +147,18 @@ export function App({
     setBusy(true);
     setError("");
     try {
-      const [r, q, o, p, i, a] = await Promise.all([
-        request<Rfq[]>("/rfqs"),
-        request<Quote[]>("/quotes"),
-        request<Order[]>("/orders"),
-        request<Product[]>("/products/inventory"),
-        request<Inquiry[]>("/inquiries"),
-        request<Analytics>("/analytics/dashboard"),
-      ]);
-      setRfqs(r);
-      setQuotes(q);
-      setOrders(o);
-      setProducts(p);
-      setInquiries(i);
-      setAnalytics(a);
+      if (tab === "overview") setAnalytics(await request<Analytics>("/analytics/dashboard"));
+      if (tab === "rfqs") setRfqs(await request<Rfq[]>("/rfqs"));
+      if (tab === "quotes") setQuotes(await request<Quote[]>("/quotes"));
+      if (tab === "orders") setOrders(await request<Order[]>("/orders"));
+      if (tab === "inventory") setProducts(await request<Product[]>("/products/inventory"));
+      if (tab === "inquiries") setInquiries(await request<Inquiry[]>("/inquiries"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load data");
     } finally {
       setBusy(false);
     }
-  }, [request]);
+  }, [request, tab]);
   useEffect(() => {
     if (token) void refresh();
   }, [token, refresh]);
@@ -225,8 +230,8 @@ export function App({
           </div>
         </div>
         <nav>
-          {tabs.map((item, index) => {
-            const Icon = icons[index];
+          {visibleTabs.map((item) => {
+            const Icon = icons[tabs.indexOf(item)];
             return (
               <button
                 key={item}

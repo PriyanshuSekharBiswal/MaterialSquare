@@ -38,6 +38,7 @@ describe("Authentication", () => {
       passwordHash: hashPassword("correct-password"),
       role: "SALES_MANAGER",
       name: "Staff",
+      authVersion: 0,
     });
     await expect(
       service.loginStaff({
@@ -50,7 +51,7 @@ describe("Authentication", () => {
       email: "admin@materialsquare.in",
       password: "correct-password",
     });
-    expect(sign).toHaveBeenCalledWith({ sub: "staff-1", type: "STAFF" });
+    expect(sign).toHaveBeenCalledWith({ sub: "staff-1", type: "STAFF", ver: 0 });
   });
 
   it("rejects inactive staff and malformed stored hashes", async () => {
@@ -73,8 +74,8 @@ describe("Authentication", () => {
     expect(verifyAccessToken).toHaveBeenCalledWith("msg91-access-token");
     expect(db.customer.upsert).toHaveBeenCalledWith({
       where: { phone: "9876543210" },
-      update: {},
-      create: { phone: "9876543210", name: "", pincode: "", isDemo: false },
+      update: expect.objectContaining({ lastLoginAt: expect.any(Date) }),
+      create: expect.objectContaining({ phone: "9876543210", name: "", pincode: "", isDemo: false, lastLoginAt: expect.any(Date) }),
     });
     expect(db.customerSession.create).toHaveBeenCalledTimes(1);
     expect(db.customerSession.create.mock.calls[0][0].data.id).toMatch(

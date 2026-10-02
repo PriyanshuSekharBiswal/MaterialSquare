@@ -16,9 +16,21 @@ const sections: { id: Section; label: string; icon: typeof Boxes; endpoint: stri
 ];
 const text = (v: unknown) => typeof v === "string" ? v : "";
 const field = (data: FormData, key: string) => String(data.get(key) || "").trim();
+const sectionRoles: Record<Section, string[]> = {
+  suppliers: ["SUPER_ADMIN", "ADMIN", "PROCUREMENT_HEAD"],
+  procurement: ["SUPER_ADMIN", "ADMIN", "PROCUREMENT_HEAD"],
+  transport: ["SUPER_ADMIN", "ADMIN", "DISPATCH_OFFICER"],
+  discounts: ["SUPER_ADMIN", "ADMIN", "CATALOG_MANAGER"],
+  followups: ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER"],
+  blogs: ["SUPER_ADMIN", "ADMIN", "CONTENT_MANAGER"],
+  experts: ["SUPER_ADMIN", "ADMIN", "CONTENT_MANAGER"],
+  commissions: ["SUPER_ADMIN", "ADMIN", "ACCOUNTS_MANAGER"],
+  loyalty: ["SUPER_ADMIN", "ADMIN", "ACCOUNTS_MANAGER"],
+};
 
-export default function BusinessConsole({ token, onBack, onSignOut }: { token: string; onBack: () => void; onSignOut: () => void }) {
-  const [section, setSection] = useState<Section>("suppliers");
+export default function BusinessConsole({ token, role, onBack, onSignOut }: { token: string; role: string; onBack: () => void; onSignOut: () => void }) {
+  const visibleSections = sections.filter((entry) => sectionRoles[entry.id].includes(role));
+  const [section, setSection] = useState<Section>(() => visibleSections[0]?.id || "suppliers");
   const [records, setRecords] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>(null);
   const [editingBlog, setEditingBlog] = useState<any>(null);
@@ -26,7 +38,7 @@ export default function BusinessConsole({ token, onBack, onSignOut }: { token: s
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [candidates, setCandidates] = useState<Record<string, any[]>>({});
-  const active = sections.find((entry) => entry.id === section)!;
+  const active = visibleSections.find((entry) => entry.id === section) || visibleSections[0] || sections[0];
   const request = useCallback(async <T,>(url: string, method = "GET", body?: unknown): Promise<T> => {
     const response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}${url}`, {
       method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -45,6 +57,10 @@ export default function BusinessConsole({ token, onBack, onSignOut }: { token: s
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load this section."); }
     finally { setBusy(false); }
   }, [active.endpoint, request, section]);
+  useEffect(() => {
+    if (!visibleSections.some((entry) => entry.id === section) && visibleSections[0])
+      setSection(visibleSections[0].id);
+  }, [role, section]);
   useEffect(() => { void refresh(); }, [refresh]);
   async function mutate(url: string, method: string, body: unknown): Promise<boolean> {
     setBusy(true); setError(""); setMessage("");
@@ -90,7 +106,7 @@ export default function BusinessConsole({ token, onBack, onSignOut }: { token: s
     <aside className="business-console-nav">
       <button className="bc-button bc-back" onClick={onBack}><ArrowLeft size={16}/> Main workspace</button>
       <strong>Business management</strong>
-      {sections.map(({ id, label, icon: Icon }) => <button className={section === id ? "bc-nav active" : "bc-nav"} key={id} onClick={() => { setSection(id); setMessage(""); setError(""); }}><Icon size={17}/>{label}</button>)}
+      {visibleSections.map(({ id, label, icon: Icon }) => <button className={section === id ? "bc-nav active" : "bc-nav"} key={id} onClick={() => { setSection(id); setMessage(""); setError(""); }}><Icon size={17}/>{label}</button>)}
       <button className="bc-button bc-signout" onClick={onSignOut}>Sign out</button>
     </aside>
     <main className="business-console-main">

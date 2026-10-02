@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import LegacyOperations from "./LegacyOperations";
 import BusinessConsole from "./BusinessConsole";
+import StaffManagement from "./StaffManagement";
 import "./workspace.css";
 type Material = {
   name: string;
@@ -31,6 +32,8 @@ type Customer = {
   city: string;
   pincode: string;
   materialList: Material[];
+  createdAt?: string;
+  lastLoginAt?: string | null;
 };
 type Followup = {
   id?: string;
@@ -48,7 +51,7 @@ type Followup = {
   updatedAt?: string;
 };
 type Page<T> = { items: T[]; total: number; page: number };
-type Staff = { name: string; phone: string; role: string; isDemo: boolean };
+type Staff = { name: string; phone: string | null; email: string | null; role: string; isDemo: boolean };
 type Stats = {
   customers: number;
   openFollowups: number;
@@ -114,7 +117,7 @@ function Materials({ items }: { items: Material[] }) {
 export function App() {
   const [token, setTokenState] = useState(restoredToken),
     [staff, setStaff] = useState<Staff | null>(null);
-  const [tab, setTab] = useState<"overview" | "customers" | "followups" | "operations" | "business">(
+  const [tab, setTab] = useState<"overview" | "customers" | "followups" | "operations" | "business" | "team">(
     "overview",
   );
   const [stats, setStats] = useState<Stats | null>(null),
@@ -243,7 +246,12 @@ export function App() {
       const result = await request<{ accessToken: string }>(
         "/auth/staff/login",
         "POST",
-        { phone: data.get("phone"), password: data.get("password") },
+        {
+          ...(String(data.get("identifier") || "").includes("@")
+            ? { email: String(data.get("identifier")).trim().toLowerCase() }
+            : { phone: String(data.get("identifier") || "").replace(/\D/g, "") }),
+          password: data.get("password"),
+        },
       );
       setToken(result.accessToken);
     } catch (e) {
@@ -256,6 +264,7 @@ export function App() {
     return (
       <LegacyOperations
         accessToken={token}
+        role={staff?.role || ""}
         onBack={() => navigate("overview")}
         onSignOut={() => {
           setToken("");
@@ -267,10 +276,13 @@ export function App() {
     return (
       <BusinessConsole
         token={token}
+        role={staff?.role || ""}
         onBack={() => navigate("overview")}
         onSignOut={signOut}
       />
     );
+  if (token && tab === "team" && staff?.role === "SUPER_ADMIN")
+    return <StaffManagement token={token} onBack={() => navigate("overview")} onSignOut={signOut} />;
   const openCustomer = async (id: string) => {
     setBusy(true);
     setError("");
@@ -313,14 +325,12 @@ export function App() {
           <p>Staff workspace</p>
           {demo && <span className="mode-badge">Demo environment</span>}
           <label>
-            Mobile number
+            Mobile number or email
             <input
-              name="phone"
-              type="tel"
-              inputMode="numeric"
+              name="identifier"
+              type="text"
               autoComplete="username"
-              pattern="[6-9][0-9]{9}"
-              maxLength={10}
+              maxLength={254}
               required
             />
           </label>
@@ -360,15 +370,14 @@ export function App() {
           <span className="mode-badge">Demo environment</span>
         )}
         <nav>
-          {(
-            [
-              ["overview", "Overview", LayoutDashboard],
-              ["customers", "Customers", Users],
-              ["followups", "Follow-ups", ClipboardList],
-              ["operations", "Sales & dispatch", Truck],
-              ["business", "Business modules", Boxes],
-            ] as const
-          ).map(([id, label, Icon]) => (
+          {([
+            ["overview", "Overview", LayoutDashboard, true],
+            ["customers", "Customers", Users, ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER"].includes(staff?.role || "")],
+            ["followups", "Follow-ups", ClipboardList, ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER"].includes(staff?.role || "")],
+            ["operations", "Sales & dispatch", Truck, ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER", "DISPATCH_OFFICER", "ACCOUNTS_MANAGER", "PROCUREMENT_HEAD", "CATALOG_MANAGER"].includes(staff?.role || "")],
+            ["business", "Business modules", Boxes, staff?.role !== "SALES_MANAGER"],
+            ["team", "Staff & roles", Users, staff?.role === "SUPER_ADMIN"],
+          ] as const).filter(([, , , allowed]) => allowed).map(([id, label, Icon]) => (
             <button
               className={`nav-item ${tab === id ? "active" : ""}`}
               key={id}
@@ -381,7 +390,7 @@ export function App() {
         </nav>
         <div className="staff-footer">
           <strong>{staff?.name || "Staff"}</strong>
-          <small>{staff?.phone}</small>
+          <small>{staff?.phone || staff?.email}</small>
           <button
             className="nav-item"
             onClick={() => {
@@ -549,6 +558,7 @@ export function App() {
                           {c.companyName ? ` · ${c.companyName}` : ""}
                         </p>
                         <small>{c.city}</small>
+                        <small>Last sign-in: {c.lastLoginAt ? new Date(c.lastLoginAt).toLocaleString("en-IN") : "Not recorded yet"}</small>
                       </div>
                       <button
                         className="btn-sm btn-secondary"
@@ -641,6 +651,8 @@ export function App() {
                   .filter(Boolean)
                   .join(", ") || "Not provided"}
               </p>
+              <p><strong>Account created</strong>{selected.createdAt ? new Date(selected.createdAt).toLocaleString("en-IN") : "Not available"}</p>
+              <p><strong>Last sign-in</strong>{selected.lastLoginAt ? new Date(selected.lastLoginAt).toLocaleString("en-IN") : "Not recorded yet"}</p>
             </div>
             <h3>Saved material list</h3>
             <Materials items={selected.materialList} />

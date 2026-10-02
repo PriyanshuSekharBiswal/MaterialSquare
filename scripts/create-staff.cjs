@@ -4,7 +4,6 @@ const { randomBytes, scryptSync } = require("node:crypto");
 async function main() {
   const { STAFF_EMAIL, STAFF_PASSWORD, STAFF_NAME, STAFF_PHONE } = process.env;
   if (
-    !STAFF_EMAIL ||
     !STAFF_PASSWORD ||
     STAFF_PASSWORD.length < 12 ||
     !STAFF_NAME ||
@@ -12,7 +11,7 @@ async function main() {
     !/^[6-9]\d{9}$/.test(STAFF_PHONE)
   )
     throw new Error(
-      "Set STAFF_EMAIL, STAFF_PHONE, STAFF_NAME, and STAFF_PASSWORD (at least 12 characters).",
+      "Set STAFF_PHONE, STAFF_NAME, STAFF_PASSWORD (at least 12 characters), and STAFF_EMAIL if available.",
     );
   const db = new PrismaClient();
   const salt = randomBytes(16).toString("hex");
@@ -20,7 +19,7 @@ async function main() {
   try {
     await db.staffUser.create({
       data: {
-        email: STAFF_EMAIL.toLowerCase(),
+        email: STAFF_EMAIL?.trim().toLowerCase() || null,
         name: STAFF_NAME,
         phone: STAFF_PHONE,
         passwordHash,

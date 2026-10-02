@@ -39,7 +39,7 @@ export class AuthService {
       name: staff.name,
     };
     return {
-      accessToken: this.jwtService.sign({ sub: staff.id, type: "STAFF" }),
+      accessToken: this.jwtService.sign({ sub: staff.id, type: "STAFF", ver: staff.authVersion }),
       user,
     };
   }
@@ -57,11 +57,12 @@ export class AuthService {
 
   private async createCustomerSession(phone: string, demo: boolean) {
     const sessionToken = randomBytes(32).toString("hex");
+    const now = new Date();
     await this.prisma.$transaction(async (db) => {
       const customer = await db.customer.upsert({
         where: { phone },
-        update: {},
-        create: { phone, name: "", pincode: "", isDemo: demo },
+        update: { lastLoginAt: now },
+        create: { phone, name: "", pincode: "", isDemo: demo, lastLoginAt: now },
       });
       if (Boolean(customer.isDemo) !== demo)
         throw new BadRequestException(

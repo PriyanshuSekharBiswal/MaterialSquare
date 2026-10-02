@@ -1,0 +1,149 @@
+import {
+  Body,
+  ConflictException,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
+import type { Request } from "express";
+import { Prisma } from "@prisma/client";
+import { z } from "zod";
+import { validate } from "../common/validation";
+import { hashPassword } from "./password";
+import { StaffGuard } from "./access.guard";
+import { STAFF_ROLE_DEFINITIONS, STAFF_ROLES } from "./staff-access";
+import { PrismaService } from "../prisma/prisma.service";
+import { demoAuthEnabled } from "./demo-mode";
+
+const assignableRoles = STAFF_ROLES.filter((role) => role !== "SUPER_ADMIN") as [
+  Exclude<(typeof STAFF_ROLES)[number], "SUPER_ADMIN">,
+  ...Exclude<(typeof STAFF_ROLES)[number], "SUPER_ADMIN">[],
+];
+const roleSchema = z.enum(assignableRoles);
+const createStaffSchema = z.object({
+  name: z.string().trim().min(2).max(150),
+  email: z.string().trim().email().max(254).optional(),
+  phone: z.string().regex(/^[6-9]\d{9}$/).optional(),
+  role: roleSchema,
+  password: z.string().min(12).max(256),
+}).refine((value) => Boolean(value.email || value.phone), {
+  message: "Add an email address or mobile number for staff sign-in",
+});
+const updateStaffSchema = z.object({
+  role: roleSchema.optional(),
+  isActive: z.boolean().optional(),
+});
+const passwordSchema = z.object({ password: z.string().min(12).max(256) });
+type StaffRequest = Request & { user: { userId: string } };
+
+@Controller("admin/staff")
+@UseGuards(StaffGuard)
+export class StaffManagementController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  @Get("roles")
+  roles() {
+    return STAFF_ROLE_DEFINITIONS.filter((definition) => definition.role !== "SUPER_ADMIN");
+  }
+
+  @Get()
+  list() {
+    return this.prisma.staffUser.findMany({
+      where: { isDemo: demoAuthEnabled() },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        isActive: true,
+        isDemo: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: [{ isActive: "desc" }, { name: "asc" }],
+    });
+  }
+
+  @Post()
+  async create(@Body() body: unknown) {
+    const data = validate(createStaffSchema, body);
+    try {
+      return await this.prisma.staffUser.create({
+        data: {
+          name: data.name,
+          email: data.email?.toLowerCase() || null,
+          phone: data.phone || null,
+          role: data.role,
+          passwordHash: hashPassword(data.password),
+          isDemo: demoAuthEnabled(),
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
+          isActive: true,
+          isDemo: true,
+          createdAt: true,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")
+        throw new ConflictException("That staff email or mobile number is already in use");
+      throw error;
+    }
+  }
+
+  @Patch(":id")
+  async update(@Param("id") id: string, @Req() req: StaffRequest, @Body() body: unknown) {
+    if (id === req.user.userId)
+      throw new ConflictException("Use a separate owner account to change or disable your own access");
+    const data = validate(updateStaffSchema, body);
+    const target = await this.prisma.staffUser.findFirst({
+      where: { id, isDemo: demoAuthEnabled() },
+      select: { id: true, role: true },
+    });
+    if (!target) throw new NotFoundException("Staff account not found");
+    if (target.role === "SUPER_ADMIN")
+      throw new ConflictException("The primary owner account cannot be changed here");
+    return this.prisma.staffUser.update({
+      where: { id },
+      data: { ...data, authVersion: { increment: 1 } },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        isActive: true,
+        isDemo: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  @Post(":id/password")
+  async resetPassword(@Param("id") id: string, @Req() req: StaffRequest, @Body() body: unknown) {
+    if (id === req.user.userId)
+      throw new ConflictException("Use the account password-change flow for your own password");
+    const { password } = validate(passwordSchema, body);
+    const target = await this.prisma.staffUser.findFirst({
+      where: { id, isDemo: demoAuthEnabled(), role: { not: "SUPER_ADMIN" } },
+      select: { id: true },
+    });
+    if (!target) throw new NotFoundException("Staff account not found");
+    await this.prisma.staffUser.update({
+      where: { id },
+      data: { passwordHash: hashPassword(password), authVersion: { increment: 1 } },
+    });
+    return { success: true };
+  }
+}

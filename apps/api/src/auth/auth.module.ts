@@ -9,6 +9,7 @@ import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { Msg91WidgetService } from "./msg91-widget.service";
 import { JwtStrategy } from "./jwt.strategy";
+import { StaffManagementController } from "./staff-management.controller";
 
 @Global()
 @Module({
@@ -21,7 +22,7 @@ import { JwtStrategy } from "./jwt.strategy";
       }),
     }),
   ],
-  controllers: [AuthController, CustomerController],
+  controllers: [AuthController, CustomerController, StaffManagementController],
   providers: [
     CustomerGuard,
     AuthService,

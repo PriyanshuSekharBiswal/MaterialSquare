@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-read -r -p 'Staff email: ' STAFF_EMAIL
+read -r -p 'Staff email (optional): ' STAFF_EMAIL
 read -r -p 'Staff name: ' STAFF_NAME
 read -r -p 'Staff mobile number: ' STAFF_PHONE
 read -r -s -p 'Staff password (at least 12 characters): ' STAFF_PASSWORD

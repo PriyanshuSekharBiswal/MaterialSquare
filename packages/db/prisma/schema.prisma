@@ -17,6 +17,8 @@ enum StaffRole {
   DISPATCH_OFFICER
   ACCOUNTS_MANAGER
   PROCUREMENT_HEAD
+  CATALOG_MANAGER
+  CONTENT_MANAGER
 }
 
 enum QuoteStatus {
@@ -94,10 +96,11 @@ enum LoyaltyTransactionType {
 
 model StaffUser {
   id           String     @id @default(uuid())
-  email        String     @unique
+  email        String?    @unique
   passwordHash String
   name         String
   role         StaffRole  @default(SALES_MANAGER)
+  authVersion  Int        @default(0)
   phone        String?    @unique
   isDemo       Boolean    @default(false)
   isActive     Boolean    @default(true)
@@ -135,6 +138,7 @@ model Customer {
   city            String         @default("")
   materialList    Json           @default("[]")
   listVersion     Int            @default(0)
+  lastLoginAt     DateTime?
   sessions        CustomerSession[]
   otpSessions     OtpSession[]
   quotations      Quotation[]

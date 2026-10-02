@@ -85,13 +85,14 @@ class WorkspaceController {
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * 20,
         take: 20,
-        select: {
+      select: {
           id: true,
           name: true,
           phone: true,
           companyName: true,
           city: true,
           createdAt: true,
+          lastLoginAt: true,
         },
       }),
       this.prisma.customer.count({ where }),
@@ -105,7 +106,7 @@ class WorkspaceController {
     res.setHeader("Cache-Control", "no-store");
     const item = await this.prisma.customer.findFirst({
       where: { id, isDemo: demoAuthEnabled() },
-      select: customerSelect,
+      select: { ...customerSelect, createdAt: true, lastLoginAt: true },
     });
     if (!item) throw new NotFoundException("Customer not found");
     return item;

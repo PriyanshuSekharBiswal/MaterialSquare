@@ -13,12 +13,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       secretOrKey: jwtSecret(),
     });
   }
-  async validate(payload: { sub: string; type: string; phone?: string }) {
+  async validate(payload: { sub: string; type: string; phone?: string; ver?: number }) {
     if (payload.type === "STAFF") {
       const staff = await this.prisma.staffUser.findUnique({
         where: { id: payload.sub },
       });
-      if (!staff?.isActive || Boolean(staff.isDemo) !== demoAuthEnabled())
+      if (
+        !staff?.isActive ||
+        Boolean(staff.isDemo) !== demoAuthEnabled() ||
+        (payload.ver ?? 0) !== staff.authVersion
+      )
         throw new UnauthorizedException();
       return {
         userId: staff.id,
