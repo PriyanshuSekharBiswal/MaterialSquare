@@ -80,6 +80,13 @@ const statuses: Record<string, string> = {
   CLOSED: "Closed",
 };
 
+const marketplaceUrl =
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1")
+    ? `${window.location.protocol}//${window.location.hostname}:5173`
+    : "https://material-square.vercel.app";
+
 const navSections = [
   {
     group: "Core Workspace",
@@ -417,7 +424,7 @@ export function App() {
             {busy ? "Authenticating…" : "Sign In to Workspace"}
           </button>
           <a
-            href="https://material-square.vercel.app"
+            href={marketplaceUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="login-back-link"
@@ -529,7 +536,7 @@ export function App() {
             <span className="sidebar-mode-badge">Demo environment</span>
           )}
           <a
-            href="https://material-square.vercel.app"
+            href={marketplaceUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="sidebar-ext-link"
