@@ -380,8 +380,8 @@ export default function HomePage({ products, onOpenBOMDrawer, bomList = [], onTo
               <Zap size={22} />
             </div>
             <div>
-              <h4>Wire Sizing Calculator</h4>
-              <p>Calculate exact conductor gauge based on appliance wattage (1.0mm² to 16mm²).</p>
+              <h4>Wire Sizing Examples</h4>
+              <p>Review illustrative cable-sizing examples. Confirm conductor selection with a qualified electrician.</p>
               <Link to="/guides?tab=wire" className="tool-card-link">
                 Use Wire Calculator →
               </Link>
@@ -393,8 +393,8 @@ export default function HomePage({ products, onOpenBOMDrawer, bomList = [], onTo
               <Droplet size={22} />
             </div>
             <div>
-              <h4>Plumbing Basics & Compatibility</h4>
-              <p>Compare PVC vs CPVC vs uPVC temperature limits and matched brass fittings.</p>
+              <h4>Pipe Types & Fittings</h4>
+              <p>Explore common PVC, CPVC and uPVC systems. Confirm compatibility with manufacturer information.</p>
               <Link to="/guides?tab=plumbing" className="tool-card-link">
                 View Plumbing Guide →
               </Link>
@@ -406,8 +406,8 @@ export default function HomePage({ products, onOpenBOMDrawer, bomList = [], onTo
               <Package size={22} />
             </div>
             <div>
-              <h4>Site Wastage & Storage Tips</h4>
-              <p>Field rules to prevent damaged pipes, bent lengths, and hardened cement bags.</p>
+              <h4>Site Material Handling</h4>
+              <p>Read material storage examples and follow the product instructions for your site.</p>
               <Link to="/guides?tab=storage" className="tool-card-link">
                 Read Storage Rules →
               </Link>

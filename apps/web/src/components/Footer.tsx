@@ -19,7 +19,7 @@ export default function Footer() {
           <div className="callout-left">
             <span className="badge-dark">Delhi NCR Construction Partner</span>
             <h3>Ready to Order or Have a Material Query?</h3>
-            <p>"Why make 5 calls? Send your handwritten list or structural drawings to our procurement desk."</p>
+            <p>Send your material list or site requirements to the team by WhatsApp or phone. Staff can confirm product and delivery details.</p>
           </div>
 
           <div className="callout-right-actions">

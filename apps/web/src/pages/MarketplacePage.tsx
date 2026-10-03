@@ -356,7 +356,7 @@ export default function MarketplacePage({
           {/* Results Summary Bar */}
           <div className="results-summary-row reveal-text">
             <span className="results-count-text">
-              Showing <strong>{filteredProducts.length}</strong> verified materials
+              Showing <strong>{filteredProducts.length}</strong> listed materials
               {activeCategory !== 'all' && ` in ${catalogueCategories.find((c) => c.id === activeCategory)?.label}`}
               {selectedBrand && ` by ${selectedBrand}`}
             </span>
@@ -541,7 +541,7 @@ export default function MarketplacePage({
                   <strong className="sticky-bom-title">
                     {bomList.length} item{bomList.length > 1 ? 's' : ''} in your Material List
                   </strong>
-                  <span className="sticky-bom-sub">Ready for consolidated Delhi NCR site dispatch</span>
+                  <span className="sticky-bom-sub">Review your list and send it to the team</span>
                 </div>
               </div>
 
@@ -551,7 +551,7 @@ export default function MarketplacePage({
                   className="btn btn-primary sticky-bom-view-btn"
                   onClick={onOpenBOMDrawer}
                 >
-                  View &amp; Dispatch List
+                  View Material List
                 </button>
                 <button
                   type="button"
