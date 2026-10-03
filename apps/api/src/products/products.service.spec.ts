@@ -46,8 +46,8 @@ describe("customer catalogue", () => {
   it("backfills missing preview prices and canonical sample categories without overwriting saved rates", async () => {
     const ultraTech = PRODUCTS.find((item) => item.id === "ultratech-super")!;
     const ultraTechVariant = {
-      id: "ultratech-50kg", code: "SEED-ultratech-super-1", price: null,
-      quantityBreaks: [],
+      id: "ultratech-50kg", code: "legacy-ultratech-bag", price: null,
+      quantityBreaks: [], sortOrder: 0,
     };
     const prisma = {
       catalogListing: {

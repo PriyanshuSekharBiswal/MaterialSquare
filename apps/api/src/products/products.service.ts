@@ -111,8 +111,10 @@ export class ProductsService implements OnModuleInit {
             });
           }
           const variantsByCode = new Map(existing.variants.map((variant) => [variant.code, variant]));
+          const storedVariantsByOrder = existing.variants.slice().sort((a, b) => a.sortOrder - b.sortOrder);
           for (const seedVariant of variants) {
-            const stored = variantsByCode.get(seedVariant.code);
+            const stored = variantsByCode.get(seedVariant.code) ||
+              (existing.variants.length === variants.length ? storedVariantsByOrder[seedVariant.sortOrder] : undefined);
             if (!stored || stored.price != null || seedVariant.price == null) continue;
             await this.prisma.catalogListingVariant.update({
               where: { id: stored.id },
