@@ -10,7 +10,12 @@ import {
   Search,
   Truck,
   Boxes,
+  ShieldCheck,
+  ExternalLink,
+  Menu,
+  X,
 } from "lucide-react";
+import MaterialSquareLogo from "./components/MaterialSquareLogo";
 import LegacyOperations from "./LegacyOperations";
 import BusinessConsole from "./BusinessConsole";
 import StaffManagement from "./StaffManagement";
@@ -63,6 +68,60 @@ const statuses: Record<string, string> = {
   CONTACTED: "Contacted",
   QUOTED: "Quoted externally",
   CLOSED: "Closed",
+};
+
+const navSections = [
+  {
+    group: "Core Workspace",
+    items: [
+      { id: "overview" as const, label: "Overview", icon: LayoutDashboard },
+      { id: "customers" as const, label: "Customers", icon: Users },
+      { id: "followups" as const, label: "Follow-ups", icon: ClipboardList },
+    ],
+  },
+  {
+    group: "Sales & Operations",
+    items: [
+      { id: "operations" as const, label: "Sales & Dispatch", icon: Truck },
+    ],
+  },
+  {
+    group: "Supply & Modules",
+    items: [
+      { id: "business" as const, label: "Business Modules", icon: Boxes },
+    ],
+  },
+  {
+    group: "Security & Admin",
+    items: [
+      { id: "team" as const, label: "Staff & Roles", icon: ShieldCheck },
+    ],
+  },
+];
+
+const isTabPermitted = (id: string, role?: string) => {
+  if (id === "overview") return true;
+  if (id === "customers" || id === "followups") {
+    return ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER"].includes(role || "");
+  }
+  if (id === "operations") {
+    return [
+      "SUPER_ADMIN",
+      "ADMIN",
+      "SALES_MANAGER",
+      "DISPATCH_OFFICER",
+      "ACCOUNTS_MANAGER",
+      "PROCUREMENT_HEAD",
+      "CATALOG_MANAGER",
+    ].includes(role || "");
+  }
+  if (id === "business") {
+    return role !== "SALES_MANAGER";
+  }
+  if (id === "team") {
+    return role === "SUPER_ADMIN";
+  }
+  return true;
 };
 const blank = (): Followup => ({
   customerName: "",
@@ -143,6 +202,7 @@ export function App() {
     [revision, setRevision] = useState(0);
   const [selected, setSelected] = useState<Customer | null>(null),
     [draft, setDraft] = useState<Followup | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const setToken = useCallback((value: string) => {
     setTokenState(value);
     try {
@@ -260,29 +320,6 @@ export function App() {
       setBusy(false);
     }
   };
-  if (token && tab === "operations")
-    return (
-      <LegacyOperations
-        accessToken={token}
-        role={staff?.role || ""}
-        onBack={() => navigate("overview")}
-        onSignOut={() => {
-          setToken("");
-          setStaff(null);
-        }}
-      />
-    );
-  if (token && tab === "business")
-    return (
-      <BusinessConsole
-        token={token}
-        role={staff?.role || ""}
-        onBack={() => navigate("overview")}
-        onSignOut={signOut}
-      />
-    );
-  if (token && tab === "team" && staff?.role === "SUPER_ADMIN")
-    return <StaffManagement token={token} onBack={() => navigate("overview")} onSignOut={signOut} />;
   const openCustomer = async (id: string) => {
     setBusy(true);
     setError("");
@@ -319,17 +356,26 @@ export function App() {
   if (!token)
     return (
       <main className="login-shell">
-        <form className="panel-card login-card" onSubmit={login}>
-          <div className="workspace-logo">MS</div>
-          <h1>Material Square</h1>
-          <p>Staff workspace</p>
-          {demo && <span className="mode-badge">Demo environment</span>}
+        <form className="login-card" onSubmit={login}>
+          <div className="login-logo-container">
+            <MaterialSquareLogo size={50} showText={true} lightMode={false} tagline="BUILDING BETTER TOGETHER" />
+            <span className="login-badge-sub">EXECUTIVE COMMAND CENTER</span>
+          </div>
+          {demo && (
+            <span
+              className="sidebar-mode-badge"
+              style={{ alignSelf: "center", background: "#fff0d9", color: "#9a3412", borderColor: "#fed7aa" }}
+            >
+              Demo environment active
+            </span>
+          )}
           <label>
             Mobile number or email
             <input
               name="identifier"
               type="text"
               autoComplete="username"
+              placeholder="e.g. 9876543210 or staff@materialsquare.com"
               maxLength={254}
               required
             />
@@ -340,6 +386,7 @@ export function App() {
               name="password"
               type="password"
               autoComplete="current-password"
+              placeholder="Enter your security password"
               minLength={8}
               required
             />
@@ -349,87 +396,178 @@ export function App() {
               {error}
             </p>
           )}
-          <button className="btn-sm btn-primary" disabled={busy}>
-            {busy ? "Signing in…" : "Sign in"}
+          <button
+            className="btn-sm btn-primary"
+            style={{ padding: "12px 18px", fontSize: "0.92rem", borderRadius: "10px", marginTop: "4px" }}
+            disabled={busy}
+          >
+            {busy ? "Authenticating…" : "Sign In to Workspace"}
           </button>
+          <a
+            href="https://material-square.vercel.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="login-back-link"
+          >
+            ← Return to Material Square Marketplace
+          </a>
         </form>
       </main>
     );
   const result = tab === "customers" ? customers : followups;
   return (
-    <div className="admin-layout workspace">
-      <aside className="admin-sidebar">
+    <div className="admin-layout">
+      {/* Mobile Top Bar */}
+      <div className="mobile-top-bar">
+        <MaterialSquareLogo size={32} showText={true} lightMode={true} badgeText="ADMIN" />
+        <button
+          className="mobile-menu-btn"
+          onClick={() => setMobileNavOpen((v) => !v)}
+          aria-label="Toggle navigation menu"
+        >
+          {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      </div>
+
+      {/* Backdrop for mobile drawer */}
+      <div
+        className={`sidebar-backdrop ${mobileNavOpen ? "open" : ""}`}
+        onClick={() => setMobileNavOpen(false)}
+      />
+
+      {/* Persistent Left Sidebar */}
+      <aside className={`admin-sidebar ${mobileNavOpen ? "open" : ""}`}>
         <div className="admin-brand">
-          <div className="workspace-logo">MS</div>
-          <div>
-            <h2>Material Square</h2>
-            <span>Staff workspace</span>
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate("overview");
+              setMobileNavOpen(false);
+            }}
+            className="admin-brand-link"
+          >
+            <MaterialSquareLogo
+              size={38}
+              showText={true}
+              lightMode={true}
+              badgeText="ADMIN"
+              tagline="OPERATIONS CONSOLE"
+            />
+          </a>
+          <button
+            className="mobile-menu-btn"
+            style={{ display: mobileNavOpen ? "inline-flex" : "none" }}
+            onClick={() => setMobileNavOpen(false)}
+            aria-label="Close menu"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Staff Card */}
+        <div className="sidebar-staff-card">
+          <div className="staff-avatar-badge">
+            {staff?.name ? staff.name.charAt(0).toUpperCase() : "M"}
+          </div>
+          <div className="staff-meta">
+            <span className="staff-name">{staff?.name || "Staff Member"}</span>
+            <span className="staff-role-chip">
+              <span className="live-indicator-dot" />
+              {staff?.role ? staff.role.replace(/_/g, " ") : "Operator"}
+            </span>
           </div>
         </div>
-        {(demo || staff?.isDemo) && (
-          <span className="mode-badge">Demo environment</span>
-        )}
-        <nav>
-          {([
-            ["overview", "Overview", LayoutDashboard, true],
-            ["customers", "Customers", Users, ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER"].includes(staff?.role || "")],
-            ["followups", "Follow-ups", ClipboardList, ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER"].includes(staff?.role || "")],
-            ["operations", "Sales & dispatch", Truck, ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER", "DISPATCH_OFFICER", "ACCOUNTS_MANAGER", "PROCUREMENT_HEAD", "CATALOG_MANAGER"].includes(staff?.role || "")],
-            ["business", "Business modules", Boxes, staff?.role !== "SALES_MANAGER"],
-            ["team", "Staff & roles", Users, staff?.role === "SUPER_ADMIN"],
-          ] as const).filter(([, , , allowed]) => allowed).map(([id, label, Icon]) => (
-            <button
-              className={`nav-item ${tab === id ? "active" : ""}`}
-              key={id}
-              onClick={() => navigate(id)}
-            >
-              <Icon size={18} />
-              {label}
-            </button>
-          ))}
+
+        {/* Nav Links */}
+        <nav className="sidebar-nav-scroll">
+          {navSections.map((sec) => {
+            const allowedItems = sec.items.filter((item) =>
+              isTabPermitted(item.id, staff?.role),
+            );
+            if (!allowedItems.length) return null;
+            return (
+              <div key={sec.group} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                <span className="nav-group-title">{sec.group}</span>
+                {allowedItems.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    className={`nav-item ${tab === id ? "active" : ""}`}
+                    onClick={() => {
+                      navigate(id);
+                      setMobileNavOpen(false);
+                    }}
+                  >
+                    <Icon size={18} className="nav-item-icon" />
+                    <span>{label}</span>
+                    {id === "followups" && stats && stats.openFollowups > 0 && (
+                      <span className="nav-item-badge">{stats.openFollowups}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
         </nav>
-        <div className="staff-footer">
-          <strong>{staff?.name || "Staff"}</strong>
-          <small>{staff?.phone || staff?.email}</small>
-          <button
-            className="nav-item"
-            onClick={() => {
-              setToken("");
-              setStaff(null);
-              setSelected(null);
-              setDraft(null);
-              setStats(null);
-              setError("");
-            }}
+
+        {/* Sidebar Footer */}
+        <div className="sidebar-footer">
+          {(demo || staff?.isDemo) && (
+            <span className="sidebar-mode-badge">Demo environment</span>
+          )}
+          <a
+            href="https://material-square.vercel.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="sidebar-ext-link"
           >
-            <LogOut size={17} />
-            Sign out
+            <ExternalLink size={14} />
+            <span>Visit Marketplace</span>
+          </a>
+          <button
+            className="sidebar-signout-btn"
+            onClick={signOut}
+          >
+            <LogOut size={16} />
+            <span>Sign out</span>
           </button>
         </div>
       </aside>
+
+      {/* Main Content Area */}
       <main className="admin-main">
         <header className="admin-header">
-          <div>
-            <span className="eyebrow">Material Square operations</span>
+          <div className="header-left">
+            <span className="eyebrow">
+              <span className="live-indicator-dot" /> Material Square Operations
+            </span>
             <h1>
               {tab === "overview"
-                ? "Overview"
+                ? "Executive Overview"
                 : tab === "customers"
-                  ? "Customers"
-                  : "Follow-ups"}
+                  ? "Customer Accounts"
+                  : tab === "followups"
+                    ? "Enquiry Follow-ups"
+                    : tab === "operations"
+                      ? "Sales & Dispatch Command"
+                      : tab === "business"
+                        ? "Business & Supply Modules"
+                        : "Staff & Role Permissions"}
             </h1>
           </div>
-          <button
-            className="btn-sm btn-secondary"
-            disabled={loading || busy}
-            onClick={() => {
-              setRevision((v) => v + 1);
-              if (selected) void openCustomer(selected.id);
-            }}
-          >
-            <RefreshCw size={16} />
-            Refresh
-          </button>
+          <div className="admin-header-actions">
+            <button
+              className="btn-sm btn-secondary"
+              disabled={loading || busy}
+              onClick={() => {
+                setRevision((v) => v + 1);
+                if (selected) void openCustomer(selected.id);
+              }}
+            >
+              <RefreshCw size={15} className={loading || busy ? "spin" : ""} />
+              <span>Refresh</span>
+            </button>
+          </div>
         </header>
         {error && (
           <p role="alert" className="admin-error">
@@ -487,7 +625,7 @@ export function App() {
             </section>
           </>
         )}
-        {tab !== "overview" && !selected && !draft && (
+        {["customers", "followups"].includes(tab) && !selected && !draft && (
           <>
             <form
               className="workspace-toolbar"
@@ -885,6 +1023,32 @@ export function App() {
               {busy ? "Saving…" : "Save follow-up"}
             </button>
           </form>
+        )}
+        {tab === "operations" && (
+          <LegacyOperations
+            accessToken={token}
+            role={staff?.role || ""}
+            onBack={() => navigate("overview")}
+            onSignOut={signOut}
+            embedded={true}
+          />
+        )}
+        {tab === "business" && (
+          <BusinessConsole
+            token={token}
+            role={staff?.role || ""}
+            onBack={() => navigate("overview")}
+            onSignOut={signOut}
+            embedded={true}
+          />
+        )}
+        {tab === "team" && staff?.role === "SUPER_ADMIN" && (
+          <StaffManagement
+            token={token}
+            onBack={() => navigate("overview")}
+            onSignOut={signOut}
+            embedded={true}
+          />
         )}
       </main>
     </div>

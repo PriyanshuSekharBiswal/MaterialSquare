@@ -28,7 +28,21 @@ const sectionRoles: Record<Section, string[]> = {
   loyalty: ["SUPER_ADMIN", "ADMIN", "ACCOUNTS_MANAGER"],
 };
 
-export default function BusinessConsole({ token, role, onBack, onSignOut }: { token: string; role: string; onBack: () => void; onSignOut: () => void }) {
+import MaterialSquareLogo from "./components/MaterialSquareLogo";
+
+export default function BusinessConsole({
+  token,
+  role,
+  onBack,
+  onSignOut,
+  embedded = false,
+}: {
+  token: string;
+  role: string;
+  onBack: () => void;
+  onSignOut: () => void;
+  embedded?: boolean;
+}) {
   const visibleSections = sections.filter((entry) => sectionRoles[entry.id].includes(role));
   const [section, setSection] = useState<Section>(() => visibleSections[0]?.id || "suppliers");
   const [records, setRecords] = useState<any[]>([]);
@@ -102,16 +116,8 @@ export default function BusinessConsole({ token, role, onBack, onSignOut }: { to
     </div>)}
   </article>;
 
-  return <div className="business-console">
-    <aside className="business-console-nav">
-      <button className="bc-button bc-back" onClick={onBack}><ArrowLeft size={16}/> Main workspace</button>
-      <strong>Business management</strong>
-      {visibleSections.map(({ id, label, icon: Icon }) => <button className={section === id ? "bc-nav active" : "bc-nav"} key={id} onClick={() => { setSection(id); setMessage(""); setError(""); }}><Icon size={17}/>{label}</button>)}
-      <button className="bc-button bc-signout" onClick={onSignOut}>Sign out</button>
-    </aside>
-    <main className="business-console-main">
-      <header className="bc-header"><div><small>STAFF WORKSPACE</small><h1>{active.label}</h1></div><button className="bc-button" onClick={() => void refresh()} disabled={busy}><RefreshCw size={15}/>{busy ? "Loading…" : "Refresh"}</button></header>
-      {error && <p className="bc-error" role="alert">{error}</p>}{message && <p className="bc-success" role="status">{message}</p>}
+  const sectionContent = (
+    <>
       {section === "suppliers" && <>
         <form className="bc-form" onSubmit={(e) => submit(e, (f) => ({ name: field(f,"name"), phone: field(f,"phone"), email: field(f,"email"), address: field(f,"address"), city: field(f,"city"), pincode: field(f,"pincode"), servicePincodes: field(f,"servicePincodes").split(/[ ,]+/).filter(Boolean), status: "PENDING" }))}>
           <h2>Add a supplier</h2><div className="bc-fields"><label>Name<input name="name" required minLength={2}/></label><label>Phone<input name="phone" inputMode="numeric" pattern="[6-9][0-9]{9}" required/></label><label>Email<input name="email" type="email"/></label><label>Address<input name="address" required/></label><label>City<input name="city" required/></label><label>PIN code<input name="pincode" pattern="[1-9][0-9]{5}" required/></label><label className="bc-wide">Service PIN codes (comma separated)<input name="servicePincodes" placeholder="201301, 201310"/></label></div><button className="bc-primary" disabled={busy}>Save supplier</button>
@@ -164,6 +170,59 @@ export default function BusinessConsole({ token, role, onBack, onSignOut }: { to
       {section === "loyalty" && settings && <form className="bc-form" onSubmit={(e) => submit(e, (f) => ({ enabled: f.get("enabled") === "on", pointsPer100Inr: Number(f.get("rate")), minimumOrderValueInr: Number(f.get("minimum")), redemptionValuePerPoint: Number(f.get("value")), minimumRedemptionPoints: Number(f.get("redeem")), expiryAfterDays: f.get("expiry") ? Number(f.get("expiry")) : null }), active.endpoint, "PUT")}>
         <h2>Customer rewards settings</h2><p className="bc-helper">Points are credited after delivery. Set the commercial rules agreed with the client before enabling the program.</p><div className="bc-fields"><label>Points earned per ₹100<input name="rate" type="number" min="0" step="0.001" defaultValue={text(settings.pointsPer100Inr)}/></label><label>Minimum qualifying order (₹)<input name="minimum" type="number" min="0" step="0.01" defaultValue={text(settings.minimumOrderValueInr)}/></label><label>Redemption value per point (₹)<input name="value" type="number" min="0" step="0.0001" defaultValue={text(settings.redemptionValuePerPoint)}/></label><label>Minimum redemption points<input name="redeem" type="number" min="0" step="1" defaultValue={settings.minimumRedemptionPoints}/></label><label>Points expire after (days)<input name="expiry" type="number" min="1" defaultValue={text(settings.expiryAfterDays)}/></label><label className="bc-check"><input name="enabled" type="checkbox" defaultChecked={settings.enabled}/> Enable rewards</label></div><button className="bc-primary" disabled={busy}>Save program settings</button>
       </form>}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="embedded-business-view">
+        <div className="embedded-subnav-bar">
+          <div className="embedded-subnav-items">
+            {visibleSections.map(({ id, label, icon: Icon }) => (
+              <button
+                className={`subnav-pill ${section === id ? "active" : ""}`}
+                key={id}
+                onClick={() => {
+                  setSection(id);
+                  setMessage("");
+                  setError("");
+                }}
+              >
+                <Icon size={15} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+          <button
+            className="btn-sm btn-secondary"
+            onClick={() => void refresh()}
+            disabled={busy}
+          >
+            <RefreshCw size={14} className={busy ? "spin" : ""} />
+            <span>{busy ? "Loading…" : "Refresh"}</span>
+          </button>
+        </div>
+        {error && <p className="bc-error" role="alert">{error}</p>}
+        {message && <p className="bc-success" role="status">{message}</p>}
+        {sectionContent}
+      </div>
+    );
+  }
+
+  return <div className="business-console">
+    <aside className="business-console-nav">
+      <div style={{ marginBottom: "1rem" }}>
+        <MaterialSquareLogo size={36} lightMode={true} tagline="BUSINESS CONSOLE" />
+      </div>
+      <button className="bc-button bc-back" onClick={onBack}><ArrowLeft size={16}/> Main workspace</button>
+      <strong>Business management</strong>
+      {visibleSections.map(({ id, label, icon: Icon }) => <button className={section === id ? "bc-nav active" : "bc-nav"} key={id} onClick={() => { setSection(id); setMessage(""); setError(""); }}><Icon size={17}/>{label}</button>)}
+      <button className="bc-button bc-signout" onClick={onSignOut}>Sign out</button>
+    </aside>
+    <main className="business-console-main">
+      <header className="bc-header"><div><small>STAFF WORKSPACE</small><h1>{active.label}</h1></div><button className="bc-button" onClick={() => void refresh()} disabled={busy}><RefreshCw size={15}/>{busy ? "Loading…" : "Refresh"}</button></header>
+      {error && <p className="bc-error" role="alert">{error}</p>}{message && <p className="bc-success" role="status">{message}</p>}
+      {sectionContent}
     </main>
   </div>;
 }

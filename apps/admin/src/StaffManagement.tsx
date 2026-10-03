@@ -35,10 +35,12 @@ export default function StaffManagement({
   token,
   onBack,
   onSignOut,
+  embedded = false,
 }: {
   token: string;
   onBack: () => void;
   onSignOut: () => void;
+  embedded?: boolean;
 }) {
   const [roles, setRoles] = useState<Role[]>([]);
   const [staff, setStaff] = useState<StaffRecord[]>([]);
@@ -125,10 +127,15 @@ export default function StaffManagement({
     finally { setBusy(false); }
   }
 
-  return <main className="staff-management">
-    <header className="staff-management-header">
-      <div><button className="btn-sm btn-secondary" onClick={onBack}>Back to dashboard</button><span className="eyebrow">OWNER ACCESS</span><h1>Staff & roles</h1><p>Create staff accounts and control which work areas each role can use.</p></div>
-      <button className="btn-sm btn-secondary" disabled={busy} onClick={() => void refresh()}><RefreshCw size={16}/>{busy ? "Loading…" : "Refresh"}</button>
+  return <div className="embedded-staff-view" style={{ width: "100%" }}>
+    <header className="staff-management-header" style={{ marginBottom: "20px" }}>
+      <div>
+        {!embedded && <button className="btn-sm btn-secondary" onClick={onBack} style={{ marginBottom: "8px" }}>← Back to dashboard</button>}
+        <span className="eyebrow">OWNER ACCESS & SECURITY</span>
+        <h1>Staff & roles</h1>
+        <p>Create staff accounts and control which work areas each role can use.</p>
+      </div>
+      <button className="btn-sm btn-secondary" disabled={busy} onClick={() => void refresh()}><RefreshCw size={16} className={busy ? "spin" : ""}/>{busy ? "Loading…" : "Refresh"}</button>
     </header>
     {error && <p className="admin-error" role="alert">{error}</p>}
     {notice && <p className="saved-notice" role="status">{notice}</p>}
@@ -166,5 +173,5 @@ export default function StaffManagement({
         </tr>)}</tbody>
       </table></div>
     </section>
-  </main>;
+  </div>;
 }

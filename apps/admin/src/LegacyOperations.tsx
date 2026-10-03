@@ -15,6 +15,7 @@ import {
   Mail,
   RefreshCw,
 } from "lucide-react";
+import MaterialSquareLogo from "./components/MaterialSquareLogo";
 
 type Rfq = {
   id: string;
@@ -96,11 +97,13 @@ export function App({
   role,
   onBack,
   onSignOut,
+  embedded = false,
 }: {
   accessToken: string;
   role: string;
   onBack: () => void;
   onSignOut: () => void;
+  embedded?: boolean;
 }) {
   const [token, setToken] = useState(accessToken);
   const [staffName, setStaffName] = useState("");
@@ -216,69 +219,43 @@ export function App({
     }
   };
   if (!token) return null;
-  return (
-    <div className="admin-layout">
-      <aside className="admin-sidebar">
-        <button className="btn-sm btn-secondary" onClick={onBack}>
-          Customer workspace
-        </button>
-        <div className="admin-brand">
-          <div className="brand-badge">MS</div>
-          <div>
-            <h2>Material Square</h2>
-            <span>Operations & Admin</span>
-          </div>
-        </div>
-        <nav>
+
+  const innerContent = (
+    <>
+      <div className="embedded-subnav-bar">
+        <div className="embedded-subnav-items">
           {visibleTabs.map((item) => {
             const Icon = icons[tabs.indexOf(item)];
             return (
               <button
                 key={item}
-                className={`nav-item ${tab === item ? "active" : ""}`}
+                className={`subnav-pill ${tab === item ? "active" : ""}`}
                 onClick={() => {
                   setTab(item);
                   setSelectedRfq(null);
                 }}
               >
-                <Icon size={18} />
-                {labels[item]}
+                <Icon size={16} />
+                <span>{labels[item]}</span>
               </button>
             );
           })}
-        </nav>
-        <p className="staff-name">{staffName}</p>
+        </div>
         <button
           className="btn-sm btn-secondary"
-          onClick={() => {
-            onSignOut();
-            setRfqs([]);
-            setQuotes([]);
-            setOrders([]);
-            setInquiries([]);
-            setProducts([]);
-            setAnalytics(null);
-          }}
+          disabled={busy}
+          onClick={() => void refresh()}
         >
-          Sign out
+          <RefreshCw size={15} className={busy ? "spin" : ""} />
+          <span>{busy ? "Loading…" : "Refresh"}</span>
         </button>
-      </aside>
-      <main className="admin-main">
-        <header className="admin-header">
-          <h1>{labels[tab]}</h1>
-          <button
-            className="btn-sm btn-secondary"
-            disabled={busy}
-            onClick={() => void refresh()}
-          >
-            <RefreshCw size={16} /> {busy ? "Loading…" : "Refresh"}
-          </button>
-        </header>
-        {error && (
-          <p role="alert" className="admin-error">
-            {error}
-          </p>
-        )}
+      </div>
+
+      {error && (
+        <p role="alert" className="admin-error">
+          {error}
+        </p>
+      )}
         {tab === "overview" && analytics && (
           <>
             <div className="kpi-grid">
@@ -626,6 +603,61 @@ export function App({
             ))}
           </section>
         )}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="embedded-operations-view">{innerContent}</div>;
+  }
+
+  return (
+    <div className="admin-layout">
+      <aside className="admin-sidebar">
+        <div className="admin-brand">
+          <MaterialSquareLogo size={36} lightMode={true} tagline="OPERATIONS CONSOLE" />
+        </div>
+        <div className="sidebar-nav-scroll">
+          <button className="btn-sm btn-secondary" onClick={onBack} style={{ marginBottom: "1rem", width: "100%" }}>
+            ← Workspace
+          </button>
+          <span className="nav-group-title">Operations</span>
+          {visibleTabs.map((item) => {
+            const Icon = icons[tabs.indexOf(item)];
+            return (
+              <button
+                key={item}
+                className={`nav-item ${tab === item ? "active" : ""}`}
+                onClick={() => {
+                  setTab(item);
+                  setSelectedRfq(null);
+                }}
+              >
+                <Icon size={18} className="nav-item-icon" />
+                <span>{labels[item]}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="sidebar-footer">
+          {staffName && <p className="staff-name">{staffName}</p>}
+          <button
+            className="sidebar-signout-btn"
+            onClick={() => {
+              onSignOut();
+              setRfqs([]);
+              setQuotes([]);
+              setOrders([]);
+              setInquiries([]);
+              setProducts([]);
+              setAnalytics(null);
+            }}
+          >
+            Sign out
+          </button>
+        </div>
+      </aside>
+      <main className="admin-main">
+        {innerContent}
       </main>
     </div>
   );

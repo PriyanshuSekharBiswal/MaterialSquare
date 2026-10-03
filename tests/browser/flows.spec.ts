@@ -175,9 +175,9 @@ test("failed list saves are visible instead of claiming persistence", async ({
 test("admin requires sign-in and displays login failures", async ({ page }) => {
   await page.goto("http://127.0.0.1:4174");
   await expect(
-    page.getByRole("button", { name: "Sign in", exact: true }),
+    page.getByRole("button", { name: "Sign In to Workspace", exact: true }),
   ).toBeVisible();
-  await page.getByLabel("Mobile number", {exact:true}).fill("9000000000");
+  await page.getByLabel("Mobile number or email", { exact: true }).fill("9000000000");
   await page.getByLabel("Password").fill("wrong-password");
   await page.route("**/api/auth/staff/login", (route) =>
     route.fulfill({
@@ -186,11 +186,9 @@ test("admin requires sign-in and displays login failures", async ({ page }) => {
       body: JSON.stringify({ message: "Invalid staff credentials" }),
     }),
   );
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign In to Workspace", exact: true }).click();
   await expect(page.getByRole("alert")).toHaveText("Invalid staff credentials");
-  await expect(
-    page.getByRole("button", { name: "RFQ inbox" }),
-  ).not.toBeVisible();
+  await expect(page.getByRole("navigation")).not.toBeVisible();
 });
 
 test("marketplace renders on a mobile viewport without horizontal overflow", async ({
