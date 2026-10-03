@@ -1,6 +1,4 @@
-import type { MaterialItem, CatalogueProduct } from '../types';
 import React, { useState } from 'react';
-import { ShieldCheck, Check, Sparkles } from 'lucide-react';
 import { BRAND_LIST, BrandLogo } from './icons/BrandBadges';
 
 export default function BrandRoster({ onSelectBrand, selectedBrand }: { onSelectBrand: (brand: string) => void; selectedBrand: string }) {
@@ -18,17 +16,17 @@ export default function BrandRoster({ onSelectBrand, selectedBrand }: { onSelect
         {/* Section Header */}
         <div className="brand-roster-header">
           <div className="roster-header-text">
-            <span className="badge-orange reveal-text">100% Genuine Manufacturer Partners</span>
+            <span className="badge-orange reveal-text">Brands in this directory</span>
             <h2 className="section-title reveal-title">
               <span className="ms-mask-line">
-                <span className="ms-mask-text">Trusted Brands.</span>
+                <span className="ms-mask-text">Explore brands.</span>
               </span>{' '}
               <span className="ms-mask-line">
                 <span className="ms-mask-text delay-1">One Destination.</span>
               </span>
             </h2>
             <p className="section-subtitle reveal-text">
-              Zero counterfeit risk. Material Square delivers directly from authorized factory depots with manufacturer GST invoices and batch test certificates.
+                Select a brand to filter the catalogue. Confirm the exact product, specification, and current availability with staff.
             </p>
           </div>
 
@@ -62,9 +60,7 @@ export default function BrandRoster({ onSelectBrand, selectedBrand }: { onSelect
               >
                 <div className="brand-card-top">
                   <span className="brand-category-badge">{brand.category}</span>
-                  <span className="authorized-badge">
-                    <ShieldCheck size={13} /> Authorized
-                  </span>
+                  <span className="brand-category-badge">View catalogue</span>
                 </div>
 
                 <div className="brand-logo-frame">

@@ -8,14 +8,12 @@ import {
   Check,
   Plus,
   Info,
-  Truck,
-  ShieldCheck,
-  FileCheck,
+  ClipboardList,
   X,
   Phone,
   Package,
 } from 'lucide-react';
-import { PRODUCTS, CATEGORIES, COMPANY_INFO } from '../data/materialsData';
+import { COMPANY_INFO } from '../data/materialsData';
 import { BRAND_LIST, BrandLogo, getBrandMeta } from '../components/icons/BrandBadges';
 import BrandRoster from '../components/BrandRoster';
 import SearchSuggestions from '../components/SearchSuggestions';
@@ -23,10 +21,11 @@ import WhatsAppIcon from '../components/icons/WhatsAppIcon';
 
 export default function MarketplacePage({
   bomList = [],
+  products,
   onToggleBOM,
   onOpenProductModal,
   onOpenBOMDrawer,
-}: { bomList?: MaterialItem[]; onToggleBOM: (product: MaterialItem) => void; onOpenProductModal: (product: CatalogueProduct) => void; onOpenBOMDrawer: () => void }) {
+}: { products: CatalogueProduct[]; bomList?: MaterialItem[]; onToggleBOM: (product: MaterialItem) => void; onOpenProductModal: (product: CatalogueProduct) => void; onOpenBOMDrawer: () => void }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialCategory = searchParams.get('category') || 'all';
   const initialBrand = searchParams.get('brand') || '';
@@ -40,6 +39,11 @@ export default function MarketplacePage({
   const [isStickyDismissed, setIsStickyDismissed] = useState(false);
   const prevBomCountRef = useRef(bomList.length);
   const searchRef = useRef<HTMLDivElement>(null);
+  const catalogueCategories = useMemo(() => [
+    { id: 'all', label: 'All Materials', count: products.length },
+    ...Array.from(new Map(products.map((product) => [product.category, product.categoryLabel])).entries())
+      .map(([id, label]) => ({ id, label, count: products.filter((product) => product.category === id).length })),
+  ], [products]);
 
   // If user adds new items to BOM, re-show notification bar if it was dismissed
   useEffect(() => {
@@ -97,7 +101,7 @@ export default function MarketplacePage({
 
   // Filter products
   const filteredProducts = useMemo(() => {
-    return PRODUCTS.filter((item) => {
+    return products.filter((item) => {
       // Category filter
       if (activeCategory !== 'all' && item.category !== activeCategory) {
         return false;
@@ -126,7 +130,7 @@ export default function MarketplacePage({
 
       return true;
     });
-  }, [activeCategory, selectedBrand, onlyInStock, searchQuery]);
+  }, [products, activeCategory, selectedBrand, onlyInStock, searchQuery]);
 
   // Check if item in BOM
   const isItemInBOM = (id: string) => bomList.some((item) => item.id === id);
@@ -146,28 +150,28 @@ export default function MarketplacePage({
       <section className="page-hero-header">
         <div className="container">
           <div className="page-hero-content">
-            <span className="badge-pill badge-orange-pill reveal-text">Direct Procurement Depot</span>
+            <span className="badge-pill badge-orange-pill reveal-text">Material Square marketplace</span>
             <h1 className="page-title">
               <span className="ms-mask-line">
                 <span className="ms-mask-text">Construction Materials Catalog</span>
               </span>
             </h1>
             <p className="page-subtitle reveal-text">
-              Order certified Cement, TMT Steel, CPVC/UPVC Pipes, Wires, Paints, and Sanitaryware. Direct site delivery across Delhi NCR with official manufacturer GST invoices and batch test certificates.
+              Browse published construction-material listings, review staff-entered prices, and add products to your material list. Confirm stock, taxes, and delivery with staff.
             </p>
 
             <div className="page-hero-metrics reveal-stagger">
               <div className="metric-tag">
-                <Truck size={14} className="metric-icon" />
-                <span>Delhi NCR Fleet Dispatch</span>
+                <Search size={14} className="metric-icon" />
+                <span>Browse without signing in</span>
               </div>
               <div className="metric-tag">
-                <ShieldCheck size={14} className="metric-icon" />
-                <span>100% Genuine Manufacturer Billing</span>
+                <ClipboardList size={14} className="metric-icon" />
+                <span>Save a material list with an account</span>
               </div>
               <div className="metric-tag">
-                <FileCheck size={14} className="metric-icon" />
-                <span>IS Batch Test Certificates</span>
+                <Phone size={14} className="metric-icon" />
+                <span>Confirm details with the team</span>
               </div>
             </div>
           </div>
@@ -214,6 +218,7 @@ export default function MarketplacePage({
 
                 {/* Instant Search Suggestions Dropdown */}
                 <SearchSuggestions
+                  products={products}
                   query={searchQuery}
                   isOpen={isSuggestionsOpen}
                   onSelectSuggestion={(val) => {
@@ -284,7 +289,7 @@ export default function MarketplacePage({
 
             {/* Category Filter Chips */}
             <div className="category-chips-scroll">
-              {CATEGORIES.map((cat) => {
+              {catalogueCategories.map((cat) => {
                 const isActive = activeCategory === cat.id;
                 return (
                   <button
@@ -296,8 +301,8 @@ export default function MarketplacePage({
                     <span>{cat.label}</span>
                     <span className="chip-count">
                       {cat.id === 'all'
-                        ? PRODUCTS.length
-                        : PRODUCTS.filter((p) => p.category === cat.id).length}
+                        ? products.length
+                        : products.filter((p) => p.category === cat.id).length}
                     </span>
                   </button>
                 );
@@ -352,12 +357,12 @@ export default function MarketplacePage({
           <div className="results-summary-row reveal-text">
             <span className="results-count-text">
               Showing <strong>{filteredProducts.length}</strong> verified materials
-              {activeCategory !== 'all' && ` in ${CATEGORIES.find((c) => c.id === activeCategory)?.label}`}
+              {activeCategory !== 'all' && ` in ${catalogueCategories.find((c) => c.id === activeCategory)?.label}`}
               {selectedBrand && ` by ${selectedBrand}`}
             </span>
 
             <div className="dispatch-help-note">
-              <span>Need custom bulk quantities or crane delivery?</span>
+              <span>Need a custom quantity or site delivery information?</span>
               <a href={`tel:${COMPANY_INFO.phone}`} className="phone-quick-link">
                 <Phone size={13} /> {COMPANY_INFO.phoneDisplay}
               </a>
@@ -433,8 +438,14 @@ export default function MarketplacePage({
                       {/* Pricing & Min Order */}
                       <div className="pricing-row">
                         <div>
-                          <span className="rate-caption">Indicative Wholesale</span>
-                          <span className="rate-amount">{'Request a quotation'}</span>
+                          <span className="rate-caption">{product.price == null ? 'Wholesale pricing' : 'Price per unit'}</span>
+                          <span className="rate-amount">
+                            {product.price == null ? 'Contact for price' : `₹${Number(product.price).toLocaleString('en-IN')}`}
+                          </span>
+                          {product.compareAtPrice != null && product.price != null && Number(product.compareAtPrice) > Number(product.price) && (
+                            <span className="catalogue-list-price"><del>₹{Number(product.compareAtPrice).toLocaleString('en-IN')}</del>{product.offerLabel && <strong>{product.offerLabel}</strong>}</span>
+                          )}
+                          {product.price != null && <small className="catalogue-price-caveat">{product.priceNote || "Final availability, GST and delivery charges confirmed by staff."}</small>}
                         </div>
                         <div className="min-order-pill">
                           <Package size={12} />
@@ -473,7 +484,7 @@ export default function MarketplacePage({
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn-card-whatsapp"
-                          title="Instant WhatsApp Quote"
+                          title="Ask about this product on WhatsApp"
                         >
                           <WhatsAppIcon size={16} color="currentColor" />
                         </a>
@@ -487,9 +498,7 @@ export default function MarketplacePage({
             <div className="no-products-state">
               <Package size={48} className="empty-icon" />
               <h3>No materials match your current criteria</h3>
-              <p>
-                We may still supply this item through our 16 manufacturer distribution network across Delhi NCR.
-              </p>
+              <p>Try adjusting your filters or contact the team to ask about an item that is not listed.</p>
               <div className="empty-state-actions">
                 <button
                   type="button"

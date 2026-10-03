@@ -1,228 +1,115 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  ChevronLeft,
-  ChevronRight,
-  MapPin,
-  Clock,
-  ShieldCheck,
-  Truck,
-  CheckCircle2,
-} from 'lucide-react';
-import WhatsAppIcon from './icons/WhatsAppIcon';
-import { COMPANY_INFO } from '../data/materialsData';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ChevronLeft, ChevronRight, Layers } from 'lucide-react';
 
-const DELIVERIES = [
+const MATERIAL_GROUPS = [
   {
-    id: 1,
-    location: 'Noida Sector 128, Jaypee Greens',
-    projectType: 'G+3 Independent Luxury Villa',
-    material: '450 Bags UltraTech Super Weather Plus Cement',
-    timing: 'Delivered 7:15 AM · Scheduled Morning Slab Pour',
-    image: '/images/deliveries/cement-illustration.png',
-    contractor: 'M/s Sharma & Sons (Civil Contractors)',
-    feedback:
-      '"Zero labor waiting time. The truck arrived at 7:15 AM before our mistri team reached the site."',
-    tag: 'Morning Casting Slot',
+    id: 'cement',
+    title: 'Structure & foundation',
+    materials: 'Cement, reinforcement steel and aggregates',
+    note: 'Example material group. Confirm grades, quantities, availability and delivery with staff.',
+    image: '/images/categories/cement-category.jpg',
+    category: 'cement',
   },
   {
-    id: 2,
-    location: 'Gurugram, Golf Course Extension Road',
-    projectType: 'Commercial Basement & Raft Foundation',
-    material: '14 Metric Tons Tata Tiscon 550D Rebars (12mm, 16mm, 20mm)',
-    timing: 'Delivered 8:45 AM · Direct Crane Offloading',
-    image: '/images/deliveries/steel-illustration.png',
-    contractor: 'Apex Infrastructure Group',
-    feedback:
-      '"All bundles tagged with factory test certs. Direct crane unloading saved us 4 hours of manual labor."',
-    tag: 'Heavy Structural Lot',
+    id: 'pipes',
+    title: 'Plumbing & drainage',
+    materials: 'Water pipes, drainage pipes and compatible fittings',
+    note: 'Choose the required system and size; staff can help confirm compatible items.',
+    image: '/images/categories/pipes-category.jpg',
+    category: 'pipes',
   },
   {
-    id: 3,
-    location: 'Greater Noida West, Sector 10',
-    projectType: 'Residential Multi-Unit G+4',
-    material: 'Astral CPVC Pro Pipes (1", 1.25") & Supreme SWR Drainage Rings',
-    timing: 'Delivered Same-Day · 3:30 PM Express Dispatch',
-    image: '/images/deliveries/plumbing-illustration.png',
-    contractor: 'Elite Buildcon Projects',
-    feedback:
-      '"100% matched fittings with Astral solvent cement. No local substitution headache."',
-    tag: 'Concealed Plumbing Lot',
+    id: 'electrical',
+    title: 'Electrical work',
+    materials: 'Wires, cables, switches and installation accessories',
+    note: 'Confirm the specification and suitability with a qualified electrician.',
+    image: '/images/categories/wires-category.jpg',
+    category: 'wires',
   },
   {
-    id: 4,
-    location: 'South Delhi, Vasant Kunj Enclave',
-    projectType: 'Designer Villa Renovation',
-    material: 'Polycab FR-LSH Wires (1.5mm, 2.5mm, 4.0mm) + Havells LifeLine',
-    timing: 'Delivered 11:00 AM · Factory Hologram Verified',
-    image: '/images/deliveries/electrical-illustration.png',
-    contractor: 'Greenfield Architects & Builders',
-    feedback:
-      '"Genuine batch verification with GST bill. Exactly what our electrical consultant specified."',
-    tag: 'Fire-Safe Electrical Lot',
+    id: 'finishes',
+    title: 'Finishing work',
+    materials: 'Paints, wall finishes, sanitaryware and bath fittings',
+    note: 'Final colour, model, pack size, price and availability are confirmed by staff.',
+    image: '/images/categories/sanitary-category.jpg',
+    category: 'all',
   },
 ];
 
 export default function SiteDeliveriesCarousel() {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const touchStartXRef = useRef(0);
-  const touchEndXRef = useRef(0);
 
-  // Continuous auto-slide every 3.8 seconds
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % DELIVERIES.length);
-    }, 3800);
-
+      setCurrentIndex((prev) => (prev + 1) % MATERIAL_GROUPS.length);
+    }, 5000);
     return () => clearInterval(timer);
-  }, [currentIndex]);
+  }, []);
 
-  const handlePrev = () => {
-    setCurrentIndex((prev) => (prev - 1 + DELIVERIES.length) % DELIVERIES.length);
+  const move = (step: number) => {
+    setCurrentIndex((prev) => (prev + step + MATERIAL_GROUPS.length) % MATERIAL_GROUPS.length);
   };
-
-  const handleNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % DELIVERIES.length);
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartXRef.current = e.touches[0].clientX;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    touchEndXRef.current = e.touches[0].clientX;
-  };
-
-  const handleTouchEnd = () => {
-    const diff = touchStartXRef.current - touchEndXRef.current;
-    if (Math.abs(diff) > 40) {
-      if (diff > 0) {
-        handleNext();
-      } else {
-        handlePrev();
-      }
-    }
-  };
+  const selected = MATERIAL_GROUPS[currentIndex];
 
   return (
-    <section
-      className="site-deliveries-carousel-section"
-      aria-label="Recent Delhi NCR Deliveries Carousel"
-    >
+    <section className="site-deliveries-carousel-section" aria-label="Common construction material groups">
       <div className="container">
-        {/* Section Title */}
         <div className="section-title-wrap text-center">
-          <h2 className="section-title-clean">Recent Verified Site Deliveries</h2>
+          <h2 className="section-title-clean">Materials for Every Project Stage</h2>
           <p className="section-subtitle-clean">
-            Supplying active construction sites across Noida, Greater Noida, Delhi, Gurugram, and Ghaziabad.
+            Explore common material groups. Product listings and current availability are confirmed in the marketplace.
           </p>
         </div>
 
-        {/* Carousel Showcase Card with Sliding Track */}
         <div className="delivery-carousel-box">
-          <div
-            className="delivery-track-viewport"
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          >
-            <div
-              className="delivery-sliding-track"
-              style={{ transform: `translateX(-${currentIndex * 100}%)` }}
-            >
-              {DELIVERIES.map((item) => (
+          <div className="delivery-track-viewport">
+            <div className="delivery-sliding-track" style={{ transform: `translateX(-${currentIndex * 100}%)` }}>
+              {MATERIAL_GROUPS.map((item) => (
                 <div key={item.id} className="delivery-slide-card">
                   <div className="delivery-card-grid">
-                    {/* Media Col */}
                     <div className="delivery-media-col">
-                      <img
-                        src={item.image}
-                        alt={`Illustrative construction materials: ${item.tag}`}
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.src = '/images/fleet_truck_delhi.jpg';
-                        }}
-                      />
+                      <img src={item.image} alt={`Illustration of ${item.title.toLowerCase()} materials`} loading="lazy" />
                       <span className="delivery-image-note">Illustrative image</span>
-                      <div className="delivery-tag-chip">
-                        <span className="live-dot" /> {item.tag}
-                      </div>
+                      <div className="delivery-tag-chip"><Layers size={14} /> {item.title}</div>
                     </div>
-
-                    {/* Content Col */}
                     <div className="delivery-details-col">
                       <div className="delivery-header-meta">
-                        <div className="loc-badge">
-                          <MapPin size={15} />
-                          <strong>{item.location}</strong>
-                        </div>
-                        <span className="timing-pill">
-                          <Clock size={13} /> {item.timing}
-                        </span>
+                        <div className="loc-badge"><Layers size={15} /><strong>Common material group</strong></div>
                       </div>
-
                       <div className="delivery-scope-box">
-                        <span className="scope-lbl">Project Scope:</span>
-                        <h4 className="project-type-title">{item.projectType}</h4>
-                        <p className="material-lot-desc">{item.material}</p>
+                        <span className="scope-lbl">Examples of product types</span>
+                        <h3 className="project-type-title">{item.title}</h3>
+                        <p className="material-lot-desc">{item.materials}</p>
                       </div>
-
-                      <blockquote className="contractor-quote">
-                        <p>{item.feedback}</p>
-                        <cite>— {item.contractor}</cite>
-                      </blockquote>
-
+                      <p className="delivery-editorial-note">{item.note}</p>
                       <div className="delivery-card-footer-action">
-                        <div className="guarantee-check">
-                          <CheckCircle2 size={16} />
-                          <span>100% Genuine Materials Delivered with Original GST Bill</span>
-                        </div>
-
-                        <a
-                          href={`https://wa.me/919773505015?text=${encodeURIComponent(
-                            `Hello Material Square, I saw your recent delivery to ${item.location}. I need similar materials for my site:`
-                          )}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn btn-whatsapp btn-sm"
-                        >
-                          <WhatsAppIcon size={16} color="#ffffff" />
-                          <span>Book Delivery Slot</span>
-                        </a>
+                        <span className="delivery-confirmation-note">Review listed products, units and prices with the Material Square team.</span>
+                        <Link className="btn btn-primary btn-sm" to={`/marketplace?category=${item.category}`}>
+                          Browse materials
+                        </Link>
                       </div>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-
-            {/* Navigation Arrows */}
-            <button
-              type="button"
-              className="carousel-arrow-btn prev"
-              onClick={handlePrev}
-              aria-label="Previous Delivery"
-            >
+            <button type="button" className="carousel-arrow-btn prev" onClick={() => move(-1)} aria-label="Previous material group">
               <ChevronLeft size={22} />
             </button>
-            <button
-              type="button"
-              className="carousel-arrow-btn next"
-              onClick={handleNext}
-              aria-label="Next Delivery"
-            >
+            <button type="button" className="carousel-arrow-btn next" onClick={() => move(1)} aria-label="Next material group">
               <ChevronRight size={22} />
             </button>
           </div>
-
-          {/* Dots Indicator (Hero Style Dots) */}
           <div className="delivery-carousel-dots">
-            {DELIVERIES.map((_, idx) => (
+            {MATERIAL_GROUPS.map((item, idx) => (
               <button
-                key={idx}
+                key={item.id}
                 type="button"
                 className={`delivery-pill-dot ${idx === currentIndex ? 'active' : ''}`}
                 onClick={() => setCurrentIndex(idx)}
-                aria-label={`Go to delivery ${idx + 1}`}
+                aria-label={`Show ${item.title}`}
+                aria-current={idx === currentIndex ? 'true' : undefined}
               />
             ))}
           </div>

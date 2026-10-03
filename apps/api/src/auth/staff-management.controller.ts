@@ -16,15 +16,11 @@ import { z } from "zod";
 import { validate } from "../common/validation";
 import { hashPassword } from "./password";
 import { StaffGuard } from "./access.guard";
-import { STAFF_ROLE_DEFINITIONS, STAFF_ROLES } from "./staff-access";
+import { V1_ASSIGNABLE_STAFF_ROLES, V1_STAFF_ROLE_DEFINITIONS } from "./staff-access";
 import { PrismaService } from "../prisma/prisma.service";
 import { demoAuthEnabled } from "./demo-mode";
 
-const assignableRoles = STAFF_ROLES.filter((role) => role !== "SUPER_ADMIN") as [
-  Exclude<(typeof STAFF_ROLES)[number], "SUPER_ADMIN">,
-  ...Exclude<(typeof STAFF_ROLES)[number], "SUPER_ADMIN">[],
-];
-const roleSchema = z.enum(assignableRoles);
+const roleSchema = z.enum(V1_ASSIGNABLE_STAFF_ROLES);
 const createStaffSchema = z.object({
   name: z.string().trim().min(2).max(150),
   email: z.string().trim().email().max(254).optional(),
@@ -48,7 +44,7 @@ export class StaffManagementController {
 
   @Get("roles")
   roles() {
-    return STAFF_ROLE_DEFINITIONS.filter((definition) => definition.role !== "SUPER_ADMIN");
+    return V1_STAFF_ROLE_DEFINITIONS;
   }
 
   @Get()

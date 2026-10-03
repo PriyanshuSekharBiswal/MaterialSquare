@@ -10,6 +10,19 @@ import { Msg91WidgetService } from "./auth/msg91-widget.service";
 import { JwtService } from "@nestjs/jwt";
 import request = require("supertest");
 const integration = process.env.TEST_DATABASE_URL ? describe : describe.skip;
+function indiaDateOffset(offsetDays = 0) {
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+  return new Date(Date.UTC(value("year"), value("month") - 1, value("day") + offsetDays))
+    .toISOString()
+    .slice(0, 10);
+}
 integration("API with isolated PostgreSQL", () => {
   let app: INestApplication;
   let db: PrismaClient;
@@ -25,12 +38,12 @@ integration("API with isolated PostgreSQL", () => {
     db = new PrismaClient();
     await db.staffUser.upsert({
       where: { email: "integration@example.com" },
-      update: { isActive: true },
+      update: { isActive: true, role: "SUPER_ADMIN" },
       create: {
         email: "integration@example.com",
         name: "Integration",
         passwordHash: hashPassword("integration-password"),
-        role: "ADMIN",
+        role: "SUPER_ADMIN",
       },
     });
     const module = await Test.createTestingModule({
@@ -55,6 +68,7 @@ integration("API with isolated PostgreSQL", () => {
   afterAll(async () => {
     await app?.close();
     if (portalCustomerId && db) {
+      await db.order.deleteMany({ where: { customerId: portalCustomerId } });
       await db.customerSession.deleteMany({ where: { customerId: portalCustomerId } });
       await db.rfq.deleteMany({ where: { customerId: portalCustomerId } });
       await db.customer.deleteMany({ where: { id: portalCustomerId } });
@@ -221,13 +235,112 @@ integration("API with isolated PostgreSQL", () => {
     const catalogue = await request(app.getHttpServer())
       .get("/api/products")
       .expect(200);
-    expect(catalogue.body[0]).not.toHaveProperty("basePricePerMt");
+    expect(catalogue.body.some((item: { name: string }) => item.name === "Test Steel")).toBe(false);
     await db.notificationOutbox.deleteMany({
       where: { payload: { path: ["quoteId"], equals: quote.body.id } },
     });
     await db.order.deleteMany({ where: { orderNumber: accepted.body.orderNumber } });
     await db.quotation.delete({ where: { id: quote.body.id } });
     await db.productSKU.delete({ where: { id: product.id } });
+  });
+  it("lets staff publish, price, edit and unpublish public catalogue products", async () => {
+    const payload = {
+      slug: "integration-cpvc-pipe",
+      code: "MS-INT-CPVC-1",
+      name: "Integration CPVC Pipe",
+      brand: "Test Brand",
+      brandTagline: "Test range",
+      category: "pipes",
+      categoryLabel: "Pipes & Fittings",
+      unit: "3 m length",
+      packaging: "Single length",
+      image: "/images/products/cpvc-pipe-illustration.png",
+      grade: "CPVC",
+      description: "Integration product for catalogue testing.",
+      minOrderQty: "1 length",
+      dispatchTime: "Confirm with staff",
+      price: 320,
+      compareAtPrice: 400,
+      priceNote: "per length, GST extra",
+      offerLabel: "Test offer",
+      offerStartsAt: indiaDateOffset(0),
+      offerEndsAt: indiaDateOffset(1),
+      isInStock: true,
+      isPublished: true,
+      features: ["Corrosion resistant"],
+      applications: ["Water supply"],
+      specifications: { size: "25 mm" },
+      sortOrder: 999,
+    };
+    const created = await request(app.getHttpServer())
+      .post("/api/products/catalogue")
+      .set("Authorization", `Bearer ${token}`)
+      .send(payload)
+      .expect(201);
+    const listing = await request(app.getHttpServer())
+      .get("/api/products")
+      .expect(200);
+    expect(listing.body.find((item: { id: string }) => item.id === created.body.id))
+      .not.toHaveProperty("basePricePerMt");
+    expect(listing.body).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: created.body.id,
+        name: payload.name,
+        code: payload.code,
+        inStock: true,
+        price: "320",
+        compareAtPrice: "400",
+        priceNote: payload.priceNote,
+        offerLabel: payload.offerLabel,
+        offerStartsAt: `${payload.offerStartsAt}T00:00:00.000Z`,
+        offerEndsAt: `${payload.offerEndsAt}T00:00:00.000Z`,
+        specs: payload.specifications,
+      }),
+    ]));
+
+    await request(app.getHttpServer())
+      .post("/api/products/catalogue")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...payload, slug: "invalid-dated-offer", code: "MS-INT-INVALID-DATE", offerStartsAt: indiaDateOffset(2), offerEndsAt: indiaDateOffset(1) })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .patch(`/api/products/catalogue/${created.body.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...payload, isPublished: false })
+      .expect(200);
+    const publicAfterUnpublish = await request(app.getHttpServer())
+      .get("/api/products")
+      .expect(200);
+    expect(publicAfterUnpublish.body.some((item: { id: string }) => item.id === created.body.id)).toBe(false);
+    await db.catalogListing.delete({ where: { id: created.body.id } });
+  });
+  it("records anonymous website events and serves aggregate analytics to permitted staff only", async () => {
+    const before = await request(app.getHttpServer())
+      .get("/api/analytics/overview?days=30")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    await request(app.getHttpServer())
+      .post("/api/analytics/events")
+      .send({ type: "page_view", target: "home" })
+      .expect(201, { recorded: true });
+    await request(app.getHttpServer())
+      .post("/api/analytics/events")
+      .send({ type: "page_view", target: "?q=someone@example.com" })
+      .expect(400);
+    const after = await request(app.getHttpServer())
+      .get("/api/analytics/overview?days=30")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    expect(after.body.totals.pageViews).toBe(before.body.totals.pageViews + 1);
+    expect(after.body.topPages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ page: "home" }),
+    ]));
+    expect(after.body.privacy).toContain("no visitor IDs");
+    expect(after.body).not.toHaveProperty("visitors");
+    await request(app.getHttpServer())
+      .get("/api/analytics/overview")
+      .expect(401);
   });
   it("persists customer lists across sessions, isolates accounts and revokes logout", async () => {
     const phone = "9876543219";

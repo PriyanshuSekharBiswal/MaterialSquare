@@ -88,9 +88,32 @@
   font-size: 0.82rem;
 }
 
+.website-analytics { padding: 22px; margin: 18px 0 24px; }
+.website-analytics-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.website-analytics-head h2 { margin:0; font-size:1.08rem; color:var(--ms-slate-900); }
+.website-analytics-head p { margin:6px 0 0; color:var(--ms-slate-500); font-size:.82rem; }
+.analytics-range { flex:none; padding:6px 10px; border:1px solid var(--ms-slate-200); border-radius:999px; color:var(--ms-slate-600); font-size:.75rem; }
+.website-analytics-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:20px 0; }
+.website-analytics-kpi { display:flex; flex-direction:column; gap:8px; padding:13px; border:1px solid var(--ms-slate-200); border-radius:10px; }
+.website-analytics-kpi span { color:var(--ms-slate-500); font-size:.76rem; }
+.website-analytics-kpi strong { color:var(--ms-slate-900); font-size:1.35rem; }
+.website-analytics-details { display:grid; grid-template-columns:1.5fr 1fr 1.2fr; gap:18px; }
+.analytics-chart-wrap,.analytics-ranking { min-width:0; padding:14px; border:1px solid var(--ms-slate-200); border-radius:10px; }
+.analytics-chart-wrap h3,.analytics-ranking h3 { margin:0 0 14px; color:var(--ms-slate-700); font-size:.84rem; }
+.analytics-bars { display:flex; align-items:flex-end; gap:3px; height:112px; border-bottom:1px solid var(--ms-slate-200); }
+.analytics-bar-column { display:flex; flex:1; min-width:0; height:100%; flex-direction:column; align-items:center; justify-content:flex-end; gap:5px; }
+.analytics-bar-column span { width:min(100%,14px); min-height:0; border-radius:4px 4px 0 0; background:linear-gradient(180deg,#ff7a24,#f04e00); }
+.analytics-bar-column small { height:13px; color:var(--ms-slate-400); font-size:.55rem; }
+.analytics-ranking > div { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-top:1px solid var(--ms-slate-100); color:var(--ms-slate-600); font-size:.76rem; text-transform:capitalize; }
+.analytics-ranking > div span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.analytics-ranking > div strong { flex:none; color:var(--ms-slate-900); }
+.analytics-privacy-note { margin:12px 0 0; color:var(--ms-slate-400); font-size:.68rem; }
+
 @media (max-width: 900px) {
   .customer-summary,
-  .field-grid {
+  .field-grid,
+  .website-analytics-kpis,
+  .website-analytics-details {
     grid-template-columns: 1fr;
   }
 

@@ -56,14 +56,17 @@ class WorkspaceController {
   @Get("overview") async overview(@Res({ passthrough: true }) res: Response) {
     res.setHeader("Cache-Control", "no-store");
     const isDemo = demoAuthEnabled();
-    const [customers, openFollowups, closedFollowups] = await Promise.all([
+    const last30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [customers, newCustomers30Days, activeCustomers30Days, openFollowups, closedFollowups] = await Promise.all([
       this.prisma.customer.count({ where: { isDemo } }),
+      this.prisma.customer.count({ where: { isDemo, createdAt: { gte: last30Days } } }),
+      this.prisma.customer.count({ where: { isDemo, lastLoginAt: { gte: last30Days } } }),
       this.prisma.staffEnquiry.count({
         where: { isDemo, status: { not: "CLOSED" } },
       }),
       this.prisma.staffEnquiry.count({ where: { isDemo, status: "CLOSED" } }),
     ]);
-    return { customers, openFollowups, closedFollowups, demo: isDemo };
+    return { customers, newCustomers30Days, activeCustomers30Days, openFollowups, closedFollowups, demo: isDemo };
   }
   @Get("customers") async customers(
     @Query() query: unknown,

@@ -1,29 +1,32 @@
 import { CustomerProvider, useCustomer } from './customer';
-import AccountPage from './pages/AccountPage';
 import './customer.css';
 import type { CatalogueProduct, MaterialItem } from './types';
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import './App.css';
-import { PRODUCTS, COMPANY_INFO } from './data/materialsData';
+import { COMPANY_INFO } from './data/materialsData';
 import useScrollReveal from './hooks/useScrollReveal';
 import useSmoothScroll from './hooks/useSmoothScroll';
+import { trackWebsiteEvent } from './analytics';
 
 // Global Shell Components
 import Header from './components/Header';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
-import ProductDetailModal from './components/ProductDetailModal';
-import WhatsAppBOMDrawer from './components/WhatsAppBOMDrawer';
-
-// Dedicated Pages
-import HomePage from './pages/HomePage';
-import MarketplacePage from './pages/MarketplacePage';
-import WhyUsPage from './pages/WhyUsPage';
-import EngineeringGuidesPage from './pages/EngineeringGuidesPage';
-import GetQuotePage from './pages/GetQuotePage';
-import ContactPage from './pages/ContactPage';
-import { BlogDetailPage, BlogIndexPage, ExpertsPage } from './pages/BusinessContentPages';
+const AccountPage = lazy(() => import('./pages/AccountPage'));
+const HomePage = lazy(() => import('./pages/HomePage'));
+const MarketplacePage = lazy(() => import('./pages/MarketplacePage'));
+const WhyUsPage = lazy(() => import('./pages/WhyUsPage'));
+const EngineeringGuidesPage = lazy(() => import('./pages/EngineeringGuidesPage'));
+const GetQuotePage = lazy(() => import('./pages/GetQuotePage'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
+const BlogIndexPage = lazy(() => import('./pages/BusinessContentPages').then((m) => ({ default: m.BlogIndexPage })));
+const BlogDetailPage = lazy(() => import('./pages/BusinessContentPages').then((m) => ({ default: m.BlogDetailPage })));
+const ExpertsPage = lazy(() => import('./pages/BusinessContentPages').then((m) => ({ default: m.ExpertsPage })));
+const PrivacyPage = lazy(() => import('./pages/LegalPages').then((m) => ({ default: m.PrivacyPage })));
+const TermsPage = lazy(() => import('./pages/LegalPages').then((m) => ({ default: m.TermsPage })));
+const ProductDetailModal = lazy(() => import('./components/ProductDetailModal'));
+const WhatsAppBOMDrawer = lazy(() => import('./components/WhatsAppBOMDrawer'));
 
 // Floating Icons
 import { FileText } from 'lucide-react';
@@ -35,8 +38,35 @@ function AppShell() {
   useScrollReveal();
   useSmoothScroll();
 
+  useEffect(() => {
+    const page = location.pathname === "/" ? "home"
+      : location.pathname === "/marketplace" ? "marketplace"
+      : location.pathname === "/why-us" ? "why-us"
+      : location.pathname === "/guides" ? "guides"
+      : location.pathname === "/get-quote" ? "get-quote"
+      : location.pathname === "/contact" ? "contact"
+      : location.pathname.startsWith("/blogs") ? "blogs"
+      : location.pathname === "/experts" ? "experts"
+      : location.pathname === "/account" ? "account"
+      : null;
+    if (page) trackWebsiteEvent({ type: "page_view", target: page });
+  }, [location.pathname]);
+
   const [isBOMOpen, setIsBOMOpen] = useState(false);
   const [activeProductModal, setActiveProductModal] = useState<CatalogueProduct | null>(null);
+  const [catalogue, setCatalogue] = useState<CatalogueProduct[]>([]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${import.meta.env.VITE_API_URL || "/api"}/products`, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    })
+      .then((response) => response.ok ? response.json() as Promise<CatalogueProduct[]> : null)
+      .then((items) => { if (Array.isArray(items)) setCatalogue(items); })
+      .catch(() => { /* Public browsing stays available; only API-published listings are shown. */ });
+    return () => controller.abort();
+  }, []);
 
   const { customer, ready, items: bomList, updateItems: setBOMList } = useCustomer();
   const requireCustomer = () => {
@@ -48,13 +78,14 @@ function AppShell() {
     if (requireCustomer()) setIsBOMOpen(true);
   };
   const handleToggleBOM = (product: MaterialItem) => {
-    const catalogueProduct = PRODUCTS.find(item => item.id === product.id);
+    const catalogueProduct = catalogue.find(item => item.id === product.id);
     if (catalogueProduct?.specs?.sizes) { setActiveProductModal(catalogueProduct); return; }
     setBOMList((prev) => {
       const exists = prev.some((item) => item.id === product.id);
       if (exists) {
         return prev.filter((item) => item.id !== product.id);
       }
+      if (catalogueProduct) trackWebsiteEvent({ type: "add_to_list", target: catalogueProduct.id });
       return [...prev, product];
     });
     if (!customer) navigate("/account?next=/get-quote");
@@ -91,6 +122,7 @@ function AppShell() {
         {/* Dedicated Route Views with smooth transition on section change */}
         <main id="main-content" className="app-main-content">
           <div key={location.pathname} className="ms-page-transition-wrapper">
+            <Suspense fallback={<p className="page-loading-state" role="status">Loading page…</p>}>
             <Routes>
               <Route path="/account" element={<AccountPage />} />
               {/* 1. Home Page */}
@@ -98,6 +130,7 @@ function AppShell() {
                 path="/"
                 element={
                   <HomePage
+                    products={catalogue}
                     onOpenBOMDrawer={openBOMDrawer}
                     bomList={bomList}
                     onToggleBOM={handleToggleBOM}
@@ -110,9 +143,13 @@ function AppShell() {
                 path="/marketplace"
                 element={
                   <MarketplacePage
+                    products={catalogue}
                     bomList={bomList}
                     onToggleBOM={handleToggleBOM}
-                    onOpenProductModal={(product) => setActiveProductModal(product)}
+                    onOpenProductModal={(product) => {
+                      trackWebsiteEvent({ type: "product_view", target: product.id });
+                      setActiveProductModal(product);
+                    }}
                     onOpenBOMDrawer={openBOMDrawer}
                   />
                 }
@@ -159,10 +196,13 @@ function AppShell() {
               <Route path="/blogs" element={<BlogIndexPage />} />
               <Route path="/blogs/:slug" element={<BlogDetailPage />} />
               <Route path="/experts" element={<ExpertsPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
 
               {/* Fallback to Home */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+            </Suspense>
           </div>
         </main>
 
@@ -170,22 +210,22 @@ function AppShell() {
         <Footer />
 
         {/* Product Specification Modal */}
-        <ProductDetailModal
+        {activeProductModal && <Suspense fallback={null}><ProductDetailModal
           product={activeProductModal}
           isOpen={Boolean(activeProductModal)}
           onClose={() => setActiveProductModal(null)}
           inBOM={activeProductModal ? bomList.some((b) => b.id === activeProductModal.id) : false}
           onToggleBOM={handleToggleBOM}
-        />
+        /></Suspense>}
 
         {/* WhatsApp Bill-of-Materials (BOM) Slide-in Drawer */}
-        <WhatsAppBOMDrawer
+        {isBOMOpen && <Suspense fallback={null}><WhatsAppBOMDrawer
           isOpen={isBOMOpen}
           onClose={() => setIsBOMOpen(false)}
           bomList={bomList}
           onRemoveBOMItem={handleRemoveBOMItem}
           onClearBOM={handleClearBOM}
-        />
+        /></Suspense>}
 
         {/* Floating Quick Action Widget on Mobile & Desktop */}
         <aside className="floating-action-dock" aria-label="Quick Actions">

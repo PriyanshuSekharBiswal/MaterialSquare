@@ -19,6 +19,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist-cjs/index.js"
+    },
+    "./catalog-data": {
+      "types": "./dist/catalog-data.d.ts",
+      "import": "./dist/catalog-data.js",
+      "require": "./dist-cjs/catalog-data.js"
     }
   }
 }

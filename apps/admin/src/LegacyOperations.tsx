@@ -16,6 +16,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import MaterialSquareLogo from "./components/MaterialSquareLogo";
+import CatalogueManager from "./CatalogueManager";
 
 type Rfq = {
   id: string;
@@ -154,7 +155,7 @@ export function App({
       if (tab === "rfqs") setRfqs(await request<Rfq[]>("/rfqs"));
       if (tab === "quotes") setQuotes(await request<Quote[]>("/quotes"));
       if (tab === "orders") setOrders(await request<Order[]>("/orders"));
-      if (tab === "inventory") setProducts(await request<Product[]>("/products/inventory"));
+      if (tab === "quotes") setProducts(await request<Product[]>("/products/inventory"));
       if (tab === "inquiries") setInquiries(await request<Inquiry[]>("/inquiries"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load data");
@@ -554,40 +555,7 @@ export function App({
           </section>
         )}
         {tab === "inventory" && (
-          <section className="panel-card panel-body">
-            {!products.length && <p>No catalogue products in the database.</p>}
-            {products.map((p) => (
-              <form
-                className="record-card operation-form"
-                key={`${p.id}-${p.basePricePerMt}`}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void mutate(`/products/${p.id}/price`, "PATCH", {
-                    basePricePerMt: Number(
-                      new FormData(e.currentTarget).get("price"),
-                    ),
-                  });
-                }}
-              >
-                <h3>{p.name}</h3>
-                <label>
-                  Base rate / MT
-                  <input
-                    aria-label={`Base rate for ${p.name}`}
-                    name="price"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    defaultValue={p.basePricePerMt}
-                    required
-                  />
-                </label>
-                <button className="btn-sm btn-primary" disabled={busy}>
-                  Save rate
-                </button>
-              </form>
-            ))}
-          </section>
+          <CatalogueManager token={token} role={role} onSignOut={onSignOut} />
         )}
         {tab === "inquiries" && (
           <section className="panel-card panel-body">

@@ -19,12 +19,11 @@ import { COMPANY_INFO } from '../data/materialsData';
 import { BRAND_LIST, BrandLogo } from '../components/icons/BrandBadges';
 import HeroBuildingCanvas from '../components/HeroBuildingCanvas';
 import SiteDeliveriesCarousel from '../components/SiteDeliveriesCarousel';
-import DirectionGoogleMaps from '../components/DirectionGoogleMaps';
 import SearchSuggestions from '../components/SearchSuggestions';
 import WhatsAppIcon from '../components/icons/WhatsAppIcon';
 import ArchitecturalTicker from '../components/ArchitecturalTicker';
 
-export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }: { onOpenBOMDrawer: () => void; bomList?: MaterialItem[]; onToggleBOM: (product: MaterialItem) => void }) {
+export default function HomePage({ products, onOpenBOMDrawer, bomList = [], onToggleBOM }: { products: CatalogueProduct[]; onOpenBOMDrawer: () => void; bomList?: MaterialItem[]; onToggleBOM: (product: MaterialItem) => void }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [isMobileView, setIsMobileView] = useState(() => {
@@ -66,37 +65,37 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }:
     {
       id: 'cement',
       title: 'Cement & Aggregates',
-      subtitle: 'UltraTech, Ambuja, JK Cement, Shree',
-      image: '/images/products/material-sack-illustration.png',
-      badge: 'Immediate Depot Dispatch',
+      subtitle: 'Cement, aggregates and construction materials',
+      image: '/images/categories/cement-category.jpg',
+      badge: 'Cement & aggregates',
     },
     {
       id: 'pipes',
       title: 'Pipes & Fittings',
-      subtitle: 'Astral CPVC, Supreme SWR, Finolex, Zoloto',
-      image: '/images/products/cpvc-pipe-illustration.png',
-      badge: '100% Matched Fittings',
+      subtitle: 'Water supply, drainage and plumbing fittings',
+      image: '/images/categories/pipes-category.jpg',
+      badge: 'Pipes & fittings',
     },
     {
       id: 'wires',
       title: 'Wires & Electrical',
-      subtitle: 'Polycab FR-LSH, Havells, Finolex Cables',
-      image: '/images/products/copper-wire-illustration.png',
-      badge: 'Electrolytic Copper',
+      subtitle: 'Wires, cables and electrical products',
+      image: '/images/categories/wires-category.jpg',
+      badge: 'Wires & electrical',
     },
     {
       id: 'paints',
       title: 'Paints & Wall Finishes',
-      subtitle: 'Asian Paints Apex, Birla Opus, Wall Putty',
-      image: '/images/products/paint-bucket-illustration.png',
-      badge: 'Fresh Factory Batches',
+      subtitle: 'Paints, wall finishes and surface preparation',
+      image: '/images/categories/paints-category.jpg',
+      badge: 'Paints & finishes',
     },
     {
       id: 'sanitary',
       title: 'Sanitaryware & Bath',
-      subtitle: 'Jaquar Diverters, CERA Rimless EWC, Sinks',
-      image: '/images/products/chrome-faucet-illustration.png',
-      badge: '10-Year Warranty',
+      subtitle: 'Bath fittings, sanitaryware and sinks',
+      image: '/images/categories/sanitary-category.jpg',
+      badge: 'Sanitaryware & bath',
     },
   ];
 
@@ -124,8 +123,8 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }:
           {/* Left Text */}
           <div className="hero-text-col">
             <div className="eyebrow-row reveal-text">
-              <span className="badge-pill badge-orange-pill">Direct to Consumer · D2C</span>
-              <span className="serving-text">Dedicated Logistics across Delhi NCR</span>
+              <span className="badge-pill badge-orange-pill">Browse without an account</span>
+              <span className="serving-text">Serving Delhi NCR</span>
             </div>
 
             <h1 className="hero-heading">
@@ -138,8 +137,9 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }:
             </div>
 
             <p className="hero-subtext reveal-text">
-              Material Square consolidates <strong>Cement, TMT Steel, CPVC/UPVC Pipes, Wires, Paints, and Sanitaryware</strong> onto
-              a single delivery vehicle directly to your construction site with factory-certified pricing and zero counterfeit risk.
+              Browse <strong>cement, steel, pipes, electricals, paints, and sanitaryware</strong> in one place.
+              Save the products you need, then send your request to the Material Square team by WhatsApp or email.
+              Staff confirms current price, stock, taxes, and delivery details with you.
             </p>
 
             {/* Quick Search with Autocomplete Suggestions */}
@@ -187,6 +187,7 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }:
 
               {/* Live Search Suggestions Dropdown */}
               <SearchSuggestions
+                products={products}
                 query={searchQuery}
                 isOpen={isSuggestionsOpen}
                 onSelectSuggestion={(val) => {
@@ -238,8 +239,8 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }:
               <ShieldCheck size={20} />
             </div>
             <div>
-              <h4>Quality Materials</h4>
-              <p>100% manufacturer authorized with test certs and GST bills</p>
+              <h4>Browse by category</h4>
+              <p>Explore construction materials and review listed product details.</p>
             </div>
           </div>
 
@@ -248,8 +249,8 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }:
               <Clock size={20} />
             </div>
             <div>
-              <h4>On-Time Delivery</h4>
-              <p>Guaranteed site delivery slots to eliminate idle labor costs</p>
+              <h4>Save a material list</h4>
+              <p>Sign in to keep your selected materials with your account.</p>
             </div>
           </div>
 
@@ -258,8 +259,8 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }:
               <Layers size={20} />
             </div>
             <div>
-              <h4>Competitive Prices</h4>
-              <p>Direct wholesale builder rates without multi-tier dealer markups</p>
+              <h4>Review listed prices</h4>
+              <p>Prices show the unit and any staff-provided tax or offer note.</p>
             </div>
           </div>
 
@@ -268,8 +269,8 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }:
               <CheckCircle2 size={20} />
             </div>
             <div>
-              <h4>Trusted Partner</h4>
-              <p>Dedicated procurement coordinator tracking your casting dates</p>
+              <h4>Contact the team</h4>
+              <p>Prepare a request and continue the conversation by WhatsApp or email.</p>
             </div>
           </div>
         </div>
@@ -283,7 +284,7 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }:
               <span className="badge-pill badge-orange-pill">Explore by Trade</span>
               <h2 className="section-title-clean reveal-title">Everything You Need To Build. In One Place.</h2>
               <p className="section-subtitle-clean reveal-text">
-                Direct supply chains for every construction milestone from foundation to final sanitaryware.
+                Browse material categories and check the current product listings.
               </p>
             </div>
 
@@ -316,12 +317,12 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }:
         </div>
       </section>
 
-      {/* 16 Verified Brand Partners Ticker */}
+      {/* Brand Directory */}
       <section className="home-brands-strip">
         <div className="container">
           <div className="brands-intro">
-            <span className="badge-pill">16 Authorized Brand Partners</span>
-            <h3 className="brands-title reveal-title">Top Brands. Genuine Products. One Source.</h3>
+            <span className="badge-pill">Browse by brand</span>
+            <h3 className="brands-title reveal-title">Find products from familiar brands.</h3>
           </div>
 
           <div className="brands-logos-grid reveal-stagger">
@@ -345,9 +346,6 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }:
         </div>
       </section>
 
-      {/* Google Maps Directions to Ghaziabad Office with Ola/Uber Animated Trucks */}
-      <DirectionGoogleMaps />
-
       {/* "Why Make 5 Calls?" Highlight Teaser */}
       <section className="home-why-teaser-section">
         <div className="container why-teaser-box">
@@ -355,12 +353,12 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }:
             <span className="badge-pill badge-orange-pill">The Material Square Difference</span>
             <h2 className="reveal-title">"Itna Kyu Bhagna? Sab Alag Alag Jagah."</h2>
             <p className="reveal-text">
-              Traditional building involves 5 separate calls, 5 different delivery schedules, multiple freight costs, and the risk of counterfeit materials. 
-              Material Square consolidates your entire shopping list onto one truck with guaranteed site arrival.
+              Keep your material request organized in one list. Review product details, then contact the team to confirm price,
+              availability, taxes, and delivery for your site.
             </p>
             <div className="why-actions">
               <Link to="/why-us" className="btn btn-primary">
-                <span>See the 5-Call vs 1-Call Breakdown</span>
+                <span>See how the website works</span>
                 <ArrowRight size={15} />
               </Link>
               <Link to="/guides" className="btn btn-secondary">
@@ -418,13 +416,13 @@ export default function HomePage({ onOpenBOMDrawer, bomList = [], onToggleBOM }:
         </div>
       </section>
 
-      {/* Direct Quote Banner */}
+      {/* Material Request Banner */}
       <section className="home-cta-banner">
         <div className="container banner-inner">
           <div>
-            <span className="badge-pill badge-green-pill">Fast Site Quotation</span>
+            <span className="badge-pill badge-green-pill">Prepare a material request</span>
             <h2 className="reveal-title">"Ghar banana tha... Material ki list khatam hi nahi ho rahi!"</h2>
-            <p className="reveal-text">Send your handwritten list, architect schedule, or structural drawing to our WhatsApp desk for an immediate consolidated quote.</p>
+            <p className="reveal-text">Add products to your list or describe your requirements. Review the message, then send it to the team by WhatsApp or email.</p>
           </div>
           <div className="banner-buttons">
             <Link to="/get-quote" className="btn btn-primary btn-lg">

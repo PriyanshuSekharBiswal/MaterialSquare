@@ -8,16 +8,14 @@ import {
   RefreshCw,
   ArrowLeft,
   Search,
-  Truck,
-  Boxes,
+  Tags,
   ShieldCheck,
   ExternalLink,
   Menu,
   X,
 } from "lucide-react";
 import MaterialSquareLogo from "./components/MaterialSquareLogo";
-import LegacyOperations from "./LegacyOperations";
-import BusinessConsole from "./BusinessConsole";
+import CatalogueManager from "./CatalogueManager";
 import StaffManagement from "./StaffManagement";
 import "./workspace.css";
 type Material = {
@@ -59,9 +57,19 @@ type Page<T> = { items: T[]; total: number; page: number };
 type Staff = { name: string; phone: string | null; email: string | null; role: string; isDemo: boolean };
 type Stats = {
   customers: number;
+  newCustomers30Days: number;
+  activeCustomers30Days: number;
   openFollowups: number;
   closedFollowups: number;
   demo: boolean;
+};
+type WebsiteAnalytics = {
+  days: number;
+  totals: { pageViews: number; productViews: number; addToList: number; requestHandoffs: number };
+  daily: { date: string; pageViews: number; productViews: number; addToList: number; requestHandoffs: number }[];
+  topPages: { page: string; views: number }[];
+  topProducts: { id: string; name: string; views: number }[];
+  privacy: string;
 };
 const statuses: Record<string, string> = {
   NEW: "New",
@@ -80,15 +88,9 @@ const navSections = [
     ],
   },
   {
-    group: "Sales & Operations",
+    group: "Website Management",
     items: [
-      { id: "operations" as const, label: "Sales & Dispatch", icon: Truck },
-    ],
-  },
-  {
-    group: "Supply & Modules",
-    items: [
-      { id: "business" as const, label: "Business Modules", icon: Boxes },
+      { id: "catalogue" as const, label: "Products, prices & offers", icon: Tags },
     ],
   },
   {
@@ -104,20 +106,7 @@ const isTabPermitted = (id: string, role?: string) => {
   if (id === "customers" || id === "followups") {
     return ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER"].includes(role || "");
   }
-  if (id === "operations") {
-    return [
-      "SUPER_ADMIN",
-      "ADMIN",
-      "SALES_MANAGER",
-      "DISPATCH_OFFICER",
-      "ACCOUNTS_MANAGER",
-      "PROCUREMENT_HEAD",
-      "CATALOG_MANAGER",
-    ].includes(role || "");
-  }
-  if (id === "business") {
-    return role !== "SALES_MANAGER";
-  }
+  if (id === "catalogue") return ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER", "CATALOG_MANAGER"].includes(role || "");
   if (id === "team") {
     return role === "SUPER_ADMIN";
   }
@@ -176,10 +165,11 @@ function Materials({ items }: { items: Material[] }) {
 export function App() {
   const [token, setTokenState] = useState(restoredToken),
     [staff, setStaff] = useState<Staff | null>(null);
-  const [tab, setTab] = useState<"overview" | "customers" | "followups" | "operations" | "business" | "team">(
+  const [tab, setTab] = useState<"overview" | "customers" | "followups" | "catalogue" | "team">(
     "overview",
   );
   const [stats, setStats] = useState<Stats | null>(null),
+    [websiteAnalytics, setWebsiteAnalytics] = useState<WebsiteAnalytics | null>(null),
     [customers, setCustomers] = useState<Page<Customer>>({
       items: [],
       total: 0,
@@ -191,6 +181,7 @@ export function App() {
       page: 1,
     });
   const [error, setError] = useState(""),
+    [analyticsError, setAnalyticsError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(false),
@@ -253,24 +244,33 @@ export function App() {
     let active = true;
     setLoading(true);
     setError("");
+    setAnalyticsError("");
     const params = new URLSearchParams({
       q: search,
       page: String(page),
       status,
     });
+    const analyticsRequest = tab === "overview"
+      ? request<WebsiteAnalytics>("/analytics/overview?days=30").catch(() => {
+          if (active) setAnalyticsError("Website activity could not be loaded.");
+          return null;
+        })
+      : Promise.resolve(null);
     void Promise.all([
       request<Staff>("/auth/staff/me"),
       request<Stats>("/workspace/overview"),
+      analyticsRequest,
       tab === "customers"
         ? request<Page<Customer>>(`/workspace/customers?${params}`)
         : tab === "followups"
           ? request<Page<Followup>>(`/workspace/followups?${params}`)
           : Promise.resolve(null),
     ])
-      .then(([user, summary, result]) => {
+      .then(([user, summary, analyticsResult, result]) => {
         if (!active) return;
         setStaff(user);
         setStats(summary);
+        if (analyticsResult) setWebsiteAnalytics(analyticsResult);
         if (result && tab === "customers")
           setCustomers(result as Page<Customer>);
         if (result && tab === "followups")
@@ -548,10 +548,8 @@ export function App() {
                   ? "Customer Accounts"
                   : tab === "followups"
                     ? "Enquiry Follow-ups"
-                    : tab === "operations"
-                      ? "Sales & Dispatch Command"
-                      : tab === "business"
-                        ? "Business & Supply Modules"
+                    : tab === "catalogue"
+                      ? "Website Catalogue"
                         : "Staff & Role Permissions"}
             </h1>
           </div>
@@ -574,6 +572,9 @@ export function App() {
             {error}
           </p>
         )}
+        {analyticsError && tab === "overview" && (
+          <p role="status" className="admin-error">{analyticsError}</p>
+        )}
         {notice && (
           <p role="status" className="saved-notice">
             {notice}
@@ -585,6 +586,8 @@ export function App() {
             <div className="kpi-grid">
               {[
                 ["Customer accounts", stats.customers],
+                ["New accounts · 30 days", stats.newCustomers30Days],
+                ["Active customers · 30 days", stats.activeCustomers30Days],
                 ["Open follow-ups", stats.openFollowups],
                 ["Closed follow-ups", stats.closedFollowups],
               ].map(([label, value]) => (
@@ -594,6 +597,21 @@ export function App() {
                 </article>
               ))}
             </div>
+            {websiteAnalytics && <section className="panel-card website-analytics">
+              <div className="website-analytics-head"><div><h2>Website activity · last {websiteAnalytics.days} days</h2><p>Aggregate page and product interactions; visitor identities are not collected.</p></div><span className="analytics-range">30 days</span></div>
+              <div className="website-analytics-kpis">
+                {[["Page views", websiteAnalytics.totals.pageViews], ["Product detail opens", websiteAnalytics.totals.productViews], ["Added to material list", websiteAnalytics.totals.addToList], ["WhatsApp/email link clicks", websiteAnalytics.totals.requestHandoffs]].map(([label, value]) => <div className="website-analytics-kpi" key={label}><span>{label}</span><strong>{value}</strong></div>)}
+              </div>
+              <div className="website-analytics-details">
+                <div className="analytics-chart-wrap"><h3>Daily page views</h3>{websiteAnalytics.totals.pageViews ? <div className="analytics-bars" role="img" aria-label="Daily page views over the last 30 days">{websiteAnalytics.daily.map((day) => {
+                  const max = Math.max(1, ...websiteAnalytics.daily.map((item) => item.pageViews));
+                  return <div className="analytics-bar-column" key={day.date} title={`${day.date}: ${day.pageViews} page views`}><span style={{ height: `${Math.max(day.pageViews ? 4 : 0, day.pageViews / max * 100)}%` }}/><small>{new Date(`${day.date}T00:00:00`).getDate()}</small></div>;
+                })}</div> : <p className="muted">Activity will appear here after customers browse the site.</p>}</div>
+                <div className="analytics-ranking"><h3>Popular pages</h3>{websiteAnalytics.topPages.length ? websiteAnalytics.topPages.map((item) => <div key={item.page}><span>{item.page.replace(/-/g, " ")}</span><strong>{item.views}</strong></div>) : <p className="muted">No page activity yet.</p>}</div>
+                <div className="analytics-ranking"><h3>Popular products</h3>{websiteAnalytics.topProducts.length ? websiteAnalytics.topProducts.map((item) => <div key={item.id}><span>{item.name}</span><strong>{item.views}</strong></div>) : <p className="muted">No product views yet.</p>}</div>
+              </div>
+              <p className="analytics-privacy-note">{websiteAnalytics.privacy}</p>
+            </section>}
             <section className="panel-card panel-body">
               <h2>Today’s work</h2>
               <p>
@@ -1024,24 +1042,7 @@ export function App() {
             </button>
           </form>
         )}
-        {tab === "operations" && (
-          <LegacyOperations
-            accessToken={token}
-            role={staff?.role || ""}
-            onBack={() => navigate("overview")}
-            onSignOut={signOut}
-            embedded={true}
-          />
-        )}
-        {tab === "business" && (
-          <BusinessConsole
-            token={token}
-            role={staff?.role || ""}
-            onBack={() => navigate("overview")}
-            onSignOut={signOut}
-            embedded={true}
-          />
-        )}
+        {tab === "catalogue" && <CatalogueManager token={token} role={staff?.role || ""} onSignOut={signOut} />}
         {tab === "team" && staff?.role === "SUPER_ADMIN" && (
           <StaffManagement
             token={token}

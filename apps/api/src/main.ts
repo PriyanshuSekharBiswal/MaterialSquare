@@ -25,7 +25,7 @@ async function bootstrap() {
   app.enableCors({
     origin: (
       process.env.CORS_ORIGINS || "http://localhost:5173,http://localhost:5174"
-    ).split(","),
+    ).split(",").map((origin) => origin.trim()).filter(Boolean),
     credentials: true,
   });
 
@@ -42,7 +42,7 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle("Material Square API")
     .setDescription(
-      "Enterprise Construction Materials Marketplace REST API — Authentication, Quotes, Orders, Fleet Tracking, and PDF Generation",
+      "Material Square V1 REST API — customer and staff access, product catalogue, material lists, and aggregate website analytics",
     )
     .setVersion("1.0")
     .addBearerAuth()
@@ -61,8 +61,10 @@ async function bootstrap() {
   console.log(
     `🚀 Material Square NestJS API running on: http://localhost:${port}/api`,
   );
-  console.log(
-    `📚 Swagger Documentation available at: http://localhost:${port}/api/docs`,
-  );
+  if (process.env.NODE_ENV !== "production" || process.env.ENABLE_API_DOCS === "true") {
+    console.log(
+      `📚 Swagger Documentation available at: http://localhost:${port}/api/docs`,
+    );
+  }
 }
 bootstrap();

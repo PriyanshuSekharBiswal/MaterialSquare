@@ -45,9 +45,9 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
         gauge: '1.0 sq mm to 1.5 sq mm',
         amps: '11A - 14A',
         application: 'LED downlights, cove lighting, ceiling fans, exhaust fans',
-        brands: 'Polycab Green Wire FR-LSH / Havells LifeLine Plus',
+        brands: 'Confirm with staff',
         wireCode: 'MS-ELE-WIRE-1.0',
-        productName: 'Polycab 1.0 sq mm FR-LSH Copper Wire (90m)',
+        productName: 'Wire size enquiry',
       };
     }
     if (selectedLoadType === 'general-sockets') {
@@ -55,9 +55,9 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
         gauge: '1.5 sq mm',
         amps: '14A - 16A',
         application: '5A General Switchboard Sockets, TV, laptop chargers, setup boxes',
-        brands: 'Polycab FR-LSH / Finolex Flame Retardant',
+        brands: 'Confirm with staff',
         wireCode: 'MS-ELE-WIRE-1.5',
-        productName: 'Polycab 1.5 sq mm FR-LSH Copper Wire (90m)',
+        productName: 'Wire size enquiry',
       };
     }
     if (selectedLoadType === 'kitchen-power') {
@@ -65,9 +65,9 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
         gauge: '2.5 sq mm',
         amps: '19A - 22A',
         application: '16A Power Plugs: Refrigerator, microwave oven, mixer grinder, iron, washing machine',
-        brands: 'Havells LifeLine HR-FR / Polycab',
+        brands: 'Confirm with staff',
         wireCode: 'MS-ELE-WIRE-2.5',
-        productName: 'Havells 2.5 sq mm HR-FR Flame Retardant Wire (90m)',
+        productName: 'Wire size enquiry',
       };
     }
     if (selectedLoadType === 'ac-geyser') {
@@ -75,9 +75,9 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
         gauge: '4.0 sq mm',
         amps: '26A - 30A',
         application: '1.5 Ton / 2.0 Ton Inverter AC, 15L-25L Storage Water Geysers, Induction cooktop',
-        brands: 'Polycab Green Wire / Havells LifeLine Plus',
+        brands: 'Confirm with staff',
         wireCode: 'MS-ELE-WIRE-4.0',
-        productName: 'Polycab 4.0 sq mm FR-LSH Copper Wire (90m)',
+        productName: 'Wire size enquiry',
       };
     }
     if (selectedLoadType === 'main-db') {
@@ -85,18 +85,18 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
         gauge: '6.0 sq mm to 10.0 sq mm',
         amps: '35A - 50A',
         application: 'Incoming phase mains from energy meter to Distribution Board (DB)',
-        brands: 'Finolex High Conductivity / Polycab 1100V',
+        brands: 'Confirm with staff',
         wireCode: 'MS-ELE-WIRE-6.0',
-        productName: 'Finolex 6.0 sq mm Heavy Load Copper Cable (90m)',
+        productName: 'Wire size enquiry',
       };
     }
     return {
       gauge: '16.0 sq mm Multi-Core',
       amps: '65A - 80A',
       application: 'Submains feeding duplex floors, independent builder floors, elevator panels',
-      brands: 'Polycab Armoured / Havells Industrial',
+      brands: 'Confirm with staff',
       wireCode: 'MS-ELE-WIRE-16',
-      productName: 'Polycab 16 sq mm Multi-Core Submain Cable (Per Meter)',
+      productName: 'Wire size enquiry',
     };
   };
 
@@ -105,14 +105,13 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
   const handleAddWireToBOM = () => {
     if (onAddCustomToBOM) {
       onAddCustomToBOM({
-        id: currentRec.wireCode,
+        id: `wire-enquiry-${currentRec.wireCode}`,
         code: currentRec.wireCode,
         name: currentRec.productName,
-        brand: currentRec.brands.split('/')[0].trim(),
-        unit: currentRec.wireCode === 'MS-ELE-WIRE-16' ? 'Meter' : '90m Coil',
-        wholesaleRate: 'Trade Rate on Dispatch',
-        specs: { standard: 'IS 694 Certified', size: currentRec.gauge },
-        inStock: true,
+        brand: 'To confirm',
+        category: 'wires',
+        unit: 'Quantity and unit to confirm',
+        specification: `Unverified guide example: ${currentRec.gauge}, ${currentRec.amps}, ${currentRec.application}. Confirm with a qualified electrician before selection.`,
       });
       setWireAddedNotice(true);
       setTimeout(() => setWireAddedNotice(false), 3000);
@@ -125,14 +124,14 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
       <section className="page-hero-header">
         <div className="container">
           <div className="page-hero-content">
-            <span className="badge-pill badge-orange-pill reveal-text">Engineering & On-Site Standards</span>
+            <span className="badge-pill badge-orange-pill reveal-text">Tools & Guides</span>
             <h1 className="page-title">
               <span className="ms-mask-line">
                 <span className="ms-mask-text">Site Engineering & Material Guides</span>
               </span>
             </h1>
             <p className="page-subtitle reveal-text">
-              Avoid costly site errors, short circuits, and wall leakages. Practical engineering formulas and manufacturer storage guidelines for Delhi NCR site engineers, contractors, and builders.
+              General product and site-planning information. Technical values and installation guidance must be checked against current manufacturer documents and reviewed by a qualified professional.
             </p>
 
             {/* Tab navigation */}
@@ -171,13 +170,17 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
       {/* Main Content Area */}
       <section className="guide-content-section">
         <div className="container">
+          <div className="guide-review-warning" role="note">
+            <AlertTriangle size={18} />
+            <p><strong>Professional verification required.</strong> Examples on this page are not approved design advice. Do not size, purchase, or install materials from these values alone; have a qualified professional confirm the design and applicable standards.</p>
+          </div>
           {/* TAB 1: WIRE SIZING CALCULATOR */}
           {activeTab === 'wire' && (
             <div className="tab-pane-wire">
               <div className="guide-intro-card reveal-card">
                 <div className="intro-badge-row">
-                  <span className="badge-pill">IS 694 Indian Electrical Standards</span>
-                  <span className="note-text">Pure Electrolytic Copper Conductors</span>
+                  <span className="badge-pill">Example calculator inputs</span>
+                  <span className="note-text">Technical review required</span>
                 </div>
                 <h2 className="reveal-title">
                   <span className="ms-mask-line">
@@ -188,7 +191,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                   </span>
                 </h2>
                 <p className="reveal-text">
-                  Undersized wires overheat inside conduit pipes, trip MCBs prematurely, and cause electrical fire hazards. Use this calculator to match conductor cross-sections with specific appliances.
+                  Use these draft examples to prepare questions for a qualified electrician. The tool does not account for every project condition and cannot determine a safe circuit design.
                 </p>
               </div>
 
@@ -273,20 +276,20 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
 
                 <div className="calc-result-col">
                   <div className="result-display-card">
-                    <span className="rec-eyebrow">Calculated Engineering Recommendation</span>
+                    <span className="rec-eyebrow">Example only — unverified guide values</span>
                     <div className="rec-gauge-badge">{currentRec.gauge}</div>
 
                     <div className="rec-details-grid">
                       <div className="rec-detail-item">
-                        <span className="lbl">Safe Continuous Amperage:</span>
+                        <span className="lbl">Example current range:</span>
                         <span className="val font-mono">{currentRec.amps}</span>
                       </div>
                       <div className="rec-detail-item">
-                        <span className="lbl">Recommended Brands:</span>
+                        <span className="lbl">Brand:</span>
                         <span className="val">{currentRec.brands}</span>
                       </div>
                       <div className="rec-detail-item full-width">
-                        <span className="lbl">Typical Circuit Scope:</span>
+                        <span className="lbl">Example application:</span>
                         <span className="val">{currentRec.application}</span>
                       </div>
                     </div>
@@ -312,7 +315,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                   <div className="engineer-pro-tip">
                     <Info size={16} className="tip-icon" />
                     <p>
-                      <strong>Site Safety Tip:</strong> Always use <strong>FR-LSH (Flame Retardant Low Smoke Zero Halogen)</strong> grade wires inside residential conduits. Standard cheap PVC wires emit toxic halogen fumes that impair visibility during accidental fire hazards.
+                      Wire type and fire-performance requirements depend on the project specification and applicable standards. Have a qualified electrical professional select and verify the cable.
                     </p>
                   </div>
                 </div>
@@ -320,15 +323,15 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
 
               {/* Reference Table */}
               <div className="wire-reference-table-wrap reveal-card">
-                <h3>Full IS 694 Conductor Sizing Reference Sheet</h3>
+                <h3>Wire-size examples (technical review required)</h3>
                 <div className="table-responsive">
                   <table className="engineering-table">
                     <thead>
                       <tr>
                         <th>Wire Conductor Gauge</th>
-                        <th>Recommended Application</th>
-                        <th>Max Load Capacity</th>
-                        <th>Recommended Brand Standards</th>
+                        <th>Example application</th>
+                        <th>Example current range (unverified)</th>
+                        <th>Brand — confirm with staff</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -354,8 +357,8 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
             <div className="tab-pane-plumbing">
               <div className="guide-intro-card reveal-card">
                 <div className="intro-badge-row">
-                  <span className="badge-pill">ASTM D2846 & IS 15778 Standards</span>
-                  <span className="note-text">Hot, Cold & Drainage Systems</span>
+                  <span className="badge-pill">General comparison examples</span>
+                  <span className="note-text">Confirm current product documentation</span>
                 </div>
                 <h2 className="reveal-title">
                   <span className="ms-mask-line">
@@ -366,7 +369,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                   </span>
                 </h2>
                 <p className="reveal-text">
-                  Selecting the wrong pipe material or mixing fittings results in hairline fractures behind expensive bathroom tiles. Here is the field guide to CPVC, uPVC, and PVC plumbing.
+                  Pipe selection depends on the system design, operating conditions, local standards, and manufacturer instructions. Use this comparison only as a starting point for professional review.
                 </p>
               </div>
 
@@ -425,18 +428,17 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                     <h3>Material Dating: Check Manufacturing Stamp</h3>
                   </div>
                   <p>
-                    Plumbing pipes stored in open local dealer yards for over 6-9 months suffer UV degradation, becoming brittle before installation.
-                    Always verify the laser print batch stamp on the pipe length (e.g. <code>ASTRAL CPVC PRO SDR 11 BATCH: 2024-M08</code>). Material Square guarantees factory fresh consignments.
+                    Follow the storage conditions and shelf-life guidance provided by the pipe manufacturer. Check product markings and batch information against the manufacturer's documentation.
                   </p>
                 </div>
 
                 <div className="matched-fittings-col">
                   <div className="banner-icon-title">
                     <ShieldCheck size={20} />
-                    <h3>The Golden Rule: 100% Matched Fittings</h3>
+                    <h3>Check pipe and fitting compatibility</h3>
                   </div>
                   <p>
-                    Never use unbranded or cheap local elbows, tees, or solvent cement on Astral or Supreme pipes. Outer diameter tolerances differ by microns, leading to joint blow-outs under high pressure. Always order matched manufacturer fittings.
+                    Confirm that pipes, fittings, joining methods, and solvent cement are compatible according to the manufacturer's installation instructions and the project design.
                   </p>
                 </div>
               </div>
@@ -449,7 +451,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
               <div className="guide-intro-card reveal-card">
                 <div className="intro-badge-row">
                   <span className="badge-pill">On-Site Loss Prevention</span>
-                  <span className="note-text">Prevent 8-15% Material Scrap</span>
+                  <span className="note-text">General storage examples</span>
                 </div>
                 <h2 className="reveal-title">
                   <span className="ms-mask-line">
@@ -460,7 +462,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                   </span>
                 </h2>
                 <p className="reveal-text">
-                  Improper site stacking causes bent pipes, premature cement hydration (lumping), and corroded TMT steel before casting begins. Protect your investment with these standard field rules.
+                  Storage requirements vary by material and manufacturer. Use current product documentation and the site safety plan to set handling and storage procedures.
                 </p>
               </div>
 
@@ -476,19 +478,19 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                     <div className="tip-bullet">
                       <span className="tip-num">1</span>
                       <p>
-                        <strong>Never store directly on bare concrete/soil:</strong> Place wooden pallets or plastic sheets at least <strong>150mm - 200mm</strong> above the floor.
+                        <strong>Keep dry and raised:</strong> Store bags off the ground in a dry, covered area. Follow the cement manufacturer's storage instructions.
                       </p>
                     </div>
                     <div className="tip-bullet">
                       <span className="tip-num">2</span>
                       <p>
-                        <strong>Maintain 600mm Wall Clearance:</strong> Keep cement stacks at least 2 feet away from exterior damp walls to prevent condensation.
+                        <strong>Protect from moisture:</strong> Keep stacks away from damp surfaces and protect them from rain and water exposure.
                       </p>
                     </div>
                     <div className="tip-bullet">
                       <span className="tip-num">3</span>
                       <p>
-                        <strong>Max Stack Height: 10 Bags:</strong> Do not stack more than 10 bags high. Excessive weight causes bottom bags to develop "warehouse set" compaction.
+                        <strong>Follow safe stacking limits:</strong> Use the manufacturer's instructions and the site's safe manual-handling and stacking procedure.
                       </p>
                     </div>
                     <div className="tip-bullet">
@@ -510,7 +512,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                     <div className="tip-bullet">
                       <span className="tip-num">1</span>
                       <p>
-                        <strong>Continuous Horizontal Racking:</strong> Store pipes on flat horizontal timber battens spaced no more than <strong>1 meter</strong> apart to prevent permanent sagging.
+                        <strong>Support along their length:</strong> Store pipes on an even rack using the support spacing recommended by the manufacturer.
                       </p>
                     </div>
                     <div className="tip-bullet">
@@ -522,7 +524,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                     <div className="tip-bullet">
                       <span className="tip-num">3</span>
                       <p>
-                        <strong>Separate Large and Small Diameters:</strong> Always place heavier large diameter pipes (110mm / 160mm) at the bottom and thinner conduits on top.
+                        <strong>Keep products sorted:</strong> Separate sizes and types so pipes and fittings are not crushed or damaged.
                       </p>
                     </div>
                     <div className="tip-bullet">
@@ -544,7 +546,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                     <div className="tip-bullet">
                       <span className="tip-num">1</span>
                       <p>
-                        <strong>Elevate Above Mud:</strong> Rest steel rebar bundles on concrete sleeper blocks or wooden beams minimum <strong>150mm</strong> off the ground.
+                        <strong>Keep steel off standing water and soil:</strong> Use the storage method specified by the project and supplier.
                       </p>
                     </div>
                     <div className="tip-bullet">
@@ -569,7 +571,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
           <div className="guide-bottom-dispatch-card reveal-card">
             <div>
               <h3>Have Structural or Plumbing Drawings for Your Site?</h3>
-              <p>Our engineering procurement team can extract exact BOQ quantities for your project with zero wastage allowance.</p>
+              <p>Share a drawing or material schedule with the team. A qualified project professional should verify quantities and specifications.</p>
             </div>
             <Link to="/get-quote" className="btn btn-primary btn-lg">
               <span>Send Drawing / Schedule for BOQ</span>

@@ -52,8 +52,7 @@ export default function Footer() {
               "{COMPANY_INFO.sloganHindi}"
             </p>
             <p className="footer-bio-para">
-              Material Square is your direct-to-site construction marketplace in Delhi NCR.
-              We supply authorized cement, TMT steel, pipes, wires, paints, and sanitaryware from 16 leading manufacturers.
+              Browse construction materials, save a list to your account, and contact the Material Square team to confirm product and delivery details.
             </p>
 
             <a
@@ -69,14 +68,14 @@ export default function Footer() {
 
           {/* Quick Categories Col */}
           <div className="footer-col">
-            <h4 className="footer-heading">Materials Supplied</h4>
+            <h4 className="footer-heading">Browse categories</h4>
             <ul className="footer-nav-list">
-              <li><Link to="/marketplace?category=cement">Cement (UltraTech, Ambuja, JK)</Link></li>
-              <li><Link to="/marketplace?category=wires">TMT Steel (Tata Tiscon, JSW)</Link></li>
-              <li><Link to="/marketplace?category=pipes">Pipes & Fittings (Astral, Supreme)</Link></li>
-              <li><Link to="/marketplace?category=wires">Wires & Cables (Polycab, Havells)</Link></li>
-              <li><Link to="/marketplace?category=paints">Paints (Asian Paints, Birla Opus)</Link></li>
-              <li><Link to="/marketplace?category=sanitary">Sanitaryware (Jaquar, CERA)</Link></li>
+              <li><Link to="/marketplace?category=cement">Cement & aggregates</Link></li>
+              <li><Link to="/marketplace?q=steel">Structural steel & rebar</Link></li>
+              <li><Link to="/marketplace?category=pipes">Pipes & fittings</Link></li>
+              <li><Link to="/marketplace?category=wires">Wires & electrical</Link></li>
+              <li><Link to="/marketplace?category=paints">Paints & finishes</Link></li>
+              <li><Link to="/marketplace?category=sanitary">Sanitaryware & bath</Link></li>
             </ul>
           </div>
 
@@ -111,7 +110,7 @@ export default function Footer() {
 
             <div className="footer-assurance-box">
               <ShieldCheck size={16} />
-              <span>100% Genuine Materials with Manufacturer GST Bill</span>
+              <span>Product, price, tax and delivery details are confirmed with staff.</span>
             </div>
           </div>
         </div>
@@ -121,6 +120,11 @@ export default function Footer() {
           <p className="copyright-text">
             © {new Date().getFullYear()} Material Square. All rights reserved. Building Better Together.
           </p>
+
+          <nav className="footer-legal-links" aria-label="Legal information">
+            <Link to="/privacy">Privacy</Link>
+            <Link to="/terms">Website terms</Link>
+          </nav>
 
           <button
             type="button"

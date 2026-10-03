@@ -4,7 +4,7 @@ services:
     name: material-square-api
     runtime: node
     plan: starter
-    buildCommand: npm ci && npm run db:generate && npm run build --workspace=@material-square/types && npm run build:api
+    buildCommand: npm ci --include=dev && npm run db:generate && npm run build --workspace=@material-square/types && npm run build:api
     preDeployCommand: npm run db:deploy
     startCommand: node apps/api/dist/main.js
     healthCheckPath: /api/health/ready
@@ -30,6 +30,18 @@ services:
       - key: ENABLE_API_DOCS
         value: "false"
       - key: MSG91_AUTHKEY
+        sync: false
+      - key: AWS_REGION
+        sync: false
+      - key: AWS_S3_ENDPOINT
+        sync: false
+      - key: AWS_S3_BUCKET
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_S3_PUBLIC_URL
         sync: false
 databases:
   - name: material-square-db

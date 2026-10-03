@@ -107,7 +107,7 @@ export default function WhatsAppBOMDrawer({
         <div className="drawer-body-scroll" data-lenis-prevent>
           <MaterialListEditor />
           <p className="customer-help">{customer ? (error ? 'Your latest changes could not be saved. Check the message above.' : saving ? 'Saving your material list…' : 'Your list is saved to your account.') : 'Sign in to save your list across devices.'}</p>
-          <Link className="btn btn-primary btn-block" to="/get-quote" onClick={onClose}>Add delivery details & request a quote</Link>
+          <Link className="btn btn-primary btn-block" to="/get-quote" onClick={onClose}>Add details and prepare a request</Link>
 
         </div>
       </aside>

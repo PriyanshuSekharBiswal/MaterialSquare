@@ -2631,6 +2631,18 @@
   color: var(--ms-slate-900);
 }
 
+.catalogue-list-price {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.15rem;
+  color: var(--ms-slate-500);
+  font-size: 0.75rem;
+}
+
+.catalogue-list-price strong { color: #c2410c; }
+.catalogue-price-caveat { display: block; max-width: 15rem; margin-top: 0.2rem; color: var(--ms-slate-500); font-size: 0.66rem; }
+
 .min-order-pill {
   display: inline-flex;
   align-items: center;
@@ -4737,6 +4749,41 @@
 .footer-instagram-link:hover {
   text-decoration: underline;
 }
+
+.footer-legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.82rem;
+}
+
+.footer-legal-links a { color: #cbd5e1; }
+.footer-legal-links a:hover { color: #fff; text-decoration: underline; }
+
+.legal-page {
+  max-width: 900px;
+  padding-top: 4rem;
+  padding-bottom: 5rem;
+  color: var(--ms-slate-700);
+}
+
+.legal-page > h1 {
+  margin: 1rem 0 0.35rem;
+  color: var(--ms-slate-900);
+  font-size: clamp(2rem, 5vw, 3rem);
+}
+
+.legal-updated { color: var(--ms-slate-500); font-size: 0.9rem; }
+.legal-page section { margin-top: 2rem; }
+.legal-page section h2 { margin-bottom: 0.55rem; color: var(--ms-slate-900); font-size: 1.25rem; }
+.legal-page section p { line-height: 1.75; }
+.legal-page a:not(.btn) { color: var(--ms-primary); text-decoration: underline; }
+.legal-review-note { margin: 2rem 0 1.5rem; padding: 1rem 1.15rem; border-left: 3px solid var(--ms-primary); background: #fff7ed; line-height: 1.6; }
+.v1-scope-note { margin: 1.5rem 0; padding: 1rem 1.15rem; border-left: 3px solid var(--ms-primary); background: #fff7ed; line-height: 1.6; }
+.delivery-editorial-note { margin: 1.25rem 0; padding-left: 1rem; border-left: 3px solid var(--ms-primary); color: var(--ms-slate-600); line-height: 1.65; }
+.delivery-confirmation-note { color: var(--ms-slate-600); font-size: 0.88rem; line-height: 1.5; }
+.guide-review-warning { display: flex; gap: 0.8rem; align-items: flex-start; margin: 1.25rem 0 2rem; padding: 1rem 1.2rem; border: 1px solid #fdba74; border-radius: 12px; background: #fff7ed; color: #7c2d12; }
+.guide-review-warning p { margin: 0; line-height: 1.6; }
 
 .footer-heading {
   font-size: 0.92rem;
@@ -7366,6 +7413,14 @@
    -------------------------------------------------------------------------- */
 .ms-page-transition-wrapper {
   animation: msPageSlideFade 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.page-loading-state {
+  min-height: 42vh;
+  display: grid;
+  place-items: center;
+  color: var(--ms-slate-600);
+  font-weight: 600;
 }
 
 @keyframes msPageSlideFade {

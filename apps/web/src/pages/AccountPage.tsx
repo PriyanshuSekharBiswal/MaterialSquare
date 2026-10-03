@@ -3,34 +3,6 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { customerApi } from "../api";
 import { useCustomer } from "../customer";
 import { retryMsg91Otp, sendMsg91Otp, verifyMsg91Otp } from "../msg91-widget";
-type CustomerActivity = {
-  requests: {
-    id: string;
-    status: string;
-    siteLocation: string;
-    createdAt: string;
-  }[];
-  quotations: {
-    id: string;
-    quoteNumber: string;
-    status: string;
-    totalAmount: string;
-    validUntil: string;
-    createdAt: string;
-  }[];
-  orders: {
-    id: string;
-    orderNumber: string;
-    status: string;
-    grandTotal: string;
-    loyaltyDiscountAmount: string;
-    createdAt: string;
-  }[];
-  loyalty: {
-    pointsBalance: number;
-    transactions: { id: string; type: string; points: number; description: string; createdAt: string }[];
-  } | null;
-};
 export default function AccountPage() {
   const { customer, ready, load, logout, saveProfile, saving } = useCustomer();
   const [phone, setPhone] = useState(""),
@@ -41,10 +13,6 @@ export default function AccountPage() {
     [notice, setNotice] = useState(""),
     [cooldown, setCooldown] = useState(0);
   const [msg91ReqId, setMsg91ReqId] = useState("");
-  const [activity, setActivity] = useState<CustomerActivity | null>(null);
-  const [activityError, setActivityError] = useState("");
-  const [activityBusy, setActivityBusy] = useState(false);
-  const [pointsToRedeem, setPointsToRedeem] = useState<Record<string, string>>({});
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const returnTo =
@@ -54,29 +22,6 @@ export default function AccountPage() {
     const timer = setTimeout(() => setCooldown((c) => c - 1), 1000);
     return () => clearTimeout(timer);
   }, [cooldown]);
-  async function refreshActivity() {
-    if (!customer) return;
-    setActivityBusy(true);
-    setActivityError("");
-    try {
-      setActivity(
-        await customerApi<CustomerActivity>(
-          "/customer/activity",
-          "GET",
-          undefined,
-          customer.id,
-        ),
-      );
-    } catch {
-      setActivityError("Could not load your requests and order history.");
-    } finally {
-      setActivityBusy(false);
-    }
-  }
-  useEffect(() => {
-    if (customer) void refreshActivity();
-    else setActivity(null);
-  }, [customer?.id]);
   async function request() {
     setBusy(true);
     setError("");
@@ -87,7 +32,7 @@ export default function AccountPage() {
       setMsg91ReqId(reqId);
       setCooldown(60);
       setSent(true);
-      setNotice("A six-digit verification code has been sent by SMS.");
+      setNotice("A six-digit verification code has been sent to your mobile number.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -325,142 +270,6 @@ export default function AccountPage() {
             >
               Log out
             </button>
-            <hr />
-            <section aria-label="Loyalty points">
-              <h2>Material Square points</h2>
-              <p className="customer-help">Balance: <strong>{activity?.loyalty?.pointsBalance ?? 0} points</strong></p>
-              {!!activity?.loyalty?.transactions.length && activity.loyalty.transactions.map((entry) => (
-                <article className="workspace-record" key={entry.id}>
-                  <div>
-                    <strong>{entry.points > 0 ? "+" : ""}{entry.points} points · {entry.type}</strong>
-                    <p>{entry.description}</p>
-                    <small>{new Date(entry.createdAt).toLocaleDateString("en-IN")}</small>
-                  </div>
-                </article>
-              ))}
-            </section>
-            <hr />
-            <div className="workspace-actions">
-              <h2>Requests, quotations & orders</h2>
-              <button
-                className="btn btn-secondary btn-sm"
-                type="button"
-                disabled={activityBusy}
-                onClick={() => void refreshActivity()}
-              >
-                {activityBusy ? "Loading…" : "Refresh"}
-              </button>
-            </div>
-            {activityError && <p role="alert" className="customer-error">{activityError}</p>}
-            {activity && !activity.requests.length && !activity.quotations.length && !activity.orders.length && (
-              <p className="customer-help">Your requests and orders will appear here as your project moves forward.</p>
-            )}
-            {!!activity?.requests.length && (
-              <section aria-label="Quotation requests">
-                <h3>Quotation requests</h3>
-                {activity.requests.map((request) => (
-                  <article className="workspace-record" key={request.id}>
-                    <div>
-                      <strong>Request {request.id.slice(0, 8)}</strong>
-                      <p>{request.siteLocation}</p>
-                      <small>{request.status} · {new Date(request.createdAt).toLocaleDateString("en-IN")}</small>
-                    </div>
-                  </article>
-                ))}
-              </section>
-            )}
-            {!!activity?.quotations.length && (
-              <section aria-label="Quotations">
-                <h3>Quotations</h3>
-                {activity.quotations.map((quote) => (
-                  <article className="workspace-record" key={quote.id}>
-                    <div>
-                      <strong>{quote.quoteNumber}</strong>
-                      <p>₹{Number(quote.totalAmount).toLocaleString("en-IN")} · {quote.status}</p>
-                      <small>Valid until {new Date(quote.validUntil).toLocaleDateString("en-IN")}</small>
-                      <p><a href={`/api/customer/quotes/${quote.id}/pdf`} target="_blank" rel="noreferrer">View quotation PDF</a></p>
-                    </div>
-                    {quote.status === "QUOTE_SENT" && new Date(quote.validUntil) > new Date() && (
-                      <div className="customer-actions">
-                        <button
-                          className="btn btn-primary btn-sm"
-                          type="button"
-                          disabled={activityBusy}
-                          onClick={async () => {
-                            setActivityBusy(true);
-                            setError("");
-                            try {
-                              const result = await customerApi<{ orderNumber: string }>(
-                                `/customer/quotes/${quote.id}/respond`,
-                                "POST",
-                                { decision: "ACCEPT" },
-                                customer.id,
-                              );
-                              setNotice(`Quotation accepted. Order ${result.orderNumber} was created.`);
-                              await refreshActivity();
-                            } catch (e) {
-                              setError(e instanceof Error ? e.message : "Could not accept quotation.");
-                            } finally {
-                              setActivityBusy(false);
-                            }
-                          }}
-                        >Accept & create order</button>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          type="button"
-                          disabled={activityBusy}
-                          onClick={async () => {
-                            setActivityBusy(true);
-                            try {
-                              await customerApi(
-                                `/customer/quotes/${quote.id}/respond`,
-                                "POST",
-                                { decision: "REJECT" },
-                                customer.id,
-                              );
-                              await refreshActivity();
-                            } catch (e) {
-                              setError(e instanceof Error ? e.message : "Could not update quotation.");
-                            } finally {
-                              setActivityBusy(false);
-                            }
-                          }}
-                        >Decline</button>
-                      </div>
-                    )}
-                  </article>
-                ))}
-              </section>
-            )}
-            {!!activity?.orders.length && (
-              <section aria-label="Orders">
-                <h3>Orders</h3>
-                {activity.orders.map((order) => (
-                  <article className="workspace-record" key={order.id}>
-                    <div>
-                      <strong>{order.orderNumber}</strong>
-                      <p>{order.status} · ₹{Number(order.grandTotal).toLocaleString("en-IN")}</p>
-                      {Number(order.loyaltyDiscountAmount) > 0 && <small>Points discount: ₹{Number(order.loyaltyDiscountAmount).toLocaleString("en-IN")}</small>}
-                      <small>{new Date(order.createdAt).toLocaleDateString("en-IN")}</small>
-                    </div>
-                    {order.status === "PENDING_PAYMENT" && (activity.loyalty?.pointsBalance || 0) > 0 && Number(order.loyaltyDiscountAmount) === 0 && (
-                      <form className="customer-actions" onSubmit={async (event) => {
-                        event.preventDefault(); setActivityBusy(true); setError("");
-                        try {
-                          const result = await customerApi<{ discountAmount: string | number }>("/customer/orders/" + order.id + "/redeem-points", "POST", { points: Number(pointsToRedeem[order.id]) }, customer.id);
-                          setNotice("Points applied. Your order total is reduced by ₹" + Number(result.discountAmount).toLocaleString("en-IN") + ".");
-                          await refreshActivity();
-                        } catch (e) { setError(e instanceof Error ? e.message : "Could not apply points."); }
-                        finally { setActivityBusy(false); }
-                      }}>
-                        <input aria-label={"Points to apply to " + order.orderNumber} type="number" min="1" max={activity.loyalty?.pointsBalance || 0} step="1" value={pointsToRedeem[order.id] || ""} onChange={(event) => setPointsToRedeem((old) => ({ ...old, [order.id]: event.target.value }))} placeholder="Points to use" required />
-                        <button className="btn btn-secondary btn-sm" disabled={activityBusy}>Apply points</button>
-                      </form>
-                    )}
-                  </article>
-                ))}
-              </section>
-            )}
           </div>
         </div>
       )}

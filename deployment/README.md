@@ -1,6 +1,6 @@
 # Material Square deployment preparation
 
-This is a self-hosted deployment option, prepared without choosing or purchasing a host. It has not been deployed or container-tested in this environment (Docker is unavailable). The website and staff app each proxy `/api` to NestJS, so customer session cookies stay on the same origin. Caddy terminates HTTPS. PostgreSQL is private and persists in a named volume.
+This is an alternative self-hosted deployment option. It has not been deployed or container-tested in this environment (Docker is unavailable). The website and staff app each proxy `/api` to NestJS, so customer session cookies stay on the same origin. Caddy terminates HTTPS. PostgreSQL is private and persists in a named volume.
 
 ## Required inputs before launch
 
@@ -8,6 +8,7 @@ This is a self-hosted deployment option, prepared without choosing or purchasing
 - Website and staff subdomain DNS records pointing to that server.
 - Client-approved contact details, catalogue, business claims and policies (see `docs/launch-content-review.md`).
 - An active MSG91 OTP Widget. Keep its Authkey in the API host's private settings and the widget ID/client token in the customer frontend environment.
+- An S3-compatible object-storage bucket and CDN/public asset URL for product image uploads. Keep write credentials in the API host's private settings.
 - Independent backup destination and monitoring service.
 
 ## Prepare and launch
@@ -33,4 +34,4 @@ For updates: retain the previous image/release, take a backup, build the new ima
 
 `/api/health` checks the process; `/api/health/ready` checks database connectivity. Connect an external uptime monitor to readiness and the website. Container health checks report failures; Docker restart policy alone does not restart an unhealthy but still-running process. Add alerts through the hosting service.
 
-Redis jobs, object storage and automated quotation delivery are not required for the direct WhatsApp/email launch; their existing development configuration remains in `compose.yaml`. Product illustrations are shipped as static site assets. This configuration does not publish the site through Vercel; the existing Vercel file still hosts only the frontend and requires a separately configured API origin/proxy.
+Redis jobs, object storage and automated quotation delivery are not required for the direct WhatsApp/email launch; their existing development configuration remains in `compose.yaml`. Product illustrations are shipped as static site assets. This configuration does not publish the site through Vercel. For the managed Vercel + Render route, use [vercel-render.md](vercel-render.md); both Vercel projects require the server-side `API_ORIGIN` setting.

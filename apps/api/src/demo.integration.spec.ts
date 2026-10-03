@@ -12,7 +12,11 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
   const a = "8999000001",
     b = "8999000002",
     real = "8999000003",
-    staffPhone = "8999000000";
+    staffPhone = "8999000000",
+    ownerPhone = "8999000004",
+    managedPhone = "8999000005",
+    ownerEmail = "demo-owner-integration@example.test",
+    managedEmail = "catalog-manager-integration@example.test";
   const headers = {
     "X-Material-Square": "customer",
     Origin: "http://localhost:5173",
@@ -57,7 +61,7 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
       await db.staffEnquiry.deleteMany({ where: { id: followupId } });
     await db.customer.deleteMany({ where: { phone: { in: [a, b, real] } } });
     await db.staffUser.deleteMany({
-      where: { email: "demo-integration@example.test" },
+      where: { email: { in: ["demo-integration@example.test", ownerEmail, managedEmail] } },
     });
     await app?.close();
     await db?.$disconnect();
@@ -90,6 +94,111 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
       .get("/api/auth/staff/me")
       .auth(staffToken, { type: "bearer" })
       .expect(200);
+  });
+  it("lets the owner manage role-scoped staff accounts, reset passwords, and revoke access", async () => {
+    await request(app.getHttpServer())
+      .get("/api/admin/staff")
+      .auth(staffToken, { type: "bearer" })
+      .expect(403);
+
+    const owner = await db.staffUser.create({
+      data: {
+        email: ownerEmail,
+        phone: ownerPhone,
+        name: "Demo owner",
+        passwordHash: hashPassword("demo-owner-integration-password"),
+        role: "SUPER_ADMIN",
+        isDemo: true,
+      },
+    });
+    const ownerLogin = await request(app.getHttpServer())
+      .post("/api/auth/staff/login")
+      .send({ phone: ownerPhone, password: "demo-owner-integration-password" })
+      .expect(200);
+    const ownerToken = ownerLogin.body.accessToken;
+
+    const roles = await request(app.getHttpServer())
+      .get("/api/admin/staff/roles")
+      .auth(ownerToken, { type: "bearer" })
+      .expect(200);
+    expect(roles.body.some((role: { role: string }) => role.role === "SUPER_ADMIN")).toBe(false);
+    expect(roles.body.map((role: { role: string }) => role.role).sort()).toEqual([
+      "ADMIN", "CATALOG_MANAGER", "SALES_MANAGER",
+    ]);
+    await request(app.getHttpServer())
+      .post("/api/admin/staff")
+      .auth(ownerToken, { type: "bearer" })
+      .send({ name: "Future module user", phone: "8999000006", role: "PROCUREMENT_HEAD", password: "future-role-password" })
+      .expect(400);
+
+    const created = await request(app.getHttpServer())
+      .post("/api/admin/staff")
+      .auth(ownerToken, { type: "bearer" })
+      .send({
+        name: "Catalogue manager",
+        phone: managedPhone,
+        email: managedEmail,
+        role: "CATALOG_MANAGER",
+        password: "catalog-manager-integration-password",
+      })
+      .expect(201);
+    expect(created.body).not.toHaveProperty("passwordHash");
+
+    const phoneLogin = await request(app.getHttpServer())
+      .post("/api/auth/staff/login")
+      .send({ phone: managedPhone, password: "catalog-manager-integration-password" })
+      .expect(200);
+    await request(app.getHttpServer())
+      .post("/api/auth/staff/login")
+      .send({ email: managedEmail, password: "catalog-manager-integration-password" })
+      .expect(200);
+    await request(app.getHttpServer())
+      .get("/api/products/catalogue")
+      .auth(phoneLogin.body.accessToken, { type: "bearer" })
+      .expect(200);
+    await request(app.getHttpServer())
+      .get("/api/workspace/customers")
+      .auth(phoneLogin.body.accessToken, { type: "bearer" })
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .post(`/api/admin/staff/${created.body.id}/password`)
+      .auth(ownerToken, { type: "bearer" })
+      .send({ password: "catalog-manager-new-integration-password" })
+      .expect(201);
+    await request(app.getHttpServer())
+      .get("/api/products/catalogue")
+      .auth(phoneLogin.body.accessToken, { type: "bearer" })
+      .expect(401);
+    const resetLogin = await request(app.getHttpServer())
+      .post("/api/auth/staff/login")
+      .send({ phone: managedPhone, password: "catalog-manager-new-integration-password" })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .patch(`/api/admin/staff/${created.body.id}`)
+      .auth(ownerToken, { type: "bearer" })
+      .send({ isActive: false })
+      .expect(200);
+    await request(app.getHttpServer())
+      .get("/api/auth/staff/me")
+      .auth(resetLogin.body.accessToken, { type: "bearer" })
+      .expect(401);
+    await request(app.getHttpServer())
+      .post("/api/auth/staff/login")
+      .send({ phone: managedPhone, password: "catalog-manager-new-integration-password" })
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .post("/api/admin/staff")
+      .auth(ownerToken, { type: "bearer" })
+      .send({ name: "Second owner", phone: "8999000006", role: "SUPER_ADMIN", password: "another-integration-password" })
+      .expect(400);
+    await request(app.getHttpServer())
+      .patch(`/api/admin/staff/${owner.id}`)
+      .auth(ownerToken, { type: "bearer" })
+      .send({ isActive: false })
+      .expect(409);
   });
   it("shares saved data for the same phone across sessions and isolates other phones", async () => {
     cookieA = await login(a);
@@ -217,7 +326,7 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
       .post("/api/auth/customer/otp/verify-msg91")
       .set(headers)
       .send({ phone: real, accessToken: `mock-msg91-access-token-${real}` })
-      .expect(200);
+      .expect(400);
     const list = await request(app.getHttpServer())
       .get(`/api/workspace/customers?q=${real}`)
       .auth(staffToken, { type: "bearer" })

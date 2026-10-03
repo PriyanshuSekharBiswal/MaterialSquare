@@ -115,10 +115,13 @@ function useCustomerState() {
         blocked.current = false;
       } else {
         if (!customer) blocked.current = false;
+        // A failed account check must not interrupt anonymous browsing. A
+        // signed-in customer gets a brief, task-focused notice instead of an
+        // infrastructure status message.
         setError(
           customer
-            ? "Account connection unavailable. Please retry to access your saved list."
-            : "Account connection unavailable. You can browse and keep a list in this browser; sign-in and account syncing are temporarily unavailable.",
+            ? "Your saved list couldn't be refreshed. Please try again before continuing."
+            : "",
         );
       }
     } finally {
@@ -164,10 +167,7 @@ function useCustomerState() {
       }
     } catch (e) {
       blocked.current = true;
-      setError(
-        (e instanceof Error ? e.message : "Could not save your list.") +
-          " Your changes are not saved.",
-      );
+      setError("Your changes couldn't be saved. Check your connection and try again.");
     } finally {
       running.current = false;
       setSaving(false);

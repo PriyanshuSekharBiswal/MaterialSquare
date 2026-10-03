@@ -1,4 +1,4 @@
-import type { MaterialItem, CatalogueProduct } from '../types';
+import type { CatalogueProduct } from '../types';
 import React, { useMemo } from 'react';
 import {
   Search,
@@ -9,8 +9,7 @@ import {
   ShieldCheck,
   Tag,
 } from 'lucide-react';
-import { PRODUCTS, CATEGORIES } from '../data/materialsData';
-import { BRAND_LIST } from './icons/BrandBadges';
+import { PRODUCTS } from '../data/materialsData';
 import './SearchSuggestions.css';
 
 // Trending construction queries in Delhi NCR
@@ -24,6 +23,7 @@ const TRENDING_SEARCHES = [
 ];
 
 export default function SearchSuggestions({
+  products = PRODUCTS as CatalogueProduct[],
   query = '',
   isOpen = false,
   onSelectSuggestion,
@@ -31,13 +31,15 @@ export default function SearchSuggestions({
   onSelectBrand,
   onSelectProduct,
   className = '',
-}: { query?: string; isOpen?: boolean; onSelectSuggestion?: (query: string) => void; onSelectCategory?: (category: string) => void; onSelectBrand?: (brand: string) => void; onSelectProduct?: (product: CatalogueProduct) => void; className?: string }) {
+}: { products?: CatalogueProduct[]; query?: string; isOpen?: boolean; onSelectSuggestion?: (query: string) => void; onSelectCategory?: (category: string) => void; onSelectBrand?: (brand: string) => void; onSelectProduct?: (product: CatalogueProduct) => void; className?: string }) {
   const trimmed = query.trim().toLowerCase();
+  const categories = useMemo(() => Array.from(new Map(products.map((product) => [product.category, product.categoryLabel])).entries()).map(([id, label]) => ({ id, label })), [products]);
+  const brands = useMemo(() => Array.from(new Set(products.map((product) => product.brand).filter(Boolean))).map((name) => ({ name, category: products.find((product) => product.brand === name)?.categoryLabel || "" })), [products]);
 
   // Filter matching products
   const matchingProducts = useMemo(() => {
     if (!isOpen || !trimmed) return [];
-    return PRODUCTS.filter((item) => {
+    return products.filter((item) => {
       return (
         item.name.toLowerCase().includes(trimmed) ||
         item.brand.toLowerCase().includes(trimmed) ||
@@ -46,25 +48,25 @@ export default function SearchSuggestions({
         (item.categoryLabel && item.categoryLabel.toLowerCase().includes(trimmed))
       );
     }).slice(0, 5); // Limit to top 5
-  }, [isOpen, trimmed]);
+  }, [isOpen, trimmed, products]);
 
   // Filter matching brands
   const matchingBrands = useMemo(() => {
     if (!isOpen || !trimmed) return [];
-    return BRAND_LIST.filter(
+    return brands.filter(
       (b) =>
         b.name.toLowerCase().includes(trimmed) ||
         b.category.toLowerCase().includes(trimmed)
     ).slice(0, 3);
-  }, [isOpen, trimmed]);
+  }, [isOpen, trimmed, brands]);
 
   // Filter matching categories
   const matchingCategories = useMemo(() => {
     if (!isOpen || !trimmed) return [];
-    return CATEGORIES.filter(
-      (c) => c.id !== 'all' && c.label.toLowerCase().includes(trimmed)
+    return categories.filter(
+      (c) => c.label.toLowerCase().includes(trimmed)
     ).slice(0, 2);
-  }, [isOpen, trimmed]);
+  }, [isOpen, trimmed, categories]);
 
   if (!isOpen) return null;
 
@@ -112,7 +114,7 @@ export default function SearchSuggestions({
               <span>Explore by Construction Trade</span>
             </div>
             <div className="quick-category-pills">
-              {CATEGORIES.filter((c) => c.id !== 'all').map((cat) => (
+              {categories.map((cat) => (
                 <button
                   key={cat.id}
                   type="button"
@@ -157,7 +159,7 @@ export default function SearchSuggestions({
                       <div className="suggest-meta">
                         <span className="suggest-brand">{prod.brand}</span>
                         <span className="suggest-dot">•</span>
-                        <span className="suggest-price">{'Request a quotation'}</span>
+                    <span className="suggest-price">{prod.price == null ? 'Request a quotation' : `₹${Number(prod.price).toLocaleString('en-IN')}`}</span>
                       </div>
                     </div>
                     <ArrowRight size={14} className="suggest-arrow" />
@@ -172,12 +174,12 @@ export default function SearchSuggestions({
             <div className="suggestions-section">
               <div className="section-title-row">
                 <ShieldCheck size={14} className="brand-icon" />
-                <span>Authorized Brands</span>
+                <span>Brands</span>
               </div>
               <div className="brands-suggestion-chips">
                 {matchingBrands.map((brand) => (
                   <button
-                    key={brand.id}
+                    key={brand.name}
                     type="button"
                     className="brand-suggest-chip"
                     onClick={() => onSelectBrand && onSelectBrand(brand.name)}

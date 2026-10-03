@@ -164,7 +164,7 @@ export default function StaffManagement({
         <tbody>{staff.map((record) => <tr key={record.id}>
           <td><strong>{record.name}</strong><small>Added {new Date(record.createdAt).toLocaleDateString("en-IN")}</small></td>
           <td>{record.phone || record.email}<small>{record.phone && record.email ? record.email : ""}</small></td>
-          <td><select aria-label={`Role for ${record.name}`} value={record.role} disabled={busy || record.role === "SUPER_ADMIN"} onChange={(event) => void updateStaff(record.id, { role: event.target.value })}>{roles.map((role) => <option key={role.role} value={role.role}>{role.label}</option>)}</select></td>
+          <td>{record.role === "SUPER_ADMIN" ? <span className="staff-owner-role">Owner / Main client</span> : <select aria-label={`Role for ${record.name}`} value={record.role} disabled={busy} onChange={(event) => void updateStaff(record.id, { role: event.target.value })}>{roles.map((role) => <option key={role.role} value={role.role}>{role.label}</option>)}</select>}</td>
           <td><span className={record.isActive ? "staff-active" : "staff-inactive"}>{record.isActive ? "Active" : "Disabled"}</span></td>
           <td className="staff-actions"><button type="button" className="btn-sm btn-secondary" disabled={busy || record.role === "SUPER_ADMIN"} onClick={() => void updateStaff(record.id, { isActive: !record.isActive })}>{record.isActive ? "Disable" : "Enable"}</button>
             <button type="button" className="btn-sm btn-secondary" disabled={busy || record.role === "SUPER_ADMIN"} onClick={() => setResetFor(resetFor === record.id ? "" : record.id)}>Reset password</button>

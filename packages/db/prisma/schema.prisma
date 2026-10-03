@@ -211,6 +211,43 @@ model ProductSKU {
   @@map("product_skus")
 }
 
+// Customer-facing catalogue managed from the staff panel. Kept separate from
+// steel inventory SKUs because the launch catalogue spans several material types.
+model CatalogListing {
+  id               String   @id @default(uuid())
+  slug             String   @unique
+  code             String?  @unique
+  name             String
+  brand            String   @default("")
+  brandTagline     String?
+  category         String
+  categoryLabel    String
+  unit             String
+  packaging        String?
+  image            String?
+  grade            String?
+  description      String?
+  minOrderQty      String?
+  dispatchTime     String?
+  price            Decimal? @db.Decimal(12, 2)
+  compareAtPrice   Decimal? @db.Decimal(12, 2)
+  priceNote        String?
+  offerLabel       String?
+  offerStartsAt    DateTime?
+  offerEndsAt      DateTime?
+  isInStock        Boolean  @default(false)
+  isPublished      Boolean  @default(false)
+  features         String[] @default([])
+  applications     String[] @default([])
+  specifications   Json     @default("{}")
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([isPublished, category, sortOrder])
+  @@map("catalog_listings")
+}
+
 // ----------------------------------------------------
 // QUOTATIONS & RFQ PIPELINE
 // ----------------------------------------------------
@@ -723,4 +760,17 @@ model StaffEnquiry {
 
   @@index([isDemo, status, updatedAt])
   @@map("staff_enquiries")
+}
+
+model AnalyticsCounter {
+  id        String   @id @default(uuid())
+  day       DateTime @db.Date
+  eventType String
+  targetKey String   @default("")
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([day, eventType, targetKey])
+  @@index([day, eventType])
+  @@map("analytics_counters")
 }

@@ -12,6 +12,8 @@ export const STAFF_ROLES = [
 ] as const;
 
 export type StaffRoleName = (typeof STAFF_ROLES)[number];
+// Only assign roles whose workflows are present in the agreed V1 panel.
+export const V1_ASSIGNABLE_STAFF_ROLES = ["ADMIN", "SALES_MANAGER", "CATALOG_MANAGER"] as const;
 export type StaffPermission =
   | "staff.profile"
   | "staff.manage"
@@ -50,24 +52,22 @@ export const STAFF_ROLE_DEFINITIONS: {
   {
     role: "ADMIN",
     label: "Administrator",
-    description: "Manages business operations. Staff account administration stays with the owner.",
+    description: "Manages V1 customers, follow-ups, and the product catalogue. Staff account administration stays with the owner.",
     permissions: [
       "staff.profile", "dashboard.view", "customers.read", "followups.manage",
-      "sales.manage", "orders.read", "payments.manage", "dispatch.view",
-      "dispatch.manage", "catalog.view", "catalog.manage", "procurement.view",
-      "procurement.manage", "content.manage", "finance.manage",
+      "catalog.view", "catalog.manage",
     ],
   },
   {
     role: "SALES_MANAGER",
     label: "Sales & customer support",
-    description: "Views customers and requests, records follow-ups, and works with sales records.",
-    permissions: ["staff.profile", "dashboard.view", "customers.read", "followups.manage", "sales.manage", "orders.read", "catalog.view"],
+    description: "Views customer accounts and records follow-ups for V1 WhatsApp, email, and phone requests.",
+    permissions: ["staff.profile", "dashboard.view", "customers.read", "followups.manage", "catalog.view"],
   },
   {
     role: "CATALOG_MANAGER",
     label: "Catalogue & pricing manager",
-    description: "Views catalogue records and updates product pricing.",
+    description: "Manages product details, approved images, prices, offers, and availability.",
     permissions: ["staff.profile", "dashboard.view", "catalog.view", "catalog.manage"],
   },
   {
@@ -96,6 +96,10 @@ export const STAFF_ROLE_DEFINITIONS: {
   },
 ];
 
+export const V1_STAFF_ROLE_DEFINITIONS = STAFF_ROLE_DEFINITIONS.filter(
+  ({ role }) => (V1_ASSIGNABLE_STAFF_ROLES as readonly string[]).includes(role),
+);
+
 const grants = new Map(STAFF_ROLE_DEFINITIONS.map(({ role, permissions }) => [role, new Set(permissions)]));
 
 export function roleHasPermission(role: string, permission: StaffPermission): boolean {
@@ -107,7 +111,7 @@ function routePermission(method: string, path: string): StaffPermission {
   const route = path.replace(/^\/api(?=\/)/, "").replace(/\/$/, "") || "/";
   if (route === "/auth/staff/me") return "staff.profile";
   if (route.startsWith("/admin/staff")) return "staff.manage";
-  if (route === "/analytics/dashboard" || route === "/workspace/overview") return "dashboard.view";
+  if (route === "/analytics/dashboard" || route === "/analytics/overview" || route === "/workspace/overview") return "dashboard.view";
   if (route === "/workspace/customers" || /^\/workspace\/customers\/[^/]+$/.test(route)) return "customers.read";
   if (route === "/workspace/followups") return "followups.manage";
   if (route.startsWith("/workspace/followups/")) return "followups.manage";
@@ -117,8 +121,10 @@ function routePermission(method: string, path: string): StaffPermission {
   if (/^\/orders\/[^/]+\/payment-confirmed$/.test(route)) return "payments.manage";
   if (/^\/orders\/[^/]+\/(dispatch-challan|advance-dispatch|challan\/pdf)$/.test(route)) return "dispatch.manage";
   if (route === "/products/inventory") return "catalog.view";
+  if (route === "/products/catalogue" || route.startsWith("/products/catalogue/"))
+    return verb === "GET" ? "catalog.view" : "catalog.manage";
   if (/^\/products\/[^/]+\/price$/.test(route)) return "catalog.manage";
-  if (route === "/storage/images") return "content.manage";
+  if (route === "/storage/images") return "catalog.manage";
   if (route === "/suppliers" || /^\/suppliers\/[^/]+$/.test(route)) return verb === "GET" ? "procurement.view" : "procurement.manage";
   if (route === "/procurement" || route.startsWith("/procurement/")) return verb === "GET" ? "procurement.view" : "procurement.manage";
   if (route === "/purchase-orders" || route.startsWith("/purchase-orders/")) return verb === "GET" ? "procurement.view" : "procurement.manage";

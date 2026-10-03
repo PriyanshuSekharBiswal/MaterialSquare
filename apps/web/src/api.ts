@@ -55,7 +55,7 @@ export async function customerApi<T>(
     throw new ApiError(
       typeof data?.message === "string"
         ? data.message
-        : "Unable to connect. Please try again.",
+        : "We couldn't complete that action. Please try again.",
       response.status,
     );
   return data as T;

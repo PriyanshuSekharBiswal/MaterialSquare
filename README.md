@@ -28,27 +28,28 @@ npm run dev:all
 - API documentation: http://localhost:4000/api/docs
 - Local MinIO console: http://localhost:9001
 
-The API reads the root `.env`. Both Vite apps proxy `/api` to port 4000 in development. For deployment, serve the customer API under `/api` on the website origin, or on an HTTPS sibling subdomain under the same site, and configure exact website origins in `CORS_ORIGINS`. Customer sessions use HttpOnly, SameSite=Lax cookies (Secure in production); unrelated hosting domains will not support this session setup. Configure an API reverse proxy or use matching custom domains. Set `VITE_API_URL` accordingly. The root Vercel configuration deploys the customer website only; deploy the API and admin separately. Database migrations run explicitly with `npm run db:deploy`.
+The API reads the root `.env`. Both Vite apps proxy `/api` to port 4000 in development. Vercel uses a same-origin serverless proxy in each app: set the private `API_ORIGIN` to the HTTPS API origin in both projects, and keep `VITE_API_URL` unset. Configure the exact customer and admin website origins in API `CORS_ORIGINS`. Customer sessions use HttpOnly, SameSite=Lax cookies (Secure in production). Database migrations run explicitly with `npm run db:deploy`.
 
 ## Implemented flows
 
 - The launch website prepares structured WhatsApp/email messages. Customers review the message and send it in their own app. The site does not claim delivery or record a submitted RFQ from this handoff. Existing staff RFQ APIs remain available for later workflows.
 - Guest material lists persist in browser storage. Signed-in customer lists persist in PostgreSQL and populate the direct request form.
 - Staff login verifies a scrypt password hash against an active database user. Tokens expire after eight hours. Staff routes reject anonymous and customer tokens; account deactivation takes effect on the next request.
-- Admin loads saved RFQs, quotations, orders, enquiries, and catalogue pricing. Its chart uses recorded order values, not sample revenue.
-- Staff enters rates when creating quotations. Publishing saves notification jobs in a database outbox in the same transaction. Dispatch updates also record an outbox job.
+- The V1 dashboard shows customer and follow-up counts plus first-party aggregate page views, product-detail opens, add-to-list actions, and WhatsApp/email link clicks for the last 30 days. It does not estimate unique visitors or traffic sources.
+- Staff can search customer accounts and review saved material lists, create and update follow-ups, manage staff accounts, assign predefined roles, and manage published product descriptions, images, prices, offers and availability.
+- A new database receives 18 curated catalogue drafts for staff review. They begin unpublished and unavailable until staff verify each product and stock state. Staff edits persist in PostgreSQL; no sample prices are generated.
 - Redis/BullMQ forwards outbox jobs to the configured notification adapter, with retries. Provider failures are stored in `notification_outbox.failedAt`. If Redis or the notification adapter is not configured, outbox records remain pending.
-- Quotation and delivery-challan PDFs are generated on authenticated API requests. Public product responses omit internal pricing; the public website does not display prices.
-- Quotation PDFs use a branded layout and fill in saved customer, quote, item, and pricing details. Configure seller identity with `QUOTE_SELLER_NAME`, `QUOTE_SELLER_ADDRESS`, `QUOTE_SELLER_PHONE`, `QUOTE_SELLER_EMAIL`, and `QUOTE_SELLER_GSTIN` in the root `.env`.
-- `POST /api/storage/images` accepts a staff-authenticated multipart `file` (PNG/JPEG/WebP, up to 5 MB). Failed storage calls return errors rather than fabricated URLs.
+- Website quotation/PDF generation, checkout/payment, order fulfilment and customer quote history are outside the agreed V1. The V1 request form prepares a WhatsApp or email message; customers review it and press Send in their own app. The site cannot confirm delivery.
+- Legacy quotation/PDF APIs remain in the repository for a separately scoped later release; they are not part of the active V1 customer or staff workflow.
+- The staff catalogue editor uploads approved PNG/JPEG/WebP product images up to 5 MB through the staff-authenticated `/api/storage/images` endpoint. Configure S3-compatible storage before enabling uploads in production; failed uploads show an error rather than a fabricated URL.
 
-The existing public catalogue still uses curated frontend product content. The database catalogue is managed separately at this stage. Quote/order line items currently use metric tonnes; the RFQ inbox accepts arbitrary materials and units. Full catalogue CMS, generalized quotation units, quote acceptance portal, role-specific permissions, procurement, and loyalty workflows are separate feature work.
+Role access is enforced by API guards as well as hidden staff navigation. V1 staff assignment is limited to Administrator, Sales & Customer Support, and Catalogue & Pricing Manager; roles for procurement, dispatch, accounts and website content are reserved until those panels ship. Owners cannot create custom permission sets. Website analytics aggregate event counts only; the client must approve their privacy notice and retention policy. Client staff must verify all business claims and enter real prices and promotions before publication.
 
 ## Provider configuration
 
 No provider account is required for the database, admin, RFQ, and PDF flows. Missing provider configuration is reported explicitly.
 
-**Customer OTP:** The website uses MSG91's OTP Widget custom Web SDK. Set `VITE_MSG91_WIDGET_ID` and `VITE_MSG91_TOKEN_AUTH` in the website environment, and set the private `MSG91_AUTHKEY` only in the API environment. The browser requests and verifies OTPs through the widget; the API verifies MSG91's access token before creating the long-lived customer session. Staff demo login is separate. Customer demo codes are not generated or displayed.
+**Customer OTP:** The website uses MSG91's OTP Widget custom Web SDK. Set `VITE_MSG91_WIDGET_ID` and `VITE_MSG91_TOKEN_AUTH` in the website environment, and set the private `MSG91_AUTHKEY` only in the API environment. Set SMS as the widget's primary channel and disable Voice: initial sends follow the widget account configuration, while the code explicitly selects SMS for retries. The API verifies MSG91's access token before creating the customer session. Staff demo login is separate. Customer demo codes are not generated or displayed.
 
 **Notifications:** Configure `REDIS_URL`, `NOTIFICATION_WEBHOOK_URL`, and its token. The adapter receives a job type and record identifiers. Handle `quote-published`, `quote-expiry-reminder`, and `dispatch-whatsapp-alert`; use the `Idempotency-Key` header to prevent duplicate delivery after retries. Failed jobs remain in Redis for inspection/retry. The outbox does not claim a message has been delivered until the adapter returns success.
 
@@ -80,7 +81,7 @@ GitHub Actions runs typechecking, builds, PostgreSQL integration tests, and Chro
 
 ### Development and demo databases
 
-The normal development API reads the root `.env` and connects to the local `material_square_dev` PostgreSQL database on port 5432. Its restricted database role and private `.env` are created on this Mac; Prisma has applied all four migrations. Run `npm run dev:all` to use this database. The schema stores customers and sessions, staff, saved material lists, products and brands, quotations, orders, dispatch records, audit logs, notifications, and staff follow-ups. The new development database starts empty; the public catalogue is still curated in frontend code and has not been moved into database-managed catalogue tools.
+The normal development API reads the root `.env` and connects to the local `material_square_dev` PostgreSQL database on port 5432. Its restricted database role and private `.env` were created on this Mac. All 14 migrations in the current checkout, including the V1 staff activity, managed catalogue, offer scheduling and aggregate analytics changes, are applied to this local development database. On first API startup, an empty database receives 18 curated catalogue drafts without prices; staff edits thereafter persist in PostgreSQL.
 
 `npm run demo` uses a separate PostgreSQL cluster under `.local/demo-postgres` on port 55440 with demo-scoped customer records and staff credentials. Customer login still uses MSG91. Stop that process in its terminal before starting the normal API on port 4000. Keeping the databases separate prevents demo records from entering the regular development environment.
 
@@ -112,4 +113,4 @@ Product detail forms accept separate sizes and quantities for the same catalogue
 
 Run `npm run demo` for persistent local account testing with MSG91 customer login and staff mobile/password login. See [demo testing instructions](docs/demo-testing.md) for multi-device checks and data separation. The current staff workspace contains customer accounts, saved material lists and manual follow-ups; the earlier quotation/order screens remain archived for later work.
 
-For GitHub + Vercel + Render, follow [managed deployment setup](deployment/vercel-render.md). Cloud resources and real OTP delivery are not activated by these files.
+For GitHub + Vercel + Render, follow [managed deployment setup](deployment/vercel-render.md). Production hosting, production database, DNS, live OTP provider configuration and client approval of the launch content still need to be completed.

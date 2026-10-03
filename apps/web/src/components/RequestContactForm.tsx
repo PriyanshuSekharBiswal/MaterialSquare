@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCustomer } from "../customer";
-import { customerApi } from "../api";
+import { trackWebsiteEvent } from "../analytics";
 import {
   emailLink,
   whatsappLink,
@@ -27,9 +27,7 @@ export default function RequestContactForm({
   });
   const [channel, setChannel] = useState("whatsapp"),
     [prepared, setPrepared] = useState(false),
-    [error, setError] = useState(""),
-    [submitting, setSubmitting] = useState(false),
-    [submittedId, setSubmittedId] = useState("");
+    [error, setError] = useState("");
   useEffect(() => {
     if (customer)
       setDetails((old) => ({
@@ -45,12 +43,10 @@ export default function RequestContactForm({
   }, [customer?.id]);
   function update(key: keyof RequestDetails, value: string) {
     setPrepared(false);
-    setSubmittedId("");
     setDetails((old) => ({ ...old, [key]: value }));
   }
   useEffect(() => {
     setPrepared(false);
-    setSubmittedId("");
   }, [items]);
   const message = requestMessage(details, items, enquiry);
   const fields: {
@@ -215,61 +211,6 @@ export default function RequestContactForm({
           )}
           {prepared && (
             <div>
-              {!enquiry && !submittedId && (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={submitting}
-                  onClick={async () => {
-                    if (!customer || !items.length) return;
-                    setSubmitting(true);
-                    setError("");
-                    try {
-                      const result = await customerApi<{ id: string }>(
-                        "/rfqs",
-                        "POST",
-                        {
-                          customerName: details.name,
-                          customerEmail: details.email,
-                          companyName: details.company,
-                          shippingAddress: details.address,
-                          city: details.city,
-                          pincode: details.pincode,
-                          siteLocation: [details.address, details.city, details.pincode]
-                            .filter(Boolean)
-                            .join(", "),
-                          deliveryTiming: details.delivery || undefined,
-                          notes: details.notes || undefined,
-                          items: items.map((item) => ({
-                            material: item.name,
-                            brand: item.brand || undefined,
-                            specification: item.specification || undefined,
-                            quantity: item.quantity || 1,
-                            unit: item.unit,
-                          })),
-                        },
-                        customer.id,
-                      );
-                      setSubmittedId(result.id);
-                    } catch (e) {
-                      setError(
-                        e instanceof Error
-                          ? e.message
-                          : "Could not submit your request. Please try again.",
-                      );
-                    } finally {
-                      setSubmitting(false);
-                    }
-                  }}
-                >
-                  {submitting ? "Submitting…" : "Submit quotation request"}
-                </button>
-              )}
-              {submittedId && (
-                <p className="customer-notice" role="status">
-                  Request submitted. Reference: {submittedId}. Our team will review it and prepare a quotation.
-                </p>
-              )}
               <h3>Your message</h3>
               <pre className="request-preview">{message}</pre>
               <p className="customer-help">
@@ -290,6 +231,7 @@ export default function RequestContactForm({
                 }
                 target={channel === "whatsapp" ? "_blank" : undefined}
                 rel="noopener noreferrer"
+                onClick={() => trackWebsiteEvent({ type: "request_handoff", target: channel === "email" ? "email" : "whatsapp" })}
               >
                 Continue in {channel === "whatsapp" ? "WhatsApp" : "email"}
               </a>

@@ -7,7 +7,7 @@ import {
   X,
   Plus,
   Check,
-  ShieldCheck,
+  Info,
   Truck,
   MessageCircle,
   FileText,
@@ -118,11 +118,11 @@ export default function ProductDetailModal({
             <div className="modal-dispatch-box">
               <div className="dispatch-row">
                 <Truck size={16} />
-                <span><strong>Dispatch:</strong> {product.dispatchTime} across Delhi NCR</span>
+                <span><strong>Delivery:</strong> Confirm timing and site availability with staff</span>
               </div>
               <div className="dispatch-row">
-                <ShieldCheck size={16} />
-                <span><strong>Authenticity:</strong> 100% Genuine with Manufacturer GST Bill</span>
+                <Info size={16} />
+                <span><strong>Product details:</strong> Confirm the exact variant and supporting documents with staff</span>
               </div>
             </div>
 
@@ -177,7 +177,7 @@ export default function ProductDetailModal({
                 <div className="modal-brand-text-col">
                   <span className="modal-brand-official-tagline">{brandMeta?.tagline || product.brandTagline}</span>
                   <span className="modal-factory-direct-guarantee">
-                    <ShieldCheck size={12} /> 100% Genuine Authorized Depot Supply
+                    Browse this brand in the catalogue
                   </span>
                 </div>
               </div>
