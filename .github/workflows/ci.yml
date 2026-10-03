@@ -27,6 +27,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm audit --omit=dev
       - run: npm run db:generate
       - run: npm run db:deploy
       - run: npm run typecheck
@@ -35,6 +36,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
       - run: npm run test:demo
+      - run: npm prune --omit=dev
+      - run: node scripts/verify-runtime-deps.cjs
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

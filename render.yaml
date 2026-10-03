@@ -4,7 +4,7 @@ services:
     name: material-square-api
     runtime: node
     plan: starter
-    buildCommand: npm ci --include=dev && npm run db:generate && npm run build --workspace=@material-square/types && npm run build:api
+    buildCommand: npm ci --include=dev && npm run db:generate && npm run build --workspace=@material-square/types && npm run build:api && npm prune --omit=dev && node scripts/verify-runtime-deps.cjs
     preDeployCommand: npm run db:deploy
     startCommand: node apps/api/dist/main.js
     healthCheckPath: /api/health/ready
