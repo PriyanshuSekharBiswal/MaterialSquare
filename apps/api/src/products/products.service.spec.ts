@@ -1,6 +1,7 @@
 import { PRODUCTS } from "@material-square/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProductsService } from "./products.service";
+import { getDemoVariants } from "./catalog-demo-variants";
 
 describe("customer catalogue", () => {
   it("copies the preview catalogue with measurement and pricing variants into an empty database", async () => {
@@ -73,6 +74,32 @@ describe("customer catalogue", () => {
       where: { id: ultraTech.id },
       data: { category: "cement", categoryLabel: "Cement & Aggregates" },
     }));
+  });
+
+  it("adds sample measurement variants to an existing published preview item with no variants", async () => {
+    const ultraTech = PRODUCTS.find((item) => item.id === "ultratech-super")!;
+    const listing = {
+      id: ultraTech.id, slug: ultraTech.id, code: "older-code", name: "Staff-edited cement",
+      brand: "Staff brand", category: "cement", categoryLabel: "Cement & Aggregates",
+      galleryImages: ["/staff-image.png"], description: "Staff description", isPublished: true,
+      isInStock: true, variants: [],
+    };
+    const prisma = {
+      catalogListing: {
+        findUnique: jest.fn(({ where }: { where: { slug: string } }) => where.slug === ultraTech.id
+          ? Promise.resolve(listing)
+          : Promise.resolve(null)),
+        create: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+      },
+    };
+    await new ProductsService(prisma as unknown as PrismaService).onModuleInit();
+
+    const update = prisma.catalogListing.update.mock.calls.find((call) => call[0].where.id === ultraTech.id)?.[0];
+    expect(update?.data.variants.create).toHaveLength(getDemoVariants(ultraTech.id).length);
+    expect(update?.data).not.toHaveProperty("description");
+    expect(update?.data).not.toHaveProperty("isPublished");
+    expect(update?.data).not.toHaveProperty("isInStock");
   });
 
   it("never seeds preview products into a production database", async () => {

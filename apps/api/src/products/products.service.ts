@@ -133,27 +133,12 @@ export class ProductsService implements OnModuleInit {
             backfilled++;
           }
         }
-        const untouchedInitialSeed =
-          existing.name === product.name && existing.brand === product.brand &&
-          existing.category === product.category && existing.image === product.image &&
-          existing.price == null && existing.compareAtPrice == null && !existing.description &&
-          !existing.isPublished && !existing.isInStock &&
-          JSON.stringify(existing.features) === JSON.stringify(product.features) &&
-          JSON.stringify(existing.applications) === JSON.stringify(product.applications) &&
-          JSON.stringify(existing.specifications) === JSON.stringify(product.specs);
-        if (existing.variants.length === 0 && variants.length > 0 && untouchedInitialSeed) {
+        if (existing.variants.length === 0 && variants.length > 0) {
           try {
             await this.prisma.catalogListing.update({
               where: { id: existing.id },
               data: {
                 galleryImages: existing.galleryImages.length ? undefined : previewGallery(product),
-                description: "Preview catalogue item. Confirm exact product details, price, tax, availability and delivery with staff.",
-                dispatchTime: "Availability and delivery confirmed by staff",
-                isPublished: true,
-                features: [],
-                applications: ["Confirm exact product and intended use with staff"],
-                grade: null,
-                specifications: {},
                 variants: { create: variants.map((variant) => this.toVariantPrismaData(variant)) },
               },
             });
