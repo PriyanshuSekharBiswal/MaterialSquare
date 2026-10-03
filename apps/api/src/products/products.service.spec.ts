@@ -52,7 +52,7 @@ describe("customer catalogue", () => {
     const prisma = {
       catalogListing: {
         findUnique: jest.fn(({ where }: { where: { slug: string } }) => where.slug === ultraTech.id
-          ? Promise.resolve({ id: ultraTech.id, slug: ultraTech.id, code: ultraTech.code, category: "cement", categoryLabel: "Cement", galleryImages: [], variants: [ultraTechVariant] })
+          ? Promise.resolve({ id: ultraTech.id, slug: ultraTech.id, code: "legacy-product-code", category: "cement", categoryLabel: "Cement", galleryImages: [], variants: [ultraTechVariant] })
           : Promise.resolve(null)),
         create: jest.fn().mockResolvedValue({}),
         update: jest.fn().mockResolvedValue({}),

@@ -103,7 +103,10 @@ export class ProductsService implements OnModuleInit {
         // before the sample prices and category filters were completed. Keep
         // those sample rows useful for testing while only filling absent demo
         // fields; staff-entered prices, images and availability are preserved.
-        if (existing.code === product.code && existing.slug === product.id) {
+        // The exact slug lookup above identifies this preview family. Legacy
+        // preview rows can have an empty or older product code, so do not let
+        // that stale identifier prevent the additive price/category repair.
+        if (existing.slug === product.id) {
           if (existing.category !== product.category || existing.categoryLabel !== product.categoryLabel) {
             await this.prisma.catalogListing.update({
               where: { id: existing.id },
