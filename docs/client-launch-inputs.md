@@ -66,6 +66,7 @@ Never put account passwords in this document.
 
 - Domain name and DNS-provider access, preferably by inviting the deployment operator rather than sharing the account password.
 - Vercel access to the customer and admin projects.
+- A hosting plan whose terms permit a commercial client website. Vercel Hobby is limited to personal, non-commercial use; choose Vercel Pro or another commercial-permitted host for production. The current Vercel deployments are for testing only. See [Vercel plan terms](https://vercel.com/docs/plans/hobby).
 - Approval for persistent production API/PostgreSQL hosting and the monthly budget. Free Render Postgres expires after 30 days and is not suitable for client data.
 - MSG91 OTP Widget ID and client token for the customer Vercel project; configure the private Authkey only on the API host. Set SMS as the widget's primary channel and disable Voice (the initial send follows the widget configuration; code can only force SMS for retries). Confirm the approved OTP template and any required Indian DLT/sender setup. Rotate any Authkey previously shared in chat.
 - S3-compatible image-storage provider, bucket, region/endpoint, private write credentials, and public read-only/CDN URL for catalogue images.
