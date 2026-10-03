@@ -123,7 +123,7 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
       .expect(200);
     expect(roles.body.some((role: { role: string }) => role.role === "SUPER_ADMIN")).toBe(false);
     expect(roles.body.map((role: { role: string }) => role.role).sort()).toEqual([
-      "ADMIN", "CATALOG_MANAGER", "SALES_MANAGER",
+      "ADMIN", "CATALOG_MANAGER", "CONTENT_MANAGER", "SALES_MANAGER",
     ]);
     await request(app.getHttpServer())
       .post("/api/admin/staff")
