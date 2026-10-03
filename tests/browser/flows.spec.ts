@@ -42,6 +42,9 @@ test.beforeEach(async ({ page }) => {
     route.fulfill({ status: 200, contentType: "application/javascript", body: "" }),
   );
   // Avoid coupling offline browser tests to whichever local API happens to be running.
+  await page.route("**/api/**", (route) =>
+    route.fulfill({ status: 503, json: { message: "Offline test fixture" } }),
+  );
   await page.route("**/api/products", (route) => route.fulfill({ status: 503, json: { message: "Offline test fixture" } }));
   await page.route("**/api/customer/me", (route) =>
     route.fulfill({ status: 401, json: { message: "Please sign in" } }),
