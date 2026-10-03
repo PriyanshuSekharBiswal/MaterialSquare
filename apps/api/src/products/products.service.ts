@@ -99,6 +99,35 @@ export class ProductsService implements OnModuleInit {
         include: { variants: true },
       });
       if (existing) {
+        // The hosted preview database may contain early placeholder rows from
+        // before the sample prices and category filters were completed. Keep
+        // those sample rows useful for testing while only filling absent demo
+        // fields; staff-entered prices, images and availability are preserved.
+        if (existing.code === product.code && existing.slug === product.id) {
+          if (existing.category !== product.category || existing.categoryLabel !== product.categoryLabel) {
+            await this.prisma.catalogListing.update({
+              where: { id: existing.id },
+              data: { category: product.category, categoryLabel: product.categoryLabel },
+            });
+          }
+          const variantsByCode = new Map(existing.variants.map((variant) => [variant.code, variant]));
+          for (const seedVariant of variants) {
+            const stored = variantsByCode.get(seedVariant.code);
+            if (!stored || stored.price != null || seedVariant.price == null) continue;
+            await this.prisma.catalogListingVariant.update({
+              where: { id: stored.id },
+              data: {
+                price: seedVariant.price,
+                compareAtPrice: seedVariant.compareAtPrice ?? null,
+                priceNote: seedVariant.priceNote || "Indicative preview price; client must confirm current price, tax, stock and delivery.",
+                quantityBreaks: stored.quantityBreaks && JSON.stringify(stored.quantityBreaks) !== "[]"
+                  ? undefined
+                  : (seedVariant.quantityBreaks || []) as Prisma.InputJsonValue,
+              },
+            });
+            backfilled++;
+          }
+        }
         const untouchedInitialSeed =
           existing.name === product.name && existing.brand === product.brand &&
           existing.category === product.category && existing.image === product.image &&

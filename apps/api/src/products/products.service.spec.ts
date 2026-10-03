@@ -43,6 +43,38 @@ describe("customer catalogue", () => {
     expect(prisma.catalogListing.update).not.toHaveBeenCalled();
   });
 
+  it("backfills missing preview prices and canonical sample categories without overwriting saved rates", async () => {
+    const ultraTech = PRODUCTS.find((item) => item.id === "ultratech-super")!;
+    const ultraTechVariant = {
+      id: "ultratech-50kg", code: "SEED-ultratech-super-1", price: null,
+      quantityBreaks: [],
+    };
+    const prisma = {
+      catalogListing: {
+        findUnique: jest.fn(({ where }: { where: { slug: string } }) => where.slug === ultraTech.id
+          ? Promise.resolve({ id: ultraTech.id, slug: ultraTech.id, code: ultraTech.code, category: "cement", categoryLabel: "Cement", galleryImages: [], variants: [ultraTechVariant] })
+          : Promise.resolve(null)),
+        create: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      catalogListingVariant: { update: jest.fn().mockResolvedValue({}) },
+    };
+    await new ProductsService(prisma as unknown as PrismaService).onModuleInit();
+
+    expect(prisma.catalogListingVariant.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: ultraTechVariant.id },
+      data: expect.objectContaining({ price: 405, compareAtPrice: 435, quantityBreaks: [
+        { minimumQuantity: 10, unitPrice: 395 },
+        { minimumQuantity: 30, unitPrice: 385 },
+        { minimumQuantity: 50, unitPrice: 375 },
+      ] }),
+    }));
+    expect(prisma.catalogListing.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: ultraTech.id },
+      data: { category: "cement", categoryLabel: "Cement & Aggregates" },
+    }));
+  });
+
   it("never seeds preview products into a production database", async () => {
     const previousAppEnv = process.env.APP_ENV;
     const previousNodeEnv = process.env.NODE_ENV;
