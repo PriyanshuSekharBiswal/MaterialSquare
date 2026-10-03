@@ -17,7 +17,7 @@ Use this checklist to collect business approvals and setup details. Do not send 
 
 Provide one approved row per product or sellable pack. Do not combine different sizes or units into one row.
 
-A new production database starts with 18 catalogue drafts. They remain unpublished and unavailable until staff verify the product facts, approved image, price and stock status, then publish each listing.
+The production database starts with an empty catalogue. The 22 illustrative listings on the demo site are test-only and are not copied into production. Client staff must create each approved product and sellable variant, verify its product facts and image, enter its price and stock status, and publish it before customers can see it.
 
 | Field | What to provide |
 |---|---|

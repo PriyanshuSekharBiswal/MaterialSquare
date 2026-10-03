@@ -158,7 +158,7 @@ export default function MarketplacePage({
               </span>
             </h1>
             <p className="page-subtitle reveal-text">
-              Browse construction materials, compare size and pack options, and save selections to your material list. Preview prices are indicative; confirm the current price, tax, stock and delivery with staff.
+              This test catalogue uses illustrative product names, variants, images and prices to exercise the website. They are not client-approved inventory. Compare size and pack options, then confirm the exact item, price, tax, stock and delivery with staff.
             </p>
 
             <div className="page-hero-metrics reveal-stagger">
@@ -190,7 +190,7 @@ export default function MarketplacePage({
                 <Search size={18} className="search-field-icon" />
                 <input
                   type="text"
-                  placeholder="Search by material, brand, IS standard (e.g. UltraTech, Fe 550D, CPVC, 2.5mm)..."
+                  placeholder="Search product, brand, size or pack (e.g. cement, Astral, 25 mm, 20 L)..."
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);

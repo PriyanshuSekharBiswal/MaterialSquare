@@ -9,6 +9,7 @@ import { Prisma } from "@prisma/client";
 import { PRODUCTS } from "@material-square/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { getDemoVariants } from "./catalog-demo-variants";
+import { PREVIEW_CATALOG_LEGACY_SOURCE } from "./catalog-legacy-baseline";
 
 export type CatalogListingInput = {
   slug: string;
@@ -74,6 +75,17 @@ const previewGallery = (product: (typeof PRODUCTS)[number]) =>
       ),
     ),
   );
+const legacyPreviewById = new Map(PREVIEW_CATALOG_LEGACY_SOURCE.map((product) => [product.id, product]));
+const stableJsonValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(stableJsonValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, stableJsonValue(item)]),
+    );
+  }
+  return value ?? null;
+};
+const sameJson = (a: unknown, b: unknown) => JSON.stringify(stableJsonValue(a)) === JSON.stringify(stableJsonValue(b));
 
 @Injectable()
 export class ProductsService implements OnModuleInit {
@@ -107,6 +119,28 @@ export class ProductsService implements OnModuleInit {
         // preview rows can have an empty or older product code, so do not let
         // that stale identifier prevent the additive price/category repair.
         if (existing.slug === product.id) {
+          // Remove the old, unverified demo copy one field at a time. Each
+          // field is replaced only when it still exactly matches the seeded
+          // baseline; staff edits, prices, stock, images and publication state
+          // are preserved.
+          const legacy = legacyPreviewById.get(product.id);
+          if (legacy) {
+            const copyUpdate: Prisma.CatalogListingUpdateInput = {};
+            if (existing.grade === legacy.grade) copyUpdate.grade = product.grade || null;
+            if (existing.packaging === legacy.packaging) copyUpdate.packaging = product.packaging;
+            if (existing.dispatchTime === legacy.dispatchTime) copyUpdate.dispatchTime = product.dispatchTime;
+            if (existing.minOrderQty === legacy.minOrderQty) copyUpdate.minOrderQty = product.minOrderQty;
+            if (sameJson(existing.features, legacy.features)) copyUpdate.features = [...product.features];
+            if (sameJson(existing.applications, legacy.applications)) copyUpdate.applications = [...product.applications];
+            if (sameJson(existing.specifications, legacy.specs)) copyUpdate.specifications = product.specs as Prisma.InputJsonValue;
+            if (existing.description === "Preview catalogue item. Product details, price, tax and availability must be confirmed with the client before a sale.") {
+              copyUpdate.description = product.description;
+            }
+            if (Object.keys(copyUpdate).length) {
+              await this.prisma.catalogListing.update({ where: { id: existing.id }, data: copyUpdate });
+              backfilled++;
+            }
+          }
           if (existing.category !== product.category || existing.categoryLabel !== product.categoryLabel) {
             await this.prisma.catalogListing.update({
               where: { id: existing.id },
@@ -169,13 +203,13 @@ export class ProductsService implements OnModuleInit {
             galleryImages: previewGallery(product),
             minOrderQty: product.minOrderQty,
             dispatchTime: "Availability and delivery confirmed by staff",
-            description: "Preview catalogue item. Product details, price, tax and availability must be confirmed with the client before a sale.",
+            description: product.description,
             isInStock: false,
             isPublished: true,
-            features: [],
-            applications: ["Confirm exact product and intended use with staff"],
-            specifications: {},
-            grade: null,
+            features: product.features,
+            applications: product.applications,
+            specifications: product.specs as Prisma.InputJsonValue,
+            grade: product.grade || null,
             variants: { create: variants.map((variant) => this.toVariantPrismaData(variant)) },
             sortOrder,
           },

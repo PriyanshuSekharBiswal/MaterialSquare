@@ -2,8 +2,16 @@ import { PRODUCTS } from "@material-square/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProductsService } from "./products.service";
 import { getDemoVariants } from "./catalog-demo-variants";
+import { PREVIEW_CATALOG_LEGACY_SOURCE } from "./catalog-legacy-baseline";
 
 describe("customer catalogue", () => {
+  it("ships sample catalogue copy without unverified technical claims or availability", () => {
+    expect(PRODUCTS).toHaveLength(22);
+    expect(PRODUCTS.every((product) => product.inStock === false)).toBe(true);
+    expect(PRODUCTS.every((product) => Object.keys(product.specs).length === 0)).toBe(true);
+    expect(JSON.stringify(PRODUCTS)).not.toMatch(/101% Copper|Zero Tile Debonding|Performance Warranty|Certified/i);
+  });
+
   it("copies the preview catalogue with measurement and pricing variants into an empty database", async () => {
     const prisma = {
       catalogListing: {
@@ -100,6 +108,47 @@ describe("customer catalogue", () => {
     expect(update?.data).not.toHaveProperty("description");
     expect(update?.data).not.toHaveProperty("isPublished");
     expect(update?.data).not.toHaveProperty("isInStock");
+  });
+
+  it("cleans only legacy demo copy that still exactly matches the seeded baseline", async () => {
+    const legacy = PREVIEW_CATALOG_LEGACY_SOURCE.find((item) => item.id === "polycab-fr-wires")!;
+    const safe = PRODUCTS.find((item) => item.id === legacy.id)!;
+    const existing = {
+      id: legacy.id, slug: legacy.id, code: legacy.code, name: legacy.name, brand: legacy.brand,
+      category: legacy.category, categoryLabel: legacy.categoryLabel, unit: legacy.unit,
+      packaging: legacy.packaging, grade: legacy.grade, dispatchTime: legacy.dispatchTime,
+      minOrderQty: legacy.minOrderQty, description: "Preview catalogue item. Product details, price, tax and availability must be confirmed with the client before a sale.",
+      features: [...legacy.features], applications: [...legacy.applications], specifications: Object.fromEntries(Object.entries(legacy.specs).reverse()),
+      image: "/staff-image.png", galleryImages: ["/staff-gallery.png"], price: "123.00",
+      compareAtPrice: "150.00", priceNote: "Staff-approved test price", isInStock: true, isPublished: false,
+      variants: [{ id: "staff-variant", code: "staff-code", price: "123.00", quantityBreaks: [], sortOrder: 0 }],
+    };
+    const prisma = {
+      catalogListing: {
+        findUnique: jest.fn().mockResolvedValue(existing),
+        update: jest.fn().mockResolvedValue({}),
+        create: jest.fn(),
+      },
+      catalogListingVariant: { update: jest.fn() },
+    };
+
+    await new ProductsService(prisma as unknown as PrismaService).onModuleInit();
+
+    const copyUpdate = prisma.catalogListing.update.mock.calls.map((call) => call[0].data).find((data) => data.features);
+    expect(copyUpdate).toMatchObject({
+      grade: null,
+      packaging: safe.packaging,
+      dispatchTime: safe.dispatchTime,
+      minOrderQty: safe.minOrderQty,
+      features: safe.features,
+      applications: safe.applications,
+      specifications: {},
+      description: safe.description,
+    });
+    expect(copyUpdate).not.toHaveProperty("price");
+    expect(copyUpdate).not.toHaveProperty("isInStock");
+    expect(copyUpdate).not.toHaveProperty("isPublished");
+    expect(copyUpdate).not.toHaveProperty("image");
   });
 
   it("never seeds preview products into a production database", async () => {

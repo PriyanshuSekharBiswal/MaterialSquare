@@ -22,9 +22,8 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
   const initialTab = searchParams.get('tab') || 'wire';
   const [activeTab, setActiveTab] = useState(initialTab);
 
-  // Wire calculator state
+  // Collect an enquiry topic only; this page does not calculate cable sizes.
   const [selectedLoadType, setSelectedLoadType] = useState('ac-geyser');
-  const [customWatts, setCustomWatts] = useState(2500);
   const [wireAddedNotice, setWireAddedNotice] = useState(false);
 
   useEffect(() => {
@@ -38,65 +37,15 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
     setSearchParams({ tab: tabKey });
   };
 
-  // Wire recommendation logic
+  // Never infer a safe conductor size or current rating from an appliance name.
   const getWireRecommendation = () => {
-    if (selectedLoadType === 'lighting') {
-      return {
-        gauge: '1.0 sq mm to 1.5 sq mm',
-        amps: '11A - 14A',
-        application: 'LED downlights, cove lighting, ceiling fans, exhaust fans',
-        brands: 'Confirm with staff',
-        wireCode: 'MS-ELE-WIRE-1.0',
-        productName: 'Wire size enquiry',
-      };
-    }
-    if (selectedLoadType === 'general-sockets') {
-      return {
-        gauge: '1.5 sq mm',
-        amps: '14A - 16A',
-        application: '5A General Switchboard Sockets, TV, laptop chargers, setup boxes',
-        brands: 'Confirm with staff',
-        wireCode: 'MS-ELE-WIRE-1.5',
-        productName: 'Wire size enquiry',
-      };
-    }
-    if (selectedLoadType === 'kitchen-power') {
-      return {
-        gauge: '2.5 sq mm',
-        amps: '19A - 22A',
-        application: '16A Power Plugs: Refrigerator, microwave oven, mixer grinder, iron, washing machine',
-        brands: 'Confirm with staff',
-        wireCode: 'MS-ELE-WIRE-2.5',
-        productName: 'Wire size enquiry',
-      };
-    }
-    if (selectedLoadType === 'ac-geyser') {
-      return {
-        gauge: '4.0 sq mm',
-        amps: '26A - 30A',
-        application: '1.5 Ton / 2.0 Ton Inverter AC, 15L-25L Storage Water Geysers, Induction cooktop',
-        brands: 'Confirm with staff',
-        wireCode: 'MS-ELE-WIRE-4.0',
-        productName: 'Wire size enquiry',
-      };
-    }
-    if (selectedLoadType === 'main-db') {
-      return {
-        gauge: '6.0 sq mm to 10.0 sq mm',
-        amps: '35A - 50A',
-        application: 'Incoming phase mains from energy meter to Distribution Board (DB)',
-        brands: 'Confirm with staff',
-        wireCode: 'MS-ELE-WIRE-6.0',
-        productName: 'Wire size enquiry',
-      };
-    }
     return {
-      gauge: '16.0 sq mm Multi-Core',
-      amps: '65A - 80A',
-      application: 'Submains feeding duplex floors, independent builder floors, elevator panels',
-      brands: 'Confirm with staff',
-      wireCode: 'MS-ELE-WIRE-16',
-      productName: 'Wire size enquiry',
+      gauge: 'Confirm with a qualified electrician',
+      amps: 'Not calculated by this website',
+      application: selectedLoadType,
+      brands: 'Confirm the specified brand and product with staff',
+      wireCode: 'MS-ELE-WIRE-ENQUIRY',
+      productName: 'Electrical cable enquiry',
     };
   };
 
@@ -111,7 +60,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
         brand: 'To confirm',
         category: 'wires',
         unit: 'Quantity and unit to confirm',
-        specification: `Unverified guide example: ${currentRec.gauge}, ${currentRec.amps}, ${currentRec.application}. Confirm with a qualified electrician before selection.`,
+        specification: `Enquiry topic: ${currentRec.application}. This website does not calculate cable size or rating. Please confirm the design with a qualified electrician.`,
       });
       setWireAddedNotice(true);
       setTimeout(() => setWireAddedNotice(false), 3000);
@@ -142,7 +91,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                 onClick={() => handleTabChange('wire')}
               >
                 <Zap size={16} />
-                <span>Wire Sizing Load Calculator</span>
+                <span>Wire Selection Checklist</span>
               </button>
 
               <button
@@ -172,33 +121,33 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
         <div className="container">
           <div className="guide-review-warning" role="note">
             <AlertTriangle size={18} />
-            <p><strong>Professional verification required.</strong> Examples on this page are not approved design advice. Do not size, purchase, or install materials from these values alone; have a qualified professional confirm the design and applicable standards.</p>
+            <p><strong>Professional verification required.</strong> This page does not calculate cable sizes or approve plumbing designs. Have a qualified professional confirm the design, exact product and applicable standards.</p>
           </div>
           {/* TAB 1: WIRE SIZING CALCULATOR */}
           {activeTab === 'wire' && (
             <div className="tab-pane-wire">
               <div className="guide-intro-card reveal-card">
                 <div className="intro-badge-row">
-                  <span className="badge-pill">Example calculator inputs</span>
-                  <span className="note-text">Technical review required</span>
+                  <span className="badge-pill">Prepare an enquiry</span>
+                  <span className="note-text">No cable sizing provided</span>
                 </div>
                 <h2 className="reveal-title">
                   <span className="ms-mask-line">
-                    <span className="ms-mask-text">Interactive Wire Gauge</span>
+                    <span className="ms-mask-text">Prepare a Wire</span>
                   </span>{' '}
                   <span className="ms-mask-line">
-                    <span className="ms-mask-text delay-1">& Circuit Sizing</span>
+                    <span className="ms-mask-text delay-1">Enquiry</span>
                   </span>
                 </h2>
                 <p className="reveal-text">
-                  Use these draft examples to prepare questions for a qualified electrician. The tool does not account for every project condition and cannot determine a safe circuit design.
+                  Select the kind of work you are planning and prepare a question for the team. Cable size, protection, route and installation must be specified by a qualified electrical professional.
                 </p>
               </div>
 
               {/* Interactive Calculator Card */}
               <div className="calculator-box-grid reveal-card">
                 <div className="calc-controls-col">
-                  <h3>Select Circuit / Appliance Type:</h3>
+                    <h3>What kind of work is this for?</h3>
                   <div className="load-options-list">
                     <button
                       type="button"
@@ -208,7 +157,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                       <div className="btn-icon">💡</div>
                       <div>
                         <strong>Lighting & Fan Points</strong>
-                        <span>LED lights, cove lights, exhaust (Up to 800W)</span>
+                        <span>Describe the lighting or fan circuit to your electrician.</span>
                       </div>
                     </button>
 
@@ -220,7 +169,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                       <div className="btn-icon">🔌</div>
                       <div>
                         <strong>5A General Sockets</strong>
-                        <span>TV, phone chargers, audio, WiFi router (Up to 1500W)</span>
+                        <span>Describe the intended socket use and connected equipment.</span>
                       </div>
                     </button>
 
@@ -232,7 +181,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                       <div className="btn-icon">🍳</div>
                       <div>
                         <strong>16A Kitchen & Utility Plugs</strong>
-                        <span>Microwave, refrigerator, mixer, washing machine</span>
+                        <span>List each appliance and its nameplate rating.</span>
                       </div>
                     </button>
 
@@ -243,8 +192,8 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                     >
                       <div className="btn-icon">❄️</div>
                       <div>
-                        <strong>Air Conditioner (1.5T) & Geysers</strong>
-                        <span>Continuous thermal loads: 1500W – 3000W</span>
+                        <strong>Air conditioner, water heater or other appliance</strong>
+                        <span>Provide the appliance nameplate and installation details.</span>
                       </div>
                     </button>
 
@@ -256,7 +205,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                       <div className="btn-icon">⚡</div>
                       <div>
                         <strong>Main Distribution Board (DB) Line</strong>
-                        <span>Incoming meter power supply per phase</span>
+                        <span>Provide the approved project electrical drawings.</span>
                       </div>
                     </button>
 
@@ -268,7 +217,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                       <div className="btn-icon">🏢</div>
                       <div>
                         <strong>Floor Submains / Heavy Feeder</strong>
-                        <span>Multi-storey duplexes and builder floor risers</span>
+                        <span>Provide the approved project electrical drawings.</span>
                       </div>
                     </button>
                   </div>
@@ -276,12 +225,12 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
 
                 <div className="calc-result-col">
                   <div className="result-display-card">
-                    <span className="rec-eyebrow">Example only — unverified guide values</span>
-                    <div className="rec-gauge-badge">{currentRec.gauge}</div>
+                    <span className="rec-eyebrow">Design decision</span>
+                    <div className="rec-gauge-badge">Qualified electrician</div>
 
                     <div className="rec-details-grid">
                       <div className="rec-detail-item">
-                        <span className="lbl">Example current range:</span>
+                        <span className="lbl">Current rating:</span>
                         <span className="val font-mono">{currentRec.amps}</span>
                       </div>
                       <div className="rec-detail-item">
@@ -289,7 +238,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                         <span className="val">{currentRec.brands}</span>
                       </div>
                       <div className="rec-detail-item full-width">
-                        <span className="lbl">Example application:</span>
+                        <span className="lbl">Enquiry topic:</span>
                         <span className="val">{currentRec.application}</span>
                       </div>
                     </div>
@@ -301,7 +250,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                         onClick={handleAddWireToBOM}
                       >
                         <Plus size={16} />
-                        <span>Add This Wire Coil to Material List</span>
+                        <span>Add Electrical Cable Enquiry to Material List</span>
                       </button>
 
                       {wireAddedNotice && (
@@ -315,7 +264,7 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
                   <div className="engineer-pro-tip">
                     <Info size={16} className="tip-icon" />
                     <p>
-                      Wire type and fire-performance requirements depend on the project specification and applicable standards. Have a qualified electrical professional select and verify the cable.
+                      Cable size and type depend on design current, installation method, route length, ambient conditions, protective devices and applicable standards. Have a qualified electrical professional specify and verify them.
                     </p>
                   </div>
                 </div>
@@ -323,28 +272,21 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
 
               {/* Reference Table */}
               <div className="wire-reference-table-wrap reveal-card">
-                <h3>Wire-size examples (technical review required)</h3>
+                <h3>Information to confirm before selecting cable</h3>
                 <div className="table-responsive">
                   <table className="engineering-table">
                     <thead>
                       <tr>
-                        <th>Wire Conductor Gauge</th>
-                        <th>Example application</th>
-                        <th>Example current range (unverified)</th>
-                        <th>Brand — confirm with staff</th>
+                        <th>Project information</th>
+                        <th>Why it matters</th>
+                        <th>Who verifies it</th>
+                        <th>Website calculation</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {WIRE_SIZE_GUIDE.map((row, idx) => (
-                        <tr key={idx}>
-                          <td className="font-mono">
-                            <strong>{row.size}</strong>
-                          </td>
-                          <td>{row.apps}</td>
-                          <td>{row.maxLoad}</td>
-                          <td>{row.recommendedBrand}</td>
-                        </tr>
-                      ))}
+                      <tr><td>Connected load and appliance nameplate ratings</td><td>Establishes design demand</td><td>Qualified electrical professional</td><td>Not calculated</td></tr>
+                      <tr><td>Cable route, installation method and environment</td><td>Affects cable selection and derating</td><td>Qualified electrical professional</td><td>Not calculated</td></tr>
+                      <tr><td>Supply, protective devices and project standards</td><td>Required to coordinate circuit protection</td><td>Qualified electrical professional</td><td>Not calculated</td></tr>
                     </tbody>
                   </table>
                 </div>

@@ -5,6 +5,7 @@
   "outputDirectory": "dist",
   "headers": [{ "source": "/(.*)", "headers": [{"key":"X-Robots-Tag","value":"noindex, nofollow"}] }],
   "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/proxy?path=:path*" },
     { "source": "/((?!api).*)", "destination": "/index.html" }
   ]
 }

@@ -381,7 +381,7 @@ export default function HomePage({ products, onOpenBOMDrawer, bomList = [], onTo
             </div>
             <div>
               <h4>Wire Sizing Examples</h4>
-              <p>Review illustrative cable-sizing examples. Confirm conductor selection with a qualified electrician.</p>
+              <p>Use our wire selection checklist to discuss your requirements with a qualified electrician.</p>
               <Link to="/guides?tab=wire" className="tool-card-link">
                 Use Wire Calculator →
               </Link>

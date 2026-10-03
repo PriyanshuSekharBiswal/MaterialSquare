@@ -527,7 +527,7 @@ test('privacy and terms pages describe the agreed V1 customer flow', async ({pag
 test('technical guides disclose review limits and contact page avoids unsupported delivery claims', async ({page})=>{
  await page.goto('/');
  await expect(page.getByText(/calculate exact conductor gauge/i)).not.toBeVisible();
- await expect(page.getByText(/Review illustrative cable-sizing examples/i)).toBeVisible();
+ await expect(page.getByText(/wire selection checklist/i)).toBeVisible();
  await expect(page.getByText(/procurement desk/i)).not.toBeVisible();
  await page.goto('/guides');
  await expect(page.getByRole('note')).toContainText('Professional verification required');
