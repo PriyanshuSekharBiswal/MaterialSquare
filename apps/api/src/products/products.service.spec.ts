@@ -19,6 +19,11 @@ describe("customer catalogue", () => {
     expect(seed[0]).toMatchObject({ id: PRODUCTS[0].id, name: PRODUCTS[0].name, isPublished: true, isInStock: false });
     expect(seed[0].variants.create.length).toBeGreaterThan(0);
     expect(seed[0].variants.create[0]).toHaveProperty("price");
+    expect(seed[0].variants.create[0].quantityBreaks).toEqual([
+      { minimumQuantity: 10, unitPrice: 395 },
+      { minimumQuantity: 30, unitPrice: 385 },
+      { minimumQuantity: 50, unitPrice: 375 },
+    ]);
     expect(seed.find((item) => item.id === "supreme-cpvc-quote-sample").variants.create[0]).toMatchObject({ price: 40.96, unit: "metre" });
   });
 
@@ -36,6 +41,29 @@ describe("customer catalogue", () => {
 
     expect(prisma.catalogListing.create).not.toHaveBeenCalled();
     expect(prisma.catalogListing.update).not.toHaveBeenCalled();
+  });
+
+  it("never seeds preview products into a production database", async () => {
+    const previousAppEnv = process.env.APP_ENV;
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.APP_ENV = "production";
+    process.env.NODE_ENV = "production";
+    const prisma = {
+      catalogListing: {
+        findUnique: jest.fn(),
+        create: jest.fn(),
+      },
+    };
+    try {
+      await new ProductsService(prisma as unknown as PrismaService).onModuleInit();
+      expect(prisma.catalogListing.findUnique).not.toHaveBeenCalled();
+      expect(prisma.catalogListing.create).not.toHaveBeenCalled();
+    } finally {
+      if (previousAppEnv === undefined) delete process.env.APP_ENV;
+      else process.env.APP_ENV = previousAppEnv;
+      if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousNodeEnv;
+    }
   });
 
   it("publishes only active catalogue products and includes staff-entered price and offer data", async () => {
@@ -93,7 +121,7 @@ describe("customer catalogue", () => {
           id: "paint", slug: "paint", name: "Interior paint", category: "paints",
           categoryLabel: "Paints", unit: "pack", specifications: {}, image: "/paint.png",
           galleryImages: ["/paint.png", "/room.png"], isInStock: false,
-          variants: [{ id: "paint-4l", code: null, label: "4 L · Base White", attributes: { volume: "4 L", shade: "Base White" }, unit: "4 L tin", price: "724.00", compareAtPrice: "953.00", priceNote: "Confirm shade price", offerLabel: "Demo offer", offerStartsAt: null, offerEndsAt: null, isInStock: true, stockQuantity: "4.000", minOrderQuantity: null, sortOrder: 0 }],
+          variants: [{ id: "paint-4l", code: null, label: "4 L · Base White", attributes: { volume: "4 L", shade: "Base White" }, unit: "4 L tin", price: "724.00", compareAtPrice: "953.00", priceNote: "Confirm shade price", offerLabel: "Demo offer", offerStartsAt: null, offerEndsAt: null, isInStock: true, stockQuantity: "4.000", minOrderQuantity: null, quantityBreaks: [{ minimumQuantity: 10, unitPrice: 700 }], sortOrder: 0 }],
         }]),
       },
     };
@@ -104,7 +132,7 @@ describe("customer catalogue", () => {
     expect(product).toMatchObject({
       inStock: true,
       galleryImages: ["/paint.png", "/room.png"],
-      variants: [{ id: "paint-4l", label: "4 L · Base White", unit: "4 L tin", price: "724.00", compareAtPrice: "953.00", inStock: true, attributes: { volume: "4 L", shade: "Base White" } }],
+      variants: [{ id: "paint-4l", label: "4 L · Base White", unit: "4 L tin", price: "724.00", compareAtPrice: "953.00", inStock: true, attributes: { volume: "4 L", shade: "Base White" }, quantityBreaks: [{ minimumQuantity: 10, unitPrice: 700 }] }],
     });
   });
 

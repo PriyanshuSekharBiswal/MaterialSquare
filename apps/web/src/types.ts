@@ -40,6 +40,7 @@ export interface CatalogueVariant {
   inStock: boolean;
   stockQuantity?: number | string | null;
   minOrderQuantity?: number | string | null;
+  quantityBreaks?: Array<{ minimumQuantity: number; unitPrice: number }>;
   sortOrder: number;
 }
 export type MaterialItem = Pick<

@@ -2,10 +2,11 @@ type SeedVariant = {
   label: string; unit: string; price?: number | null; compareAtPrice?: number | null;
   priceNote?: string; isInStock: boolean; stockQuantity?: number | null;
   minOrderQuantity?: number | null; attributes?: Record<string, string>;
+  quantityBreaks?: Array<{ minimumQuantity: number; unitPrice: number }>;
 };
 
-const demo = (label: string, unit: string, price: number, compareAtPrice?: number, attributes: Record<string, string> = {}): SeedVariant => ({
-  label, unit, price, compareAtPrice, attributes, isInStock: false, stockQuantity: 0,
+const demo = (label: string, unit: string, price: number, compareAtPrice?: number, attributes: Record<string, string> = {}, quantityBreaks: SeedVariant["quantityBreaks"] = []): SeedVariant => ({
+  label, unit, price, compareAtPrice, attributes, quantityBreaks, isInStock: false, stockQuantity: 0,
   priceNote: "Indicative demo price only. Client must confirm current rate, GST, delivery and stock before sale.",
 });
 
@@ -16,7 +17,11 @@ const QUOTE_NOTE = "Sample quotation rate; not verified retail MRP. Confirm exac
 const MRP_NOTE = "Manufacturer MRP reference; shade, location and current client offer may change the final price.";
 
 const seedVariants: Record<string, SeedVariant[]> = {
-  "ultratech-super": [demo("PPC · 50 kg bag", "50 kg bag", 405, 435, { cementType: "PPC", netWeight: "50 kg" })],
+  "ultratech-super": [demo("PPC · 50 kg bag", "50 kg bag", 405, 435, { cementType: "PPC", netWeight: "50 kg" }, [
+    { minimumQuantity: 10, unitPrice: 395 },
+    { minimumQuantity: 30, unitPrice: 385 },
+    { minimumQuantity: 50, unitPrice: 375 },
+  ])],
   "ambuja-kawach": [demo("Kawach · 50 kg bag", "50 kg bag", 425, 455, { netWeight: "50 kg" })],
   "jk-super-cement": [demo("OPC 53 · 50 kg bag", "50 kg bag", 410, 440, { grade: "OPC 53", netWeight: "50 kg" })],
   "shree-cement-roofon": [demo("Roofon · 50 kg bag", "50 kg bag", 395, 425, { netWeight: "50 kg" })],

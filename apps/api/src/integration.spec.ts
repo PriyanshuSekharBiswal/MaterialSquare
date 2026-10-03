@@ -270,6 +270,20 @@ integration("API with isolated PostgreSQL", () => {
       features: ["Corrosion resistant"],
       applications: ["Water supply"],
       specifications: { size: "25 mm" },
+      variants: [{
+        code: "MS-INT-CPVC-1-3M",
+        label: "25 mm · 3 m length",
+        attributes: { diameter: "25 mm", length: "3 m" },
+        unit: "3 m length",
+        price: 320,
+        compareAtPrice: 400,
+        isInStock: true,
+        sortOrder: 0,
+        quantityBreaks: [
+          { minimumQuantity: 10, unitPrice: 300 },
+          { minimumQuantity: 30, unitPrice: 280 },
+        ],
+      }],
       sortOrder: 999,
     };
     const created = await request(app.getHttpServer())
@@ -295,6 +309,13 @@ integration("API with isolated PostgreSQL", () => {
         offerStartsAt: `${payload.offerStartsAt}T00:00:00.000Z`,
         offerEndsAt: `${payload.offerEndsAt}T00:00:00.000Z`,
         specs: payload.specifications,
+        variants: [expect.objectContaining({
+          code: "MS-INT-CPVC-1-3M",
+          quantityBreaks: [
+            { minimumQuantity: 10, unitPrice: 300 },
+            { minimumQuantity: 30, unitPrice: 280 },
+          ],
+        })],
       }),
     ]));
 
@@ -302,6 +323,11 @@ integration("API with isolated PostgreSQL", () => {
       .post("/api/products/catalogue")
       .set("Authorization", `Bearer ${token}`)
       .send({ ...payload, slug: "invalid-dated-offer", code: "MS-INT-INVALID-DATE", offerStartsAt: indiaDateOffset(2), offerEndsAt: indiaDateOffset(1) })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post("/api/products/catalogue")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...payload, slug: "invalid-quantity-breaks", code: "MS-INT-INVALID-QUANTITY", variants: [{ ...payload.variants[0], quantityBreaks: [{ minimumQuantity: 30, unitPrice: 280 }, { minimumQuantity: 10, unitPrice: 300 }] }] })
       .expect(400);
 
     await request(app.getHttpServer())

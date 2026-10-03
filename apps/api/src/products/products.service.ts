@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleInit,
 } from "@nestjs/common";
@@ -50,6 +51,7 @@ export type CatalogListingInput = {
     isInStock: boolean;
     stockQuantity?: number | null;
     minOrderQuantity?: number | null;
+    quantityBreaks?: Array<{ minimumQuantity: number; unitPrice: number }>;
     sortOrder: number;
   }>;
   sortOrder: number;
@@ -75,11 +77,21 @@ const previewGallery = (product: (typeof PRODUCTS)[number]) =>
 
 @Injectable()
 export class ProductsService implements OnModuleInit {
+  private readonly logger = new Logger(ProductsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
+    if (process.env.APP_ENV === "production" || (process.env.NODE_ENV === "production" && process.env.APP_ENV !== "demo")) {
+      this.logger.log("Skipping preview catalogue seed in production.");
+      return;
+    }
     // Seed the preview catalogue on first use. On an existing database add
     // only missing sample products/variants; never reset edits made by staff.
+    let created = 0;
+    let backfilled = 0;
+    let existingCount = 0;
+    const hidden = new Set<string>();
     for (const [sortOrder, product] of PRODUCTS.entries()) {
       const variants = getDemoVariants(product.id);
       const existing = await this.prisma.catalogListing.findUnique({
@@ -111,9 +123,13 @@ export class ProductsService implements OnModuleInit {
                 variants: { create: variants.map((variant) => this.toVariantPrismaData(variant)) },
               },
             });
+            backfilled++;
           } catch (error) {
             if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
           }
+        } else {
+          existingCount++;
+          if (!existing.isPublished) hidden.add(product.id);
         }
         continue;
       }
@@ -145,10 +161,14 @@ export class ProductsService implements OnModuleInit {
             sortOrder,
           },
         });
+        created++;
       } catch (error) {
         if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+        this.logger.warn(`Preview catalogue seed skipped ${product.id}: a product or variant code already exists.`);
       }
     }
+    this.logger.log(`Preview catalogue seed checked ${PRODUCTS.length} families: ${created} created, ${backfilled} backfilled, ${existingCount} preserved.`);
+    if (hidden.size) this.logger.warn(`Preview catalogue families remain unpublished (preserved staff state): ${[...hidden].join(", ")}`);
   }
 
   async findPublic() {
@@ -325,6 +345,7 @@ export class ProductsService implements OnModuleInit {
       isInStock: variant.isInStock,
       stockQuantity: variant.stockQuantity ?? null,
       minOrderQuantity: variant.minOrderQuantity ?? null,
+      quantityBreaks: (variant.quantityBreaks || []) as Prisma.InputJsonValue,
       sortOrder: variant.sortOrder,
     };
   }

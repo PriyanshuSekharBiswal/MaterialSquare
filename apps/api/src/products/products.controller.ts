@@ -10,6 +10,10 @@ const optionalDate = z.string().date().nullable().optional().transform((value) =
 );
 const imagePath = z.string().trim().max(1000)
   .refine((value) => value.startsWith("/") && !value.startsWith("//") || /^https:\/\//i.test(value), "Use a site image path or an HTTPS image URL");
+const quantityBreakSchema = z.object({
+  minimumQuantity: z.number().finite().positive(),
+  unitPrice: z.number().finite().nonnegative(),
+});
 const variantSchema = z.object({
   code: z.string().trim().max(80).nullable().optional(),
   label: z.string().trim().min(1).max(160),
@@ -24,6 +28,7 @@ const variantSchema = z.object({
   isInStock: z.boolean().default(false),
   stockQuantity: z.number().finite().nonnegative().nullable().optional(),
   minOrderQuantity: z.number().finite().positive().nullable().optional(),
+  quantityBreaks: z.array(quantityBreakSchema).max(50).default([]),
   sortOrder: z.number().int().min(0).max(100000).default(0),
 }).refine((variant) => variant.compareAtPrice == null || variant.price == null || variant.compareAtPrice >= variant.price, {
   message: "Original price must be equal to or greater than the selling price",
@@ -31,6 +36,12 @@ const variantSchema = z.object({
 }).refine((variant) => !variant.offerStartsAt || !variant.offerEndsAt || variant.offerStartsAt <= variant.offerEndsAt, {
   message: "Offer end date must be on or after its start date",
   path: ["offerEndsAt"],
+}).refine((variant) => variant.quantityBreaks.every((row, index, rows) =>
+  (index === 0 || row.minimumQuantity > rows[index - 1].minimumQuantity) &&
+  (index === 0 || row.unitPrice <= rows[index - 1].unitPrice)
+), {
+  message: "Quantity breaks must increase by quantity and not increase the unit price",
+  path: ["quantityBreaks"],
 });
 const listingSchema = z.object({
   slug: z.string().trim().min(2).max(120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),

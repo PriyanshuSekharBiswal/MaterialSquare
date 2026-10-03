@@ -85,7 +85,10 @@ export default function ProductDetailModal({
   const gallery = Array.from(new Set([...(product.galleryImages || []), product.image])).filter(Boolean);
   const activeImage = selectedImage || gallery[0] || product.image;
   const selectedLabel = [selectedVariant?.label, specification.trim()].filter(Boolean).join(' · ');
-  const price = selectedVariant?.price ?? product.price;
+  const basePrice = selectedVariant?.price ?? product.price;
+  const quantityBreaks = (selectedVariant?.quantityBreaks || []).slice().sort((a, b) => Number(a.minimumQuantity) - Number(b.minimumQuantity));
+  const matchedBreak = quantityBreaks.filter(row => Number(quantity) >= Number(row.minimumQuantity)).at(-1);
+  const price = matchedBreak?.unitPrice ?? basePrice;
   const compareAtPrice = selectedVariant?.compareAtPrice ?? product.compareAtPrice;
   const unit = selectedVariant?.unit || product.unit;
   const selectedInStock = selectedVariant ? selectedVariant.inStock : product.inStock;
@@ -159,7 +162,7 @@ export default function ProductDetailModal({
                 const selection = specification.trim();
                 const accepted = updateItems(old => {
                   const existing = old.find(item => (item.catalogueId || item.id) === product.id && (item.variantId || '') === (selectedVariant?.id || '') && (item.specification || '') === selectedLabel);
-                  const item = {...product, ...(selectedVariant ? { price: selectedVariant.price, compareAtPrice: selectedVariant.compareAtPrice, priceNote: selectedVariant.priceNote, unit, inStock: selectedVariant.inStock, variantId: selectedVariant.id } : {}), catalogueId: product.id, id: existing?.id || `${product.id}-${materialId()}`, specification: selectedLabel, quantity: value};
+                  const item = {...product, ...(selectedVariant ? { price, compareAtPrice: selectedVariant.compareAtPrice, priceNote: selectedVariant.priceNote, unit, inStock: selectedVariant.inStock, variantId: selectedVariant.id } : {}), catalogueId: product.id, id: existing?.id || `${product.id}-${materialId()}`, specification: selectedLabel, quantity: value};
                   return existing ? old.map(row => row.id === existing.id ? item : row) : [...old, item];
                 });
                 setAdded(accepted);
@@ -214,6 +217,17 @@ export default function ProductDetailModal({
               </div>
               <span className="moq-pill">{selectedInStock ? 'In stock' : 'Availability to confirm'}{product.minOrderQty ? ` · Min order: ${product.minOrderQty}` : ''}</span>
             </div>
+
+            {quantityBreaks.length > 0 && <div className="product-options" aria-label="Quantity discount prices">
+              <h4 className="spec-table-heading">Quantity prices ({unit})</h4>
+              <div className="spec-table">
+                {quantityBreaks.map(row => <div className="spec-table-row" key={`${row.minimumQuantity}-${row.unitPrice}`}>
+                  <span className="spec-name">Buy {Number(row.minimumQuantity).toLocaleString('en-IN')}+</span>
+                  <span className="spec-value mono">₹{Number(row.unitPrice).toLocaleString('en-IN')} / {unit}</span>
+                </div>)}
+              </div>
+              <small className="catalogue-price-caveat">{matchedBreak ? `Applied rate for ${Number(quantity).toLocaleString('en-IN')} ${unit}: ₹${Number(price).toLocaleString('en-IN')} each.` : `Add the listed quantity to get that unit rate.`} Preview rates; confirm the current offer with staff.</small>
+            </div>}
 
             {/* Technical Parameters Table */}
             <div className="modal-spec-table-wrap">
