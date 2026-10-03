@@ -9,21 +9,10 @@ import {
   ShieldCheck,
   Tag,
 } from 'lucide-react';
-import { PRODUCTS } from '../data/materialsData';
 import './SearchSuggestions.css';
 
-// Trending construction queries in Delhi NCR
-const TRENDING_SEARCHES = [
-  { text: 'UltraTech Super Cement', category: 'cement', type: 'product' },
-  { text: 'Astral CPVC Pro Pipes', category: 'pipes', type: 'product' },
-  { text: 'Polycab 2.5 sq mm Wire', category: 'wires', type: 'product' },
-  { text: 'Ambuja Kawach Water Shield', category: 'cement', type: 'product' },
-  { text: 'Supreme SWR Drainage Pipe', category: 'pipes', type: 'product' },
-  { text: 'Asian Paints Acrylic Putty', category: 'paints', type: 'product' },
-];
-
 export default function SearchSuggestions({
-  products = PRODUCTS as CatalogueProduct[],
+  products = [],
   query = '',
   isOpen = false,
   onSelectSuggestion,
@@ -45,7 +34,8 @@ export default function SearchSuggestions({
         item.brand.toLowerCase().includes(trimmed) ||
         (item.code && item.code.toLowerCase().includes(trimmed)) ||
         (item.grade && item.grade.toLowerCase().includes(trimmed)) ||
-        (item.categoryLabel && item.categoryLabel.toLowerCase().includes(trimmed))
+        (item.categoryLabel && item.categoryLabel.toLowerCase().includes(trimmed)) ||
+        (item.variants || []).some(variant => variant.label.toLowerCase().includes(trimmed) || Object.values(variant.attributes || {}).some(value => value.toLowerCase().includes(trimmed)))
       );
     }).slice(0, 5); // Limit to top 5
   }, [isOpen, trimmed, products]);
@@ -85,26 +75,13 @@ export default function SearchSuggestions({
       {/* CASE 1: Query is EMPTY — Show Trending Searches & Category Quick Chips */}
       {!trimmed && (
         <div className="suggestions-empty-state">
-          {/* Trending Searches Section */}
+          {/* Search guidance */}
           <div className="suggestions-section">
             <div className="section-title-row">
               <TrendingUp size={14} className="trending-icon" />
-              <span>Trending in Delhi NCR</span>
+              <span>Find materials</span>
             </div>
-            <div className="trending-queries-list">
-              {TRENDING_SEARCHES.map((item, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  className="trending-query-btn"
-                  onClick={() => onSelectSuggestion && onSelectSuggestion(item.text)}
-                >
-                  <Search size={13} className="query-mag" />
-                  <span>{item.text}</span>
-                  <span className="query-arrow">↗</span>
-                </button>
-              ))}
-            </div>
+            <p className="suggestions-search-hint">Search by product, brand, size, pack, colour or product code.</p>
           </div>
 
           {/* Quick Categories Bar */}
@@ -159,7 +136,7 @@ export default function SearchSuggestions({
                       <div className="suggest-meta">
                         <span className="suggest-brand">{prod.brand}</span>
                         <span className="suggest-dot">•</span>
-                    <span className="suggest-price">{prod.price == null ? 'Request a quotation' : `₹${Number(prod.price).toLocaleString('en-IN')}`}</span>
+                        <span className="suggest-price">{prod.price != null ? `₹${Number(prod.price).toLocaleString('en-IN')}` : prod.variants?.some(variant => variant.price != null) ? `From ₹${Math.min(...prod.variants.filter(variant => variant.price != null).map(variant => Number(variant.price))).toLocaleString('en-IN')}` : 'Request a quotation'}</span>
                       </div>
                     </div>
                     <ArrowRight size={14} className="suggest-arrow" />
@@ -235,7 +212,7 @@ export default function SearchSuggestions({
         <div className="suggestions-no-results">
           <p>No exact product matches found for <strong>"{query}"</strong></p>
           <span className="no-res-hint">
-            Try searching for <strong>UltraTech</strong>, <strong>Astral CPVC</strong>, <strong>Polycab</strong>, or press Enter to search the catalog.
+            Try a brand, product type, size, pack, colour or product code, or press Enter to search the catalogue.
           </span>
           <button
             type="button"

@@ -36,12 +36,18 @@ const list = z
         z.object({
           id: z.string().min(1).max(150),
           catalogueId: z.string().min(1).max(100).optional(),
+          variantId: z.string().min(1).max(100).optional(),
           name: z.string().trim().min(1).max(300),
           brand: z.string().max(100),
           unit: z.string().min(1).max(50),
           code: z.string().max(100).optional(),
           quantity: z.number().positive().max(1000000),
           specification: z.string().max(500).default(""),
+          // Customer-provided display estimate only. This JSON is never used
+          // to calculate or accept a payment or a confirmed quotation.
+          price: z.number().finite().nonnegative().optional(),
+          compareAtPrice: z.number().finite().nonnegative().optional(),
+          priceNote: z.string().max(160).optional(),
         }),
       )
       .max(100),

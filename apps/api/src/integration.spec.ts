@@ -387,11 +387,16 @@ integration("API with isolated PostgreSQL", () => {
       .expect(200);
     const material = {
       id: "pipe-test",
+      catalogueId: "supreme-cpvc-quote-sample",
+      variantId: "supreme-cpvc-20mm-pipe",
       name: "CPVC pipe",
       brand: "Test",
       unit: "Pieces",
       quantity: 20,
       specification: "3/4 inch",
+      price: 40.96,
+      compareAtPrice: 48.33,
+      priceNote: "Indicative quotation rate; confirm with staff",
     };
     await request(app.getHttpServer())
       .put("/api/customer/materials")

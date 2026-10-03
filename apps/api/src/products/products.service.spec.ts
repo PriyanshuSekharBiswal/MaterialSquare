@@ -3,41 +3,39 @@ import { PrismaService } from "../prisma/prisma.service";
 import { ProductsService } from "./products.service";
 
 describe("customer catalogue", () => {
-  it("copies the catalogue into an empty database as unpublished, unavailable drafts without inventing rates", async () => {
+  it("copies the preview catalogue with measurement and pricing variants into an empty database", async () => {
     const prisma = {
       catalogListing: {
-        count: jest.fn().mockResolvedValue(0),
-        createMany: jest.fn().mockResolvedValue({ count: PRODUCTS.length }),
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
       },
     };
     const service = new ProductsService(prisma as unknown as PrismaService);
 
     await service.onModuleInit();
 
-    const seed = prisma.catalogListing.createMany.mock.calls[0][0].data;
-    expect(seed).toHaveLength(PRODUCTS.length);
-    expect(seed[0]).toMatchObject({
-      id: PRODUCTS[0].id,
-      name: PRODUCTS[0].name,
-      isPublished: false,
-      isInStock: false,
-    });
-    expect(seed[0]).not.toHaveProperty("price");
-    expect(seed[0]).not.toHaveProperty("compareAtPrice");
+    expect(prisma.catalogListing.create).toHaveBeenCalledTimes(PRODUCTS.length);
+    const seed = prisma.catalogListing.create.mock.calls.map((call) => call[0].data);
+    expect(seed[0]).toMatchObject({ id: PRODUCTS[0].id, name: PRODUCTS[0].name, isPublished: true, isInStock: false });
+    expect(seed[0].variants.create.length).toBeGreaterThan(0);
+    expect(seed[0].variants.create[0]).toHaveProperty("price");
+    expect(seed.find((item) => item.id === "supreme-cpvc-quote-sample").variants.create[0]).toMatchObject({ price: 40.96, unit: "metre" });
   });
 
   it("does not reset staff catalogue edits during API restarts", async () => {
     const prisma = {
       catalogListing: {
-        count: jest.fn().mockResolvedValue(18),
-        createMany: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue({ id: "seeded", galleryImages: ["/image.png"], variants: [{ id: "existing" }] }),
+        create: jest.fn(),
+        update: jest.fn(),
       },
     };
     const service = new ProductsService(prisma as unknown as PrismaService);
 
     await service.onModuleInit();
 
-    expect(prisma.catalogListing.createMany).not.toHaveBeenCalled();
+    expect(prisma.catalogListing.create).not.toHaveBeenCalled();
+    expect(prisma.catalogListing.update).not.toHaveBeenCalled();
   });
 
   it("publishes only active catalogue products and includes staff-entered price and offer data", async () => {
@@ -47,6 +45,7 @@ describe("customer catalogue", () => {
           id: "pipe-1", slug: "pipe-1", code: null, name: "CPVC pipe", brand: "Astral",
           category: "pipes", categoryLabel: "Pipes & Fittings", unit: "3 m length",
           image: null, specifications: { size: "25 mm" }, isInStock: true,
+          galleryImages: [], variants: [],
           price: "340.00", compareAtPrice: "400.00", priceNote: "per length, GST extra",
           offerLabel: "Special price", offerStartsAt: null, offerEndsAt: null,
           features: [], applications: [],
@@ -71,6 +70,7 @@ describe("customer catalogue", () => {
         findMany: jest.fn().mockResolvedValue([{
           id: "pipe-1", slug: "pipe-1", name: "CPVC pipe", category: "pipes",
           categoryLabel: "Pipes & Fittings", unit: "3 m length", specifications: {},
+          galleryImages: [], variants: [],
           isInStock: true, price: "340.00", compareAtPrice: "400.00",
           offerLabel: "Special price", offerStartsAt: null,
           offerEndsAt: new Date("2020-01-01T00:00:00.000Z"),
@@ -86,12 +86,35 @@ describe("customer catalogue", () => {
     expect(product.offerLabel).toBeNull();
   });
 
+  it("returns sellable variants with exact units, gallery images, and variant-level availability", async () => {
+    const prisma = {
+      catalogListing: {
+        findMany: jest.fn().mockResolvedValue([{
+          id: "paint", slug: "paint", name: "Interior paint", category: "paints",
+          categoryLabel: "Paints", unit: "pack", specifications: {}, image: "/paint.png",
+          galleryImages: ["/paint.png", "/room.png"], isInStock: false,
+          variants: [{ id: "paint-4l", code: null, label: "4 L · Base White", attributes: { volume: "4 L", shade: "Base White" }, unit: "4 L tin", price: "724.00", compareAtPrice: "953.00", priceNote: "Confirm shade price", offerLabel: "Demo offer", offerStartsAt: null, offerEndsAt: null, isInStock: true, stockQuantity: "4.000", minOrderQuantity: null, sortOrder: 0 }],
+        }]),
+      },
+    };
+    const service = new ProductsService(prisma as unknown as PrismaService);
+
+    const [product] = await service.findPublic();
+
+    expect(product).toMatchObject({
+      inStock: true,
+      galleryImages: ["/paint.png", "/room.png"],
+      variants: [{ id: "paint-4l", label: "4 L · Base White", unit: "4 L tin", price: "724.00", compareAtPrice: "953.00", inStock: true, attributes: { volume: "4 L", shade: "Base White" } }],
+    });
+  });
+
   it("keeps an offer active through its final date in India and expires it the next day", async () => {
     const prisma = {
       catalogListing: {
         findMany: jest.fn().mockResolvedValue([{
           id: "pipe-1", slug: "pipe-1", name: "CPVC pipe", category: "pipes",
           categoryLabel: "Pipes & Fittings", unit: "3 m length", specifications: {},
+          galleryImages: [], variants: [],
           isInStock: true, price: "340.00", compareAtPrice: "400.00",
           offerLabel: "Special price", offerStartsAt: null,
           offerEndsAt: new Date("2026-10-03T00:00:00.000Z"),

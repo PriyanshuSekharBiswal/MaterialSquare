@@ -225,6 +225,7 @@ model CatalogListing {
   unit             String
   packaging        String?
   image            String?
+  galleryImages    String[] @default([])
   grade            String?
   description      String?
   minOrderQty      String?
@@ -240,12 +241,41 @@ model CatalogListing {
   features         String[] @default([])
   applications     String[] @default([])
   specifications   Json     @default("{}")
+  variants         CatalogListingVariant[]
   sortOrder        Int      @default(0)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@index([isPublished, category, sortOrder])
   @@map("catalog_listings")
+}
+
+// One purchasable size, colour, pack or specification under a catalogue family.
+// Keep price and stock at variant level because a 1 L paint tin and a 20 L drum
+// are distinct sellable units with their own price and availability.
+model CatalogListingVariant {
+  id                String        @id @default(uuid())
+  listingId         String
+  listing           CatalogListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  code              String?       @unique
+  label             String
+  attributes        Json          @default("{}")
+  unit              String
+  price             Decimal?      @db.Decimal(12, 2)
+  compareAtPrice    Decimal?      @db.Decimal(12, 2)
+  priceNote         String?
+  offerLabel        String?
+  offerStartsAt     DateTime?
+  offerEndsAt       DateTime?
+  isInStock         Boolean       @default(false)
+  stockQuantity     Decimal?      @db.Decimal(12, 3)
+  minOrderQuantity  Decimal?      @db.Decimal(12, 3)
+  sortOrder         Int           @default(0)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([listingId, sortOrder])
+  @@map("catalog_listing_variants")
 }
 
 // ----------------------------------------------------

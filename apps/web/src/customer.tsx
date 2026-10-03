@@ -30,6 +30,10 @@ export function compactList(items: MaterialItem[]) {
     code: i.code,
     quantity: i.quantity || 1,
     specification: i.specification || "",
+    variantId: i.variantId,
+    price: i.price == null || !Number.isFinite(Number(i.price)) ? undefined : Number(i.price),
+    compareAtPrice: i.compareAtPrice == null || !Number.isFinite(Number(i.compareAtPrice)) ? undefined : Number(i.compareAtPrice),
+    priceNote: i.priceNote,
   }));
 }
 function readGuest(): MaterialItem[] {

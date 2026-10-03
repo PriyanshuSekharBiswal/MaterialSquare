@@ -44,7 +44,7 @@ export function requestMessage(
           "Materials required",
           ...items.map(
             (i, n) =>
-              `${n + 1}. ${i.name} | ${i.brand}${i.code ? ` | ${i.code}` : ""}${i.specification ? ` | ${i.specification}` : ""} — ${i.quantity || 1} ${i.unit}`,
+              `${n + 1}. ${i.name} | ${i.brand}${i.code ? ` | ${i.code}` : ""}${i.specification ? ` | ${i.specification}` : ""} — ${i.quantity || 1} ${i.unit}${i.price != null ? ` | indicative ₹${Number(i.price).toLocaleString("en-IN")}/${i.unit}` : ""}`,
           ),
         ]
       : []),

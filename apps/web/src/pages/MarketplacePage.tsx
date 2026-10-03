@@ -125,7 +125,8 @@ export default function MarketplacePage({
         const matchCode = item.code.toLowerCase().includes(q);
         const matchGrade = item.grade ? item.grade.toLowerCase().includes(q) : false;
         const matchFeatures = item.features ? item.features.some((f) => f.toLowerCase().includes(q)) : false;
-        return matchName || matchBrand || matchCode || matchGrade || matchFeatures;
+        const matchVariant = (item.variants || []).some(variant => variant.label.toLowerCase().includes(q) || Object.values(variant.attributes || {}).some(value => value.toLowerCase().includes(q)));
+        return matchName || matchBrand || matchCode || matchGrade || matchFeatures || matchVariant;
       }
 
       return true;
@@ -133,7 +134,7 @@ export default function MarketplacePage({
   }, [products, activeCategory, selectedBrand, onlyInStock, searchQuery]);
 
   // Check if item in BOM
-  const isItemInBOM = (id: string) => bomList.some((item) => item.id === id);
+  const isItemInBOM = (id: string) => bomList.some((item) => (item.catalogueId || item.id) === id);
 
   // Clear all filters
   const handleResetFilters = () => {
@@ -157,7 +158,7 @@ export default function MarketplacePage({
               </span>
             </h1>
             <p className="page-subtitle reveal-text">
-              Browse published construction-material listings, review staff-entered prices, and add products to your material list. Confirm stock, taxes, and delivery with staff.
+              Browse construction materials, compare size and pack options, and save selections to your material list. Preview prices are indicative; confirm the current price, tax, stock and delivery with staff.
             </p>
 
             <div className="page-hero-metrics reveal-stagger">
@@ -438,14 +439,14 @@ export default function MarketplacePage({
                       {/* Pricing & Min Order */}
                       <div className="pricing-row">
                         <div>
-                          <span className="rate-caption">{product.price == null ? 'Wholesale pricing' : 'Price per unit'}</span>
+                          <span className="rate-caption">{product.price == null && product.variants?.some(variant => variant.price != null) ? 'Starting from' : product.price == null ? 'Wholesale pricing' : 'Price per unit'}</span>
                           <span className="rate-amount">
-                            {product.price == null ? 'Contact for price' : `₹${Number(product.price).toLocaleString('en-IN')}`}
+                            {product.price == null ? product.variants?.some(variant => variant.price != null) ? `₹${Math.min(...product.variants.filter(variant => variant.price != null).map(variant => Number(variant.price))).toLocaleString('en-IN')}` : 'Contact for price' : `₹${Number(product.price).toLocaleString('en-IN')}`}
                           </span>
                           {product.compareAtPrice != null && product.price != null && Number(product.compareAtPrice) > Number(product.price) && (
                             <span className="catalogue-list-price"><del>₹{Number(product.compareAtPrice).toLocaleString('en-IN')}</del>{product.offerLabel && <strong>{product.offerLabel}</strong>}</span>
                           )}
-                          {product.price != null && <small className="catalogue-price-caveat">{product.priceNote || "Final availability, GST and delivery charges confirmed by staff."}</small>}
+                          {(product.price != null || product.variants?.some(variant => variant.price != null)) && <small className="catalogue-price-caveat">{product.priceNote || product.variants?.find(variant => variant.price != null)?.priceNote || "Final availability, GST and delivery charges confirmed by staff."}</small>}
                         </div>
                         <div className="min-order-pill">
                           <Package size={12} />

@@ -168,6 +168,28 @@ test("homepage search suggestions reflect the live catalogue and staff-set price
   expect(JSON.stringify(events)).not.toContain("Live Manager Pipe");
 });
 
+test("product detail lets customers search and select pack variants with their own price and images", async ({ page }) => {
+  const paint = {
+    id: "paint-family", code: "MS-PNT-TEST", name: "Interior Emulsion", brand: "Example Paints",
+    category: "paints", categoryLabel: "Paints & Wall Prep", unit: "pack", image: "/images/products/paint-bucket-illustration.png",
+    galleryImages: ["/images/products/paint-bucket-illustration.png", "/images/categories/paints-category.jpg"],
+    inStock: false, features: [], applications: [], specs: {}, variants: [
+      { id: "paint-1l", label: "1 L · Base White", attributes: { volume: "1 L", shade: "Base White" }, unit: "1 L tin", price: "187.00", compareAtPrice: "258.00", priceNote: "Indicative; confirm", inStock: false, sortOrder: 0 },
+      { id: "paint-4l", label: "4 L · Base White", attributes: { volume: "4 L", shade: "Base White" }, unit: "4 L tin", price: "724.00", compareAtPrice: "953.00", priceNote: "Indicative; confirm", inStock: false, sortOrder: 1 },
+    ],
+  };
+  await page.route("**/api/products", (route) => route.fulfill({ json: [paint] }));
+  await page.goto("/marketplace");
+  await page.getByRole("button", { name: "Specs" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.locator(".rate-big")).toContainText("₹187");
+  await dialog.getByLabel("Choose size, pack or colour").selectOption("paint-4l");
+  await expect(dialog.locator(".rate-big")).toContainText("₹724");
+  await expect(dialog.locator(".selected-size-badge")).toContainText("4 L");
+  await dialog.getByRole("button", { name: "View product image 2" }).click();
+  await expect(dialog.locator(".modal-img-container img")).toHaveAttribute("src", "/images/categories/paints-category.jpg");
+});
+
 test("admin overview displays aggregate website activity and top products", async ({ page }) => {
   await page.route("**/api/auth/mode", (route) => route.fulfill({ json: { demo: true } }));
   await page.route("**/api/auth/staff/login", (route) => route.fulfill({ json: { accessToken: "analytics-test-token" } }));
@@ -306,7 +328,7 @@ test("admin edits customer-facing catalogue price and offer details", async ({ p
   await page.getByLabel("Offer label").fill("October offer");
   await page.getByLabel("Offer starts").fill("2026-10-05");
   await page.getByLabel("Offer ends").fill("2026-10-31");
-  await page.locator('input[type="file"]').setInputFiles({ name: "product.png", mimeType: "image/png", buffer: Buffer.from("test image") });
+  await page.locator('.catalogue-image-upload').filter({ hasText: "Upload product image" }).locator('input[type="file"]').setInputFiles({ name: "product.png", mimeType: "image/png", buffer: Buffer.from("test image") });
   await expect(page.getByLabel("Product image path or HTTPS URL")).toHaveValue("https://assets.example.test/images/test.png");
   await page.getByRole("button", { name: "Save product" }).click();
   await expect(page.getByRole("status")).toContainText("Product saved and published");

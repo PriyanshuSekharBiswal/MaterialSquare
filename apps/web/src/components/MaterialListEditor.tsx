@@ -26,6 +26,11 @@ export default function MaterialListEditor() {
             {item.brand}
             {item.code ? ` · ${item.code}` : ""}
           </span>
+          {item.price != null && <p className="catalogue-price-caveat">
+            Indicative estimate: ₹{Number(item.price).toLocaleString("en-IN")} / {item.unit}
+            {item.compareAtPrice != null && Number(item.compareAtPrice) > Number(item.price) ? ` (reference ₹${Number(item.compareAtPrice).toLocaleString("en-IN")})` : ""}
+            {item.priceNote ? ` · ${item.priceNote}` : " · Confirm current price with staff"}
+          </p>}
           <div className="material-fields">
             <label>
               Quantity
@@ -95,7 +100,7 @@ export default function MaterialListEditor() {
               />
             </label>
           </div>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={()=>updateItems(old=>[...old,{...item,id:`variant-${materialId()}`,catalogueId:item.catalogueId||item.id,specification:'',quantity:1}])}>Add another size</button>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={()=>updateItems(old=>[...old,{...item,id:`variant-${materialId()}`,catalogueId:item.catalogueId||item.id,variantId:undefined,price:undefined,compareAtPrice:undefined,priceNote:undefined,specification:'',quantity:1}])}>Add another size</button>
           <button
             type="button"
             className="btn btn-secondary btn-sm"

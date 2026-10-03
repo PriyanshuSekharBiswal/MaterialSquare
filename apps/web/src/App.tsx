@@ -79,7 +79,7 @@ function AppShell() {
   };
   const handleToggleBOM = (product: MaterialItem) => {
     const catalogueProduct = catalogue.find(item => item.id === product.id);
-    if (catalogueProduct?.specs?.sizes) { setActiveProductModal(catalogueProduct); return; }
+    if (catalogueProduct?.specs?.sizes || catalogueProduct?.variants?.length) { setActiveProductModal(catalogueProduct); return; }
     setBOMList((prev) => {
       const exists = prev.some((item) => item.id === product.id);
       if (exists) {

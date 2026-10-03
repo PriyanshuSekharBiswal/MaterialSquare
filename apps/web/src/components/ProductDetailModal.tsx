@@ -29,7 +29,9 @@ export default function ProductDetailModal({
   const [specification, setSpecification] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [added, setAdded] = useState(false);
-  useEffect(() => { setSpecification(''); setQuantity('1'); setAdded(false); }, [product?.id]);
+  const [selectedVariantId, setSelectedVariantId] = useState('');
+  const [selectedImage, setSelectedImage] = useState('');
+  useEffect(() => { setSpecification(''); setQuantity('1'); setAdded(false); setSelectedVariantId(''); setSelectedImage(''); }, [product?.id]);
   // Lock background scroll, pause Lenis / Locomotive scroll, and handle ESC
   useEffect(() => {
     if (!isOpen || !product) return;
@@ -78,7 +80,16 @@ export default function ProductDetailModal({
   if (!isOpen || !product) return null;
 
   const brandMeta = getBrandMeta(product.brand);
-  const waProductUrl = whatsappLink(productMessage({...product, specification}));
+  const variants = product.variants || [];
+  const selectedVariant = variants.find(variant => variant.id === selectedVariantId) || variants[0];
+  const gallery = Array.from(new Set([...(product.galleryImages || []), product.image])).filter(Boolean);
+  const activeImage = selectedImage || gallery[0] || product.image;
+  const selectedLabel = [selectedVariant?.label, specification.trim()].filter(Boolean).join(' · ');
+  const price = selectedVariant?.price ?? product.price;
+  const compareAtPrice = selectedVariant?.compareAtPrice ?? product.compareAtPrice;
+  const unit = selectedVariant?.unit || product.unit;
+  const selectedInStock = selectedVariant ? selectedVariant.inStock : product.inStock;
+  const waProductUrl = whatsappLink(productMessage({...product, unit, specification: selectedLabel}));
 
   return (
     <div className="ms-modal-backdrop" onClick={onClose} data-lenis-prevent>
@@ -103,8 +114,8 @@ export default function ProductDetailModal({
           {/* Left Column: Visual & Verification */}
           <div className="modal-left-media">
             <div className="modal-img-container">
-              {specification && <span className="selected-size-badge">Requested: {specification}</span>}
-              <img src={product.image} alt={product.name} />{product.image.includes('illustration') && <span className="product-image-note">Illustrative image · confirm selected size</span>}
+              {selectedLabel && <span className="selected-size-badge">Selected: {selectedLabel}</span>}
+              <img src={activeImage} alt={product.name} />{(activeImage.includes('illustration') || activeImage.includes('/categories/')) && <span className="product-image-note">Illustrative image · confirm exact product</span>}
               <div className="modal-brand-overlay">
                 <div className="modal-brand-tag-with-logo">
                   <div className="modal-brand-mini-logo">
@@ -114,6 +125,10 @@ export default function ProductDetailModal({
                 </div>
               </div>
             </div>
+
+            {gallery.length > 1 && <div className="catalogue-gallery-thumbnails" aria-label="Product images">
+              {gallery.map((image, index) => <button type="button" key={`${image}-${index}`} className={image === activeImage ? 'is-active' : ''} onClick={() => setSelectedImage(image)} aria-label={`View product image ${index + 1}`}><img src={image} alt="" /></button>)}
+            </div>}
 
             <div className="modal-dispatch-box">
               <div className="dispatch-row">
@@ -143,19 +158,24 @@ export default function ProductDetailModal({
                 if (!ready || !Number.isFinite(value) || value <= 0 || value > 1000000) return;
                 const selection = specification.trim();
                 const accepted = updateItems(old => {
-                  const existing = old.find(item => (item.catalogueId || item.id) === product.id && (item.specification || '') === selection);
-                  const item = {...product, catalogueId: product.id, id: existing?.id || `${product.id}-${materialId()}`, specification: selection, quantity: value};
+                  const existing = old.find(item => (item.catalogueId || item.id) === product.id && (item.variantId || '') === (selectedVariant?.id || '') && (item.specification || '') === selectedLabel);
+                  const item = {...product, ...(selectedVariant ? { price: selectedVariant.price, compareAtPrice: selectedVariant.compareAtPrice, priceNote: selectedVariant.priceNote, unit, inStock: selectedVariant.inStock, variantId: selectedVariant.id } : {}), catalogueId: product.id, id: existing?.id || `${product.id}-${materialId()}`, specification: selectedLabel, quantity: value};
                   return existing ? old.map(row => row.id === existing.id ? item : row) : [...old, item];
                 });
                 setAdded(accepted);
               }}>
-                <label>Required size / specification{product.specs?.sizes ? ' *' : ' (optional)'}
+                {variants.length > 0 && <label>Choose size, pack or colour
+                  <select required value={selectedVariant?.id || ''} onChange={event => { setSelectedVariantId(event.target.value); setAdded(false); }}>
+                    {variants.map(variant => <option key={variant.id} value={variant.id}>{variant.label}{variant.price != null ? ` · ₹${Number(variant.price).toLocaleString('en-IN')}` : ''}{!variant.inStock ? ' · Check availability' : ''}</option>)}
+                  </select>
+                </label>}
+                {!variants.length && <label>Required size / specification{product.specs?.sizes ? ' *' : ' (optional)'}
                   <input required={Boolean(product.specs?.sizes)} maxLength={500} value={specification} placeholder="Enter your required size or variant" onChange={e=>{setSpecification(e.target.value);setAdded(false);}}/>
-                </label>
-                <label>Quantity ({product.unit})
+                </label>}
+                <label>Quantity ({unit})
                   <input type="number" min="0.001" max="1000000" step="any" required value={quantity} onChange={e=>{setQuantity(e.target.value);setAdded(false);}}/>
                 </label>
-                <button disabled={!canEdit} className="btn btn-orange btn-block">{items.some(item => (item.catalogueId || item.id) === product.id && (item.specification || '') === specification.trim()) ? 'Update this size in Material List' : 'Add this selection to Material List'}</button>
+                <button disabled={!canEdit} className="btn btn-orange btn-block">{items.some(item => (item.catalogueId || item.id) === product.id && (item.variantId || '') === (selectedVariant?.id || '') && (item.specification || '') === selectedLabel) ? 'Update this size in Material List' : 'Add this selection to Material List'}</button>
                 {error && <p role="alert" className="customer-help">{error}</p>}
                 {added && !error && <p role="status" className="customer-help">Selection added. You can enter another size and quantity to add a separate line.</p>}
               </form>
@@ -188,15 +208,20 @@ export default function ProductDetailModal({
             <div className="modal-rate-strip">
               <div>
                 <span className="rate-k">Pricing:</span>
-                <div className="rate-big mono">{'Request a quotation'}</div>
+                <div className="rate-big mono">{price == null ? 'Request a quotation' : <>₹{Number(price).toLocaleString('en-IN')} <small>/ {unit}</small>{compareAtPrice != null && Number(compareAtPrice) > Number(price) && <del>₹{Number(compareAtPrice).toLocaleString('en-IN')}</del>}</>}</div>
+                {(selectedVariant?.offerLabel || product.offerLabel) && <span className="catalogue-offer-badge">{selectedVariant?.offerLabel || product.offerLabel}</span>}
+                {(selectedVariant?.priceNote || product.priceNote) && <small className="catalogue-price-caveat">{selectedVariant?.priceNote || product.priceNote}</small>}
               </div>
-              <span className="moq-pill">Min Order: {product.minOrderQty}</span>
+              <span className="moq-pill">{selectedInStock ? 'In stock' : 'Availability to confirm'}{product.minOrderQty ? ` · Min order: ${product.minOrderQty}` : ''}</span>
             </div>
 
             {/* Technical Parameters Table */}
             <div className="modal-spec-table-wrap">
               <h4 className="spec-table-heading">Technical & Testing Parameters</h4>
               <div className="spec-table">
+                {selectedVariant?.attributes && Object.entries(selectedVariant.attributes).map(([key, val]) => (
+                  <div key={key} className="spec-table-row"><span className="spec-name">{key.replace(/([A-Z])/g, ' $1').toUpperCase()}</span><span className="spec-value mono">{String(val)}</span></div>
+                ))}
                 {product.specs &&
                   Object.entries(product.specs).map(([key, val]) => (
                     <div key={key} className="spec-table-row">

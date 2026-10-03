@@ -103,14 +103,18 @@ Styling continues to use CSS. Jest/Supertest and Playwright cover testing; Vites
 Saved asset: `apps/web/public/images/products/cpvc-pipe-illustration.png`.
 Built-in image generation prompt: photorealistic studio catalogue illustration of three light ivory CPVC straight pipe lengths, visible circular open ends, neutral pale grey background, soft shadow, square composition; no logos, text, dimensions, certification stamps or invented branded markings. Brand and specifications remain separate website text.
 
-## Launch preparation
+## Current hosted test deployment
 
-See [deployment instructions](deployment/README.md) for HTTPS routing, private PostgreSQL, migrations, staff creation, health checks and backup/restore procedures. Docker is unavailable locally, so container builds and live hosting remain unverified. See [client content review](docs/launch-content-review.md) for business details requiring approval. Real OTP activation remains deferred.
+The customer and admin Vercel projects are deployed from GitHub `main`, with the NestJS API on Render's Free demo service. The new catalogue release is prepared for that test environment: it adds measured product variants, gallery images, search by size/pack, and admin controls for variant prices, dated offers and stock. The database migration and API restart seed/backfill the preview catalogue; until the new API deployment completes, the hosted marketplace may still show the earlier catalogue. A live MSG91 SMS send and complete owner/staff workflow have not been verified against the hosted environment.
 
-Product detail forms accept separate sizes and quantities for the same catalogue product. Each selection remains a separate list line and appears in the WhatsApp/email request. The selected specification is shown over the representative image, without inventing dimensions on the product itself.
+Do not use the free demo database for client data: Render Free Postgres expires after 30 days and has no backups. Production still requires the paid/persistent API and PostgreSQL resources in the root Render blueprint, client domain/DNS, private production secrets, storage, client-approved catalogue and policies, backups/restore checks, and a real SMS test. The API deploy predates the last frontend-only copy correction; it contains the same current V1 API code. See [managed deployment setup](deployment/vercel-render.md), the [client launch checklist](docs/client-launch-inputs.md), and [content review](docs/launch-content-review.md) for exact prerequisites.
+
+Automated verification completed for the current code: TypeScript typecheck, production builds, 50 API tests (34 passed; 16 database-dependent tests skipped in this sandbox), 17 browser acceptance tests, Prisma schema validation, and `git diff --check`. The GitHub workflow runs the database-backed integration suites with PostgreSQL. These checks do not replace the pending live SMS, storage, production backup and client acceptance checks.
+
+The staff catalogue supports separate sellable pack/size/colour variants with their own units, price, offer dates, stock quantity and gallery. Customer selections retain their variant and clearly labelled indicative estimate in the saved material list and WhatsApp/email draft; final price and stock are reconfirmed by staff. New demo entries start unavailable until staff confirm inventory.
 
 ## Demo and first-release staff workspace
 
 Run `npm run demo` for persistent local account testing with MSG91 customer login and staff mobile/password login. See [demo testing instructions](docs/demo-testing.md) for multi-device checks and data separation. The current staff workspace contains customer accounts, saved material lists and manual follow-ups; the earlier quotation/order screens remain archived for later work.
 
-For GitHub + Vercel + Render, follow [managed deployment setup](deployment/vercel-render.md). Production hosting, production database, DNS, live OTP provider configuration and client approval of the launch content still need to be completed.
+For GitHub + Vercel + Render, follow [managed deployment setup](deployment/vercel-render.md). The customer-facing test site and staff panel are already deployed; the original client's production environment and approvals remain to be completed.

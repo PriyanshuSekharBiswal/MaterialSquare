@@ -8,6 +8,30 @@ const optionalText = z.string().trim().max(500).nullable().optional();
 const optionalDate = z.string().date().nullable().optional().transform((value) =>
   value ? new Date(`${value}T00:00:00.000Z`) : null,
 );
+const imagePath = z.string().trim().max(1000)
+  .refine((value) => value.startsWith("/") && !value.startsWith("//") || /^https:\/\//i.test(value), "Use a site image path or an HTTPS image URL");
+const variantSchema = z.object({
+  code: z.string().trim().max(80).nullable().optional(),
+  label: z.string().trim().min(1).max(160),
+  attributes: z.record(z.string(), z.string().trim().max(120)).default({}),
+  unit: z.string().trim().min(1).max(100),
+  price: z.number().finite().nonnegative().nullable().optional(),
+  compareAtPrice: z.number().finite().nonnegative().nullable().optional(),
+  priceNote: z.string().trim().max(120).nullable().optional(),
+  offerLabel: z.string().trim().max(120).nullable().optional(),
+  offerStartsAt: optionalDate,
+  offerEndsAt: optionalDate,
+  isInStock: z.boolean().default(false),
+  stockQuantity: z.number().finite().nonnegative().nullable().optional(),
+  minOrderQuantity: z.number().finite().positive().nullable().optional(),
+  sortOrder: z.number().int().min(0).max(100000).default(0),
+}).refine((variant) => variant.compareAtPrice == null || variant.price == null || variant.compareAtPrice >= variant.price, {
+  message: "Original price must be equal to or greater than the selling price",
+  path: ["compareAtPrice"],
+}).refine((variant) => !variant.offerStartsAt || !variant.offerEndsAt || variant.offerStartsAt <= variant.offerEndsAt, {
+  message: "Offer end date must be on or after its start date",
+  path: ["offerEndsAt"],
+});
 const listingSchema = z.object({
   slug: z.string().trim().min(2).max(120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   code: z.string().trim().max(80).nullable().optional(),
@@ -18,9 +42,8 @@ const listingSchema = z.object({
   categoryLabel: z.string().trim().min(2).max(120),
   unit: z.string().trim().min(1).max(100),
   packaging: optionalText,
-  image: z.string().trim().max(1000)
-    .refine((value) => value.startsWith("/") && !value.startsWith("//") || /^https:\/\//i.test(value), "Use a site image path or an HTTPS image URL")
-    .nullable().optional(),
+  image: imagePath.nullable().optional(),
+  galleryImages: z.array(imagePath).max(12).default([]),
   grade: optionalText,
   description: z.string().trim().max(3000).nullable().optional(),
   minOrderQty: optionalText,
@@ -36,6 +59,7 @@ const listingSchema = z.object({
   features: z.array(z.string().trim().min(1).max(300)).max(30),
   applications: z.array(z.string().trim().min(1).max(300)).max(30),
   specifications: z.record(z.string(), z.string().trim().max(300)),
+  variants: z.array(variantSchema).max(100).default([]),
   sortOrder: z.number().int().min(0).max(100000),
 }).refine((data) => data.compareAtPrice == null || data.price == null || data.compareAtPrice >= data.price, {
   message: "Original price must be equal to or greater than the selling price",

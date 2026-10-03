@@ -14,6 +14,8 @@ type Listing = {
   unit: string;
   packaging: string | null;
   image: string | null;
+  galleryImages: string[];
+  variants: Variant[];
   grade: string | null;
   description: string | null;
   minOrderQty: string | null;
@@ -31,11 +33,18 @@ type Listing = {
   specifications: Record<string, string>;
   sortOrder: number;
 };
+type Variant = {
+  id?: string; code?: string | null; label: string; attributes: Record<string, string>; unit: string;
+  price?: string | number | null; compareAtPrice?: string | number | null; priceNote?: string | null;
+  offerLabel?: string | null; offerStartsAt?: string | null; offerEndsAt?: string | null; inStock: boolean; stockQuantity?: string | number | null;
+  minOrderQuantity?: string | number | null; sortOrder: number;
+};
 
 const blank: Listing = {
   id: "", slug: "", code: "", name: "", brand: "", brandTagline: "",
   category: "cement", categoryLabel: "Cement & Aggregates", unit: "", packaging: "",
   image: "", grade: "", description: "", minOrderQty: "", dispatchTime: "",
+  galleryImages: [], variants: [],
   price: null, compareAtPrice: null, priceNote: "", offerLabel: "", isInStock: false,
   offerStartsAt: null, offerEndsAt: null,
   isPublished: false, features: [], applications: [], specifications: {}, sortOrder: 0,
@@ -50,6 +59,12 @@ const specsFromLines = (value: FormDataEntryValue | null) => Object.fromEntries(
 );
 const lines = (values: string[]) => values.join("\n");
 const dateField = (value: string | null) => value ? value.slice(0, 10) : "";
+const parseVariants = (value: FormDataEntryValue | null): Variant[] => String(value || "").split("\n").map(line => line.trim()).filter(Boolean).map((line, sortOrder) => {
+  const [label = "", unit = "", rawPrice = "", rawCompare = "", rawStock = "", availability = "no", rawAttributes = "", offerLabel = "", offerStartsAt = "", offerEndsAt = "", priceNote = "", code = ""] = line.split("|").map(part => part.trim());
+  const attributes = Object.fromEntries(rawAttributes.split(";").map(pair => pair.trim()).filter(Boolean).map(pair => { const index = pair.indexOf("="); return index < 1 ? [pair, ""] : [pair.slice(0, index).trim(), pair.slice(index + 1).trim()]; }));
+  return { label, unit, code: code || null, price: rawPrice ? Number(rawPrice) : null, compareAtPrice: rawCompare ? Number(rawCompare) : null, stockQuantity: rawStock ? Number(rawStock) : null, inStock: availability.toLowerCase() === "yes", attributes, offerLabel: offerLabel || null, offerStartsAt: offerStartsAt || null, offerEndsAt: offerEndsAt || null, priceNote: priceNote || null, sortOrder };
+}).filter(variant => variant.label && variant.unit);
+const variantLines = (variants: Variant[]) => variants.map(variant => [variant.label, variant.unit, variant.price ?? "", variant.compareAtPrice ?? "", variant.stockQuantity ?? "", variant.inStock ? "yes" : "no", Object.entries(variant.attributes || {}).map(([key, value]) => `${key}=${value}`).join("; "), variant.offerLabel || "", dateField(variant.offerStartsAt || null), dateField(variant.offerEndsAt || null), variant.priceNote || "", variant.code || ""].join(" | ")).join("\n");
 
 export default function CatalogueManager({ token, role, onSignOut }: { token: string; role: string; onSignOut: () => void }) {
   const [listings, setListings] = useState<Listing[]>([]);
@@ -106,6 +121,34 @@ export default function CatalogueManager({ token, role, onSignOut }: { token: st
     } finally { setBusy(false); }
   }
 
+  async function uploadGalleryImages(files: FileList, input: HTMLInputElement) {
+    const selected = Array.from(files);
+    if (selected.length > 8 || selected.some(file => !new Set(["image/png", "image/jpeg", "image/webp"]).has(file.type) || file.size > 5 * 1024 * 1024)) {
+      setError("Choose up to 8 PNG, JPEG, or WebP images, each 5 MB or smaller.");
+      input.value = "";
+      return;
+    }
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const uploaded: string[] = [];
+      for (const file of selected) {
+        const body = new FormData(); body.append("file", file);
+        const response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/storage/images`, {
+          method: "POST", headers: { Authorization: `Bearer ${token}` }, body,
+          signal: AbortSignal.timeout(60000),
+        });
+        const result = await response.json().catch(() => null) as { url?: string; message?: string } | null;
+        if (response.status === 401) onSignOut();
+        if (!response.ok || !result?.url) throw new Error(typeof result?.message === "string" ? result.message : `Could not upload ${file.name}.`);
+        uploaded.push(result.url);
+      }
+      setEditing(current => current ? { ...current, galleryImages: Array.from(new Set([...(current.galleryImages || []), ...uploaded])) } : current);
+      setNotice(`${uploaded.length} gallery image${uploaded.length === 1 ? "" : "s"} uploaded. Save the product to keep them.`);
+      input.value = "";
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not upload these gallery images."); }
+    finally { setBusy(false); }
+  }
+
   const refresh = useCallback(async () => {
     setBusy(true); setError("");
     try { setListings(await request<Listing[]>("/products/catalogue")); }
@@ -133,6 +176,7 @@ export default function CatalogueManager({ token, role, onSignOut }: { token: st
       unit: String(values.get("unit") || "").trim(),
       packaging: String(values.get("packaging") || "").trim() || null,
       image: String(values.get("image") || "").trim() || null,
+      galleryImages: fromLines(values.get("galleryImages")),
       grade: String(values.get("grade") || "").trim() || null,
       description: String(values.get("description") || "").trim() || null,
       minOrderQty: String(values.get("minOrderQty") || "").trim() || null,
@@ -148,6 +192,7 @@ export default function CatalogueManager({ token, role, onSignOut }: { token: st
       features: fromLines(values.get("features")),
       applications: fromLines(values.get("applications")),
       specifications: specsFromLines(values.get("specifications")),
+      variants: parseVariants(values.get("variants")),
       sortOrder: Number(values.get("sortOrder") || 0),
     };
     if (rawCompare && rawPrice && Number(rawCompare) < Number(rawPrice)) {
@@ -208,12 +253,15 @@ export default function CatalogueManager({ token, role, onSignOut }: { token: st
         <label>Packaging<input name="packaging" maxLength={500} defaultValue={formProduct.packaging || ""}/></label>
         <label>Brand tagline<input name="brandTagline" maxLength={500} defaultValue={formProduct.brandTagline || ""}/></label>
         <label>Product image path or HTTPS URL<input name="image" maxLength={1000} placeholder="/images/products/example.png" value={formProduct.image || ""} onChange={(event) => setEditing({ ...formProduct, image: event.target.value })}/></label>
+        <label>More product images (one site path or HTTPS URL per line)<textarea name="galleryImages" rows={3} value={lines(formProduct.galleryImages || [])} onChange={event => setEditing({ ...formProduct, galleryImages: fromLines(event.currentTarget.value) })}/><small>Use specific product images when available; category illustrations are illustrative.</small></label>
+        <label className="catalogue-image-upload"><span><Upload size={14}/> Upload gallery images</span><input type="file" accept="image/png,image/jpeg,image/webp" multiple disabled={busy} onChange={(event) => { const input = event.currentTarget; const files = input.files; if (files?.length) void uploadGalleryImages(files, input); }}/><small>Up to 8 at a time, PNG/JPEG/WebP, 5 MB each.</small></label>
         <label className="catalogue-image-upload"><span><Upload size={14}/> Upload product image</span><input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={(event) => { const input = event.currentTarget; const file = input.files?.[0]; if (file) void uploadImage(file, input); }}/><small>PNG, JPEG or WebP, up to 5 MB. Storage must be configured.</small></label>
         <label>Display order<input name="sortOrder" type="number" min="0" step="1" defaultValue={formProduct.sortOrder}/></label>
         <label className="catalogue-wide">Short description<textarea name="description" rows={3} maxLength={3000} defaultValue={formProduct.description || ""}/></label>
         <label>Features (one per line)<textarea name="features" rows={5} defaultValue={lines(formProduct.features)}/></label>
         <label>Applications (one per line)<textarea name="applications" rows={5} defaultValue={lines(formProduct.applications)}/></label>
         <label className="catalogue-wide">Specifications (one “name: value” per line)<textarea name="specifications" rows={5} defaultValue={Object.entries(formProduct.specifications || {}).map(([key, value]) => `${key}: ${value}`).join("\n")}/></label>
+        <label className="catalogue-wide">Sellable variants<textarea aria-label="Sellable variants" name="variants" rows={6} placeholder={'1 L | tin | 187 | 258 | 12 | yes | pack=1 L; shade=Base White | Sample offer | 2026-10-01 | 2026-10-15 | Confirm current price | SKU-001'} defaultValue={variantLines(formProduct.variants || [])}/><small>One per line: label | unit | price | original price | stock qty | in stock yes/no | attributes | offer label | start date | end date | price note | variant code. Use exact units. Leave price blank if not confirmed. A variant’s stock overrides family stock.</small></label>
       </div>
       <div className="catalogue-form-checks"><label><input name="isInStock" type="checkbox" defaultChecked={formProduct.isInStock}/> Show as in stock</label><label><input name="isPublished" type="checkbox" defaultChecked={formProduct.isPublished}/> Publish on website</label></div>
       <div className="catalogue-form-footer"><small><Image size={14}/> Use approved product images; do not upload brand logos or alter brand artwork here.</small><button className="btn-sm btn-primary" disabled={busy}><Save size={15}/>{busy ? "Saving…" : "Save product"}</button></div>
@@ -225,7 +273,7 @@ export default function CatalogueManager({ token, role, onSignOut }: { token: st
         <div className="catalogue-listing-image"><img src={product.image || "/images/products/material-sack-illustration.png"} alt=""/></div>
         <div className="catalogue-listing-main"><div className="catalogue-listing-title"><h3>{product.name}</h3><span className={product.isPublished ? "catalogue-published" : "catalogue-draft"}>{product.isPublished ? "Published" : "Draft"}</span></div>
           <p>{product.brand || "Unbranded"} · {product.categoryLabel} · {product.unit}</p>
-          <div className="catalogue-price-line">{product.price == null ? <span>Price not set</span> : <strong>₹{Number(product.price).toLocaleString("en-IN")} / {product.unit}</strong>}{product.compareAtPrice != null && <del>₹{Number(product.compareAtPrice).toLocaleString("en-IN")}</del>}{product.priceNote && <span>{product.priceNote}</span>}{product.offerLabel && <span className="catalogue-offer">{product.offerLabel}</span>}</div>
+          <div className="catalogue-price-line">{product.variants?.length ? <strong>{product.variants.length} sellable variants</strong> : product.price == null ? <span>Price not set</span> : <strong>₹{Number(product.price).toLocaleString("en-IN")} / {product.unit}</strong>}{product.compareAtPrice != null && <del>₹{Number(product.compareAtPrice).toLocaleString("en-IN")}</del>}{product.priceNote && <span>{product.priceNote}</span>}{product.offerLabel && <span className="catalogue-offer">{product.offerLabel}</span>}</div>
         </div>
         {canManage && <div className="catalogue-listing-controls"><button className="btn-sm btn-secondary" disabled={busy} onClick={() => startEdit(product)}>Edit</button>{product.isPublished && <button className="btn-sm btn-secondary" disabled={busy} onClick={() => void unpublish(product)}>Unpublish</button>}</div>}
       </article>)}
