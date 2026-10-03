@@ -438,26 +438,26 @@ test("marketplace displays published API product prices and offer labels", async
   await expect(page.locator(".catalogue-price-caveat")).toHaveText("per length, GST extra");
 });
 
-test('account and request screens fit mobile and provide clear previews', async ({page})=>{
+test('account and request screens fit mobile and provide clear previews', async ({page}, testInfo)=>{
  let legacyActivityCalls=0;
  await page.route('**/api/customer/me', route=>route.fulfill({json:{...customer,materialList:[{id:'cpvc',name:'CPVC pipe',brand:'Preferred brand',unit:'Pieces',quantity:20,specification:'3/4 inch'}]}}));
  await page.route('**/api/customer/activity', route=>{legacyActivityCalls++; return route.fulfill({json:{requests:[],quotations:[],orders:[],loyalty:null}});});
  await page.goto('/get-quote');
  await page.getByRole('button',{name:'Preview request'}).click();
- await page.screenshot({path:'/private/tmp/material-square-request-desktop.png',fullPage:true});
+ await page.screenshot({path:testInfo.outputPath('material-square-request-desktop.png'),fullPage:true});
  await page.setViewportSize({width:390,height:844});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
- await page.screenshot({path:'/private/tmp/material-square-request-mobile.png',fullPage:true});
+ await page.screenshot({path:testInfo.outputPath('material-square-request-mobile.png'),fullPage:true});
  await page.goto('/account');
   await expect(page.getByLabel('Full name')).toHaveValue('Test Customer');
   await expect(page.getByRole('heading',{name:'Requests, quotations & orders'})).toHaveCount(0);
   await expect(page.getByRole('heading',{name:'Material Square points'})).toHaveCount(0);
   expect(legacyActivityCalls).toBe(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
- await page.screenshot({path:'/private/tmp/material-square-account-mobile.png',fullPage:true});
+ await page.screenshot({path:testInfo.outputPath('material-square-account-mobile.png'),fullPage:true});
 });
 
-test('different pipe sizes remain separate after refresh and in request messages', async ({page}) => {
+test('different pipe sizes remain separate after refresh and in request messages', async ({page}, testInfo) => {
   let saved: unknown[] = [];
   let version = 0;
   await page.route('**/api/customer/me', route => route.fulfill({json:{...customer, materialList:saved, listVersion:version}}));
@@ -479,7 +479,7 @@ test('different pipe sizes remain separate after refresh and in request messages
   await dialog.getByRole('button', {name:'Add this selection to Material List'}).click();
   await expect.poll(()=>saved.length).toBe(2);
   await page.setViewportSize({width:390,height:844});
-  await page.screenshot({path:'/private/tmp/material-square-product-mobile.png'});
+  await page.screenshot({path:testInfo.outputPath('material-square-product-mobile.png')});
   expect(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   await dialog.getByRole('button',{name:'Close details'}).click();
   await page.goto('/get-quote');
