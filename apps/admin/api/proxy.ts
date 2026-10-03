@@ -6,9 +6,11 @@ const hopByHop = new Set([
   "te", "trailer", "transfer-encoding", "upgrade", "host",
 ]);
 const methods = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);
+const previewApiOrigin = "https://material-square-demo-api.onrender.com";
 
 export default function handler(req: IncomingMessage, res: ServerResponse) {
-  const configuredOrigin = process.env.API_ORIGIN?.trim();
+  const configuredOrigin = process.env.API_ORIGIN?.trim() ||
+    (process.env.VERCEL_ENV === "preview" ? previewApiOrigin : "");
   if (!configuredOrigin) {
     res.writeHead(503, { "Content-Type": "application/json", "Cache-Control": "no-store" });
     res.end(JSON.stringify({ message: "API is not configured" }));
@@ -49,7 +51,7 @@ export default function handler(req: IncomingMessage, res: ServerResponse) {
     res.writeHead(response.statusCode || 502, responseHeaders);
     response.pipe(res);
   });
-  upstream.setTimeout(25_000, () => upstream.destroy(new Error("API request timed out")));
+  upstream.setTimeout(59_000, () => upstream.destroy(new Error("API request timed out")));
   upstream.on("error", () => {
     if (res.headersSent) return res.destroy();
     res.writeHead(502, { "Content-Type": "application/json", "Cache-Control": "no-store" });

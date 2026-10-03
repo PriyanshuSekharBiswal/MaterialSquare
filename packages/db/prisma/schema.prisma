@@ -805,3 +805,12 @@ model AnalyticsCounter {
   @@index([day, eventType])
   @@map("analytics_counters")
 }
+
+// One-time bootstrap markers for non-production demo data. Production never
+// reads or writes these records.
+model DemoBootstrapState {
+  key       String   @id
+  createdAt DateTime @default(now())
+
+  @@map("demo_bootstrap_state")
+}

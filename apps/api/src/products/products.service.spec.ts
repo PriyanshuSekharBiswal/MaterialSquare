@@ -5,6 +5,38 @@ import { getDemoVariants } from "./catalog-demo-variants";
 import { PREVIEW_CATALOG_LEGACY_SOURCE } from "./catalog-legacy-baseline";
 
 describe("customer catalogue", () => {
+  it("publishes the existing demo sample catalogue once and preserves later staff visibility edits", async () => {
+    const previousAppEnv = process.env.APP_ENV;
+    process.env.APP_ENV = "demo";
+    const prisma = {
+      catalogListing: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: PRODUCTS.length }),
+      },
+      demoBootstrapState: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+    };
+    try {
+      await new ProductsService(prisma as unknown as PrismaService).onModuleInit();
+      expect(prisma.catalogListing.updateMany).toHaveBeenCalledWith({
+        where: { slug: { in: PRODUCTS.map((product) => product.id) }, isPublished: false },
+        data: { isPublished: true },
+      });
+      expect(prisma.demoBootstrapState.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { key: "preview-catalogue-published-v1" },
+      }));
+      prisma.demoBootstrapState.findUnique.mockResolvedValue({ key: "preview-catalogue-published-v1" });
+      await new ProductsService(prisma as unknown as PrismaService).onModuleInit();
+      expect(prisma.catalogListing.updateMany).toHaveBeenCalledTimes(1);
+    } finally {
+      if (previousAppEnv === undefined) delete process.env.APP_ENV;
+      else process.env.APP_ENV = previousAppEnv;
+    }
+  });
+
   it("ships sample catalogue copy without unverified technical claims or availability", () => {
     expect(PRODUCTS).toHaveLength(22);
     expect(PRODUCTS.every((product) => product.inStock === false)).toBe(true);

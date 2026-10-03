@@ -105,25 +105,46 @@ async function initialize(): Promise<void> {
 }
 
 function sdkCall(
+  operation: "send" | "resend" | "verify",
   invoke: (
     success: Msg91WidgetCallback,
     failure: (error: unknown) => void,
   ) => void,
 ): Promise<Msg91WidgetResponse> {
   return new Promise((resolve, reject) => {
-    const failure = () =>
-      reject(
-        new Error("MSG91 could not complete verification. Please try again."),
-      );
+    const failure = (error?: unknown) => {
+      const details = safeFailureDetails(error);
+      console.warn("MSG91 OTP widget request failed", { operation, details });
+      reject(new Error("We couldn't verify that code. Please request a new code and try again."));
+    };
     try {
       invoke((response) => {
-        if (response.type?.toLowerCase() === "error") failure();
+        if (response.type?.toLowerCase() === "error") failure(response);
         else resolve(response);
       }, failure);
-    } catch {
-      failure();
+    } catch (error) {
+      failure(error);
     }
   });
+}
+
+function safeFailureDetails(error: unknown): string {
+  const value =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : error && typeof error === "object"
+          ? ["code", "message", "type", "status"]
+              .map((key) => (error as Record<string, unknown>)[key])
+              .filter((part): part is string | number => typeof part === "string" || typeof part === "number")
+              .join(" ")
+          : "";
+  return value
+    .replace(/\b\d{6}\b/g, "[code]")
+    .replace(/\b(?:91)?[6-9]\d{9}\b/g, "[number]")
+    .replace(/\beyJ[A-Za-z0-9._-]+/g, "[token]")
+    .slice(0, 120);
 }
 
 function requestId(response: Msg91WidgetResponse) {
@@ -134,7 +155,7 @@ export async function sendMsg91Otp(phone: string): Promise<string> {
   await initialize();
   if (!window.sendOtp)
     throw new Error("SMS verification is unavailable. Please try again later.");
-  const result = await sdkCall((success, failure) =>
+  const result = await sdkCall("send", (success, failure) =>
     window.sendOtp!(`91${phone}`, success, failure),
   );
   const reqId = requestId(result);
@@ -147,7 +168,7 @@ export async function retryMsg91Otp(reqId: string): Promise<string> {
   await initialize();
   if (!window.retryOtp)
     throw new Error("SMS resend is unavailable. Please try again later.");
-  const result = await sdkCall((success, failure) =>
+  const result = await sdkCall("resend", (success, failure) =>
     window.retryOtp!("11", success, failure, reqId || undefined),
   );
   return requestId(result) || reqId;
@@ -160,7 +181,7 @@ export async function verifyMsg91Otp(
   await initialize();
   if (!window.verifyOtp)
     throw new Error("SMS verification is unavailable. Please try again later.");
-  const result = await sdkCall((success, failure) =>
+  const result = await sdkCall("verify", (success, failure) =>
     window.verifyOtp!(otp, success, failure, reqId || undefined),
   );
   const accessToken =

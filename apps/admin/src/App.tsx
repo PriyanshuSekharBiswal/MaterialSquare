@@ -207,29 +207,38 @@ export function App() {
   }, [setToken]);
   const request = useCallback(
     async <T,>(path: string, method = "GET", body?: unknown): Promise<T> => {
-      const r = await fetch(
-        `${import.meta.env.VITE_API_URL || "/api"}${path}`,
-        {
-          method,
-          cache: "no-store",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      let r: Response;
+      try {
+        r = await fetch(
+          `${import.meta.env.VITE_API_URL || "/api"}${path}`,
+          {
+            method,
+            cache: "no-store",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: body === undefined ? undefined : JSON.stringify(body),
+            signal: AbortSignal.timeout(65000),
           },
-          body: body === undefined ? undefined : JSON.stringify(body),
-          signal: AbortSignal.timeout(15000),
-        },
-      );
+        );
+      } catch {
+        throw new Error("The workspace is taking longer than usual to respond. Please try again shortly.");
+      }
       const data = await r.json().catch(() => null);
       if (!r.ok) {
         if (r.status === 401) {
           setToken("");
           setStaff(null);
         }
+        if (r.status >= 500)
+          throw new Error("The workspace is temporarily unavailable. Please try again shortly.");
         throw new Error(
           data?.message || "Unable to connect. Please try again.",
         );
       }
+      if (!data || typeof data !== "object")
+        throw new Error("The workspace is starting. Please try again shortly.");
       return data as T;
     },
     [token, setToken],

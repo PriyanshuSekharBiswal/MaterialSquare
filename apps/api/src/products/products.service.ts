@@ -222,6 +222,27 @@ export class ProductsService implements OnModuleInit {
     }
     this.logger.log(`Preview catalogue seed checked ${PRODUCTS.length} families: ${created} created, ${backfilled} backfilled, ${existingCount} preserved.`);
     if (hidden.size) this.logger.warn(`Preview catalogue families remain unpublished (preserved staff state): ${[...hidden].join(", ")}`);
+
+    // The first demo database used unpublished placeholder rows. Publish the
+    // illustrative catalogue once so the public preview is usable, then keep
+    // any later staff visibility changes across restarts. This marker is never
+    // touched outside the isolated demo environment.
+    if (process.env.APP_ENV === "demo") {
+      const markerKey = "preview-catalogue-published-v1";
+      const bootstrapped = await this.prisma.demoBootstrapState.findUnique({ where: { key: markerKey } });
+      if (!bootstrapped) {
+        await this.prisma.catalogListing.updateMany({
+          where: { slug: { in: PRODUCTS.map((product) => product.id) }, isPublished: false },
+          data: { isPublished: true },
+        });
+        await this.prisma.demoBootstrapState.upsert({
+          where: { key: markerKey },
+          create: { key: markerKey },
+          update: {},
+        });
+        this.logger.log("Published the illustrative demo catalogue once; staff can now manage its visibility.");
+      }
+    }
   }
 
   async findPublic() {

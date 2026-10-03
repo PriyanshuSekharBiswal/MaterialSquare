@@ -56,7 +56,7 @@ export default function BusinessConsole({
   const request = useCallback(async <T,>(url: string, method = "GET", body?: unknown): Promise<T> => {
     const response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}${url}`, {
       method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15000),
+      body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(65000),
     });
     const result = await response.json().catch(() => null);
     if (response.status === 401) onSignOut();

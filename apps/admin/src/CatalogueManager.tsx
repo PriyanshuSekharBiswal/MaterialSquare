@@ -80,7 +80,7 @@ export default function CatalogueManager({ token, role, onSignOut }: { token: st
       method,
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(65000),
     });
     const result = await response.json().catch(() => null);
     if (response.status === 401) onSignOut();

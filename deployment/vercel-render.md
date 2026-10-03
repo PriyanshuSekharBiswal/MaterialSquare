@@ -6,7 +6,7 @@ The repository contains app-specific Vercel configurations with same-origin API 
 
 Connect the same GitHub repository twice. Set the customer project's Root Directory to `apps/web`, and the staff project's Root Directory to `apps/admin`. Enable inclusion of source files outside the root directory so npm workspaces can use the shared package and root lockfile. Use Node 22. The app-specific `vercel.json` supplies install/build/output and SPA navigation settings.
 
-Set server-side `API_ORIGIN` on BOTH Vercel projects to the API service HTTPS origin, for example `https://material-square-api.onrender.com` (without `/api`). Leave `VITE_API_URL` unset so both browser apps use `/api` on their own origin. The proxy function forwards API requests and customer session cookies to the configured API origin. Redeploy both projects after changing the variable.
+Set server-side `API_ORIGIN` on BOTH Vercel projects to the API service HTTPS origin, for example `https://material-square-api.onrender.com` (without `/api`). Leave `VITE_API_URL` unset so both browser apps use `/api` on their own origin. The proxy function forwards API requests and customer session cookies to the configured API origin. Vercel Preview deployments without an `API_ORIGIN` use the public demo API; Production still requires an explicit `API_ORIGIN`. Redeploy both projects after changing the variable.
 
 Assign customer domain `YOUR-DOMAIN` (and redirect www as desired) and `staff.YOUR-DOMAIN` to the respective projects. The same-origin proxy keeps customer cookies on the customer website host and staff API calls on the admin host. Use the demo API origin for test deployments only.
 
