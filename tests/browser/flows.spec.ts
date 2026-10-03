@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { SITE_CONTENT_DEFAULTS } from "@material-square/types";
 
 const customer = {
   id: "customer-1",
@@ -214,6 +215,38 @@ test("admin overview displays aggregate website activity and top products", asyn
   await expect(page.getByText("87", { exact: true })).toBeVisible();
   await expect(page.getByText("Astral CPVC Pipe", { exact: true })).toBeVisible();
   await expect(page.getByText(/no visitor IDs/)).toBeVisible();
+});
+
+test("staff website content edits publish to the public homepage", async ({ page }) => {
+  let savedContent = { ...SITE_CONTENT_DEFAULTS, "home.title": "Staff-updated headline\nUpdated second line" };
+  let publishedPayload: typeof savedContent | undefined;
+  await page.route("**/api/site-content", (route) => route.fulfill({ json: savedContent }));
+  await page.route("**/api/auth/mode", (route) => route.fulfill({ json: { demo: true } }));
+  await page.route("**/api/auth/staff/login", (route) => route.fulfill({ json: { accessToken: "content-test-token" } }));
+  await page.route("**/api/auth/staff/me", (route) => route.fulfill({ json: { name: "Website Manager", role: "SUPER_ADMIN", isDemo: true } }));
+  await page.route("**/api/workspace/overview", (route) => route.fulfill({ json: { customers: 0, newCustomers30Days: 0, activeCustomers30Days: 0, openFollowups: 0, closedFollowups: 0, demo: true } }));
+  await page.route("**/api/analytics/overview**", (route) => route.fulfill({ json: { days: 30, totals: { pageViews: 0, productViews: 0, addToList: 0, requestHandoffs: 0 }, daily: [], topPages: [], topProducts: [], privacy: "Aggregate counts only." } }));
+  await page.route("**/api/admin/site-content", (route) => {
+    if (route.request().method() === "PUT") {
+      publishedPayload = route.request().postDataJSON();
+      savedContent = publishedPayload!;
+    }
+    return route.fulfill({ json: savedContent });
+  });
+
+  await page.goto("http://127.0.0.1:4174");
+  await page.getByLabel("Mobile number or email").fill("owner@example.com");
+  await page.getByLabel("Password").fill("long-test-password");
+  await page.getByRole("button", { name: "Sign In to Workspace" }).click();
+  await page.getByRole("button", { name: "Website pages & content" }).click();
+  await expect(page.getByLabel("Main heading")).toHaveValue("Staff-updated headline\nUpdated second line");
+  await page.getByLabel("Main heading").fill("Published by admin\nSecond line");
+  await page.getByRole("button", { name: "Save and publish" }).click();
+  await expect(page.getByRole("status")).toHaveText("Website copy saved and published.");
+  expect(publishedPayload?.["home.title"]).toBe("Published by admin\nSecond line");
+
+  await page.goto("http://127.0.0.1:4173/");
+  await expect(page.getByText("Published by admin", { exact: true })).toBeVisible();
 });
 test("OTP sign-in restores account and logout clears browser view", async ({
   page,

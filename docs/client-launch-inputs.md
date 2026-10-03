@@ -57,7 +57,7 @@ Approve the product illustrations already on the site, or provide approved manuf
 
 - Initial owner/Super Admin name and 10-digit Indian mobile number.
 - A temporary owner password of at least 12 characters, entered privately during setup and shared securely with the owner.
-- Staff names, sign-in mobile number or email, and one V1 role per person: Administrator, Sales & Customer Support, or Catalogue & Pricing Manager. Procurement, dispatch, accounts and website-content roles remain unavailable until those panels are built.
+- Staff names, sign-in mobile number or email, and one V1 role per person: Administrator, Sales & Customer Support, Catalogue & Pricing Manager, or Website Content Manager. The website editor manages approved page text and contact details; page layout remains a code change.
 - Name a second trusted owner for emergency access and password recovery.
 
 Never put account passwords in this document.
@@ -87,8 +87,9 @@ After the production settings and approvals are in place, the client should veri
 3. A different mobile number sees a separate account; logout ends only that device's session.
 4. Owner can create staff accounts, assign only approved roles, disable access and reset staff passwords.
 5. Staff can create/edit products, upload an approved image, set price/tax note/offer/stock, publish and unpublish; changes appear on the website.
-6. Customer/site details and selected products appear in the WhatsApp or email preview; the customer presses Send in that app.
-7. Page views, product views, material-list additions, and request handoffs appear in the staff dashboard without visitor identity or search text.
-8. Database backups, restore procedure and uptime alerts are verified.
+6. Website Content Manager can edit and publish the supported page text and business contact details; saved text appears on the customer site after refresh.
+7. Customer/site details and selected products appear in the WhatsApp or email preview; the customer presses Send in that app.
+8. Page views, product views, material-list additions, and request handoffs appear in the staff dashboard without visitor identity or search text.
+9. Database backups, restore procedure and uptime alerts are verified.
 
 Website quotation generation/history, checkout, procurement, suppliers, purchase orders, transportation, blogs, commission and loyalty workflows are outside V1 and need separate scope and business rules.

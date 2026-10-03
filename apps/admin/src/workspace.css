@@ -121,3 +121,16 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+.website-content-manager { display: grid; gap: 18px; }
+.website-content-manager .staff-management-header { align-items: flex-start; flex-wrap: wrap; }
+.website-content-manager .staff-management-header h2 { margin: 8px 0; }
+.website-content-manager .staff-management-header p { max-width: 740px; margin: 0; }
+.website-content-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.website-content-actions button { display: inline-flex; align-items: center; gap: 8px; }
+.website-content-group h3 { margin: 0 0 16px; }
+.website-content-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.website-content-fields label { display: grid; gap: 7px; color: #34445c; font-weight: 650; }
+.website-content-fields input, .website-content-fields textarea { width: 100%; box-sizing: border-box; border: 1px solid #ccd7e4; border-radius: 10px; padding: 11px 12px; font: inherit; color: #18263d; background: #fff; }
+.website-content-fields textarea { resize: vertical; line-height: 1.5; }
+.website-content-note { color: #69788c; font-size: .9rem; }
+@media (max-width: 720px) { .website-content-fields { grid-template-columns: 1fr; } .website-content-actions { width: 100%; } }

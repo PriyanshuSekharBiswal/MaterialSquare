@@ -115,6 +115,16 @@ model StaffUser {
   @@map("staff_users")
 }
 
+// Single structured copy record for the live public site. Product data stays
+// in the catalogue tables; these fields hold only page text and contact copy.
+model WebsiteContent {
+  id        String   @id @default("global")
+  content   Json     @default("{}")
+  updatedAt DateTime @updatedAt
+
+  @@map("website_content")
+}
+
 // ----------------------------------------------------
 // CUSTOMERS & OTP AUTHENTICATION
 // ----------------------------------------------------

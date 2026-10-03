@@ -16,8 +16,10 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { WIRE_SIZE_GUIDE, PLUMBING_GUIDE } from '../data/materialsData';
+import { useSiteContent } from '../site-content';
 
 export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawer }: { onAddCustomToBOM: (item: MaterialItem) => void; onOpenBOMDrawer: () => void }) {
+  const siteContent = useSiteContent();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') || 'wire';
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -76,11 +78,11 @@ export default function EngineeringGuidesPage({ onAddCustomToBOM, onOpenBOMDrawe
             <span className="badge-pill badge-orange-pill reveal-text">Tools & Guides</span>
             <h1 className="page-title">
               <span className="ms-mask-line">
-                <span className="ms-mask-text">Site Engineering & Material Guides</span>
+                <span className="ms-mask-text">{siteContent["guides.title"]}</span>
               </span>
             </h1>
             <p className="page-subtitle reveal-text">
-              General product and site-planning information. Technical values and installation guidance must be checked against current manufacturer documents and reviewed by a qualified professional.
+              {siteContent["guides.description"]}
             </p>
 
             {/* Tab navigation */}

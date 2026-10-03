@@ -13,7 +13,7 @@ export const STAFF_ROLES = [
 
 export type StaffRoleName = (typeof STAFF_ROLES)[number];
 // Only assign roles whose workflows are present in the agreed V1 panel.
-export const V1_ASSIGNABLE_STAFF_ROLES = ["ADMIN", "SALES_MANAGER", "CATALOG_MANAGER"] as const;
+export const V1_ASSIGNABLE_STAFF_ROLES = ["ADMIN", "SALES_MANAGER", "CATALOG_MANAGER", "CONTENT_MANAGER"] as const;
 export type StaffPermission =
   | "staff.profile"
   | "staff.manage"
@@ -52,10 +52,10 @@ export const STAFF_ROLE_DEFINITIONS: {
   {
     role: "ADMIN",
     label: "Administrator",
-    description: "Manages V1 customers, follow-ups, and the product catalogue. Staff account administration stays with the owner.",
+    description: "Manages V1 customers, follow-ups, the product catalogue, and approved website copy. Staff account administration stays with the owner.",
     permissions: [
       "staff.profile", "dashboard.view", "customers.read", "followups.manage",
-      "catalog.view", "catalog.manage",
+      "catalog.view", "catalog.manage", "content.manage",
     ],
   },
   {
@@ -91,7 +91,7 @@ export const STAFF_ROLE_DEFINITIONS: {
   {
     role: "CONTENT_MANAGER",
     label: "Website content manager",
-    description: "Manages published blogs, experts, and service-provider listings.",
+    description: "Manages approved public page text and customer-facing business details.",
     permissions: ["staff.profile", "dashboard.view", "content.manage"],
   },
 ];
@@ -130,6 +130,8 @@ function routePermission(method: string, path: string): StaffPermission {
   if (route === "/purchase-orders" || route.startsWith("/purchase-orders/")) return verb === "GET" ? "procurement.view" : "procurement.manage";
   if (route === "/discount-rules") return "catalog.manage";
   if (route.startsWith("/admin/blogs") || route.startsWith("/admin/experts")) return "content.manage";
+  if (route.startsWith("/admin/site-content")) return "content.manage";
+  if (route === "/site-content") return "dashboard.view";
   if (route === "/transportation" || route.startsWith("/transportation/")) return verb === "GET" ? "dispatch.view" : "dispatch.manage";
   if (route === "/commissions" || route.startsWith("/commissions/")) return "finance.manage";
   if (route.startsWith("/admin/loyalty")) return "finance.manage";

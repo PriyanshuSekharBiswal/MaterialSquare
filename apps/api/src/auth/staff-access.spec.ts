@@ -28,7 +28,7 @@ describe("predefined staff access", () => {
   });
 
   it("keeps unshipped quotation, order, and procurement APIs out of V1 staff roles", () => {
-    for (const role of ["ADMIN", "SALES_MANAGER", "CATALOG_MANAGER"]) {
+    for (const role of ["ADMIN", "SALES_MANAGER", "CATALOG_MANAGER", "CONTENT_MANAGER"]) {
       expect(() => assertStaffRoutePermission("GET", "/api/quotes", role))
         .toThrow(ForbiddenException);
       expect(() => assertStaffRoutePermission("GET", "/api/orders", role))
@@ -38,6 +38,13 @@ describe("predefined staff access", () => {
     }
     expect(() => assertStaffRoutePermission("GET", "/api/quotes", "SUPER_ADMIN"))
       .not.toThrow();
+  });
+
+  it("limits public website copy to administrators and the content manager", () => {
+    for (const role of ["SUPER_ADMIN", "ADMIN", "CONTENT_MANAGER"])
+      expect(() => assertStaffRoutePermission("PUT", "/api/admin/site-content", role)).not.toThrow();
+    for (const role of ["SALES_MANAGER", "CATALOG_MANAGER"])
+      expect(() => assertStaffRoutePermission("PUT", "/api/admin/site-content", role)).toThrow(ForbiddenException);
   });
 
   it("allows catalogue managers to upload product images but rejects unrelated roles", () => {

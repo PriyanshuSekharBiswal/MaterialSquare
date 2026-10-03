@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useSiteContent } from '../site-content';
 import { ArrowRight, ClipboardList, Search, MessageCircle, BadgeIndianRupee, UserRoundCheck } from 'lucide-react';
 
 const V1_FEATURES = [
@@ -32,16 +33,16 @@ const CONFIRM_WITH_STAFF = [
 ];
 
 export default function WhyUsPage({ onOpenBOMDrawer }: { onOpenBOMDrawer: () => void }) {
+  const siteContent = useSiteContent();
   return (
     <div className="why-us-page">
       <section className="page-hero-header">
         <div className="container">
           <div className="page-hero-content">
             <span className="badge-pill badge-orange-pill">A simpler way to prepare a request</span>
-            <h1 className="page-title">Construction materials, organized in one place.</h1>
+            <h1 className="page-title">{siteContent["whyUs.title"]}</h1>
             <p className="page-subtitle">
-              Browse published products, make a material list, and send your request to the Material Square team.
-              The team confirms product and delivery details with you directly.
+              {siteContent["whyUs.description"]}
             </p>
             <div className="page-hero-actions">
               <Link to="/marketplace" className="btn btn-primary btn-lg">
@@ -59,9 +60,9 @@ export default function WhyUsPage({ onOpenBOMDrawer }: { onOpenBOMDrawer: () => 
         <div className="container">
           <div className="section-title-wrap text-center">
             <span className="badge-pill">Website features</span>
-            <h2 className="section-title-clean">Plan your enquiry at your pace.</h2>
+            <h2 className="section-title-clean">{siteContent["whyUs.sectionTitle"]}</h2>
             <p className="section-subtitle-clean">
-              The website helps you prepare. Product availability, final pricing and delivery are confirmed by staff.
+              {siteContent["whyUs.sectionDescription"]}
             </p>
           </div>
           <div className="bingo-cards-grid reveal-stagger">

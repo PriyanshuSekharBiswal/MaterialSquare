@@ -3,17 +3,18 @@ import { Link } from "react-router-dom";
 import MaterialListEditor from "../components/MaterialListEditor";
 import RequestContactForm from "../components/RequestContactForm";
 import { useCustomer } from "../customer";
+import { useSiteContent } from "../site-content";
 export default function GetQuotePage(_props: { bomList?: MaterialItem[] }) {
   const { error } = useCustomer();
+  const siteContent = useSiteContent();
   return (
     <section className="request-page container">
       <span className="badge-pill badge-orange-pill">
         Your site requirements
       </span>
-      <h1>Request a material quotation</h1>
+      <h1>{siteContent["getQuote.title"]}</h1>
       <p className="request-intro">
-        Build your material list and add your delivery details. Continue the
-        conversation with our team directly through WhatsApp or email.
+        {siteContent["getQuote.description"]}
       </p>
       {error && (
         <p className="customer-error" role="alert">

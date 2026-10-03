@@ -22,9 +22,11 @@ import SiteDeliveriesCarousel from '../components/SiteDeliveriesCarousel';
 import SearchSuggestions from '../components/SearchSuggestions';
 import WhatsAppIcon from '../components/icons/WhatsAppIcon';
 import ArchitecturalTicker from '../components/ArchitecturalTicker';
+import { useSiteContent } from '../site-content';
 
 export default function HomePage({ products, onOpenBOMDrawer, bomList = [], onToggleBOM }: { products: CatalogueProduct[]; onOpenBOMDrawer: () => void; bomList?: MaterialItem[]; onToggleBOM: (product: MaterialItem) => void }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const siteContent = useSiteContent();
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [isMobileView, setIsMobileView] = useState(() => {
     return typeof window !== 'undefined' ? window.innerWidth < 992 : false;
@@ -123,23 +125,20 @@ export default function HomePage({ products, onOpenBOMDrawer, bomList = [], onTo
           {/* Left Text */}
           <div className="hero-text-col">
             <div className="eyebrow-row reveal-text">
-              <span className="badge-pill badge-orange-pill">Browse without an account</span>
+              <span className="badge-pill badge-orange-pill">{siteContent["home.eyebrow"]}</span>
               <span className="serving-text">Serving Delhi NCR</span>
             </div>
 
             <h1 className="hero-heading">
-              <span className="ms-mask-line">Why Make 5 Calls?</span>
-              <span className="ms-mask-line accent-text">One Call. All Materials.</span>
+              {siteContent["home.title"].split("\n").map((line, index) => <span className={`ms-mask-line${index ? " accent-text" : ""}`} key={index}>{line}</span>)}
             </h1>
 
             <div className="hero-hindi-quote reveal-text">
-              <span>"{COMPANY_INFO.sloganHindi}"</span>
+              <span>"{siteContent["home.slogan"]}"</span>
             </div>
 
             <p className="hero-subtext reveal-text">
-              Browse <strong>cement, steel, pipes, electricals, paints, and sanitaryware</strong> in one place.
-              Save the products you need, then send your request to the Material Square team by WhatsApp or email.
-              Staff confirms current price, stock, taxes, and delivery details with you.
+              {siteContent["home.description"]}
             </p>
 
             {/* Quick Search with Autocomplete Suggestions */}

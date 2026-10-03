@@ -43,7 +43,7 @@ The API reads the root `.env`. Both Vite apps proxy `/api` to port 4000 in devel
 - Legacy quotation/PDF APIs remain in the repository for a separately scoped later release; they are not part of the active V1 customer or staff workflow.
 - The staff catalogue editor uploads approved PNG/JPEG/WebP product images up to 5 MB through the staff-authenticated `/api/storage/images` endpoint. Configure S3-compatible storage before enabling uploads in production; failed uploads show an error rather than a fabricated URL.
 
-Role access is enforced by API guards as well as hidden staff navigation. V1 staff assignment is limited to Administrator, Sales & Customer Support, and Catalogue & Pricing Manager; roles for procurement, dispatch, accounts and website content are reserved until those panels ship. Owners cannot create custom permission sets. Website analytics aggregate event counts only; the client must approve their privacy notice and retention policy. Client staff must verify all business claims and enter real prices and promotions before publication.
+Role access is enforced by API guards as well as hidden staff navigation. V1 staff assignment includes Administrator, Sales & Customer Support, Catalogue & Pricing Manager, and Website Content Manager. The website editor changes approved page text and contact details; layout remains in code, and the product catalogue has its own editor. Owners cannot create custom permission sets. Website analytics aggregate event counts only; the client must approve their privacy notice and retention policy. Client staff must verify all business claims and enter real prices and promotions before publication.
 
 ## Provider configuration
 

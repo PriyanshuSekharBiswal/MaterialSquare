@@ -1,5 +1,6 @@
 import { z } from 'zod';
 export * from './catalog-data';
+export * from './site-content';
 
 // ==========================================
 // USER & AUTH TYPES

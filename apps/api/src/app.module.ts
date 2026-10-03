@@ -13,6 +13,7 @@ import { StorageModule } from "./storage/storage.module";
 import { JobsModule } from "./jobs/jobs.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
 import { BusinessModule } from "./business/business.module";
+import { SiteContentModule } from "./site-content/site-content.module";
 
 @Module({
   controllers: [HealthController],
@@ -33,6 +34,7 @@ import { BusinessModule } from "./business/business.module";
     JobsModule,
     AnalyticsModule,
     BusinessModule,
+    SiteContentModule,
   ],
 })
 export class AppModule {}

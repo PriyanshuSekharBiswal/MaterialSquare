@@ -13,10 +13,12 @@ import {
   ExternalLink,
   Menu,
   X,
+  FileText,
 } from "lucide-react";
 import MaterialSquareLogo from "./components/MaterialSquareLogo";
 import CatalogueManager from "./CatalogueManager";
 import StaffManagement from "./StaffManagement";
+import WebsiteContentManager from "./WebsiteContentManager";
 import "./workspace.css";
 type Material = {
   name: string;
@@ -91,6 +93,7 @@ const navSections = [
     group: "Website Management",
     items: [
       { id: "catalogue" as const, label: "Products, prices & offers", icon: Tags },
+      { id: "content" as const, label: "Website pages & content", icon: FileText },
     ],
   },
   {
@@ -107,6 +110,7 @@ const isTabPermitted = (id: string, role?: string) => {
     return ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER"].includes(role || "");
   }
   if (id === "catalogue") return ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER", "CATALOG_MANAGER"].includes(role || "");
+  if (id === "content") return ["SUPER_ADMIN", "ADMIN", "CONTENT_MANAGER"].includes(role || "");
   if (id === "team") {
     return role === "SUPER_ADMIN";
   }
@@ -165,7 +169,7 @@ function Materials({ items }: { items: Material[] }) {
 export function App() {
   const [token, setTokenState] = useState(restoredToken),
     [staff, setStaff] = useState<Staff | null>(null);
-  const [tab, setTab] = useState<"overview" | "customers" | "followups" | "catalogue" | "team">(
+  const [tab, setTab] = useState<"overview" | "customers" | "followups" | "catalogue" | "content" | "team">(
     "overview",
   );
   const [stats, setStats] = useState<Stats | null>(null),
@@ -559,6 +563,8 @@ export function App() {
                     ? "Enquiry Follow-ups"
                     : tab === "catalogue"
                       ? "Website Catalogue"
+                      : tab === "content"
+                        ? "Website Pages & Content"
                         : "Staff & Role Permissions"}
             </h1>
           </div>
@@ -1052,6 +1058,7 @@ export function App() {
           </form>
         )}
         {tab === "catalogue" && <CatalogueManager token={token} role={staff?.role || ""} onSignOut={signOut} />}
+        {tab === "content" && <WebsiteContentManager token={token} onSignOut={signOut} />}
         {tab === "team" && staff?.role === "SUPER_ADMIN" && (
           <StaffManagement
             token={token}

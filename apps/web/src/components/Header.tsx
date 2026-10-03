@@ -7,9 +7,11 @@ import { Phone, FileText, Menu, X, MapPin } from 'lucide-react';
 import MaterialSquareLogo from './icons/MaterialSquareLogo';
 import WhatsAppIcon from './icons/WhatsAppIcon';
 import { COMPANY_INFO } from '../data/materialsData';
+import { useSiteContent } from '../site-content';
 
 export default function Header({ bomCount, onOpenBOMDrawer }: { bomCount: number; onOpenBOMDrawer: () => void }) {
   const { customer } = useCustomer();
+  const siteContent = useSiteContent();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const closeMenu = () => setMobileMenuOpen(false);
@@ -22,15 +24,15 @@ export default function Header({ bomCount, onOpenBOMDrawer }: { bomCount: number
           <div className="top-bar-left">
             <span className="location-tag">
               <MapPin size={12} className="loc-icon" />
-              <strong className="top-bar-serving">Serving Delhi NCR</strong>
-              <span className="top-bar-cities">: Noida, Greater Noida, Delhi, Gurugram, Ghaziabad &amp; Faridabad</span>
+              <strong className="top-bar-serving">Service area</strong>
+              <span className="top-bar-cities">: {siteContent["contact.location"]}</span>
             </span>
           </div>
 
           <div className="top-bar-right">
-            <a href={`tel:${COMPANY_INFO.phone}`} className="hotline-phone" title="Call Material Square Hotline">
+            <a href={`tel:${siteContent["contact.phone"]}`} className="hotline-phone" title="Call Material Square Hotline">
               <Phone size={12} />
-              <span className="hotline-text">{COMPANY_INFO.phoneDisplay}</span>
+              <span className="hotline-text">{siteContent["contact.phoneDisplay"]}</span>
             </a>
           </div>
         </div>

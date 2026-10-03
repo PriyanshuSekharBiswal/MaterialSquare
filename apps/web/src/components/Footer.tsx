@@ -5,8 +5,10 @@ import MaterialSquareLogo from './icons/MaterialSquareLogo';
 import InstagramIcon from './icons/InstagramIcon';
 import WhatsAppIcon from './icons/WhatsAppIcon';
 import { COMPANY_INFO } from '../data/materialsData';
+import { useSiteContent } from '../site-content';
 
 export default function Footer() {
+  const siteContent = useSiteContent();
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -18,17 +20,17 @@ export default function Footer() {
         <div className="footer-callout-banner">
           <div className="callout-left">
             <span className="badge-dark">Delhi NCR Construction Partner</span>
-            <h3>Ready to Order or Have a Material Query?</h3>
-            <p>Send your material list or site requirements to the team by WhatsApp or phone. Staff can confirm product and delivery details.</p>
+            <h3>{siteContent["footer.calloutTitle"]}</h3>
+            <p>{siteContent["footer.calloutDescription"]}</p>
           </div>
 
           <div className="callout-right-actions">
             <a
-              href={`tel:${COMPANY_INFO.phone}`}
+              href={`tel:${siteContent["contact.phone"]}`}
               className="btn btn-outline"
             >
               <Phone size={16} />
-              <span>Call {COMPANY_INFO.phoneDisplay}</span>
+              <span>Call {siteContent["contact.phoneDisplay"]}</span>
             </a>
 
             <a
@@ -49,10 +51,10 @@ export default function Footer() {
           <div className="footer-col brand-col">
             <MaterialSquareLogo size={46} showText={true} lightMode={true} />
             <p className="footer-tagline-para">
-              "{COMPANY_INFO.sloganHindi}"
+              "{siteContent["footer.slogan"]}"
             </p>
             <p className="footer-bio-para">
-              Browse construction materials, save a list to your account, and contact the Material Square team to confirm product and delivery details.
+              {siteContent["footer.description"]}
             </p>
 
             <a
@@ -97,15 +99,15 @@ export default function Footer() {
             <h4 className="footer-heading">Service Hub & Logistics</h4>
             <div className="footer-info-item">
               <MapPin size={16} className="f-icon" />
-              <span>{COMPANY_INFO.location}</span>
+              <span>{siteContent["contact.location"]}</span>
             </div>
             <div className="footer-info-item">
               <Phone size={16} className="f-icon" />
-              <span>{COMPANY_INFO.phoneDisplay}</span>
+              <span>{siteContent["contact.phoneDisplay"]}</span>
             </div>
             <div className="footer-info-item">
               <Mail size={16} className="f-icon" />
-              <span>{COMPANY_INFO.email}</span>
+              <span>{siteContent["contact.email"]}</span>
             </div>
 
             <div className="footer-assurance-box">

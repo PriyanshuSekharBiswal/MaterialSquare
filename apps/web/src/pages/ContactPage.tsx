@@ -3,17 +3,19 @@ import { whatsappLink } from '../messages';
 import { Mail, MapPin, Phone } from 'lucide-react';
 import { COMPANY_INFO } from '../data/materialsData';
 import WhatsAppIcon from '../components/icons/WhatsAppIcon';
+import { useSiteContent } from '../site-content';
 
 export default function ContactPage() {
+  const siteContent = useSiteContent();
   return (
     <div className="contact-page">
       <section className="page-hero-header">
         <div className="container">
           <div className="page-hero-content">
             <span className="badge-pill badge-orange-pill">Contact Material Square</span>
-            <h1 className="page-title">Tell us what your site needs.</h1>
+            <h1 className="page-title">{siteContent["contact.title"]}</h1>
             <p className="page-subtitle">
-              Prepare your enquiry with the site and product details. Review it, then choose WhatsApp or email to send it to our team.
+              {siteContent["contact.description"]}
             </p>
           </div>
         </div>
@@ -35,21 +37,21 @@ export default function ContactPage() {
               <div className="info-card-icon phone"><Phone size={24} /></div>
               <h2>Call</h2>
               <p>Speak with the team about a product listing or site requirement.</p>
-              <a href={`tel:${COMPANY_INFO.phone}`} className="channel-link">{COMPANY_INFO.phoneDisplay}</a>
+              <a href={`tel:${siteContent["contact.phone"]}`} className="channel-link">{siteContent["contact.phoneDisplay"]}</a>
             </article>
 
             <article className="contact-info-card">
               <div className="info-card-icon insta"><Mail size={24} /></div>
               <h2>Email</h2>
               <p>Send your requirements and include supporting files from your email app.</p>
-              <a href={`mailto:${COMPANY_INFO.email}`} className="channel-link">{COMPANY_INFO.email}</a>
+              <a href={`mailto:${siteContent["contact.email"]}`} className="channel-link">{siteContent["contact.email"]}</a>
             </article>
 
             <article className="contact-info-card highlighted">
               <div className="info-card-icon depot"><MapPin size={24} /></div>
               <h2>Office</h2>
               <p>Contact the team before visiting so they can confirm the right location and availability.</p>
-              <span className="depot-address">{COMPANY_INFO.officeAddress}</span>
+              <span className="depot-address">{siteContent["contact.officeAddress"]}</span>
               <a href={COMPANY_INFO.officeGoogleMapsUrl} target="_blank" rel="noopener noreferrer" className="channel-link">
                 Open in Google Maps ↗
               </a>
@@ -62,9 +64,9 @@ export default function ContactPage() {
         <div className="container">
           <div className="section-title-wrap text-center">
             <span className="badge-pill">Service area</span>
-            <h2 className="section-title-clean">Confirm coverage for your site.</h2>
+            <h2 className="section-title-clean">{siteContent["contact.coverageTitle"]}</h2>
             <p className="section-subtitle-clean">
-              {COMPANY_INFO.location}. Coverage, product availability, delivery timing, and any site charges are confirmed by staff for each request.
+              {siteContent["contact.coverageDescription"]}
             </p>
           </div>
         </div>

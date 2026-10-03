@@ -8,6 +8,7 @@ import { COMPANY_INFO } from './data/materialsData';
 import useScrollReveal from './hooks/useScrollReveal';
 import useSmoothScroll from './hooks/useSmoothScroll';
 import { trackWebsiteEvent } from './analytics';
+import { SiteContentProvider, useSiteContent } from './site-content';
 
 // Global Shell Components
 import Header from './components/Header';
@@ -33,6 +34,7 @@ import { FileText } from 'lucide-react';
 import WhatsAppIcon from './components/icons/WhatsAppIcon';
 
 function AppShell() {
+  const siteContent = useSiteContent();
   const location = useLocation();
   const navigate = useNavigate();
   useScrollReveal();
@@ -242,7 +244,7 @@ function AppShell() {
           </button>
 
           <a
-            href={COMPANY_INFO.whatsappUrl}
+            href={`https://wa.me/91${siteContent["contact.phone"]}?text=Material%20Square%20%E2%80%94%20General%20Enquiry`}
             target="_blank"
             rel="noopener noreferrer"
             className="dock-whatsapp-btn"
@@ -261,7 +263,7 @@ function AppShell() {
 export default function App() {
   return (
     <Router>
-      <CustomerProvider><AppShell /></CustomerProvider>
+      <SiteContentProvider><CustomerProvider><AppShell /></CustomerProvider></SiteContentProvider>
     </Router>
   );
 }
