@@ -103,6 +103,24 @@ test("customers can browse and build a guest quote list before phone verificatio
   await expect(page.getByLabel("Six-digit OTP")).not.toBeVisible();
 });
 
+test(
+  "customer account explains when its API deployment is missing the account route",
+  async ({ page }) => {
+    await page.route("**/api/customer/me", (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: "text/plain",
+        body: "Cannot GET /api/customer/me",
+      }),
+    );
+    await page.goto("/account");
+    await expect(page.getByRole("alert")).toContainText(
+      "The account service is out of date. Restart or redeploy the Material Square API",
+    );
+    await expect(page.getByRole("alert")).not.toContainText("Cannot GET");
+  },
+);
+
 test("empty client catalogue invites material requests without suggesting sample products", async ({ page }) => {
   await page.route("**/api/products", (route) => route.fulfill({ json: [] }));
   await page.goto("/marketplace");

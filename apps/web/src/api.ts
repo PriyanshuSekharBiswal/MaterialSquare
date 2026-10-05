@@ -34,13 +34,28 @@ export async function customerApi<T>(
       0,
     );
   }
-  const data = await response.json().catch(() => null);
-  if (!response.ok)
+  const contentType = response.headers.get("content-type") || "";
+  let data: { message?: unknown } | null = null;
+  let text = "";
+  if (contentType.includes("application/json")) {
+    data = await response.json().catch(() => null);
+  } else {
+    text = await response.text().catch(() => "");
+  }
+  if (!response.ok) {
+    const serverMessage =
+      typeof data?.message === "string" ? data.message : text.trim();
+    const missingApiRoute =
+      response.status === 404 &&
+      /^Cannot (?:GET|POST|PUT|PATCH|DELETE) \/api\//i.test(serverMessage);
     throw new ApiError(
-      typeof data?.message === "string"
-        ? data.message
-        : "We couldn't complete that action. Please try again.",
+      missingApiRoute
+        ? "The account service is out of date. Restart or redeploy the Material Square API, then try again."
+        : serverMessage && !/^<!doctype html|^<html/i.test(serverMessage)
+          ? serverMessage
+          : "The account service returned an unexpected response. Please try again later.",
       response.status,
     );
+  }
   return data as T;
 }

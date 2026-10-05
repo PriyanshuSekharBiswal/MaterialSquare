@@ -124,7 +124,7 @@ function sdkCall(
       console.warn("MSG91 OTP widget request failed", { operation, details });
       reject(
         new Error(
-          "We couldn't verify that code. Please request a new code and try again.",
+          "MSG91 couldn't verify this code. Complete the CAPTCHA, use the latest code, and try again from a hostname allowed in MSG91.",
         ),
       );
     };
