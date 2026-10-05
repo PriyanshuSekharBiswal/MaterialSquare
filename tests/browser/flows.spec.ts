@@ -105,6 +105,8 @@ test("unconfigured client contact details stay hidden while quote requests remai
     route.fulfill({ json: SITE_CONTENT_DEFAULTS }),
   );
   await page.goto("/");
+  await expect(page.locator("#transportation-map")).toBeVisible();
+  await expect(page.locator("#transportation-map .office-dest-pin-group")).not.toHaveAttribute("role", "button");
   await expect(page.locator("body")).not.toContainText(/97735 05015|orders@materialsquare\.in|Mohan Nagar|Serving Delhi NCR/i);
   await expect(page.locator(".footer-instagram-link")).toHaveCount(0);
   await page.goto("/contact");
@@ -123,6 +125,28 @@ test("unconfigured client contact details stay hidden while quote requests remai
   await expect(page.getByRole("heading", { name: "Copy your request message" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Continue in WhatsApp|Continue in email/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Copy request message" })).toBeVisible();
+});
+
+test("configured service map uses the client office and contact details", async ({ page }) => {
+  await page.route("**/api/site-content", (route) =>
+    route.fulfill({
+      json: {
+        ...SITE_CONTENT_DEFAULTS,
+        "contact.location": "Delhi NCR service area",
+        "contact.officeName": "Client Central Depot",
+        "contact.officeAddress": "Plot 9, Sector 18, Noida, UP 201301",
+        "contact.phone": "9876543210",
+        "contact.phoneDisplay": "+91 98765 43210",
+      },
+    }),
+  );
+  await page.goto("/contact");
+  await expect(page.locator("#transportation-map .gmaps-search-box")).toContainText("Client Central Depot");
+  await expect(page.locator("#transportation-map .gmaps-search-box")).toContainText("Plot 9, Sector 18, Noida, UP 201301");
+  await page.getByRole("button", { name: "Office Details", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("Client Central Depot");
+  await expect(page.getByRole("dialog")).toContainText("Plot 9, Sector 18, Noida, UP 201301");
+  await expect(page.getByRole("link", { name: "Call: +91 98765 43210" })).toHaveAttribute("href", "tel:9876543210");
 });
 
 test("public pages expose canonical share metadata and route retired account URLs away", async ({

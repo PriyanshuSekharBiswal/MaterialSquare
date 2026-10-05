@@ -147,7 +147,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
             {/* Google Maps Search Bar */}
             <div
               className="gmaps-search-box"
-              onClick={() => handleOpenGoogleMaps()}
+              onClick={officeDestination ? () => handleOpenGoogleMaps() : undefined}
               title="Click to open Google Maps Directions"
               role={officeDestination ? 'button' : undefined}
               aria-disabled={!officeDestination}
@@ -176,7 +176,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
 
           {/* Google Maps Interactive Region Route Chips */}
           <div className="gmaps-quick-regions-bar">
-            <span className="regions-bar-title">Direct Office Routes:</span>
+            <span className="regions-bar-title">Service area routes:</span>
             <button
               type="button"
               className={`region-chip-btn ${!activeRoute ? 'active' : ''}`}
@@ -549,10 +549,10 @@ export default function DirectionGoogleMaps({ className = '' }) {
               <g
                 className="office-dest-pin-group"
                 transform={`translate(${OFFICE_HUB.svgPos.x}, ${OFFICE_HUB.svgPos.y})`}
-                onClick={() => setIsOfficeModalOpen(true)}
-                cursor="pointer"
-                role="button"
-                aria-label="Material Square Central Office (Click for Google Maps Directions)"
+                onClick={officeAddress ? () => setIsOfficeModalOpen(true) : undefined}
+                cursor={officeAddress ? 'pointer' : undefined}
+                role={officeAddress ? 'button' : undefined}
+                aria-label={officeAddress ? `${officeName} (view office details)` : undefined}
               >
                 {/* Animated Concentric Radar Rings & Glowing Core */}
                 <circle cx="0" cy="0" r="20" fill="url(#officeRadarGrad)">
@@ -632,7 +632,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
 
               <g transform="translate(860, 604)">
                 <text x="0" y="0" fill="#70757a" fontSize="9" fontFamily="sans-serif">
-                  Map data ©2026 Google
+                  Illustrative map · Confirm current coverage with the team
                 </text>
               </g>
             </svg>

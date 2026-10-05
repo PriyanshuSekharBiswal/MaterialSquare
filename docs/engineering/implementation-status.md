@@ -60,7 +60,7 @@ git diff --check
 ```
 
 The latest local verification passed the full monorepo build, 196 API unit
-tests, all 54 Playwright browser flows, and `git diff --check`. The 19
+tests, all 55 Playwright browser flows, and `git diff --check`. The 19
 PostgreSQL integration tests were skipped because `TEST_DATABASE_URL` was not
 configured in this run; a prior local disposable-PostgreSQL run is documented
 in the release history. Browser flows use controlled API fixtures, so they do
