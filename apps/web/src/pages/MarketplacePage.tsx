@@ -2,7 +2,7 @@ import { productMessage, whatsappLink } from '../messages';
 import type { MaterialItem, CatalogueProduct } from '../types';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Search,
   Check,
@@ -26,9 +26,9 @@ export default function MarketplacePage({
   bomList = [],
   products,
   onToggleBOM,
-  onOpenProductModal,
+  onOpenProduct,
   onOpenBOMDrawer,
-}: { products: CatalogueProduct[]; bomList?: MaterialItem[]; onToggleBOM: (product: MaterialItem) => void; onOpenProductModal: (product: CatalogueProduct) => void; onOpenBOMDrawer: () => void }) {
+}: { products: CatalogueProduct[]; bomList?: MaterialItem[]; onToggleBOM: (product: MaterialItem) => void; onOpenProduct: (product: CatalogueProduct) => void; onOpenBOMDrawer: () => void }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const siteContent = useSiteContent();
   const partnerBrands = usePartnerBrands();
@@ -288,11 +288,12 @@ export default function MarketplacePage({
                   }}
                   onSelectProduct={(product) => {
                     setIsSuggestionsOpen(false);
-                    if (onOpenProductModal) {
-                      onOpenProductModal(product);
-                    } else {
-                      setSearchQuery(product.name);
-                    }
+                    setSearchQuery(product.name);
+                    setSearchParams((prev) => {
+                      const p = new URLSearchParams(prev);
+                      p.set('q', product.name);
+                      return p;
+                    });
                   }}
                 />
               </div>
@@ -431,7 +432,7 @@ export default function MarketplacePage({
 
           {/* Products Grid */}
           {filteredProducts.length > 0 ? (
-            <div className="products-directory-grid reveal-stagger">
+            <div className={`products-directory-grid reveal-stagger${searchQuery.trim() ? ' is-search-results-list' : ''}`}>
               {filteredProducts.map((product) => {
                 const inBOM = isItemInBOM(product.id);
                 const brandMeta = getBrandMeta(product.brand);
@@ -444,9 +445,9 @@ export default function MarketplacePage({
                     ? 'OUT_OF_STOCK'
                     : 'CHECK_AVAILABILITY';
                 return (
-                  <div key={product.id} className="catalog-product-card">
+                    <article key={product.id} className="catalog-product-card">
                     {/* Top Image & Category Pill */}
-                    <div className="product-media-box" role="button" tabIndex={0} onClick={() => onOpenProductModal(product)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpenProductModal(product); } }} aria-label={`View ${product.name}`}>
+                    <Link className="product-media-box" to={`/product/${encodeURIComponent(product.id)}`} aria-label={`View ${product.name}`}>
                       <ProductImage src={product.image} alt={product.name} />
                       <div className="media-overlay-tags">
                         <span className="product-cat-tag">{product.categoryLabel}</span>
@@ -455,7 +456,7 @@ export default function MarketplacePage({
                         </span>
                       </div>
                       {productOffer && <span className="catalog-card-offer">{productOffer}</span>}
-                    </div>
+                    </Link>
 
                     {/* Content Box */}
                     <div className="product-card-body">
@@ -469,7 +470,7 @@ export default function MarketplacePage({
                         <span className="product-sku-code">{product.code}</span>
                       </div>
 
-                      <h3 className="product-card-title" onClick={() => onOpenProductModal(product)}>{product.name}</h3>
+                      <h3 className="product-card-title"><Link to={`/product/${encodeURIComponent(product.id)}`}>{product.name}</Link></h3>
                       {product.specs?.sizes && <p className="product-size-guide">Size guide: {product.specs.sizes}. Specify your requirement in product details.</p>}
 
                       {product.grade && (
@@ -537,9 +538,9 @@ export default function MarketplacePage({
                         <button
                           type="button"
                           className="btn-card-specs"
-                          onClick={() => onOpenProductModal(product)}
+                          onClick={() => onOpenProduct(product)}
                         >
-                          <Info size={14} /> Specs
+                          <Info size={14} /> View details
                         </button>
 
                         <button
@@ -569,7 +570,7 @@ export default function MarketplacePage({
                         </a>}
                       </div>
                     </div>
-                  </div>
+                    </article>
                 );
               })}
             </div>
@@ -603,18 +604,18 @@ export default function MarketplacePage({
           )}
           {!filteredProducts.length && relatedProducts.length > 0 && <section className="catalogue-related-section" aria-label="Other catalogue items">
             <div><h3>Other items to explore</h3><p>These are listed in a related materials category. Confirm the exact brand and specification with the team.</p></div>
-            <div className="catalogue-related-grid">{relatedProducts.map((product) => <button type="button" key={product.id} className="catalogue-related-card" onClick={() => onOpenProductModal(product)}>
+            <div className="catalogue-related-grid">{relatedProducts.map((product) => <Link to={`/product/${encodeURIComponent(product.id)}`} key={product.id} className="catalogue-related-card">
               <ProductImage src={product.image} alt={product.name} />
               <small>{product.brand}</small><strong>{product.name}</strong>
               <span>{product.availabilityStatus === "IN_STOCK" ? "In stock" : product.availabilityStatus === "OUT_OF_STOCK" ? "Out of stock" : "Check availability"}</span>
-            </button>)}</div>
+            </Link>)}</div>
           </section>}
 
         </div>
       </section>
 
       {/* Brands currently represented in the catalogue */}
-      {partnerBrands.length > 0 && <BrandRoster products={products} partnerBrands={partnerBrands} onSelectBrand={handleBrandChange} selectedBrand={selectedBrand} />}
+      {partnerBrands.length > 0 && !searchQuery.trim() && !selectedBrand && activeCategory === 'all' && <BrandRoster products={products} partnerBrands={partnerBrands} onSelectBrand={handleBrandChange} selectedBrand={selectedBrand} />}
 
       {/* Sticky BOM trigger floating bottom bar if items in list and not dismissed (Rendered via Portal to document.body so it is perfectly fixed to the viewport) */}
       {typeof document !== 'undefined' &&

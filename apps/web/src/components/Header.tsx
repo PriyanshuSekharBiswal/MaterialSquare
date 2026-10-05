@@ -15,10 +15,8 @@ import { useSiteContent } from "../site-content";
 
 export default function Header({
   bomCount,
-  onOpenBOMDrawer,
 }: {
   bomCount: number;
-  onOpenBOMDrawer: () => void;
 }) {
   const siteContent = useSiteContent();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -101,16 +99,16 @@ export default function Header({
 
           {/* Action CTAs */}
           <div className="nav-action-buttons">
-            <button
-              type="button"
+            <Link
+              to="/material-list"
               className={`nav-btn nav-btn-outline nav-bom-trigger ${bomCount > 0 ? "has-items" : ""}`}
-              onClick={onOpenBOMDrawer}
+              onClick={closeMenu}
               title="View your saved material list"
             >
               <FileText size={15} />
               <span>Material List</span>
               {bomCount > 0 && <span className="bom-counter">{bomCount}</span>}
-            </button>
+            </Link>
 
             <Link
               to="/get-quote"
@@ -173,17 +171,14 @@ export default function Header({
                 <span>Get Instant Quote</span>
                 <ArrowRight size={16} />
               </Link>
-              <button
-                type="button"
+              <Link
+                to="/material-list"
                 className="btn btn-secondary btn-block"
-                onClick={() => {
-                  closeMenu();
-                  onOpenBOMDrawer();
-                }}
+                onClick={closeMenu}
               >
                 <FileText size={16} />
                 <span>View Material List ({bomCount})</span>
-              </button>
+              </Link>
             </div>
           </div>
         </div>

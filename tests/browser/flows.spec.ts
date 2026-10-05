@@ -241,20 +241,35 @@ test("product detail lets customers search and select pack variants with their o
       },
     ],
   };
+  const relatedPaint = {
+    ...paint,
+    id: "paint-family-related",
+    code: "MS-PNT-RELATED",
+    name: "Exterior Emulsion",
+    variants: [],
+  };
   await page.route("**/api/products", (route) =>
-    route.fulfill({ json: [paint] }),
+    route.fulfill({ json: [paint, relatedPaint] }),
   );
   await page.goto("/marketplace");
-  await page.getByRole("button", { name: "Specs" }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.locator(".rate-big")).toContainText("₹187");
-  await dialog
+  const search = page.getByPlaceholder(/Search products, brands, colour, finish or pack size/i);
+  await search.fill("Interior Emulsion");
+  await expect(page.locator(".product-suggestion-item")).toContainText("Interior Emulsion");
+  await page.locator(".product-suggestion-item").first().click();
+  await expect(page).toHaveURL(/\/marketplace\?q=Interior/);
+  await expect(page.locator(".is-search-results-list .catalog-product-card")).toHaveCount(1);
+  await expect(page.locator(".is-search-results-list .product-media-box")).toBeVisible();
+  await page.getByRole("link", { name: "Interior Emulsion", exact: true }).click();
+  await expect(page).toHaveURL(/\/product\/paint-family$/);
+  await expect(page.getByRole("heading", { name: "Similar paints & wall prep products" })).toBeVisible();
+  await expect(page.locator(".product-detail-price")).toContainText("₹187");
+  await page
     .getByLabel("Choose size, pack or colour")
     .selectOption("paint-4l");
-  await expect(dialog.locator(".rate-big")).toContainText("₹724");
-  await expect(dialog.locator(".selected-size-badge")).toContainText("4 L");
-  await dialog.getByRole("button", { name: "View product image 2" }).click();
-  await expect(dialog.locator(".modal-img-container img")).toHaveAttribute(
+  await expect(page.locator(".product-detail-price")).toContainText("₹724");
+  await expect(page.locator(".selected-size-badge")).toContainText("4 L");
+  await page.getByRole("button", { name: "View product image 2" }).click();
+  await expect(page.locator(".product-detail-image img")).toHaveAttribute(
     "src",
     "/images/categories/paints-category.jpg",
   );
@@ -1119,7 +1134,7 @@ test("marketplace keeps floating actions clear of product controls", async ({
   await page.goto("/marketplace");
   await expect(page.locator(".floating-action-dock")).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Material List" }),
+    page.getByRole("link", { name: "Material List" }),
   ).toBeVisible();
 });
 
@@ -1164,8 +1179,9 @@ test("marketplace displays published API product prices and offer labels", async
   await expect(page.locator(".catalogue-price-caveat")).toHaveText(
     "per length, GST extra",
   );
-  await page.getByRole("button", { name: "Specs" }).click();
-  const detail = page.getByRole("dialog");
+  await page.getByRole("button", { name: "View details" }).click();
+  await expect(page).toHaveURL(/\/product\/listed-product$/);
+  const detail = page.locator(".product-detail-information");
   await expect(
     detail.getByText("Technical & Testing Parameters", { exact: true }),
   ).toHaveCount(0);
@@ -1255,10 +1271,12 @@ test("partner brand search keeps all seventeen brands discoverable and lets cust
   await expect(brandSuggestion).toBeVisible();
   await brandSuggestion.click();
   await expect(page.getByRole("heading", { name: "UltraTech PPC Cement" })).toBeVisible();
-  await page.getByRole("heading", { name: "UltraTech PPC Cement" }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "More cement & aggregates products" })).toBeVisible();
+  await expect(page.locator(".brand-partner-card")).toHaveCount(0);
+  await page.getByRole("link", { name: "UltraTech PPC Cement", exact: true }).click();
+  await expect(page).toHaveURL(/\/product\/ultratech-ppc$/);
+  await expect(page.getByRole("heading", { name: "Similar cement & aggregates products" })).toBeVisible();
   await page.locator(".product-related-card").filter({ hasText: "Ambuja OPC Cement" }).click();
+  await expect(page).toHaveURL(/\/product\/ambuja-opc$/);
   await expect(page.getByRole("heading", { name: "Ambuja OPC Cement" })).toBeVisible();
 });
 
@@ -1292,25 +1310,27 @@ test("request screen fits mobile and shows the WhatsApp preview", async ({ page 
     .filter({ hasText: "CPVC Pro" })
     .first();
   await card.getByRole("button", { name: "Choose options" }).click();
-  const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Required size / specification").fill("3/4 inch");
-  await dialog.getByLabel(/Quantity \(/).fill("20");
-  await dialog
-    .getByRole("button", { name: "Add this selection to quote list" })
+  await expect(page).toHaveURL(/\/product\/.*pipe/);
+  await page.getByLabel("Required size / specification").fill("3/4 inch");
+  await page.getByLabel(/Quantity \(/).fill("20");
+  await page
+    .getByRole("button", { name: "Add to Material List" })
     .click();
-  await dialog.getByLabel("Required size / specification").fill("1 inch");
-  await dialog.getByLabel(/Quantity \(/).fill("10");
-  await dialog
-    .getByRole("button", { name: "Add this selection to quote list" })
+  await page.getByLabel("Required size / specification").fill("1 inch");
+  await page.getByLabel(/Quantity \(/).fill("10");
+  await page
+    .getByRole("button", { name: "Add to Material List" })
     .click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({
     path: testInfo.outputPath("material-square-product-mobile.png"),
   });
-  expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+  expect(await page.locator(".product-detail-card").evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
     true,
   );
-  await dialog.getByRole("button", { name: "Close details" }).click();
+  await page.getByRole("link", { name: /Review list/ }).click();
+  await expect(page).toHaveURL(/\/material-list$/);
+  await expect(page.getByRole("heading", { name: "Review your Material List" })).toBeVisible();
   await page.goto("/get-quote");
   await expect(page.locator(".material-editor")).toHaveCount(2);
   await page.getByLabel("Full name").fill("Test Customer");

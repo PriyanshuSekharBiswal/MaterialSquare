@@ -26,8 +26,8 @@ const BlogDetailPage = lazy(() => import('./pages/BusinessContentPages').then((m
 const ExpertsPage = lazy(() => import('./pages/BusinessContentPages').then((m) => ({ default: m.ExpertsPage })));
 const PrivacyPage = lazy(() => import('./pages/LegalPages').then((m) => ({ default: m.PrivacyPage })));
 const TermsPage = lazy(() => import('./pages/LegalPages').then((m) => ({ default: m.TermsPage })));
-const ProductDetailModal = lazy(() => import('./components/ProductDetailModal'));
-const WhatsAppBOMDrawer = lazy(() => import('./components/WhatsAppBOMDrawer'));
+const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
+const MaterialListPage = lazy(() => import('./pages/MaterialListPage'));
 
 // Floating Icons
 import { FileText } from 'lucide-react';
@@ -55,9 +55,8 @@ function AppShell() {
     if (page) trackWebsiteEvent({ type: "page_view", target: page });
   }, [location.pathname]);
 
-  const [isBOMOpen, setIsBOMOpen] = useState(false);
-  const [activeProductModal, setActiveProductModal] = useState<CatalogueProduct | null>(null);
   const [catalogue, setCatalogue] = useState<CatalogueProduct[]>([]);
+  const [catalogueLoaded, setCatalogueLoaded] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -66,19 +65,18 @@ function AppShell() {
       signal: controller.signal,
     })
       .then((response) => response.ok ? response.json() as Promise<CatalogueProduct[]> : null)
-      .then((items) => { if (Array.isArray(items)) setCatalogue(items); })
-      .catch(() => { /* Public browsing stays available; only API-published listings are shown. */ });
+      .then((items) => { if (Array.isArray(items)) setCatalogue(items); setCatalogueLoaded(true); })
+      .catch(() => { setCatalogueLoaded(true); /* Public browsing stays available; only API-published listings are shown. */ });
     return () => controller.abort();
   }, []);
 
   const { items: bomList, updateItems: setBOMList } = useCustomer();
   const openBOMDrawer = () => {
-    // Visitors can prepare and send a quote request without creating an account.
-    setIsBOMOpen(true);
+    navigate('/material-list');
   };
   const handleToggleBOM = (product: MaterialItem) => {
     const catalogueProduct = catalogue.find(item => item.id === product.id);
-    if (catalogueProduct?.specs?.sizes || catalogueProduct?.variants?.length) { setActiveProductModal(catalogueProduct); return; }
+    if (catalogueProduct?.specs?.sizes || catalogueProduct?.variants?.length) { navigate(`/product/${encodeURIComponent(catalogueProduct.id)}`); return; }
     setBOMList((prev) => {
       const exists = prev.some((item) => item.id === product.id);
       if (exists) return prev;
@@ -88,20 +86,8 @@ function AppShell() {
   };
 
   const handleAddCustomToBOM = (customItem: MaterialItem) => {
-    setBOMList((prev) => {
-      const exists = prev.some((item) => item.id === customItem.id);
-      if (exists) return prev;
-      return [...prev, customItem];
-    });
-    setIsBOMOpen(true);
-  };
-
-  const handleRemoveBOMItem = (id: string) => {
-    setBOMList((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const handleClearBOM = () => {
-    setBOMList([]);
+    setBOMList((previous) => previous.some((item) => item.id === customItem.id) ? previous : [...previous, customItem]);
+    navigate('/material-list');
   };
 
   return (
@@ -112,7 +98,6 @@ function AppShell() {
         <PageMetadata/>
         <Header
           bomCount={bomList.length}
-          onOpenBOMDrawer={openBOMDrawer}
         />
 
         {/* Dedicated Route Views with smooth transition on section change */}
@@ -141,14 +126,14 @@ function AppShell() {
                     products={catalogue}
                     bomList={bomList}
                     onToggleBOM={handleToggleBOM}
-                    onOpenProductModal={(product) => {
-                      trackWebsiteEvent({ type: "product_view", target: product.id });
-                      setActiveProductModal(product);
-                    }}
+                    onOpenProduct={(product) => navigate(`/product/${encodeURIComponent(product.id)}`)}
                     onOpenBOMDrawer={openBOMDrawer}
                   />
                 }
               />
+
+              <Route path="/product/:productId" element={<ProductDetailPage products={catalogue} loading={!catalogueLoaded} />} />
+              <Route path="/material-list" element={<MaterialListPage products={catalogue} />} />
 
               {/* 3. Why Material Square (5 Calls vs 1 Call) */}
               <Route
@@ -203,29 +188,8 @@ function AppShell() {
         {/* Brand Footer */}
         <Footer products={catalogue} />
 
-        {/* Product Specification Modal */}
-        {activeProductModal && <Suspense fallback={null}><ProductDetailModal
-          product={activeProductModal}
-          catalogueProducts={catalogue}
-          isOpen={Boolean(activeProductModal)}
-          onClose={() => setActiveProductModal(null)}
-          inBOM={activeProductModal ? bomList.some((b) => b.id === activeProductModal.id) : false}
-          onToggleBOM={handleToggleBOM}
-          onViewProduct={(product) => { trackWebsiteEvent({ type: "product_view", target: product.id }); setActiveProductModal(product); }}
-        /></Suspense>}
-
-        {/* WhatsApp Bill-of-Materials (BOM) Slide-in Drawer */}
-        {isBOMOpen && <Suspense fallback={null}><WhatsAppBOMDrawer
-          isOpen={isBOMOpen}
-          onClose={() => setIsBOMOpen(false)}
-          bomList={bomList}
-          onRemoveBOMItem={handleRemoveBOMItem}
-          onClearBOM={handleClearBOM}
-          products={catalogue}
-        /></Suspense>}
-
         {/* The sticky catalogue header and per-product contact links replace the dock here. */}
-        {location.pathname !== "/marketplace" && (
+        {location.pathname !== "/marketplace" && location.pathname !== "/material-list" && !location.pathname.startsWith("/product/") && (
           <aside className="floating-action-dock" aria-label="Quick Actions">
             <button
               type="button"
