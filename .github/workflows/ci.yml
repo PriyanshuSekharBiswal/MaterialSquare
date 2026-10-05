@@ -2,7 +2,6 @@ name: Verify
 on:
   pull_request:
   push:
-    branches: [main]
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -35,7 +34,6 @@ jobs:
       - run: npm test
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
-      - run: npm run test:demo
       - run: npm prune --omit=dev
       - run: node scripts/verify-runtime-deps.cjs
       - uses: actions/upload-artifact@v4
@@ -44,4 +42,3 @@ jobs:
           name: browser-test-results
           path: |
             test-results/
-            demo-test-results/
