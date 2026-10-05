@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Image, PackagePlus, RefreshCw, Save, Upload, X } from "lucide-react";
+import {
+  Image,
+  PackagePlus,
+  RefreshCw,
+  Save,
+  Search,
+  Upload,
+  X,
+} from "lucide-react";
 import CatalogueVariantsEditor, { type EditableVariant } from "./CatalogueVariantsEditor";
 import "./catalogue-manager.css";
 
@@ -111,7 +119,49 @@ export default function CatalogueManager({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [catalogueQuery, setCatalogueQuery] = useState("");
+  const [brandFilter, setBrandFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [publicationFilter, setPublicationFilter] = useState("all");
+  const [availabilityFilter, setAvailabilityFilter] = useState("all");
   const canManage = ["SUPER_ADMIN", "ADMIN", "CATALOG_MANAGER"].includes(role);
+
+  const brands = [...new Set(listings.map((product) => product.brand).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  const categories = [...new Map(
+    listings.map((product) => [product.category, product.categoryLabel]),
+  ).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  const normalizedQuery = catalogueQuery.trim().toLocaleLowerCase();
+  const visibleListings = listings.filter((product) => {
+    const searchable = [
+      product.name,
+      product.brand,
+      product.code,
+      product.slug,
+      product.categoryLabel,
+      product.unit,
+      product.grade,
+      product.description,
+      ...product.variants.flatMap((variant) => [variant.label, variant.code, variant.unit]),
+      ...product.features,
+      ...Object.values(product.specifications),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLocaleLowerCase();
+    const matchesQuery = !normalizedQuery || searchable.includes(normalizedQuery);
+    const matchesBrand = brandFilter === "all" || product.brand === brandFilter;
+    const matchesCategory = categoryFilter === "all" || product.category === categoryFilter;
+    const matchesPublication =
+      publicationFilter === "all" ||
+      (publicationFilter === "published" ? product.isPublished : !product.isPublished);
+    const availabilityStatuses = product.variants.length
+      ? product.variants.map((variant) => variant.availabilityStatus)
+      : [product.availabilityStatus];
+    const matchesAvailability =
+      availabilityFilter === "all" || availabilityStatuses.includes(availabilityFilter as Listing["availabilityStatus"]);
+    return matchesQuery && matchesBrand && matchesCategory && matchesPublication && matchesAvailability;
+  });
 
   const request = useCallback(
     async <T,>(path: string, method = "GET", body?: unknown): Promise<T> => {
@@ -834,8 +884,63 @@ export default function CatalogueManager({
           </div>
         </form>
       )}
-      <div className="catalogue-listing-count">
-        {listings.length} catalogue products ·{" "}
+      <section className="panel-card catalogue-filter-panel" aria-label="Filter catalogue">
+        <label className="catalogue-search">
+          <Search size={17} aria-hidden="true" />
+          <input
+            type="search"
+            value={catalogueQuery}
+            onChange={(event) => setCatalogueQuery(event.target.value)}
+            placeholder="Search products, brands, codes, colours or sizes"
+            aria-label="Search catalogue"
+          />
+          {catalogueQuery && (
+            <button
+              type="button"
+              className="catalogue-search-clear"
+              onClick={() => setCatalogueQuery("")}
+              aria-label="Clear catalogue search"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </label>
+        <div className="catalogue-filter-fields">
+          <label>
+            Brand
+            <select value={brandFilter} onChange={(event) => setBrandFilter(event.target.value)}>
+              <option value="all">All brands</option>
+              {brands.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+            </select>
+          </label>
+          <label>
+            Category
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+              <option value="all">All categories</option>
+              {categories.map(([category, label]) => <option key={category} value={category}>{label}</option>)}
+            </select>
+          </label>
+          <label>
+            Website status
+            <select value={publicationFilter} onChange={(event) => setPublicationFilter(event.target.value)}>
+              <option value="all">Published and drafts</option>
+              <option value="published">Published</option>
+              <option value="draft">Drafts</option>
+            </select>
+          </label>
+          <label>
+            Availability
+            <select value={availabilityFilter} onChange={(event) => setAvailabilityFilter(event.target.value)}>
+              <option value="all">All availability</option>
+              <option value="IN_STOCK">In stock</option>
+              <option value="OUT_OF_STOCK">Out of stock</option>
+              <option value="CHECK_AVAILABILITY">Check availability</option>
+            </select>
+          </label>
+        </div>
+      </section>
+      <div className="catalogue-listing-count" aria-live="polite">
+        Showing {visibleListings.length} of {listings.length} catalogue products ·{" "}
         {listings.filter((p) => p.isPublished).length} published
       </div>
       {listings.length === 0 && !busy && (
@@ -844,8 +949,26 @@ export default function CatalogueManager({
           <p>Refresh the catalogue or add the first product.</p>
         </section>
       )}
+      {listings.length > 0 && visibleListings.length === 0 && (
+        <section className="panel-card catalogue-empty">
+          <h3>No matching products</h3>
+          <p>Try a different product name, brand, category or availability filter.</p>
+          <button
+            className="btn-sm btn-secondary"
+            onClick={() => {
+              setCatalogueQuery("");
+              setBrandFilter("all");
+              setCategoryFilter("all");
+              setPublicationFilter("all");
+              setAvailabilityFilter("all");
+            }}
+          >
+            Clear all filters
+          </button>
+        </section>
+      )}
       <div className="catalogue-listings">
-        {listings.map((product) => (
+        {visibleListings.map((product) => (
           <article className="panel-card catalogue-listing" key={product.id}>
             <div className="catalogue-listing-image">
               {product.image || product.galleryImages?.[0] ? (

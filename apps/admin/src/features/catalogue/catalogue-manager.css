@@ -198,6 +198,98 @@
   font-size: 13px;
 }
 
+.catalogue-filter-panel {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.2fr) minmax(0, 2fr);
+  align-items: end;
+  gap: 12px;
+  padding: 14px;
+}
+
+.catalogue-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #64748b;
+  background: #fff;
+}
+
+.catalogue-search:focus-within {
+  outline: 2px solid #fdba74;
+  border-color: #f97316;
+}
+
+.catalogue-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 0;
+  border: 0;
+  outline: 0;
+  color: #172033;
+  background: transparent;
+  font: inherit;
+}
+
+.catalogue-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.catalogue-search-clear {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  border: 0;
+  border-radius: 5px;
+  color: #64748b;
+  background: transparent;
+  cursor: pointer;
+}
+
+.catalogue-search-clear:hover {
+  color: #172033;
+  background: #f1f5f9;
+}
+
+.catalogue-filter-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(105px, 1fr));
+  gap: 8px;
+}
+
+.catalogue-filter-fields label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.catalogue-filter-fields select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 25px 7px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  color: #172033;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+}
+
+.catalogue-filter-fields select:focus-visible,
+.catalogue-search-clear:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
+}
+
 .catalogue-listings {
   display: grid;
   gap: 10px;
@@ -293,6 +385,14 @@
 
   .catalogue-fields {
     grid-template-columns: 1fr;
+  }
+
+  .catalogue-filter-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .catalogue-filter-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .catalogue-wide {
