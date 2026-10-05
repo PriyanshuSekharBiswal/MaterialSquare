@@ -142,6 +142,28 @@ test("search phrase preselects the matching sellable variant and its image", asy
   await expect(page.locator(".material-thumb")).toHaveAttribute("src", "/client/black-20l.jpg");
 });
 
+test("selecting an autocomplete product opens its matching product option", async ({ page }) => {
+  const product = {
+    id: "autocomplete-paint-test", code: "AP-SC-DP", name: "SmartCare Damp Proof Waterproofing Paint",
+    brand: "Asian Paints", category: "paints", categoryLabel: "Paints & Waterproofing", unit: "tin",
+    image: "/images/products/neutral-placeholder.svg", galleryImages: [], features: [], applications: [],
+    inStock: false, availabilityStatus: "CHECK_AVAILABILITY", specs: {},
+    variants: [
+      { id: "paint-white-10l", label: "10 L", unit: "tin", attributes: { Colour: "White", Pack: "10 L" }, image: "/client/white-10l.jpg", galleryImages: [], inStock: true, availabilityStatus: "IN_STOCK", sortOrder: 0, price: 900 },
+      { id: "paint-black-20l", label: "20 L", unit: "tin", attributes: { Colour: "Black", Pack: "20 L" }, image: "/client/black-20l.jpg", galleryImages: [], inStock: true, availabilityStatus: "IN_STOCK", sortOrder: 1, price: 1600 },
+    ],
+  };
+  await page.route("**/api/products", (route) => route.fulfill({ json: [product] }));
+  await page.goto("/marketplace");
+  await page.getByPlaceholder("Search products, brands, colour, finish or pack size...").fill("Asian Paints SmartCare Black 20L");
+  await page.locator(".product-suggestion-item").getByText(product.name).click();
+
+  await expect(page).toHaveURL(/\/product\/autocomplete-paint-test\?q=/);
+  await expect(page.getByRole("button", { name: "Black" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "20 L" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".product-detail-image > img")).toHaveAttribute("src", "/client/black-20l.jpg");
+});
+
 test("quotation submission verifies the customer and saves a request to the account and staff queue", async ({
   page,
 }) => {
@@ -584,16 +606,6 @@ test("product detail lets customers search and select pack variants with their o
     "Interior Emulsion",
   );
   await page.locator(".product-suggestion-item").first().click();
-  await expect(page).toHaveURL(/\/marketplace\?q=Interior/);
-  await expect(
-    page.locator(".is-search-results-list .catalog-product-card"),
-  ).toHaveCount(1);
-  await expect(
-    page.locator(".is-search-results-list .product-media-box"),
-  ).toBeVisible();
-  await page
-    .getByRole("link", { name: "Interior Emulsion", exact: true })
-    .click();
   await expect(page).toHaveURL(/\/product\/paint-family\?q=Interior/);
   await expect(
     page.getByRole("heading", { name: "Similar paints & wall prep products" }),

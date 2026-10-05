@@ -328,13 +328,7 @@ export default function MarketplacePage({
                   }}
                   onSelectProduct={(product, query) => {
                     setIsSuggestionsOpen(false);
-                    setSearchQuery(query);
-                    lastSearchParamRef.current = query;
-                    setSearchParams((prev) => {
-                      const p = new URLSearchParams(prev);
-                      p.set('q', query);
-                      return p;
-                    });
+                    onOpenProduct(product, query);
                   }}
                 />
               </div>
