@@ -42,7 +42,7 @@ The customer site has no customer account or sign-in flow. The quote list is sto
 
 Create the initial client administrator through the one-time staff provisioning operation. The client can then add staff accounts and assign roles in the workspace. Remove temporary developer test accounts after local testing and provision the client's real administrator for handover.
 
-The migrations `202610050003_hide_preview_catalogue` and `202610050004_remove_account_signin` hide the former preview products and clear existing customer/staff account records. Migration `202610050006_restore_staff_access` restores staff password storage for the client workspace; it does not recreate any users. Migration `202610050007_remove_customer_auth_state` removes obsolete customer OTP/session and saved-list data structures; customers remain internal contact records for staff quotations and follow-ups. Apply migrations with `npm run db:deploy` in each environment. No hosted database has been changed.
+Migration `202610050003_hide_preview_catalogue` hides the former preview products. Migrations `202610050004_remove_account_signin` and `202610050006_restore_staff_access` preserve staff credentials and customer CRM records during staging tests while retiring customer sign-in. Migration `202610050007_remove_customer_auth_state` removes obsolete customer OTP/session and saved-list structures; customer contacts and their quote/order links remain available to staff. Remove temporary developer staff accounts and provision the client's administrator as a separate handover step. Apply migrations with `npm run db:deploy` in each environment.
 
 ## Operations
 

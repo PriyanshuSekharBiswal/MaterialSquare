@@ -23,13 +23,14 @@ and client content approval remain deployment tasks.
 ## Data migration
 
 `202610050003_hide_preview_catalogue` hides the previous illustrative catalogue
-records. `202610050004_remove_account_signin` deletes customer and staff account
-rows, removes staff password hashes, and unlinks related operational records
-where supported. `202610050005_remove_demo_scoping` removes retired demo
-partition columns. `202610050006_restore_staff_access` restores password
-storage for new client staff, and `202610050007_remove_customer_auth_state`
-removes customer OTP, session, login, and saved-list structures. The migrations
-are committed. `202610050008_catalogue_availability_status` adds explicit
+records. `202610050004_remove_account_signin` preserves staging staff
+credentials and customer CRM rows while retiring customer sign-in sessions.
+`202610050005_remove_demo_scoping` removes retired demo partition columns.
+`202610050006_restore_staff_access` ensures staff password storage exists, and
+`202610050007_remove_customer_auth_state` removes customer OTP, session, login,
+and saved-list structures while retaining customer contact and quote/order
+records. Temporary developer staff accounts are removed separately at client
+handover. The migrations are committed. `202610050008_catalogue_availability_status` adds explicit
 three-state availability and carries existing in-stock flags forward. These
 migrations have not been applied to a hosted database by this change.
 `202610050009_clear_unapproved_public_details` removes the former compiled

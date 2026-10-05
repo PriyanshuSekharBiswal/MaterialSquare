@@ -10,7 +10,7 @@ The development database is separate from any hosted database.
    not generate product catalogue rows on startup.
 
 Use committed migrations to update an existing database. Do not reset a database
-to apply changes. Migration `202610050004_remove_account_signin` deletes customer
-and staff account rows; quote/order/audit records are retained and unlinked from
-accounts where supported. This repository change does not run migrations against
-a hosted database.
+to apply changes. The sign-in migrations preserve staff credentials, customer
+CRM records, and quote/order links during staging tests. Customer-only OTP,
+session, and saved-list state is retired. Remove temporary developer staff
+accounts as a separate handover operation after testing.
