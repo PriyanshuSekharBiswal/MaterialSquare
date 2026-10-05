@@ -418,6 +418,10 @@ test("unconfigured client contact details stay hidden while quotation requests r
     route.fulfill({ json: SITE_CONTENT_DEFAULTS }),
   );
   await page.goto("/");
+  const deferredMap = page.locator(".deferred-direction-map");
+  await expect(deferredMap).toBeVisible();
+  await expect(page.locator("#transportation-map")).toHaveCount(0);
+  await deferredMap.scrollIntoViewIfNeeded();
   await expect(page.locator("#transportation-map")).toBeVisible();
   await expect(
     page.locator("#transportation-map .office-dest-pin-group"),
