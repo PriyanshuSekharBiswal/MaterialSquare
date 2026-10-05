@@ -53,9 +53,13 @@ const nav = [
 ];
 
 export default function CustomerAccountPage() {
-  const isLocalhost = ["localhost", "127.0.0.1", "::1"].includes(
+  const isLoopbackHost = ["localhost", "127.0.0.1", "::1"].includes(
     window.location.hostname,
   );
+  const isLocalhostOtpTest =
+    import.meta.env.DEV &&
+    import.meta.env.VITE_ALLOW_LOCALHOST_OTP_TESTS === "true";
+  const isLocalhost = isLoopbackHost && !isLocalhostOtpTest;
   const location = useLocation();
   const navigate = useNavigate();
   const { updateItems } = useCustomer();

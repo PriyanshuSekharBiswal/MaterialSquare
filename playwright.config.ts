@@ -17,6 +17,7 @@ export default defineConfig({
       env: {
         VITE_MSG91_WIDGET_ID: "browser-test-widget",
         VITE_MSG91_TOKEN_AUTH: "browser-test-token",
+        VITE_ALLOW_LOCALHOST_OTP_TESTS: "true",
         VITE_ADMIN_APP_ORIGIN: "http://127.0.0.1:4174",
       },
     },
