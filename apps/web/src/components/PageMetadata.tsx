@@ -20,6 +20,15 @@ const titleKeys: Record<string, SiteContentKey> = {
   "/experts": "seo.expertsTitle",
 };
 
+const localSeo: Record<string, { name: string; description: string }> = {
+  noida: { name: "Noida", description: "Browse construction materials and request a project quote in Noida. Product availability, delivery coverage, current pricing and timing are confirmed for your site PIN code." },
+  "greater-noida": { name: "Greater Noida", description: "Plan a construction material list for Greater Noida. Explore listed cement, steel, plumbing, electrical and finishing products; confirm current availability and delivery for your PIN code." },
+  delhi: { name: "Delhi", description: "Request a construction materials quote for a Delhi project. Share product grades, sizes, pack options, quantities and your site PIN code to confirm availability and delivery." },
+  gurugram: { name: "Gurugram", description: "Explore construction material options and request a project quote in Gurugram. Product options, stock, local pricing and delivery are confirmed before order." },
+  ghaziabad: { name: "Ghaziabad", description: "Create a specification-led building material enquiry for Ghaziabad. Ask Material Square to confirm local availability, current pricing and delivery by site PIN code." },
+  faridabad: { name: "Faridabad", description: "Find listed building materials for a Faridabad project and request a quote. Site PIN code, current stock, pricing and delivery timing require confirmation." },
+};
+
 function setMeta(
   selector: string,
   attribute: "name" | "property",
@@ -86,11 +95,15 @@ export default function PageMetadata() {
     const isPrivacy = pathname === "/privacy";
     const isTerms = pathname === "/terms";
     const isAccount = pathname === "/account" || pathname.startsWith("/account/");
+    const areaMatch = pathname.match(/^\/locations\/([^/]+)$/);
+    const area = areaMatch ? localSeo[decodeURIComponent(areaMatch[1])] : undefined;
     const title = isPrivacy
       ? parsePolicy(content["policy.privacy"], "privacy").title
       : isTerms
         ? parsePolicy(content["policy.terms"], "terms").title
-        : isAccount
+          : area
+            ? `Construction materials in ${area.name} | ${content["seo.siteTitle"]}`
+            : isAccount
           ? `Customer account | ${content["seo.siteTitle"]}`
           : content[
             titleKeys[pathname] ||
@@ -101,7 +114,7 @@ export default function PageMetadata() {
     setMeta('meta[name="robots"]', "name", "robots", isAccount ? "noindex, nofollow" : "index, follow");
     setPageMetadata({
       title,
-      description: defaultDescription,
+      description: area?.description || defaultDescription,
       image: defaultImage,
     });
 

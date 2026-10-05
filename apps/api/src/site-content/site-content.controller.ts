@@ -75,6 +75,12 @@ export class PublicSiteContentController {
       "/contact",
       "/blogs",
       "/experts",
+      "/locations/noida",
+      "/locations/greater-noida",
+      "/locations/delhi",
+      "/locations/gurugram",
+      "/locations/ghaziabad",
+      "/locations/faridabad",
       "/privacy",
       "/terms",
     ];

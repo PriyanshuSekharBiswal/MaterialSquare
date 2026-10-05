@@ -25,6 +25,7 @@ const ContactPage = lazy(() => import('./pages/ContactPage'));
 const BlogIndexPage = lazy(() => import('./pages/BusinessContentPages').then((m) => ({ default: m.BlogIndexPage })));
 const BlogDetailPage = lazy(() => import('./pages/BusinessContentPages').then((m) => ({ default: m.BlogDetailPage })));
 const ExpertsPage = lazy(() => import('./pages/BusinessContentPages').then((m) => ({ default: m.ExpertsPage })));
+const ServiceAreaPage = lazy(() => import('./pages/BusinessContentPages').then((m) => ({ default: m.ServiceAreaPage })));
 const PrivacyPage = lazy(() => import('./pages/LegalPages').then((m) => ({ default: m.PrivacyPage })));
 const TermsPage = lazy(() => import('./pages/LegalPages').then((m) => ({ default: m.TermsPage })));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
@@ -202,6 +203,7 @@ function AppShell() {
               <Route path="/blogs" element={<BlogIndexPage />} />
               <Route path="/blogs/:slug" element={<BlogDetailPage />} />
               <Route path="/experts" element={<ExpertsPage />} />
+              <Route path="/locations/:slug" element={<ServiceAreaPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/terms" element={<TermsPage />} />
 

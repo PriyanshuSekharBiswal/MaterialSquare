@@ -101,6 +101,19 @@ export default function ProductDetailPage({ products, loading = false, catalogue
   const availability = selectedVariant?.availabilityStatus || product.availabilityStatus || ((selectedVariant?.inStock ?? product.inStock) ? "IN_STOCK" : "CHECK_AVAILABILITY");
   const minimumOrder = Number(selectedVariant?.minOrderQuantity || product.minOrderQty?.match(/[\d.]+/)?.[0] || 0) || 0;
   const relatedProducts = products.filter((item) => item.id !== product.id && item.category === product.category).slice(0, 8);
+  const complementaryCategories: Record<string, string[]> = {
+    cement: ["paints", "pipes", "adhesives", "steel"],
+    pipes: ["sanitary", "paints", "adhesives", "cement"],
+    wires: ["sanitary", "paints", "pipes", "cement"],
+    paints: ["adhesives", "pipes", "sanitary", "cement"],
+    sanitary: ["pipes", "paints", "adhesives", "cement"],
+    steel: ["cement", "pipes", "paints", "adhesives"],
+    adhesives: ["paints", "pipes", "cement", "sanitary"],
+  };
+  const complementaryProducts = (complementaryCategories[product.category] || [])
+    .flatMap((category) => products.filter((item) => item.category === category))
+    .filter((item) => item.id !== product.id && !relatedProducts.some((related) => related.id === item.id))
+    .slice(0, 4);
   const enquiryMessage = productMessage({ ...product, unit, specification: selectedLabel });
   const waProductUrl = whatsappLink(enquiryMessage, siteContent["contact.phone"]);
   const emailProductUrl = emailLink("Material Square — Product Enquiry", enquiryMessage, siteContent["contact.email"]);
@@ -223,7 +236,14 @@ export default function ProductDetailPage({ products, loading = false, catalogue
 
       {relatedProducts.length > 0 && <section className="product-page-related" aria-label="Similar products">
         <div className="product-related-heading"><div><span>Continue browsing</span><h2>Similar {product.categoryLabel.toLowerCase()} products</h2></div><Link to={`/marketplace?category=${encodeURIComponent(product.category)}`}>View all <ArrowRight size={14} /></Link></div>
-        <div className="product-related-grid">{relatedProducts.map((item) => <Link className="product-related-card" key={item.id} to={`/product/${encodeURIComponent(item.id)}`}><ProductImage src={item.image} alt={item.name} /><span className="product-related-brand">{item.brand}</span><strong>{item.name}</strong><small>{item.price != null ? `₹${Number(item.price).toLocaleString("en-IN")} / ${item.unit}` : "Request a quotation"}</small></Link>)}</div>
+        <div className="product-related-grid">{relatedProducts.map((item) => <Link className="product-related-card" key={item.id} to={`/product/${encodeURIComponent(item.id)}`}><ProductImage src={item.image || "/images/materials-editorial.png"} alt={`${item.name} — illustrative material image`} /><span className="product-related-brand">{item.brand}</span><strong>{item.name}</strong><small>{item.price != null ? `${/reference/i.test(item.priceNote || "") ? "Online reference · " : ""}₹${Number(item.price).toLocaleString("en-IN")} / ${item.unit}` : "Request a quotation"}</small></Link>)}</div>
+        <small className="project-related-disclosure">Illustrative generated image; exact product packaging may differ. Reference prices and stock are subject to confirmation.</small>
+      </section>}
+      {complementaryProducts.length > 0 && <section className="product-page-related product-project-related" aria-label="Products to complete your project">
+        <div className="product-related-heading"><div><span>Plan the next step</span><h2>Complete your project</h2></div><Link to="/marketplace">Browse all materials <ArrowRight size={14} /></Link></div>
+        <p className="project-related-note">Useful materials from other catalogue categories. Add only what your project needs; pricing and availability are confirmed with the team.</p>
+        <div className="product-related-grid">{complementaryProducts.map((item) => <Link className="product-related-card" key={item.id} to={`/product/${encodeURIComponent(item.id)}`}><ProductImage src={item.image || "/images/materials-editorial.png"} alt={`${item.name} — illustrative material image`} /><span className="product-related-brand">{item.categoryLabel} · {item.brand}</span><strong>{item.name}</strong><small>{item.price != null ? `${/reference/i.test(item.priceNote || "") ? "Online reference · " : ""}₹${Number(item.price).toLocaleString("en-IN")} / ${item.unit}` : "Request a quotation"}</small></Link>)}</div>
+        <small className="project-related-disclosure">Generated editorial material image; exact product packaging may differ. Reference prices and stock are subject to confirmation.</small>
       </section>}
     </section>
   );
