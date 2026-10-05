@@ -84,11 +84,11 @@ export default function HomePage({
   };
 
   const categoryImages: Record<string, string> = {
-    cement: "/images/categories/cement-category.jpg",
-    pipes: "/images/categories/pipes-category.jpg",
-    wires: "/images/categories/wires-category.jpg",
-    paints: "/images/categories/paints-category.jpg",
-    sanitary: "/images/categories/sanitary-category.jpg",
+    cement: "/images/categories/cement-category.webp",
+    pipes: "/images/categories/pipes-category.webp",
+    wires: "/images/categories/wires-category.webp",
+    paints: "/images/categories/paints-category.webp",
+    sanitary: "/images/categories/sanitary-category.webp",
   };
   const categoryCards = Array.from(
     new Map(products.map((product) => [product.category, product.categoryLabel])).entries(),

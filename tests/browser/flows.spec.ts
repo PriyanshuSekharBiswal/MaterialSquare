@@ -582,7 +582,7 @@ test("product detail lets customers search and select pack variants with their o
     image: "/images/products/paint-bucket-illustration.png",
     galleryImages: [
       "/images/products/paint-bucket-illustration.png",
-      "/images/categories/paints-category.jpg",
+      "/images/categories/paints-category.webp",
     ],
     inStock: false,
     features: [],
@@ -643,7 +643,7 @@ test("product detail lets customers search and select pack variants with their o
   await page.getByRole("button", { name: "View product image 2" }).click();
   await expect(page.locator(".product-detail-image img")).toHaveAttribute(
     "src",
-    "/images/categories/paints-category.jpg",
+    "/images/categories/paints-category.webp",
   );
 });
 
