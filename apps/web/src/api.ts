@@ -26,7 +26,8 @@ export async function customerApi<T>(
         ...(accountId ? { "X-Material-Account": accountId } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(30000),
+      // Leave room for the Vercel proxy's 59-second wait on a sleeping staging API.
+      signal: AbortSignal.timeout(65000),
     });
   } catch {
     throw new ApiError(
