@@ -1,8 +1,33 @@
 # Implementation status
 
-Status as of 5 October 2026. The product scope for this release is in
+Status as of 6 October 2026. The product scope for this release is in
 [Product Requirements](../product/requirements.md). Production data migration
 and client content approval remain deployment tasks.
+
+## Latest verification snapshot
+
+- Commit `93ef8c7` is pushed to `codex/live-preview-20261005`. The root
+  `npm run dev` command now starts the customer web app and API together;
+  `npm run dev:all` also starts the admin app. This avoids running the customer
+  Vite server against a missing or stale local API.
+- The customer OTP screen blocks verification of a code requested on localhost
+  and directs the customer to request a fresh code on an approved HTTPS host.
+  MSG91 CAPTCHA does not support localhost.
+- `npm run build` passed for the types, API, customer app, and admin app.
+- `npm test -- --runInBand` passed 197 API unit tests. The 19 database-backed
+  integration tests were skipped because `TEST_DATABASE_URL` was not supplied.
+- `npm run test:browser` passed all 63 browser flows.
+- The current live-test customer preview still reports that phone sign-in is
+  not configured and disables its OTP button. Its Vercel Preview environment
+  lacks the MSG91 widget build settings. The preview hostname also needs to be
+  allowed by the MSG91 widget. Do not treat live customer authentication as
+  verified until those are configured and a real OTP session is checked.
+- Staging API route checks made in the prior verification run returned 401 for
+  anonymous `/api/customer/me` (the route exists), 200 for `/api/products`
+  with an empty catalogue, and 503 for `/api/health/ready`. The readiness
+  endpoint is not the staging liveness check; production readiness still
+  requires image storage and exact CORS configuration. Recheck live API and
+  migration state before client handover.
 
 ## Current application behavior
 
