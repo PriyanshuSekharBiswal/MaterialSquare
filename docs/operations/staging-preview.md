@@ -2,9 +2,9 @@
 
 The Render service `material-square-demo-api` is reserved for the staging
 branch. Its database migration and starter catalogue run before the API starts.
-The starter catalogue creates 50 editable product families without images,
-prices, or minimum quantities; rerunning it skips those rows and preserves
-client edits.
+The starter catalogue creates at least 50 editable product families without
+images, prices, or minimum quantities; rerunning it skips those rows and
+preserves client edits.
 
 ## Temporary administrator for testing
 

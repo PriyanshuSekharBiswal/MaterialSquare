@@ -17,8 +17,10 @@ and client content approval remain deployment tasks.
 - Visitors review a request summary and continue through WhatsApp or email.
 - Customer sign-in is removed; client admin and staff sign-in remain enabled.
 - The client manages catalogue and staff records through the protected workspace.
-- The API does not seed inventory at startup. The deployment pre-step inserts
-  50 editable starter families with no generated photos or invented rates.
+- The API process does not seed implicitly; the staging launch command applies
+  migrations, then idempotently inserts at least 50 editable starter families
+  before the server starts. No generated product photos or invented rates are
+  included.
 
 ## Data migration
 
@@ -32,7 +34,8 @@ and saved-list structures while retaining customer contact and quote/order
 records. Temporary developer staff accounts are removed separately at client
 handover. The migrations are committed. `202610050008_catalogue_availability_status` adds explicit
 three-state availability and carries existing in-stock flags forward. These
-migrations have not been applied to a hosted database by this change.
+migrations have been applied to the staging database; client production remains
+separate and is not configured yet.
 `202610050009_clear_unapproved_public_details` removes the former compiled
 phone, email, address, service-area, slogan, and social defaults from saved site
 content only when those exact defaults are still present. Client-edited values
@@ -55,5 +58,6 @@ git diff --check
 Typecheck, the full build, all 211 API tests (including PostgreSQL integration),
 all 53 browser flows, and the diff whitespace check passed. The database tests
 used a disposable local PostgreSQL cluster, which was removed afterward. The
-hosted database has not been changed. A production customer-site build still
-needs `VITE_PUBLIC_SITE_URL` set to the client-approved domain.
+staging Render API and Vercel customer/admin branch previews are live. A
+production customer-site build still needs `VITE_PUBLIC_SITE_URL` set to the
+client-approved domain and product-image storage configured.
