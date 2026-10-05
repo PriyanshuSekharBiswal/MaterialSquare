@@ -9,7 +9,7 @@ COPY packages/db/package.json packages/db/package.json
 COPY packages/types/package.json packages/types/package.json
 RUN npm ci
 COPY . .
-ENV VITE_API_URL=/api
+ENV VITE_API_URL=/api VITE_ADMIN_BASE=/admin/
 RUN npm run build
 
 FROM build AS api

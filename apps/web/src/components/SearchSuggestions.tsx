@@ -10,6 +10,7 @@ import {
   Tag,
 } from 'lucide-react';
 import './SearchSuggestions.css';
+import ProductImage from "./ProductImage";
 
 export default function SearchSuggestions({
   products = [],
@@ -37,7 +38,17 @@ export default function SearchSuggestions({
         (item.categoryLabel && item.categoryLabel.toLowerCase().includes(trimmed)) ||
         (item.variants || []).some(variant => variant.label.toLowerCase().includes(trimmed) || Object.values(variant.attributes || {}).some(value => value.toLowerCase().includes(trimmed)))
       );
-    }).slice(0, 5); // Limit to top 5
+    }).sort((a, b) => {
+      const score = (item: CatalogueProduct) => {
+        const name = item.name.toLowerCase();
+        const brand = item.brand.toLowerCase();
+        return (name.startsWith(trimmed) ? 5 : 0)
+          + (brand.startsWith(trimmed) ? 4 : 0)
+          + (item.inStock || item.variants?.some((variant) => variant.inStock) ? 2 : 0)
+          + (name.includes(trimmed) ? 1 : 0);
+      };
+      return score(b) - score(a);
+    }).slice(0, 5); // Prioritize exact and in-stock matches, then show a short list.
   }, [isOpen, trimmed, products]);
 
   // Filter matching brands
@@ -130,7 +141,7 @@ export default function SearchSuggestions({
                       }
                     }}
                   >
-                    <img src={prod.image} alt={prod.name} className="product-suggest-thumb" />
+                    <ProductImage src={prod.image} alt={prod.name} className="product-suggest-thumb" />
                     <div className="product-suggest-info">
                       <div className="suggest-title">{prod.name}</div>
                       <div className="suggest-meta">

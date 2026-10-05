@@ -15,9 +15,7 @@ import {
 import type { Response } from "express";
 import { z } from "zod";
 import { StaffGuard } from "../auth/access.guard";
-import { demoAuthEnabled } from "../auth/demo-mode";
 import { PrismaService } from "../prisma/prisma.service";
-import { customerSelect } from "../auth/customer.controller";
 import { validate } from "../common/validation";
 import type { StaffRequest } from "../auth/staff-request";
 const searchSchema = z.object({
@@ -56,34 +54,27 @@ export class WorkspaceController {
   constructor(private readonly prisma: PrismaService) {}
   @Get("overview") async overview(@Res({ passthrough: true }) res: Response) {
     res.setHeader("Cache-Control", "no-store");
-    const isDemo = demoAuthEnabled();
     const last30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const [
       customers,
       newCustomers30Days,
-      activeCustomers30Days,
       openFollowups,
       closedFollowups,
     ] = await Promise.all([
-      this.prisma.customer.count({ where: { isDemo } }),
+      this.prisma.customer.count(),
       this.prisma.customer.count({
-        where: { isDemo, createdAt: { gte: last30Days } },
-      }),
-      this.prisma.customer.count({
-        where: { isDemo, lastLoginAt: { gte: last30Days } },
+        where: { createdAt: { gte: last30Days } },
       }),
       this.prisma.staffEnquiry.count({
-        where: { isDemo, status: { not: "CLOSED" } },
+        where: { status: { not: "CLOSED" } },
       }),
-      this.prisma.staffEnquiry.count({ where: { isDemo, status: "CLOSED" } }),
+      this.prisma.staffEnquiry.count({ where: { status: "CLOSED" } }),
     ]);
     return {
       customers,
       newCustomers30Days,
-      activeCustomers30Days,
       openFollowups,
       closedFollowups,
-      demo: isDemo,
     };
   }
   @Get("customers") async customers(
@@ -93,7 +84,6 @@ export class WorkspaceController {
     res.setHeader("Cache-Control", "no-store");
     const { q, page } = validate(searchSchema, query);
     const where = {
-      isDemo: demoAuthEnabled(),
       OR: [
         { name: { contains: q, mode: "insensitive" as const } },
         { phone: { contains: q } },
@@ -113,7 +103,6 @@ export class WorkspaceController {
           companyName: true,
           city: true,
           createdAt: true,
-          lastLoginAt: true,
         },
       }),
       this.prisma.customer.count({ where }),
@@ -126,8 +115,18 @@ export class WorkspaceController {
   ) {
     res.setHeader("Cache-Control", "no-store");
     const item = await this.prisma.customer.findFirst({
-      where: { id, isDemo: demoAuthEnabled() },
-      select: { ...customerSelect, createdAt: true, lastLoginAt: true },
+      where: { id },
+      select: {
+        id: true,
+        phone: true,
+        name: true,
+        email: true,
+        companyName: true,
+        shippingAddress: true,
+        city: true,
+        pincode: true,
+        createdAt: true,
+      },
     });
     if (!item) throw new NotFoundException("Customer not found");
     return item;
@@ -139,7 +138,6 @@ export class WorkspaceController {
     res.setHeader("Cache-Control", "no-store");
     const { q, page, status } = validate(searchSchema, query);
     const where = {
-      isDemo: demoAuthEnabled(),
       ...(status ? { status } : {}),
       OR: [
         { customerName: { contains: q, mode: "insensitive" as const } },
@@ -161,7 +159,7 @@ export class WorkspaceController {
     const data = validate(enquirySchema, body);
     return this.prisma.$transaction(async (tx) => {
       const enquiry = await tx.staffEnquiry.create({
-        data: { ...data, isDemo: demoAuthEnabled() },
+        data,
       });
       await tx.auditLog.create({
         data: {
@@ -192,7 +190,7 @@ export class WorkspaceController {
     );
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.staffEnquiry.findFirst({
-        where: { id, isDemo: demoAuthEnabled() },
+        where: { id },
         select: { status: true, version: true },
       });
       if (!existing || existing.version !== version)
@@ -200,7 +198,7 @@ export class WorkspaceController {
           "This follow-up changed elsewhere. Reload before editing again.",
         );
       const result = await tx.staffEnquiry.updateMany({
-        where: { id, version, isDemo: demoAuthEnabled() },
+        where: { id, version },
         data: { ...data, version: { increment: 1 } },
       });
       if (!result.count)

@@ -616,10 +616,7 @@ export default function SalesOperations({
                     <button
                       className="btn-sm btn-secondary"
                       onClick={() => {
-                        const portal =
-                          import.meta.env.VITE_CUSTOMER_APP_URL ||
-                          window.location.origin;
-                        const text = `Hello ${q.customerName}, your Material Square quotation ${q.quoteNumber} is ready. Please sign in at ${portal}/account to review it and download the PDF.`;
+                        const text = `Hello ${q.customerName}, your Material Square quotation ${q.quoteNumber} is ready. Reply to this message and our team will share the quotation PDF and answer any questions.`;
                         window.open(
                           `https://wa.me/91${q.customerPhone}?text=${encodeURIComponent(text)}`,
                           "_blank",
@@ -632,13 +629,10 @@ export default function SalesOperations({
                     {q.customerEmail && (
                       <button
                         className="btn-sm btn-secondary"
-                        onClick={() => {
-                          const portal =
-                            import.meta.env.VITE_CUSTOMER_APP_URL ||
-                            window.location.origin;
+                      onClick={() => {
                           const subject = `Material Square quotation ${q.quoteNumber}`;
-                          const body = `Hello ${q.customerName},%0D%0A%0D%0AYour quotation is ready. Please sign in at ${portal}/account to review it and download the PDF.%0D%0A%0D%0AMaterial Square`;
-                          window.location.href = `mailto:${encodeURIComponent(q.customerEmail!)}?subject=${encodeURIComponent(subject)}&body=${body}`;
+                          const body = `Hello ${q.customerName},\n\nYour Material Square quotation ${q.quoteNumber} is ready. Reply to this email and our team will share the quotation PDF and answer any questions.\n\nMaterial Square`;
+                          window.location.href = `mailto:${encodeURIComponent(q.customerEmail!)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
                         }}
                       >
                         Open email

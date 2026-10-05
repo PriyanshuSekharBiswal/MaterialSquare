@@ -44,34 +44,6 @@ export interface CustomerProfile {
   createdAt: string;
 }
 
-export const StaffLoginSchema = z
-  .object({
-    phone: z
-      .string()
-      .regex(/^[6-9]\d{9}$/, "Valid 10-digit mobile number required")
-      .optional(),
-    email: z.string().email("Invalid email address").optional(),
-    password: z
-      .string()
-      .min(8, "Password must be at least 8 characters")
-      .max(256),
-  })
-  .refine(
-    (v) => Boolean(v.phone) !== Boolean(v.email),
-    "Use either mobile number or email",
-  );
-export type StaffLoginInput = z.infer<typeof StaffLoginSchema>;
-
-export const VerifyMsg91AccessTokenSchema = z.object({
-  phone: z
-    .string()
-    .regex(/^[6-9]\d{9}$/, "Must be a valid 10-digit Indian phone number"),
-  accessToken: z.string().min(20).max(4096),
-});
-export type VerifyMsg91AccessTokenInput = z.infer<
-  typeof VerifyMsg91AccessTokenSchema
->;
-
 // ==========================================
 // PRODUCT & SPECIFICATION TYPES
 // ==========================================

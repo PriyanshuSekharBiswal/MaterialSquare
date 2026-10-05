@@ -21,16 +21,13 @@
     "db:generate": "npm run generate --workspace=@material-square/db",
     "db:migrate": "npm run migrate --workspace=@material-square/db",
     "db:deploy": "node scripts/migrate.cjs",
+    "catalog:seed-starter": "node scripts/seed-starter-catalog.cjs",
     "media:backfill": "node scripts/backfill-media-library.cjs",
-    "staff:create": "node scripts/create-staff.cjs",
     "test:browser": "playwright test",
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down",
     "predev:api": "npm run db:generate && npm run build --workspace=@material-square/types",
-    "pretest": "npm run db:generate && npm run build --workspace=@material-square/types",
-    "demo": "node scripts/start-demo.cjs",
-    "demo:setup": "node scripts/setup-demo.cjs",
-    "test:demo": "playwright test --config=playwright.demo.config.ts"
+    "pretest": "npm run db:generate && npm run build --workspace=@material-square/types"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

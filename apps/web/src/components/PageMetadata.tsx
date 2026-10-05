@@ -95,14 +95,7 @@ export default function PageMetadata() {
           ];
 
     setCanonical(pathname);
-    setMeta(
-      'meta[name="robots"]',
-      "name",
-      "robots",
-      pathname === "/account" || pathname.startsWith("/account/")
-        ? "noindex, nofollow"
-        : "index, follow",
-    );
+    setMeta('meta[name="robots"]', "name", "robots", "index, follow");
     setPageMetadata({
       title,
       description: defaultDescription,

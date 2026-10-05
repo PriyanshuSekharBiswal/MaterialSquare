@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
-import { BRAND_LIST, BrandLogo } from './icons/BrandBadges';
+import type { CatalogueProduct } from '../types';
+import { BrandLogo, getBrandMeta } from './icons/BrandBadges';
 
-export default function BrandRoster({ onSelectBrand, selectedBrand }: { onSelectBrand: (brand: string) => void; selectedBrand: string }) {
+export default function BrandRoster({ products, onSelectBrand, selectedBrand }: { products: CatalogueProduct[]; onSelectBrand: (brand: string) => void; selectedBrand: string }) {
   const [filterCategory, setFilterCategory] = useState('All');
 
-  const categories = ['All', 'Cement', 'Pipes', 'Wires', 'Paints', 'Sanitary', 'Steel', 'Adhesives'];
+  const brands = Array.from(new Map(products.filter((product) => product.brand.trim()).map((product) => [product.brand, product.categoryLabel])).entries())
+    .map(([name, category]) => ({ name, category, meta: getBrandMeta(name) }));
+  const categories = ['All', ...Array.from(new Set(brands.map((brand) => brand.category)))];
 
   const filteredBrands = filterCategory === 'All'
-    ? BRAND_LIST
-    : BRAND_LIST.filter((b) => b.category === filterCategory);
+    ? brands
+    : brands.filter((brand) => brand.category === filterCategory);
 
   return (
     <section id="brands" className="ms-brand-roster-section">
@@ -16,7 +19,7 @@ export default function BrandRoster({ onSelectBrand, selectedBrand }: { onSelect
         {/* Section Header */}
         <div className="brand-roster-header">
           <div className="roster-header-text">
-            <span className="badge-orange reveal-text">Brands in this directory</span>
+            <span className="badge-orange reveal-text">Brands in the catalogue</span>
             <h2 className="section-title reveal-title">
               <span className="ms-mask-line">
                 <span className="ms-mask-text">Explore brands.</span>
@@ -26,7 +29,7 @@ export default function BrandRoster({ onSelectBrand, selectedBrand }: { onSelect
               </span>
             </h2>
             <p className="section-subtitle reveal-text">
-                Select a brand to filter the catalogue. Confirm the exact product, specification, and current availability with staff.
+                Choose a brand to see the products currently listed in the catalogue.
             </p>
           </div>
 
@@ -51,7 +54,7 @@ export default function BrandRoster({ onSelectBrand, selectedBrand }: { onSelect
             const isSelected = selectedBrand === brand.name;
             return (
               <div
-                key={brand.id}
+                key={brand.name}
                 className={`brand-partner-card ${isSelected ? 'selected-brand' : ''}`}
                 onClick={() => onSelectBrand(brand.name === selectedBrand ? '' : brand.name)}
                 role="button"
@@ -64,11 +67,11 @@ export default function BrandRoster({ onSelectBrand, selectedBrand }: { onSelect
                 </div>
 
                 <div className="brand-logo-frame">
-                  <BrandLogo id={brand.id} className="brand-logo-svg" />
+                  <BrandLogo id={brand.meta?.id || brand.name} className="brand-logo-svg" />
                 </div>
 
                 <div className="brand-info-plate">
-                  <p className="brand-tagline-text">{brand.tagline}</p>
+                  <p className="brand-tagline-text">Products listed in {brand.category.toLowerCase()}</p>
                 </div>
 
                 <div className="brand-card-footer">

@@ -1,14 +1,13 @@
 import { SITE_CONTENT_DEFAULTS } from "@material-square/types";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { publicRateLimit } from "./common/rate-limit";
 import { Test } from "@nestjs/testing";
 import { INestApplication } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { AppModule } from "./app.module";
-import { hashPassword } from "./auth/password";
-import { Msg91WidgetService } from "./auth/msg91-widget.service";
 import { JwtService } from "@nestjs/jwt";
+import { hashPassword } from "./auth/password";
 import request = require("supertest");
 const integration = process.env.TEST_DATABASE_URL ? describe : describe.skip;
 function indiaDateOffset(offsetDays = 0) {
@@ -31,33 +30,25 @@ integration("API with isolated PostgreSQL", () => {
   let db: PrismaClient;
   let token: string;
   let rfqId: string;
-  let portalCustomerId: string;
-  let portalCookie: string;
   beforeAll(async () => {
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
     process.env.JWT_SECRET =
       "integration-test-only-secret-minimum-32-characters";
     delete process.env.REDIS_URL;
     db = new PrismaClient();
-    await db.staffUser.upsert({
+    const owner = await db.staffUser.upsert({
       where: { email: "integration@example.com" },
       update: { isActive: true, role: "SUPER_ADMIN" },
       create: {
         email: "integration@example.com",
         name: "Integration",
-        passwordHash: hashPassword("integration-password"),
         role: "SUPER_ADMIN",
+        passwordHash: hashPassword("Integration-test-password-1!"),
       },
     });
     const module = await Test.createTestingModule({
       imports: [AppModule],
-    })
-      .overrideProvider(Msg91WidgetService)
-      .useValue({
-        verifyAccessToken: async (accessToken: string) =>
-          accessToken.slice(-10),
-      })
-      .compile();
+    }).compile();
     app = module.createNestApplication();
     app.setGlobalPrefix("api");
     app.use(publicRateLimit());
@@ -67,17 +58,14 @@ integration("API with isolated PostgreSQL", () => {
     );
     SwaggerModule.setup("api/docs", app, apiDoc);
     await app.init();
+    token = app.get(JwtService).sign({
+      sub: owner.id,
+      type: "STAFF",
+      ver: owner.authVersion,
+    });
   });
   afterAll(async () => {
     await app?.close();
-    if (portalCustomerId && db) {
-      await db.order.deleteMany({ where: { customerId: portalCustomerId } });
-      await db.customerSession.deleteMany({
-        where: { customerId: portalCustomerId },
-      });
-      await db.rfq.deleteMany({ where: { customerId: portalCustomerId } });
-      await db.customer.deleteMany({ where: { id: portalCustomerId } });
-    }
     await db?.$disconnect();
   });
   it("serves API documentation with the patched dependencies", async () => {
@@ -101,74 +89,32 @@ integration("API with isolated PostgreSQL", () => {
       .send({ basePricePerMt: 1 })
       .expect(401);
   });
-  it("returns 400 for invalid input rather than 500", async () => {
+  it("allows staff sign-in and has no customer sign-in endpoint", async () => {
     await request(app.getHttpServer())
       .post("/api/auth/staff/login")
-      .send({ email: "bad" })
-      .expect(400);
+      .send({ email: "someone@example.invalid", password: "not-a-password" })
+      .expect(401);
+    await request(app.getHttpServer())
+      .post("/api/auth/customer/otp/verify-msg91")
+      .send({ phone: "9876543210", accessToken: "not-a-token" })
+      .expect(404);
+    await request(app.getHttpServer())
+      .post("/api/rfqs")
+      .send({ customerName: "Guest", items: [] })
+      .expect(404);
   });
-  it("saves customer RFQs and staff can retrieve them", async () => {
-    const secret = randomBytes(32).toString("hex");
-    const customer = await db.customer.create({
+  it("keeps staff RFQ review available without customer account routes", async () => {
+    rfqId = randomUUID();
+    await db.rfq.create({
       data: {
-        phone: "9876543210",
-        name: "Persistence Test",
-        pincode: "201301",
+        id: rfqId,
+        customerName: "Public enquiry",
+        customerPhone: "9876543210",
+        siteLocation: "Noida",
+        items: [{ material: "Cement", quantity: 25, unit: "Bags" }],
       },
     });
-    portalCustomerId = customer.id;
-    portalCookie = `ms_customer_session=${secret}`;
-    await db.customerSession.create({
-      data: {
-        id: createHash("sha256").update(secret).digest("hex"),
-        customerId: customer.id,
-        expiresAt: new Date(Date.now() + 60000),
-      },
-    });
-    const requestId = randomUUID();
-    const requestBody = {
-      requestId,
-      customerName: "Persistence Test",
-      city: "Noida",
-      pincode: "201301",
-      siteLocation: "Noida",
-      items: [{ material: "Cement", quantity: 25, unit: "Bags" }],
-    };
-    const saved = await request(app.getHttpServer())
-      .post("/api/rfqs")
-      .set("Cookie", portalCookie)
-      .set("X-Material-Square", "customer")
-      .send(requestBody)
-      .expect(201);
-    rfqId = saved.body.id;
-    expect(await db.rfq.findUnique({ where: { id: rfqId } })).not.toBeNull();
-    const retries = await Promise.all(
-      [0, 1].map(() =>
-        request(app.getHttpServer())
-          .post("/api/rfqs")
-          .set("Cookie", portalCookie)
-          .set("X-Material-Square", "customer")
-          .send(requestBody)
-          .expect(201),
-      ),
-    );
-    expect(retries.map((r) => r.body.id)).toEqual([requestId, requestId]);
-    expect(await db.rfq.count({ where: { customerId: customer.id } })).toBe(1);
-    await request(app.getHttpServer())
-      .post("/api/rfqs")
-      .set("Cookie", portalCookie)
-      .set("X-Material-Square", "customer")
-      .send({ ...requestBody, siteLocation: "Changed site" })
-      .expect(409);
-
-    const auth = await request(app.getHttpServer())
-      .post("/api/auth/staff/login")
-      .send({
-        email: "integration@example.com",
-        password: "integration-password",
-      })
-      .expect(200);
-    token = auth.body.accessToken;
+    await request(app.getHttpServer()).get("/api/rfqs").expect(401);
     const list = await request(app.getHttpServer())
       .get("/api/rfqs")
       .set("Authorization", `Bearer ${token}`)
@@ -191,15 +137,7 @@ integration("API with isolated PostgreSQL", () => {
       fields: ["status"],
       status: "CONTACTED",
     });
-    const customerRequests = await request(app.getHttpServer())
-      .get("/api/customer/activity")
-      .set("Cookie", portalCookie)
-      .expect(200);
-    expect(
-      customerRequests.body.requests.find(
-        (r: { id: string; status: string }) => r.id === rfqId,
-      ).status,
-    ).toBe("CONTACTED");
+    await request(app.getHttpServer()).get("/api/customer/activity").expect(404);
   });
   it("does not allow customer JWTs into the staff API", async () => {
     const customerToken = app
@@ -208,7 +146,7 @@ integration("API with isolated PostgreSQL", () => {
     await request(app.getHttpServer())
       .get("/api/quotes")
       .set("Authorization", `Bearer ${customerToken}`)
-      .expect(403);
+      .expect(401);
   });
   it("enforces business-area access through persisted staff roles", async () => {
     const roles = [
@@ -221,7 +159,6 @@ integration("API with isolated PostgreSQL", () => {
       "CATALOG_MANAGER",
       "CONTENT_MANAGER",
     ] as const;
-    const password = "role-matrix-integration-password";
     const staffEmails = roles
       .filter((role) => role !== "SUPER_ADMIN")
       .map((role) => `role-${role.toLowerCase()}@integration.test`);
@@ -235,22 +172,27 @@ integration("API with isolated PostgreSQL", () => {
           where: { email },
           update: {
             name: `Role ${role}`,
-            passwordHash: hashPassword(password),
             role,
             isActive: true,
           },
           create: {
             email,
             name: `Role ${role}`,
-            passwordHash: hashPassword(password),
             role,
+            passwordHash: hashPassword("Integration-test-password-1!"),
           },
         });
-        const login = await request(app.getHttpServer())
-          .post("/api/auth/staff/login")
-          .send({ email, password })
-          .expect(200);
-        tokens.set(role, login.body.accessToken);
+        const staff = await db.staffUser.findUniqueOrThrow({
+          where: { email },
+        });
+        tokens.set(
+          role,
+          app.get(JwtService).sign({
+            sub: staff.id,
+            type: "STAFF",
+            ver: staff.authVersion,
+          }),
+        );
       }
 
       const routeAccess = [
@@ -368,18 +310,11 @@ integration("API with isolated PostgreSQL", () => {
     expect(pdf.body.slice(0, 4).toString()).toBe("%PDF");
     await request(app.getHttpServer())
       .get(`/api/customer/quotes/${quote.body.id}/pdf`)
-      .set("Cookie", portalCookie)
       .expect(404);
     await request(app.getHttpServer())
       .post(`/api/quotes/${quote.body.id}/publish`)
       .set("Authorization", `Bearer ${token}`)
       .expect(201);
-    const customerPdf = await request(app.getHttpServer())
-      .get(`/api/customer/quotes/${quote.body.id}/pdf`)
-      .set("Cookie", portalCookie)
-      .expect(200)
-      .expect("Content-Type", /pdf/);
-    expect(customerPdf.body.slice(0, 4).toString()).toBe("%PDF");
     await request(app.getHttpServer())
       .post(`/api/quotes/${quote.body.id}/publish`)
       .set("Authorization", `Bearer ${token}`)
@@ -403,30 +338,26 @@ integration("API with isolated PostgreSQL", () => {
       })
       .expect(201);
     const accepted = await request(app.getHttpServer())
-      .post(`/api/customer/quotes/${quote.body.id}/respond`)
-      .set("Cookie", portalCookie)
-      .set("X-Material-Square", "customer")
-      .send({ decision: "ACCEPT" })
+      .post(`/api/quotes/${quote.body.id}/acceptance`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ channel: "WHATSAPP" })
       .expect(201);
-    expect(accepted.body.orderNumber).toMatch(/^MS-ORD-/);
     const deliveryOrder = await db.order.findUniqueOrThrow({
       where: { orderNumber: accepted.body.orderNumber },
     });
     const acceptedAudit = await db.auditLog.findFirstOrThrow({
       where: {
         entityId: deliveryOrder.id,
-        action: "CUSTOMER_QUOTATION_ACCEPTED",
+        action: "STAFF_QUOTATION_ACCEPTED_EXTERNALLY",
       },
     });
-    expect(acceptedAudit.staffId).toBeNull();
+    expect(acceptedAudit.staffId).toBeTruthy();
     expect(acceptedAudit.metadata).toMatchObject({
-      actorType: "CUSTOMER",
+      actorType: "STAFF",
+      channel: "WHATSAPP",
       quoteId: quote.body.id,
       orderNumber: accepted.body.orderNumber,
-      itemCount: 1,
-      selectedAlternativeCount: 0,
     });
-    expect(JSON.stringify(acceptedAudit.metadata)).not.toContain("9876543210");
     const planUrl = `/api/transportation/${deliveryOrder.id}`;
     await db.loyaltyProgramSetting.upsert({
       where: { id: "default" },
@@ -556,7 +487,7 @@ integration("API with isolated PostgreSQL", () => {
       orderBy: { createdAt: "asc" },
     });
     expect(transportAudit.map((entry) => entry.action)).toEqual([
-      "CUSTOMER_QUOTATION_ACCEPTED",
+      "STAFF_QUOTATION_ACCEPTED_EXTERNALLY",
       "TRANSPORTATION_PLAN_CREATED",
       ...Array(4).fill("TRANSPORTATION_STATUS_CHANGED"),
       "ORDER_PARTIALLY_DELIVERED",
@@ -565,7 +496,7 @@ integration("API with isolated PostgreSQL", () => {
     ]);
     expect(
       transportAudit
-        .filter((entry) => entry.action !== "CUSTOMER_QUOTATION_ACCEPTED")
+        .filter((entry) => entry.action !== "STAFF_QUOTATION_ACCEPTED_EXTERNALLY")
         .every((entry) => entry.staffId !== null),
     ).toBe(true);
     expect(
@@ -591,16 +522,6 @@ integration("API with isolated PostgreSQL", () => {
         })
       ).status,
     ).toBe("DRAFT");
-    const activity = await request(app.getHttpServer())
-      .get("/api/customer/activity")
-      .set("Cookie", portalCookie)
-      .expect(200);
-    expect(activity.body.quotations[0].status).toBe("CONVERTED_TO_ORDER");
-    expect(activity.body.orders[0].orderNumber).toBe(accepted.body.orderNumber);
-    expect(activity.body.orders[0]).not.toHaveProperty("paidAmount");
-    expect(activity.body.orders[0]).not.toHaveProperty("paymentMode");
-    expect(activity.body.orders[0].items[0].deliveries).toHaveLength(2);
-    expect(activity.body.orders[0].deliveries).toHaveLength(2);
     const staffOrders = await request(app.getHttpServer())
       .get("/api/orders")
       .set("Authorization", `Bearer ${token}`)
@@ -619,43 +540,6 @@ integration("API with isolated PostgreSQL", () => {
         (entry: { orderId: string }) => entry.orderId === deliveryOrder.id,
       ).order,
     ).not.toHaveProperty("paymentMode");
-
-    const declinedQuote = await request(app.getHttpServer())
-      .post("/api/quotes")
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        customerName: "Persistence Test",
-        customerPhone: "9876543210",
-        projectSiteAddress: "Noida sector 10",
-        sitePincode: "201301",
-        items: [{ productId: product.id, quantityMt: 1, unitPrice: 51000 }],
-        freightAmount: 0,
-        taxPct: 18,
-      })
-      .expect(201);
-    await request(app.getHttpServer())
-      .post(`/api/quotes/${declinedQuote.body.id}/publish`)
-      .set("Authorization", `Bearer ${token}`)
-      .expect(201);
-    await request(app.getHttpServer())
-      .post(`/api/customer/quotes/${declinedQuote.body.id}/respond`)
-      .set("Cookie", portalCookie)
-      .set("X-Material-Square", "customer")
-      .send({ decision: "REJECT" })
-      .expect(201);
-    const declinedAudit = await db.auditLog.findFirstOrThrow({
-      where: {
-        entityId: declinedQuote.body.id,
-        action: "CUSTOMER_QUOTATION_DECLINED",
-      },
-    });
-    expect(declinedAudit.staffId).toBeNull();
-    expect(declinedAudit.metadata).toMatchObject({
-      actorType: "CUSTOMER",
-      quoteNumber: declinedQuote.body.quoteNumber,
-      decision: "REJECT",
-    });
-    expect(JSON.stringify(declinedAudit.metadata)).not.toContain("9876543210");
 
     const externallyAcceptedQuote = await request(app.getHttpServer())
       .post("/api/quotes")
@@ -718,11 +602,6 @@ integration("API with isolated PostgreSQL", () => {
     });
     await db.notificationOutbox.deleteMany({
       where: {
-        payload: { path: ["quoteId"], equals: declinedQuote.body.id },
-      },
-    });
-    await db.notificationOutbox.deleteMany({
-      where: {
         payload: {
           path: ["quoteId"],
           equals: externallyAcceptedQuote.body.id,
@@ -735,7 +614,6 @@ integration("API with isolated PostgreSQL", () => {
     await db.quotation.delete({
       where: { id: externallyAcceptedQuote.body.id },
     });
-    await db.quotation.delete({ where: { id: declinedQuote.body.id } });
     await db.order.deleteMany({
       where: { orderNumber: accepted.body.orderNumber },
     });
@@ -1073,7 +951,6 @@ integration("API with isolated PostgreSQL", () => {
     ).toBe("QUOTE_SENT");
     await request(app.getHttpServer())
       .get(`/api/customer/quotes/${revision.body.id}/pdf`)
-      .set("Cookie", portalCookie)
       .expect(404);
     await request(app.getHttpServer())
       .post(`/api/quotes/${revision.body.id}/publish`)
@@ -1085,16 +962,14 @@ integration("API with isolated PostgreSQL", () => {
       .send(revisionInput)
       .expect(409);
     await request(app.getHttpServer())
-      .post(`/api/customer/quotes/${quote.body.id}/respond`)
-      .set("Cookie", portalCookie)
-      .set("X-Material-Square", "customer")
-      .send({ decision: "ACCEPT" })
+      .post(`/api/quotes/${quote.body.id}/acceptance`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ channel: "WHATSAPP" })
       .expect(409);
     const response = await request(app.getHttpServer())
-      .post(`/api/customer/quotes/${revision.body.id}/respond`)
-      .set("Cookie", portalCookie)
-      .set("X-Material-Square", "customer")
-      .send({ decision: "ACCEPT" })
+      .post(`/api/quotes/${revision.body.id}/acceptance`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ channel: "WHATSAPP" })
       .expect(201);
     const order = await db.order.findUniqueOrThrow({
       where: { orderNumber: response.body.orderNumber },
@@ -1134,10 +1009,9 @@ integration("API with isolated PostgreSQL", () => {
       .send(revisionInput)
       .expect(409);
     await request(app.getHttpServer())
-      .post(`/api/customer/quotes/${quote.body.id}/respond`)
-      .set("Cookie", portalCookie)
-      .set("X-Material-Square", "customer")
-      .send({ decision: "ACCEPT" })
+      .post(`/api/quotes/${quote.body.id}/acceptance`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ channel: "WHATSAPP" })
       .expect(409);
     await db.notificationOutbox.deleteMany({
       where: { payload: { path: ["quoteId"], equals: quote.body.id } },
@@ -1555,116 +1429,6 @@ integration("API with isolated PostgreSQL", () => {
     await request(app.getHttpServer())
       .get("/api/analytics/overview")
       .expect(401);
-  });
-  it("persists customer lists across sessions, isolates accounts and revokes logout", async () => {
-    const phone = "9876543219";
-    const signIn = async (number: string) => {
-      const result = await request(app.getHttpServer())
-        .post("/api/auth/customer/otp/verify-msg91")
-        .set("X-Material-Square", "customer")
-        .send({
-          phone: number,
-          accessToken: `mock-msg91-access-token-${number}`,
-        })
-        .expect(200);
-      expect(result.body).toEqual({ success: true });
-      const header = result.headers["set-cookie"][0];
-      expect(header).toContain("HttpOnly");
-      expect(header).toContain("SameSite=Lax");
-      expect(header).toContain("Max-Age=2592000");
-      const cookie = header.split(";")[0];
-      expect(
-        await db.customerSession.findUnique({
-          where: { id: cookie.split("=")[1] },
-        }),
-      ).toBeNull();
-      return cookie;
-    };
-    const cookie = await signIn(phone);
-    await request(app.getHttpServer())
-      .put("/api/customer/profile")
-      .set("Cookie", cookie)
-      .send({ name: "Blocked request" })
-      .expect(403);
-    await request(app.getHttpServer())
-      .put("/api/customer/profile")
-      .set("Cookie", cookie)
-      .set("X-Material-Square", "customer")
-      .set("Origin", "https://untrusted.example")
-      .send({ name: "Blocked request" })
-      .expect(403);
-    await request(app.getHttpServer())
-      .put("/api/customer/profile")
-      .set("Cookie", cookie)
-      .set("X-Material-Square", "customer")
-      .send({ name: "Saved Customer", city: "Noida", pincode: "201301" })
-      .expect(200);
-    const material = {
-      id: "pipe-test",
-      catalogueId: "supreme-cpvc-quote-sample",
-      variantId: "supreme-cpvc-20mm-pipe",
-      name: "CPVC pipe",
-      brand: "Test",
-      unit: "Pieces",
-      quantity: 20,
-      specification: "3/4 inch",
-      price: 40.96,
-      compareAtPrice: 48.33,
-      priceNote: "Indicative quotation rate; confirm with staff",
-    };
-    await request(app.getHttpServer())
-      .put("/api/customer/materials")
-      .set("Cookie", cookie)
-      .set("X-Material-Square", "customer")
-      .send({ version: 0, items: [material] })
-      .expect(200);
-    await request(app.getHttpServer())
-      .put("/api/customer/materials")
-      .set("Cookie", cookie)
-      .set("X-Material-Square", "customer")
-      .send({ version: 0, items: [] })
-      .expect(409);
-    const second = await signIn(phone);
-    const restored = await request(app.getHttpServer())
-      .get("/api/customer/me")
-      .set("Cookie", second)
-      .expect(200);
-    expect(restored.body.name).toBe("Saved Customer");
-    expect(restored.body.materialList).toEqual([material]);
-    expect(restored.body).not.toHaveProperty("creditLimit");
-    const other = await signIn("9876543218");
-    const isolated = await request(app.getHttpServer())
-      .get("/api/customer/me")
-      .set("Cookie", other)
-      .expect(200);
-    expect(isolated.body.materialList).toEqual([]);
-    await request(app.getHttpServer())
-      .post("/api/customer/logout")
-      .set("Cookie", cookie)
-      .set("X-Material-Square", "customer")
-      .send({})
-      .expect(201);
-    await request(app.getHttpServer())
-      .get("/api/customer/me")
-      .set("Cookie", cookie)
-      .expect(401);
-    await request(app.getHttpServer())
-      .get("/api/customer/me")
-      .set("Cookie", second)
-      .expect(200);
-    await db.customerSession.update({
-      where: {
-        id: createHash("sha256").update(second.split("=")[1]).digest("hex"),
-      },
-      data: { expiresAt: new Date(0) },
-    });
-    await request(app.getHttpServer())
-      .get("/api/customer/me")
-      .set("Cookie", second)
-      .expect(401);
-    await db.customer.deleteMany({
-      where: { phone: { in: [phone, "9876543218"] } },
-    });
   });
   it("keeps RFQs after restarting the application", async () => {
     await app.close();

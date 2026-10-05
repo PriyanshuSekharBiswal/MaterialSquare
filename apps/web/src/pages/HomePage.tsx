@@ -19,14 +19,13 @@ import {
   Droplet,
   Package,
 } from "lucide-react";
-import { COMPANY_INFO } from "../data/materialsData";
-import { BRAND_LIST, BrandLogo } from "../components/icons/BrandBadges";
+import { BrandLogo, getBrandMeta } from "../components/icons/BrandBadges";
 import HeroBuildingCanvas from "../components/HeroBuildingCanvas";
-import SiteDeliveriesCarousel from "../components/SiteDeliveriesCarousel";
 import SearchSuggestions from "../components/SearchSuggestions";
 import WhatsAppIcon from "../components/icons/WhatsAppIcon";
 import ArchitecturalTicker from "../components/ArchitecturalTicker";
 import { useSiteContent } from "../site-content";
+import { whatsappLink } from "../messages";
 
 export default function HomePage({
   products,
@@ -77,43 +76,31 @@ export default function HomePage({
     }
   };
 
-  const categoryCards = [
-    {
-      id: "cement",
-      title: "Cement & Aggregates",
-      subtitle: "Cement, aggregates and construction materials",
-      image: "/images/categories/cement-category.jpg",
-      badge: "Cement & aggregates",
-    },
-    {
-      id: "pipes",
-      title: "Pipes & Fittings",
-      subtitle: "Water supply, drainage and plumbing fittings",
-      image: "/images/categories/pipes-category.jpg",
-      badge: "Pipes & fittings",
-    },
-    {
-      id: "wires",
-      title: "Wires & Electrical",
-      subtitle: "Wires, cables and electrical products",
-      image: "/images/categories/wires-category.jpg",
-      badge: "Wires & electrical",
-    },
-    {
-      id: "paints",
-      title: "Paints & Wall Finishes",
-      subtitle: "Paints, wall finishes and surface preparation",
-      image: "/images/categories/paints-category.jpg",
-      badge: "Paints & finishes",
-    },
-    {
-      id: "sanitary",
-      title: "Sanitaryware & Bath",
-      subtitle: "Bath fittings, sanitaryware and sinks",
-      image: "/images/categories/sanitary-category.jpg",
-      badge: "Sanitaryware & bath",
-    },
-  ];
+  const categoryImages: Record<string, string> = {
+    cement: "/images/categories/cement-category.jpg",
+    pipes: "/images/categories/pipes-category.jpg",
+    wires: "/images/categories/wires-category.jpg",
+    steel: "/images/categories/wires-category.jpg",
+    paints: "/images/categories/paints-category.jpg",
+    sanitary: "/images/categories/sanitary-category.jpg",
+    adhesives: "/images/categories/pipes-category.jpg",
+  };
+  const categoryCards = Array.from(
+    new Map(products.map((product) => [product.category, product.categoryLabel])).entries(),
+  ).map(([id, title]) => ({
+    id,
+    title,
+    subtitle: `Browse ${title.toLowerCase()} available in the catalogue.`,
+    image: categoryImages[id],
+    badge: title,
+  }));
+  const listedBrands = Array.from(
+    new Map(products.filter((product) => product.brand.trim()).map((product) => [product.brand, product.categoryLabel])).entries(),
+  ).map(([name, category]) => ({ name, category, meta: getBrandMeta(name) }));
+  const searchBrandExamples = listedBrands
+    .slice(0, 3)
+    .map((brand) => brand.name)
+    .join(", ");
   const customContentBlocks = homeContentBlocks(
     siteContent["home.contentBlocks"],
   ).filter((block) => block.visible);
@@ -152,7 +139,7 @@ export default function HomePage({
               <span className="badge-pill badge-orange-pill">
                 {siteContent["home.eyebrow"]}
               </span>
-              <span className="serving-text">Serving Delhi NCR</span>
+              <span className="serving-text">Browse published inventory</span>
             </div>
 
             <h1 className="hero-heading">
@@ -166,9 +153,9 @@ export default function HomePage({
               ))}
             </h1>
 
-            <div className="hero-hindi-quote reveal-text">
+            {siteContent["home.slogan"] && <div className="hero-hindi-quote reveal-text">
               <span>"{siteContent["home.slogan"]}"</span>
-            </div>
+            </div>}
 
             <p className="hero-subtext reveal-text">
               {siteContent["home.description"]}
@@ -184,7 +171,7 @@ export default function HomePage({
               <input
                 type="text"
                 className="search-input"
-                placeholder="Search products or brands (e.g. UltraTech, Astral, Polycab)..."
+                placeholder={`Search products or brands${searchBrandExamples ? ` (e.g. ${searchBrandExamples})` : ""}...`}
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -296,7 +283,7 @@ export default function HomePage({
             </div>
             <div>
               <h4>Save a material list</h4>
-              <p>Sign in to keep your selected materials with your account.</p>
+              <p>Your selected materials stay in this browser while you browse.</p>
             </div>
           </div>
 
@@ -336,7 +323,7 @@ export default function HomePage({
                 Explore by Trade
               </span>
               <h2 className="section-title-clean reveal-title">
-                Everything You Need To Build. In One Place.
+                Browse materials from the current catalogue.
               </h2>
               <p className="section-subtitle-clean reveal-text">
                 Browse material categories and check the current product
@@ -358,10 +345,7 @@ export default function HomePage({
                 className="category-gateway-card"
               >
                 <div className="category-img-wrapper">
-                  <img src={cat.image} alt={cat.title} loading="lazy" />
-                  <span className="category-image-note">
-                    Illustrative image
-                  </span>
+                  {cat.image && <img src={cat.image} alt="" loading="lazy" />}
                   <span className="category-badge-chip">{cat.badge}</span>
                 </div>
                 <div className="category-card-info">
@@ -386,18 +370,18 @@ export default function HomePage({
           </div>
 
           <div className="brands-logos-grid reveal-stagger">
-            {BRAND_LIST.map((brand) => (
+            {listedBrands.map((brand) => (
               <Link
-                key={brand.id}
+                key={brand.name}
                 to={`/marketplace?brand=${encodeURIComponent(brand.name)}`}
                 className="brand-badge-item"
                 title={`Browse ${brand.name} Products`}
               >
-                <div className="brand-logo-frame">
-                  <BrandLogo id={brand.id} className="brand-logo-svg" />
+                <div className="brand-logo-frame" aria-label={brand.name}>
+                  <BrandLogo id={brand.meta?.id || brand.name} className="brand-logo-svg" />
                 </div>
                 <div className="brand-card-meta">
-                  <span className="brand-tagline-text">{brand.tagline}</span>
+                  <span className="brand-tagline-text">{brand.name}</span>
                   <span className="brand-category-pill">{brand.category}</span>
                 </div>
               </Link>
@@ -507,15 +491,15 @@ export default function HomePage({
               <FileText size={16} />
               <span>{siteContent["home.calloutButton"]}</span>
             </Link>
-            <a
-              href={`https://wa.me/91${siteContent["contact.phone"]}`}
+            {siteContent["contact.phone"] && <a
+              href={whatsappLink("Material Square — General Enquiry", siteContent["contact.phone"])}
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-whatsapp btn-lg"
             >
               <WhatsAppIcon size={20} color="#ffffff" />
               <span>Connect on WhatsApp</span>
-            </a>
+            </a>}
           </div>
         </div>
       </section>

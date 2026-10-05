@@ -22,15 +22,19 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      APP_ENV: production
-      DEMO_AUTH_ENABLED: "false"
       PORT: 4000
       DATABASE_URL: postgresql://material_square:${POSTGRES_PASSWORD:?Set database password}@postgres:5432/material_square
       JWT_SECRET: ${JWT_SECRET:?Set a random secret of at least 32 characters}
-      CORS_ORIGINS: https://${SITE_DOMAIN:?Set website domain},https://${ADMIN_DOMAIN:?Set admin domain}
+      CORS_ORIGINS: https://${SITE_DOMAIN:?Set website domain}
       TRUST_PROXY_HOPS: 1
       ENABLE_API_DOCS: "false"
       QUOTE_SELLER_NAME: Material Square
+      AWS_REGION: ${AWS_REGION:?Set storage region}
+      AWS_S3_ENDPOINT: ${AWS_S3_ENDPOINT:-}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:?Set storage bucket}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?Set storage access key}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?Set storage secret key}
+      AWS_S3_PUBLIC_URL: ${AWS_S3_PUBLIC_URL:?Set public storage URL}
     depends_on:
       postgres:
         condition: service_healthy
@@ -48,7 +52,6 @@ services:
     restart: unless-stopped
     environment:
       SITE_DOMAIN: ${SITE_DOMAIN:?Set website domain}
-      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?Set admin domain}
     ports:
       - "80:80"
       - "443:443"

@@ -5,7 +5,7 @@ export async function creditDeliveredOrderLoyalty(
   orderId: string,
 ) {
   const order = await db.order.findUnique({ where: { id: orderId } });
-  if (!order) return;
+  if (!order?.customerId) return;
   const settings = await db.loyaltyProgramSetting.findUnique({
     where: { id: "default" },
   });

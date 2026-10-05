@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import MaterialListEditor from './MaterialListEditor';
-import { useCustomer } from '../customer';
 import type { MaterialItem, CatalogueProduct } from '../types';
 import React, { useState, useEffect } from 'react';
 import {
@@ -17,7 +16,6 @@ import {
 } from 'lucide-react';
 import WhatsAppIcon from './icons/WhatsAppIcon';
 import { BrandLogo, getBrandMeta } from './icons/BrandBadges';
-import { COMPANY_INFO } from '../data/materialsData';
 
 export default function WhatsAppBOMDrawer({
   isOpen,
@@ -25,8 +23,8 @@ export default function WhatsAppBOMDrawer({
   bomList,
   onRemoveBOMItem,
   onClearBOM,
-}: { isOpen: boolean; onClose: () => void; bomList: MaterialItem[]; onRemoveBOMItem: (id: string) => void; onClearBOM: () => void }) {
-  const { customer, saving, error } = useCustomer();
+  products = [],
+}: { isOpen: boolean; onClose: () => void; bomList: MaterialItem[]; onRemoveBOMItem: (id: string) => void; onClearBOM: () => void; products?: CatalogueProduct[] }) {
   // Lock background scroll, pause Lenis / Locomotive scroll, and handle ESC
   useEffect(() => {
     if (!isOpen) return;
@@ -84,14 +82,14 @@ export default function WhatsAppBOMDrawer({
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="Send Material List"
+            aria-label="Review quote list"
         data-lenis-prevent
       >
         {/* Drawer Header */}
         <div className="drawer-top-bar">
           <div className="drawer-title-group">
-            <span className="drawer-eyebrow-tag">"{COMPANY_INFO.sloganHindi}"</span>
-            <h3 className="drawer-main-title">Project Material List (BOM)</h3>
+            <span className="drawer-eyebrow-tag">Selected materials</span>
+            <h3 className="drawer-main-title">Your quote list</h3>
           </div>
           <button
             type="button"
@@ -105,9 +103,10 @@ export default function WhatsAppBOMDrawer({
 
         {/* Drawer Content */}
         <div className="drawer-body-scroll" data-lenis-prevent>
-          <MaterialListEditor />
-          <p className="customer-help">{customer ? (error ? 'Your latest changes could not be saved. Check the message above.' : saving ? 'Saving your material list…' : 'Your list is saved to your account.') : 'Sign in to save your list across devices.'}</p>
-          <Link className="btn btn-primary btn-block" to="/get-quote" onClick={onClose}>Add details and prepare a request</Link>
+          <MaterialListEditor products={products} />
+          <p className="customer-help">Your list is saved in this browser while you browse. Send it to the team with your quotation request.</p>
+          <p className="customer-help">No online payment is collected. The team will confirm price, stock and delivery with you.</p>
+          <Link className="btn btn-primary btn-block" to="/get-quote" onClick={onClose}>Request a quotation</Link>
 
         </div>
       </aside>

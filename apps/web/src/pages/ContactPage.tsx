@@ -2,12 +2,16 @@ import FaqSection from "../components/FaqSection";
 import RequestContactForm from '../components/RequestContactForm';
 import { whatsappLink } from '../messages';
 import { Mail, MapPin, Phone } from 'lucide-react';
-import { COMPANY_INFO } from '../data/materialsData';
 import WhatsAppIcon from '../components/icons/WhatsAppIcon';
 import { useSiteContent } from '../site-content';
 
 export default function ContactPage() {
   const siteContent = useSiteContent();
+  const hasContactOptions = Boolean(
+    siteContent["contact.phone"] ||
+    siteContent["contact.email"] ||
+    siteContent["contact.officeAddress"],
+  );
   return (
     <div className="contact-page">
       <section className="page-hero-header">
@@ -22,14 +26,15 @@ export default function ContactPage() {
         </div>
       </section>
 
-      <section className="contact-channels-section">
+      {hasContactOptions && <section className="contact-channels-section">
         <div className="container">
           <div className="contact-cards-grid">
+            {siteContent["contact.phone"] && <>
             <article className="contact-info-card highlighted">
               <div className="info-card-icon whatsapp"><WhatsAppIcon size={26} color="#16a34a" /></div>
               <h2>WhatsApp</h2>
               <p>Send a material request or ask the team to confirm product and delivery details.</p>
-              <a href={whatsappLink('Material Square — Contact Enquiry\n\nHello, I would like to discuss construction materials for my site.')} target="_blank" rel="noopener noreferrer" className="channel-link">
+              <a href={whatsappLink('Material Square — Contact Enquiry\n\nHello, I would like to discuss construction materials for my site.', siteContent["contact.phone"])} target="_blank" rel="noopener noreferrer" className="channel-link">
                 Chat on WhatsApp
               </a>
             </article>
@@ -38,33 +43,34 @@ export default function ContactPage() {
               <div className="info-card-icon phone"><Phone size={24} /></div>
               <h2>Call</h2>
               <p>Speak with the team about a product listing or site requirement.</p>
-              <a href={`tel:${siteContent["contact.phone"]}`} className="channel-link">{siteContent["contact.phoneDisplay"]}</a>
+              {siteContent["contact.phone"] && <a href={`tel:${siteContent["contact.phone"]}`} className="channel-link">{siteContent["contact.phoneDisplay"] || siteContent["contact.phone"]}</a>}
             </article>
+            </>}
 
-            <article className="contact-info-card">
+            {siteContent["contact.email"] && <article className="contact-info-card">
               <div className="info-card-icon insta"><Mail size={24} /></div>
               <h2>Email</h2>
               <p>Send your requirements and include supporting files from your email app.</p>
               <a href={`mailto:${siteContent["contact.email"]}`} className="channel-link">{siteContent["contact.email"]}</a>
-            </article>
+            </article>}
 
-            <article className="contact-info-card highlighted">
+            {siteContent["contact.officeAddress"] && <article className="contact-info-card highlighted">
               <div className="info-card-icon depot"><MapPin size={24} /></div>
               <h2>Office</h2>
               <p>Contact the team before visiting so they can confirm the right location and availability.</p>
               <span className="depot-address">{siteContent["contact.officeAddress"]}</span>
-              <a href={COMPANY_INFO.officeGoogleMapsUrl} target="_blank" rel="noopener noreferrer" className="channel-link">
+              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(siteContent["contact.officeAddress"])}`} target="_blank" rel="noopener noreferrer" className="channel-link">
                 Open in Google Maps ↗
               </a>
-            </article>
+            </article>}
           </div>
         </div>
-      </section>
+      </section>}
 
       <section className="coverage-zones-section">
         <div className="container">
           <div className="section-title-wrap text-center">
-            <span className="badge-pill">Service area</span>
+            <span className="badge-pill">Delivery information</span>
             <h2 className="section-title-clean">{siteContent["contact.coverageTitle"]}</h2>
             <p className="section-subtitle-clean">
               {siteContent["contact.coverageDescription"]}

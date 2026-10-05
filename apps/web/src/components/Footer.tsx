@@ -12,12 +12,22 @@ import {
 import MaterialSquareLogo from "./icons/MaterialSquareLogo";
 import InstagramIcon from "./icons/InstagramIcon";
 import WhatsAppIcon from "./icons/WhatsAppIcon";
-import { COMPANY_INFO } from "../data/materialsData";
 import { useSiteContent } from "../site-content";
+import { whatsappLink } from "../messages";
+import type { CatalogueProduct } from "../types";
 
-export default function Footer() {
+export default function Footer({ products = [] }: { products?: CatalogueProduct[] }) {
   const siteContent = useSiteContent();
   const socialLinks = parseSocialLinks(siteContent["footer.socialLinks"]);
+  const categories = Array.from(
+    new Map(products.map((product) => [product.category, product.categoryLabel])).entries(),
+  );
+  const contactDetails = Boolean(
+    siteContent["contact.location"] ||
+    siteContent["contact.phone"] ||
+    siteContent["contact.phoneDisplay"] ||
+    siteContent["contact.email"],
+  );
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -28,29 +38,29 @@ export default function Footer() {
         {/* Top Highlight Banner */}
         <div className="footer-callout-banner">
           <div className="callout-left">
-            <span className="badge-dark">Delhi NCR Construction Partner</span>
+            <span className="badge-dark">Construction materials catalogue</span>
             <h3>{siteContent["footer.calloutTitle"]}</h3>
             <p>{siteContent["footer.calloutDescription"]}</p>
           </div>
 
           <div className="callout-right-actions">
-            <a
+            {siteContent["contact.phone"] && <a
               href={`tel:${siteContent["contact.phone"]}`}
               className="btn btn-outline"
             >
               <Phone size={16} />
-              <span>Call {siteContent["contact.phoneDisplay"]}</span>
-            </a>
+              <span>Call {siteContent["contact.phoneDisplay"] || siteContent["contact.phone"]}</span>
+            </a>}
 
-            <a
-              href={COMPANY_INFO.whatsappUrl}
+            {siteContent["contact.phone"] && <a
+              href={whatsappLink("Material Square — General Enquiry\n\nHello, I would like help with construction materials for my project.", siteContent["contact.phone"])}
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-whatsapp"
             >
               <WhatsAppIcon size={18} color="#ffffff" />
               <span>WhatsApp Us Now</span>
-            </a>
+            </a>}
           </div>
         </div>
 
@@ -59,9 +69,9 @@ export default function Footer() {
           {/* Brand Col */}
           <div className="footer-col brand-col">
             <MaterialSquareLogo size={46} showText={true} lightMode={true} />
-            <p className="footer-tagline-para">
+            {siteContent["footer.slogan"] && <p className="footer-tagline-para">
               "{siteContent["footer.slogan"]}"
-            </p>
+            </p>}
             <p className="footer-bio-para">
               {siteContent["footer.description"]}
             </p>
@@ -88,28 +98,15 @@ export default function Footer() {
           <div className="footer-col">
             <h4 className="footer-heading">Browse categories</h4>
             <ul className="footer-nav-list">
-              <li>
-                <Link to="/marketplace?category=cement">
-                  Cement & aggregates
-                </Link>
-              </li>
-              <li>
-                <Link to="/marketplace?q=steel">Structural steel & rebar</Link>
-              </li>
-              <li>
-                <Link to="/marketplace?category=pipes">Pipes & fittings</Link>
-              </li>
-              <li>
-                <Link to="/marketplace?category=wires">Wires & electrical</Link>
-              </li>
-              <li>
-                <Link to="/marketplace?category=paints">Paints & finishes</Link>
-              </li>
-              <li>
-                <Link to="/marketplace?category=sanitary">
-                  Sanitaryware & bath
-                </Link>
-              </li>
+              {categories.length ? categories.map(([id, label]) => (
+                <li key={id}>
+                  <Link to={`/marketplace?category=${encodeURIComponent(id)}`}>
+                    {label}
+                  </Link>
+                </li>
+              )) : (
+                <li><Link to="/marketplace">Browse all products</Link></li>
+              )}
             </ul>
           </div>
 
@@ -139,20 +136,20 @@ export default function Footer() {
           </div>
 
           {/* Depot & Service Areas Col */}
-          <div className="footer-col">
-            <h4 className="footer-heading">Service Hub & Logistics</h4>
-            <div className="footer-info-item">
+          {contactDetails && <div className="footer-col">
+            <h4 className="footer-heading">Contact details</h4>
+            {siteContent["contact.location"] && <div className="footer-info-item">
               <MapPin size={16} className="f-icon" />
               <span>{siteContent["contact.location"]}</span>
-            </div>
-            <div className="footer-info-item">
+            </div>}
+            {(siteContent["contact.phoneDisplay"] || siteContent["contact.phone"]) && <div className="footer-info-item">
               <Phone size={16} className="f-icon" />
-              <span>{siteContent["contact.phoneDisplay"]}</span>
-            </div>
-            <div className="footer-info-item">
+              <span>{siteContent["contact.phoneDisplay"] || siteContent["contact.phone"]}</span>
+            </div>}
+            {siteContent["contact.email"] && <div className="footer-info-item">
               <Mail size={16} className="f-icon" />
               <span>{siteContent["contact.email"]}</span>
-            </div>
+            </div>}
 
             <div className="footer-assurance-box">
               <ShieldCheck size={16} />
@@ -161,14 +158,13 @@ export default function Footer() {
                 staff.
               </span>
             </div>
-          </div>
+          </div>}
         </div>
 
         {/* Bottom Bar */}
         <div className="footer-bottom-row">
           <p className="copyright-text">
             © {new Date().getFullYear()} Material Square. All rights reserved.
-            Building Better Together.
           </p>
 
           <nav className="footer-legal-links" aria-label="Legal information">

@@ -1,4 +1,3 @@
-import { demoAuthEnabled } from "./auth/demo-mode";
 import { publicRateLimit } from "./common/rate-limit";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
@@ -7,8 +6,6 @@ import { ValidationPipe } from "@nestjs/common";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
-  demoAuthEnabled();
 
   // Only enable proxy trust for an explicitly configured, private reverse-proxy hop count.
   const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0);
@@ -21,10 +18,10 @@ async function bootstrap() {
   // Set global API prefix
   app.setGlobalPrefix("api");
 
-  // Enable CORS for frontend applications (Customer Web and Admin Panel)
+  // Allow the public customer website to call the API.
   app.enableCors({
     origin: (
-      process.env.CORS_ORIGINS || "http://localhost:5173,http://localhost:5174"
+      process.env.CORS_ORIGINS || "http://localhost:5173"
     ).split(",").map((origin) => origin.trim()).filter(Boolean),
     credentials: true,
   });

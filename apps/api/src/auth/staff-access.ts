@@ -109,7 +109,7 @@ export const STAFF_ROLE_DEFINITIONS: {
     role: "SALES_MANAGER",
     label: "Sales & customer support",
     description:
-      "Views customer accounts and records follow-ups for V1 WhatsApp, email, and phone requests.",
+      "Views customer contact records and records follow-ups for WhatsApp, email, and phone requests.",
     permissions: [
       "staff.profile",
       "dashboard.view",

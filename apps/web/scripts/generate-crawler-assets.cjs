@@ -81,11 +81,6 @@ const routes = [
   { path: "/experts", title: SITE_CONTENT_DEFAULTS["seo.expertsTitle"] },
   { path: "/privacy", title: "Privacy notice | Material Square" },
   { path: "/terms", title: "Website terms | Material Square" },
-  {
-    path: "/account",
-    title: SITE_CONTENT_DEFAULTS["seo.siteTitle"],
-    noIndex: true,
-  },
 ];
 
 for (const route of routes) {

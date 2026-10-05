@@ -1,15 +1,10 @@
 import {
   ConflictException,
   Injectable,
-  Logger,
   NotFoundException,
-  OnModuleInit,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { PRODUCTS } from "@material-square/types";
 import { PrismaService } from "../prisma/prisma.service";
-import { getDemoVariants } from "./catalog-demo-variants";
-import { PREVIEW_CATALOG_LEGACY_SOURCE } from "./catalog-legacy-baseline";
 
 export type CatalogListingInput = {
   slug: string;
@@ -21,7 +16,7 @@ export type CatalogListingInput = {
   categoryLabel: string;
   unit: string;
   packaging?: string | null;
-  image: string;
+  image?: string | null;
   galleryImages: string[];
   grade?: string | null;
   description?: string | null;
@@ -34,6 +29,7 @@ export type CatalogListingInput = {
   offerStartsAt?: Date | null;
   offerEndsAt?: Date | null;
   isInStock: boolean;
+  availabilityStatus?: "IN_STOCK" | "OUT_OF_STOCK" | "CHECK_AVAILABILITY";
   isPublished: boolean;
   features: string[];
   applications: string[];
@@ -50,6 +46,7 @@ export type CatalogListingInput = {
     offerStartsAt?: Date | null;
     offerEndsAt?: Date | null;
     isInStock: boolean;
+    availabilityStatus?: "IN_STOCK" | "OUT_OF_STOCK" | "CHECK_AVAILABILITY";
     stockQuantity?: number | null;
     minOrderQuantity?: number | null;
     quantityBreaks?: Array<{ minimumQuantity: number; unitPrice: number }>;
@@ -58,265 +55,9 @@ export type CatalogListingInput = {
   sortOrder: number;
 };
 
-const categoryIllustrations: Record<string, string> = {
-  cement: "/images/categories/cement-category.jpg",
-  pipes: "/images/categories/pipes-category.jpg",
-  wires: "/images/categories/wires-category.jpg",
-  steel: "/images/categories/wires-category.jpg",
-  paints: "/images/categories/paints-category.jpg",
-  sanitary: "/images/categories/sanitary-category.jpg",
-  adhesives: "/images/categories/pipes-category.jpg",
-};
-const previewGallery = (product: (typeof PRODUCTS)[number]) =>
-  Array.from(
-    new Set(
-      [product.image, categoryIllustrations[product.category]].filter(
-        (image): image is string => Boolean(image),
-      ),
-    ),
-  );
-const legacyPreviewById = new Map(
-  PREVIEW_CATALOG_LEGACY_SOURCE.map((product) => [product.id, product]),
-);
-const stableJsonValue = (value: unknown): unknown => {
-  if (Array.isArray(value)) return value.map(stableJsonValue);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, item]) => [key, stableJsonValue(item)]),
-    );
-  }
-  return value ?? null;
-};
-const sameJson = (a: unknown, b: unknown) =>
-  JSON.stringify(stableJsonValue(a)) === JSON.stringify(stableJsonValue(b));
-
 @Injectable()
-export class ProductsService implements OnModuleInit {
-  private readonly logger = new Logger(ProductsService.name);
-
+export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
-
-  async onModuleInit() {
-    if (
-      process.env.APP_ENV === "production" ||
-      (process.env.NODE_ENV === "production" && process.env.APP_ENV !== "demo")
-    ) {
-      this.logger.log("Skipping preview catalogue seed in production.");
-      return;
-    }
-    // Seed the preview catalogue on first use. On an existing database add
-    // only missing sample products/variants; never reset edits made by staff.
-    let created = 0;
-    let backfilled = 0;
-    let existingCount = 0;
-    const hidden = new Set<string>();
-    for (const [sortOrder, product] of PRODUCTS.entries()) {
-      const variants = getDemoVariants(product.id);
-      const existing = await this.prisma.catalogListing.findUnique({
-        where: { slug: product.id },
-        include: { variants: true },
-      });
-      if (existing) {
-        // The hosted preview database may contain early placeholder rows from
-        // before the sample prices and category filters were completed. Keep
-        // those sample rows useful for testing while only filling absent demo
-        // fields; staff-entered prices, images and availability are preserved.
-        // The exact slug lookup above identifies this preview family. Legacy
-        // preview rows can have an empty or older product code, so do not let
-        // that stale identifier prevent the additive price/category repair.
-        if (existing.slug === product.id) {
-          // Remove the old, unverified demo copy one field at a time. Each
-          // field is replaced only when it still exactly matches the seeded
-          // baseline; staff edits, prices, stock, images and publication state
-          // are preserved.
-          const legacy = legacyPreviewById.get(product.id);
-          if (legacy) {
-            const copyUpdate: Prisma.CatalogListingUpdateInput = {};
-            if (existing.grade === legacy.grade)
-              copyUpdate.grade = product.grade || null;
-            if (existing.packaging === legacy.packaging)
-              copyUpdate.packaging = product.packaging;
-            if (existing.dispatchTime === legacy.dispatchTime)
-              copyUpdate.dispatchTime = product.dispatchTime;
-            if (existing.minOrderQty === legacy.minOrderQty)
-              copyUpdate.minOrderQty = product.minOrderQty;
-            if (sameJson(existing.features, legacy.features))
-              copyUpdate.features = [...product.features];
-            if (sameJson(existing.applications, legacy.applications))
-              copyUpdate.applications = [...product.applications];
-            if (sameJson(existing.specifications, legacy.specs))
-              copyUpdate.specifications =
-                product.specs as Prisma.InputJsonValue;
-            if (
-              existing.description ===
-              "Preview catalogue item. Product details, price, tax and availability must be confirmed with the client before a sale."
-            ) {
-              copyUpdate.description = product.description;
-            }
-            if (Object.keys(copyUpdate).length) {
-              await this.prisma.catalogListing.update({
-                where: { id: existing.id },
-                data: copyUpdate,
-              });
-              backfilled++;
-            }
-          }
-          if (
-            existing.category !== product.category ||
-            existing.categoryLabel !== product.categoryLabel
-          ) {
-            await this.prisma.catalogListing.update({
-              where: { id: existing.id },
-              data: {
-                category: product.category,
-                categoryLabel: product.categoryLabel,
-              },
-            });
-          }
-          const variantsByCode = new Map(
-            existing.variants.map((variant) => [variant.code, variant]),
-          );
-          const storedVariantsByOrder = existing.variants
-            .slice()
-            .sort((a, b) => a.sortOrder - b.sortOrder);
-          for (const seedVariant of variants) {
-            const stored =
-              variantsByCode.get(seedVariant.code) ||
-              (existing.variants.length === variants.length
-                ? storedVariantsByOrder[seedVariant.sortOrder]
-                : undefined);
-            if (!stored || stored.price != null || seedVariant.price == null)
-              continue;
-            await this.prisma.catalogListingVariant.update({
-              where: { id: stored.id },
-              data: {
-                price: seedVariant.price,
-                compareAtPrice: seedVariant.compareAtPrice ?? null,
-                priceNote:
-                  seedVariant.priceNote ||
-                  "Indicative preview price; client must confirm current price, tax, stock and delivery.",
-                quantityBreaks:
-                  stored.quantityBreaks &&
-                  JSON.stringify(stored.quantityBreaks) !== "[]"
-                    ? undefined
-                    : ((seedVariant.quantityBreaks ||
-                        []) as Prisma.InputJsonValue),
-              },
-            });
-            backfilled++;
-          }
-        }
-        if (existing.variants.length === 0 && variants.length > 0) {
-          try {
-            await this.prisma.catalogListing.update({
-              where: { id: existing.id },
-              data: {
-                galleryImages: existing.galleryImages.length
-                  ? undefined
-                  : previewGallery(product),
-                variants: {
-                  create: variants.map((variant) =>
-                    this.toVariantPrismaData(variant),
-                  ),
-                },
-              },
-            });
-            backfilled++;
-          } catch (error) {
-            if (
-              !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-              error.code !== "P2002"
-            )
-              throw error;
-          }
-        } else {
-          existingCount++;
-          if (!existing.isPublished) hidden.add(product.id);
-        }
-        continue;
-      }
-      try {
-        await this.prisma.catalogListing.create({
-          data: {
-            id: product.id,
-            slug: product.id,
-            code: product.code,
-            name: product.name,
-            brand: product.brand,
-            brandTagline: product.brandTagline,
-            category: product.category,
-            categoryLabel: product.categoryLabel,
-            unit: product.unit,
-            packaging: product.packaging,
-            image: product.image,
-            galleryImages: previewGallery(product),
-            minOrderQty: product.minOrderQty,
-            dispatchTime: "Availability and delivery confirmed by staff",
-            description: product.description,
-            isInStock: false,
-            isPublished: true,
-            features: product.features,
-            applications: product.applications,
-            specifications: product.specs as Prisma.InputJsonValue,
-            grade: product.grade || null,
-            variants: {
-              create: variants.map((variant) =>
-                this.toVariantPrismaData(variant),
-              ),
-            },
-            sortOrder,
-          },
-        });
-        created++;
-      } catch (error) {
-        if (
-          !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-          error.code !== "P2002"
-        )
-          throw error;
-        this.logger.warn(
-          `Preview catalogue seed skipped ${product.id}: a product or variant code already exists.`,
-        );
-      }
-    }
-    this.logger.log(
-      `Preview catalogue seed checked ${PRODUCTS.length} families: ${created} created, ${backfilled} backfilled, ${existingCount} preserved.`,
-    );
-    if (hidden.size)
-      this.logger.warn(
-        `Preview catalogue families remain unpublished (preserved staff state): ${[...hidden].join(", ")}`,
-      );
-
-    // The first demo database used unpublished placeholder rows. Publish the
-    // illustrative catalogue once so the public preview is usable, then keep
-    // any later staff visibility changes across restarts. This marker is never
-    // touched outside the isolated demo environment.
-    if (process.env.APP_ENV === "demo") {
-      const markerKey = "preview-catalogue-published-v1";
-      const bootstrapped = await this.prisma.demoBootstrapState.findUnique({
-        where: { key: markerKey },
-      });
-      if (!bootstrapped) {
-        await this.prisma.catalogListing.updateMany({
-          where: {
-            slug: { in: PRODUCTS.map((product) => product.id) },
-            isPublished: false,
-          },
-          data: { isPublished: true },
-        });
-        await this.prisma.demoBootstrapState.upsert({
-          where: { key: markerKey },
-          create: { key: markerKey },
-          update: {},
-        });
-        this.logger.log(
-          "Published the illustrative demo catalogue once; staff can now manage its visibility.",
-        );
-      }
-    }
-  }
 
   async findPublic() {
     const now = new Date();
@@ -338,6 +79,7 @@ export class ProductsService implements OnModuleInit {
       ({
         specifications,
         isInStock,
+        availabilityStatus,
         image,
         galleryImages,
         variants = [],
@@ -348,21 +90,32 @@ export class ProductsService implements OnModuleInit {
         const offerActive =
           (!offerStart || offerStart <= todayInIndia) &&
           (!offerEnd || offerEnd >= todayInIndia);
+        const variantStatuses = variants.map((variant) =>
+          this.resolveAvailabilityStatus(variant.availabilityStatus, variant.isInStock),
+        );
+        const publicAvailability = isInStock || variantStatuses.includes("IN_STOCK")
+          ? "IN_STOCK"
+          : (availabilityStatus === "OUT_OF_STOCK" || (variantStatuses.length > 0 && variantStatuses.every((status) => status === "OUT_OF_STOCK")))
+            ? "OUT_OF_STOCK"
+            : "CHECK_AVAILABILITY";
         return {
           ...listing,
+          availabilityStatus: publicAvailability,
           code: listing.code || listing.slug,
           brand: listing.brand || "",
-          image: image || "/images/products/material-sack-illustration.png",
+          image: image || null,
           galleryImages: galleryImages.length
             ? galleryImages
-            : [image || "/images/products/material-sack-illustration.png"],
-          inStock: isInStock || variants.some((variant) => variant.isInStock),
+            : image
+              ? [image]
+              : [],
+          inStock: publicAvailability === "IN_STOCK",
           specs: specifications as Record<string, string>,
           wholesaleRate: listing.price == null ? "Request a quotation" : null,
           compareAtPrice: offerActive ? listing.compareAtPrice : null,
           offerLabel: offerActive ? listing.offerLabel : null,
           variants: variants.map(
-            ({ isInStock: variantInStock, ...variant }) => {
+            ({ isInStock: variantInStock, availabilityStatus: variantAvailability, ...variant }) => {
               const variantOfferStart =
                 variant.offerStartsAt?.toISOString().slice(0, 10) || offerStart;
               const variantOfferEnd =
@@ -372,7 +125,8 @@ export class ProductsService implements OnModuleInit {
                 (!variantOfferEnd || variantOfferEnd >= todayInIndia);
               return {
                 ...variant,
-                inStock: variantInStock,
+                inStock: this.resolveAvailabilityStatus(variantAvailability, variantInStock) === "IN_STOCK",
+                availabilityStatus: this.resolveAvailabilityStatus(variantAvailability, variantInStock),
                 attributes: variant.attributes as Record<string, string>,
                 compareAtPrice: variantOfferActive
                   ? variant.compareAtPrice
@@ -552,12 +306,15 @@ export class ProductsService implements OnModuleInit {
     data: CatalogListingInput,
   ): Prisma.CatalogListingUncheckedCreateInput {
     const { variants: _variants, ...listing } = data;
+    const availabilityStatus = this.resolveAvailabilityStatus(data.availabilityStatus, data.isInStock);
     return {
       ...listing,
+      isInStock: availabilityStatus === "IN_STOCK",
+      availabilityStatus,
       code: data.code || null,
       brandTagline: data.brandTagline || null,
       packaging: data.packaging || null,
-      image: data.image,
+      image: data.image ?? null,
       grade: data.grade || null,
       description: data.description || null,
       minOrderQty: data.minOrderQty || null,
@@ -576,6 +333,7 @@ export class ProductsService implements OnModuleInit {
   private toVariantPrismaData(
     variant: CatalogListingInput["variants"][number],
   ): Prisma.CatalogListingVariantUncheckedCreateWithoutListingInput {
+    const availabilityStatus = this.resolveAvailabilityStatus(variant.availabilityStatus, variant.isInStock);
     return {
       code: variant.code || null,
       label: variant.label,
@@ -587,11 +345,19 @@ export class ProductsService implements OnModuleInit {
       offerLabel: variant.offerLabel || null,
       offerStartsAt: variant.offerStartsAt || null,
       offerEndsAt: variant.offerEndsAt || null,
-      isInStock: variant.isInStock,
+      isInStock: availabilityStatus === "IN_STOCK",
+      availabilityStatus,
       stockQuantity: variant.stockQuantity ?? null,
       minOrderQuantity: variant.minOrderQuantity ?? null,
       quantityBreaks: (variant.quantityBreaks || []) as Prisma.InputJsonValue,
       sortOrder: variant.sortOrder,
     };
+  }
+
+  private resolveAvailabilityStatus(
+    status: "IN_STOCK" | "OUT_OF_STOCK" | "CHECK_AVAILABILITY" | undefined,
+    legacyInStock: boolean,
+  ): "IN_STOCK" | "OUT_OF_STOCK" | "CHECK_AVAILABILITY" {
+    return status || (legacyInStock ? "IN_STOCK" : "CHECK_AVAILABILITY");
   }
 }

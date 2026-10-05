@@ -21,7 +21,7 @@ const permissionLabels: Record<string, string> = {
   "staff.profile": "View own staff profile",
   "staff.manage": "Create staff accounts and assign roles",
   "dashboard.view": "View dashboard and analytics",
-  "customers.read": "View customer accounts and saved material lists",
+  "customers.read": "View customer contact records",
   "followups.manage": "Manage customer follow-ups",
   "sales.manage": "Manage sales requests and quotations",
   "orders.read": "View orders",

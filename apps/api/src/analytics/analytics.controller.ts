@@ -4,7 +4,7 @@ import { StaffGuard } from "../auth/access.guard";
 import { validate } from "../common/validation";
 import { AnalyticsService, type WebsiteAnalyticsEvent } from "./analytics.service";
 
-const pageKeys = ["home", "marketplace", "why-us", "guides", "get-quote", "contact", "blogs", "experts", "account"] as const;
+const pageKeys = ["home", "marketplace", "why-us", "guides", "get-quote", "contact", "blogs", "experts"] as const;
 const publicEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("page_view"), target: z.enum(pageKeys) }),
   z.object({ type: z.literal("product_view"), target: z.string().regex(/^[a-zA-Z0-9_-]{1,120}$/) }),

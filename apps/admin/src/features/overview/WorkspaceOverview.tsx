@@ -19,9 +19,8 @@ export default function WorkspaceOverview({
     <>
       <div className="kpi-grid">
         {[
-          ["Customer accounts", stats.customers],
-          ["New accounts · 30 days", stats.newCustomers30Days],
-          ["Active customers · 30 days", stats.activeCustomers30Days],
+          ["Customer records", stats.customers],
+          ["New records · 30 days", stats.newCustomers30Days],
           ["Open follow-ups", stats.openFollowups],
           ["Closed follow-ups", stats.closedFollowups],
         ].map(([label, value]) => (

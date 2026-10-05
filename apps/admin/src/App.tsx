@@ -35,12 +35,14 @@ const OperationalReports = lazy(
   () => import("./features/reports/OperationalReports"),
 );
 
-const marketplaceUrl =
+const localMarketplaceUrl =
   typeof window !== "undefined" &&
   (window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1")
     ? `${window.location.protocol}//${window.location.hostname}:5173`
-    : "https://material-square.vercel.app";
+    : "";
+const marketplaceUrl =
+  import.meta.env.VITE_CUSTOMER_APP_URL || localMarketplaceUrl;
 
 function restoredToken() {
   try {
@@ -72,7 +74,7 @@ export function App() {
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(false),
-    [demo, setDemo] = useState(false);
+    [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [query, setQuery] = useState(""),
     [search, setSearch] = useState(""),
     [status, setStatus] = useState(""),
@@ -80,7 +82,6 @@ export function App() {
     [revision, setRevision] = useState(0);
   const [selected, setSelected] = useState<Customer | null>(null),
     [draft, setDraft] = useState<Followup | null>(null);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const setToken = useCallback((value: string) => {
     setTokenState(value);
     try {
@@ -131,11 +132,6 @@ export function App() {
     },
     [token, setToken],
   );
-  useEffect(() => {
-    void request<{ demo: boolean }>("/auth/mode")
-      .then((m) => setDemo(m.demo))
-      .catch(() => {});
-  }, [request]);
   useEffect(() => {
     if (!token) return;
     let active = true;
@@ -257,7 +253,6 @@ export function App() {
   if (!token)
     return (
       <StaffLogin
-        demo={demo}
         busy={busy}
         error={error}
         marketplaceUrl={marketplaceUrl}
@@ -273,10 +268,8 @@ export function App() {
           phone: null,
           email: null,
           role: "",
-          isDemo: false,
         }
       }
-      demo={demo}
       tab={tab}
       openFollowups={stats?.openFollowups ?? 0}
       mobileNavOpen={mobileNavOpen}

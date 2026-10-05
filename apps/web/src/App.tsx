@@ -5,17 +5,16 @@ import type { CatalogueProduct, MaterialItem } from './types';
 import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import './App.css';
-import { COMPANY_INFO } from './data/materialsData';
 import useScrollReveal from './hooks/useScrollReveal';
 import useSmoothScroll from './hooks/useSmoothScroll';
 import { trackWebsiteEvent } from './analytics';
-import { SiteContentProvider, useDraftPreview, useSiteContent } from './site-content';
+import { SiteContentProvider, useSiteContent } from './site-content';
+import { whatsappLink } from './messages';
 
 // Global Shell Components
 import Header from './components/Header';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
-const AccountPage = lazy(() => import('./pages/AccountPage'));
 const HomePage = lazy(() => import('./pages/HomePage'));
 const MarketplacePage = lazy(() => import('./pages/MarketplacePage'));
 const WhyUsPage = lazy(() => import('./pages/WhyUsPage'));
@@ -36,13 +35,14 @@ import WhatsAppIcon from './components/icons/WhatsAppIcon';
 
 function AppShell() {
   const siteContent = useSiteContent();
-  const isDraftPreview = useDraftPreview();
   const location = useLocation();
   const navigate = useNavigate();
   useScrollReveal();
   useSmoothScroll();
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("draftPreview") === "1")
+      return;
     const page = location.pathname === "/" ? "home"
       : location.pathname === "/marketplace" ? "marketplace"
       : location.pathname === "/why-us" ? "why-us"
@@ -51,10 +51,9 @@ function AppShell() {
       : location.pathname === "/contact" ? "contact"
       : location.pathname.startsWith("/blogs") ? "blogs"
       : location.pathname === "/experts" ? "experts"
-      : location.pathname === "/account" ? "account"
       : null;
-    if (page && !isDraftPreview) trackWebsiteEvent({ type: "page_view", target: page });
-  }, [isDraftPreview, location.pathname]);
+    if (page) trackWebsiteEvent({ type: "page_view", target: page });
+  }, [location.pathname]);
 
   const [isBOMOpen, setIsBOMOpen] = useState(false);
   const [activeProductModal, setActiveProductModal] = useState<CatalogueProduct | null>(null);
@@ -72,27 +71,20 @@ function AppShell() {
     return () => controller.abort();
   }, []);
 
-  const { customer, ready, items: bomList, updateItems: setBOMList } = useCustomer();
-  const requireCustomer = () => {
-    if (customer) return true;
-    navigate("/account?next=/get-quote");
-    return false;
-  };
+  const { items: bomList, updateItems: setBOMList } = useCustomer();
   const openBOMDrawer = () => {
-    if (requireCustomer()) setIsBOMOpen(true);
+    // Visitors can prepare and send a quote request without creating an account.
+    setIsBOMOpen(true);
   };
   const handleToggleBOM = (product: MaterialItem) => {
     const catalogueProduct = catalogue.find(item => item.id === product.id);
     if (catalogueProduct?.specs?.sizes || catalogueProduct?.variants?.length) { setActiveProductModal(catalogueProduct); return; }
     setBOMList((prev) => {
       const exists = prev.some((item) => item.id === product.id);
-      if (exists) {
-        return prev.filter((item) => item.id !== product.id);
-      }
+      if (exists) return prev;
       if (catalogueProduct) trackWebsiteEvent({ type: "add_to_list", target: catalogueProduct.id });
-      return [...prev, product];
+      return [...prev, { ...product, catalogueId: catalogueProduct?.id || product.id, quantity: product.quantity || 1 }];
     });
-    if (!customer) navigate("/account?next=/get-quote");
   };
 
   const handleAddCustomToBOM = (customItem: MaterialItem) => {
@@ -101,8 +93,7 @@ function AppShell() {
       if (exists) return prev;
       return [...prev, customItem];
     });
-    if (customer) setIsBOMOpen(true);
-    else navigate("/account?next=/get-quote");
+    setIsBOMOpen(true);
   };
 
   const handleRemoveBOMItem = (id: string) => {
@@ -117,7 +108,7 @@ function AppShell() {
     <>
       <ScrollToTop />
       <div className="ms-construction-app">
-        {/* Navigation Header with Delhi NCR Hotline & Navigation Links */}
+        {/* Navigation and client-configured contact actions */}
         <PageMetadata/>
         <Header
           bomCount={bomList.length}
@@ -129,7 +120,6 @@ function AppShell() {
           <div key={location.pathname} className="ms-page-transition-wrapper">
             <Suspense fallback={<p className="page-loading-state" role="status">Loading page…</p>}>
             <Routes>
-              <Route path="/account" element={<AccountPage />} />
               {/* 1. Home Page */}
               <Route
                 path="/"
@@ -184,13 +174,12 @@ function AppShell() {
               {/* 5. Request Quote & Upload BOM */}
               <Route
                 path="/get-quote"
-                element={customer ? (
+                element={
                   <GetQuotePage
                     bomList={bomList}
+                    products={catalogue}
                   />
-                ) : ready ? (
-                  <Navigate to="/account?next=/get-quote" replace />
-                ) : null}
+                }
               />
 
               {/* 6. Contact & Depots */}
@@ -212,7 +201,7 @@ function AppShell() {
         </main>
 
         {/* Brand Footer */}
-        <Footer />
+        <Footer products={catalogue} />
 
         {/* Product Specification Modal */}
         {activeProductModal && <Suspense fallback={null}><ProductDetailModal
@@ -230,6 +219,7 @@ function AppShell() {
           bomList={bomList}
           onRemoveBOMItem={handleRemoveBOMItem}
           onClearBOM={handleClearBOM}
+          products={catalogue}
         /></Suspense>}
 
         {/* The sticky catalogue header and per-product contact links replace the dock here. */}
@@ -247,17 +237,17 @@ function AppShell() {
               {bomList.length > 0 && <span className="dock-badge">{bomList.length}</span>}
             </button>
 
-            <a
-              href={`https://wa.me/91${siteContent["contact.phone"]}?text=Material%20Square%20%E2%80%94%20General%20Enquiry`}
+            {siteContent["contact.phone"] && <a
+              href={whatsappLink("Material Square — General Enquiry", siteContent["contact.phone"])}
               target="_blank"
               rel="noopener noreferrer"
               className="dock-whatsapp-btn"
-              title="Chat with Procurement Coordinator on WhatsApp"
+              title="Contact the Material Square team on WhatsApp"
               aria-label="Chat on WhatsApp"
             >
               <WhatsAppIcon size={22} color="#ffffff" />
               <span className="dock-label">WhatsApp</span>
-            </a>
+            </a>}
           </aside>
         )}
       </div>

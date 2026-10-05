@@ -77,6 +77,54 @@
   font-weight: 400;
 }
 
+.catalogue-variants-editor {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #dbe2ea;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.catalogue-variants-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.catalogue-variants-heading h3,
+.catalogue-variants-heading p { margin: 0; }
+.catalogue-variants-heading h3 { color: #172033; font-size: 15px; }
+.catalogue-variants-heading p,
+.catalogue-no-variants { margin-top: 4px; color: #64748b; font-size: 12px; }
+.catalogue-no-variants { margin-bottom: 0; }
+
+.catalogue-variant-card {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.catalogue-variant-card legend { padding: 0 6px; color: #475569; font-size: 12px; font-weight: 750; }
+.catalogue-variant-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.catalogue-variant-grid label { display: grid; align-content: start; gap: 5px; min-width: 0; color: #475569; font-size: 12px; font-weight: 650; }
+.catalogue-variant-grid input,
+.catalogue-variant-grid textarea { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid #cbd5e1; border-radius: 7px; padding: 9px 10px; color: #172033; background: #fff; font: inherit; }
+.catalogue-variant-grid input:focus,
+.catalogue-variant-grid textarea:focus { outline: 2px solid #fdba74; border-color: #f97316; }
+.catalogue-variant-grid textarea { resize: vertical; }
+.catalogue-variant-grid .catalogue-variant-breaks { grid-column: span 2; }
+.catalogue-variant-availability { display: flex !important; align-items: center; gap: 8px !important; }
+.catalogue-variant-availability input { width: auto; accent-color: #f97316; }
+.catalogue-remove-variant { position: absolute; top: 8px; right: 10px; display: inline-flex; align-items: center; gap: 5px; border: 0; padding: 4px; color: #b91c1c; background: transparent; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+
 .catalogue-image-upload span {
   display: flex;
   align-items: center;
@@ -274,4 +322,8 @@
     align-items: flex-start;
     flex-direction: column;
   }
+
+  .catalogue-variant-grid { grid-template-columns: 1fr; }
+  .catalogue-variant-grid .catalogue-variant-breaks { grid-column: auto; }
+  .catalogue-variants-heading { align-items: flex-start; flex-direction: column; }
 }

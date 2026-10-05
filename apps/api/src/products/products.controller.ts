@@ -36,6 +36,11 @@ const quantityBreakSchema = z.object({
   minimumQuantity: z.number().finite().positive(),
   unitPrice: z.number().finite().nonnegative(),
 });
+const availabilityStatusSchema = z.enum([
+  "IN_STOCK",
+  "OUT_OF_STOCK",
+  "CHECK_AVAILABILITY",
+]);
 const variantSchema = z
   .object({
     code: z.string().trim().max(80).nullable().optional(),
@@ -49,6 +54,7 @@ const variantSchema = z
     offerStartsAt: optionalDate,
     offerEndsAt: optionalDate,
     isInStock: z.boolean().default(false),
+    availabilityStatus: availabilityStatusSchema.optional(),
     stockQuantity: z.number().finite().nonnegative().nullable().optional(),
     minOrderQuantity: z.number().finite().positive().nullable().optional(),
     quantityBreaks: z.array(quantityBreakSchema).max(50).default([]),
@@ -105,7 +111,7 @@ const listingSchema = z
     categoryLabel: z.string().trim().min(2).max(120),
     unit: z.string().trim().min(1).max(100),
     packaging: optionalText,
-    image: imagePath,
+    image: imagePath.nullable().optional(),
     galleryImages: z.array(imagePath).max(4).default([]),
     grade: optionalText,
     description: z.string().trim().max(3000).nullable().optional(),
@@ -118,6 +124,7 @@ const listingSchema = z
     offerStartsAt: optionalDate,
     offerEndsAt: optionalDate,
     isInStock: z.boolean(),
+    availabilityStatus: availabilityStatusSchema.optional(),
     isPublished: z.boolean(),
     features: z.array(z.string().trim().min(1).max(300)).max(30),
     applications: z.array(z.string().trim().min(1).max(300)).max(30),

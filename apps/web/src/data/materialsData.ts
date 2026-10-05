@@ -1,3 +1,3 @@
-// Shared launch catalogue and company defaults; runtime catalogue changes come
-// from the API and are held in AppShell state.
+// General product guidance only. The public catalogue and contact details are
+// loaded from client-managed API and website content.
 export * from '@material-square/types/catalog-data';

@@ -101,7 +101,6 @@ model StaffUser {
   role                       StaffRole            @default(SALES_MANAGER)
   authVersion                Int                  @default(0)
   phone                      String?              @unique
-  isDemo                     Boolean              @default(false)
   isActive                   Boolean              @default(true)
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
@@ -139,11 +138,10 @@ model MediaAsset {
 }
 
 // ----------------------------------------------------
-// CUSTOMERS & OTP AUTHENTICATION
+// CUSTOMER CONTACTS & CRM
 // ----------------------------------------------------
 
 model Customer {
-  isDemo          Boolean            @default(false)
   id              String             @id @default(uuid())
   phone           String             @unique
   name            String
@@ -159,11 +157,6 @@ model Customer {
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
   city            String             @default("")
-  materialList    Json               @default("[]")
-  listVersion     Int                @default(0)
-  lastLoginAt     DateTime?
-  sessions        CustomerSession[]
-  otpSessions     OtpSession[]
   quotations      Quotation[]
   orders          Order[]
   rfqs            Rfq[]
@@ -171,22 +164,6 @@ model Customer {
   commissions     CommissionRecord[]
 
   @@map("customers")
-}
-
-model OtpSession {
-  isDemo     Boolean   @default(false)
-  id         String    @id @default(uuid())
-  phone      String
-  attempts   Int       @default(0)
-  otpHash    String
-  expiresAt  DateTime
-  isVerified Boolean   @default(false)
-  customerId String?
-  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  createdAt  DateTime  @default(now())
-
-  @@index([phone, isVerified])
-  @@map("otp_sessions")
 }
 
 // ----------------------------------------------------
@@ -237,6 +214,12 @@ model ProductSKU {
 
 // Customer-facing catalogue managed from the staff panel. Kept separate from
 // steel inventory SKUs because the launch catalogue spans several material types.
+enum CatalogAvailabilityStatus {
+  IN_STOCK
+  OUT_OF_STOCK
+  CHECK_AVAILABILITY
+}
+
 model CatalogListing {
   id             String                  @id @default(uuid())
   slug           String                  @unique
@@ -261,6 +244,7 @@ model CatalogListing {
   offerStartsAt  DateTime?
   offerEndsAt    DateTime?
   isInStock      Boolean                 @default(false)
+  availabilityStatus CatalogAvailabilityStatus @default(CHECK_AVAILABILITY)
   isPublished    Boolean                 @default(false)
   features       String[]                @default([])
   applications   String[]                @default([])
@@ -292,6 +276,7 @@ model CatalogListingVariant {
   offerStartsAt    DateTime?
   offerEndsAt      DateTime?
   isInStock        Boolean        @default(false)
+  availabilityStatus CatalogAvailabilityStatus @default(CHECK_AVAILABILITY)
   stockQuantity    Decimal?       @db.Decimal(12, 3)
   minOrderQuantity Decimal?       @db.Decimal(12, 3)
   quantityBreaks   Json           @default("[]")
@@ -394,8 +379,8 @@ model Order {
   orderNumber           String               @unique // MS-ORD-2026-XXXX
   quotationId           String?
   quotation             Quotation?           @relation(fields: [quotationId], references: [id], onDelete: SetNull)
-  customerId            String
-  customer              Customer             @relation(fields: [customerId], references: [id])
+  customerId            String?
+  customer              Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
   customerName          String
   customerPhone         String
   deliverySite          String
@@ -877,18 +862,6 @@ model NotificationOutbox {
   @@map("notification_outbox")
 }
 
-model CustomerSession {
-  id         String   @id
-  customerId String
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
-
-  @@index([customerId])
-  @@index([expiresAt])
-  @@map("customer_sessions")
-}
-
 model StaffEnquiry {
   id           String   @id @default(uuid())
   customerName String
@@ -901,12 +874,11 @@ model StaffEnquiry {
   status       String   @default("NEW")
   materials    Json     @default("[]")
   notes        String   @default("")
-  isDemo       Boolean  @default(false)
   version      Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  @@index([isDemo, status, updatedAt])
+  @@index([status, updatedAt])
   @@map("staff_enquiries")
 }
 
@@ -921,13 +893,4 @@ model AnalyticsCounter {
   @@unique([day, eventType, targetKey])
   @@index([day, eventType])
   @@map("analytics_counters")
-}
-
-// One-time bootstrap markers for non-production demo data. Production never
-// reads or writes these records.
-model DemoBootstrapState {
-  key       String   @id
-  createdAt DateTime @default(now())
-
-  @@map("demo_bootstrap_state")
 }

@@ -9,26 +9,17 @@
   handle /api/* {
     reverse_proxy api:4000
   }
-  handle {
-    root * /srv/web
+  handle /admin {
+    redir /admin/ 308
+  }
+  handle /admin/* {
+    uri strip_prefix /admin
+    root * /srv/admin
     try_files {path} /index.html
     file_server
   }
-}
-{$ADMIN_DOMAIN} {
-  encode zstd gzip
-  header {
-    X-Content-Type-Options nosniff
-    Referrer-Policy strict-origin-when-cross-origin
-    X-Frame-Options DENY
-    X-Robots-Tag "noindex, nofollow"
-    Strict-Transport-Security "max-age=31536000"
-  }
-  handle /api/* {
-    reverse_proxy api:4000
-  }
   handle {
-    root * /srv/admin
+    root * /srv/web
     try_files {path} /index.html
     file_server
   }

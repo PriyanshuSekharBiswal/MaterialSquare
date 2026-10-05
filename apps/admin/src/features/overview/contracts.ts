@@ -1,10 +1,8 @@
 export type Stats = {
   customers: number;
   newCustomers30Days: number;
-  activeCustomers30Days: number;
   openFollowups: number;
   closedFollowups: number;
-  demo: boolean;
 };
 
 export type WebsiteAnalytics = {

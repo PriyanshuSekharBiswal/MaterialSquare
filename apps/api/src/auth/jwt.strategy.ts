@@ -1,4 +1,3 @@
-import { demoAuthEnabled } from "./demo-mode";
 import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
@@ -13,26 +12,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       secretOrKey: jwtSecret(),
     });
   }
-  async validate(payload: { sub: string; type: string; phone?: string; ver?: number }) {
-    if (payload.type === "STAFF") {
-      const staff = await this.prisma.staffUser.findUnique({
-        where: { id: payload.sub },
-      });
-      if (
-        !staff?.isActive ||
-        Boolean(staff.isDemo) !== demoAuthEnabled() ||
-        (payload.ver ?? 0) !== staff.authVersion
-      )
-        throw new UnauthorizedException();
-      return {
-        userId: staff.id,
-        type: "STAFF",
-        email: staff.email,
-        role: staff.role,
-      };
-    }
-    if (payload.type !== "CUSTOMER" || !payload.phone)
+  async validate(payload: { sub: string; type: string; ver?: number }) {
+    if (payload.type !== "STAFF") throw new UnauthorizedException();
+    const staff = await this.prisma.staffUser.findUnique({
+      where: { id: payload.sub },
+    });
+    if (!staff?.isActive || (payload.ver ?? 0) !== staff.authVersion) {
       throw new UnauthorizedException();
-    return { userId: payload.sub, type: "CUSTOMER", phone: payload.phone };
+    }
+    return {
+      userId: staff.id,
+      type: "STAFF",
+      email: staff.email,
+      role: staff.role,
+    };
   }
 }

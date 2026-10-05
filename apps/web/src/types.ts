@@ -8,7 +8,7 @@ export interface CatalogueProduct {
   categoryLabel: string;
   unit: string;
   packaging?: string;
-  image: string;
+  image?: string | null;
   galleryImages?: string[];
   variants?: CatalogueVariant[];
   grade?: string;
@@ -16,6 +16,7 @@ export interface CatalogueProduct {
   applications: string[];
   minOrderQty?: string;
   inStock: boolean;
+  availabilityStatus?: "IN_STOCK" | "OUT_OF_STOCK" | "CHECK_AVAILABILITY";
   dispatchTime?: string;
   wholesaleRate?: string;
   specs?: Record<string, string | undefined>;
@@ -38,6 +39,7 @@ export interface CatalogueVariant {
   priceNote?: string | null;
   offerLabel?: string | null;
   inStock: boolean;
+  availabilityStatus?: "IN_STOCK" | "OUT_OF_STOCK" | "CHECK_AVAILABILITY";
   stockQuantity?: number | string | null;
   minOrderQuantity?: number | string | null;
   quantityBreaks?: Array<{ minimumQuantity: number; unitPrice: number }>;

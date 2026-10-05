@@ -1,6 +1,6 @@
 import { materialId } from "../ids";
 import { useCustomer } from '../customer';
-import { productMessage, whatsappLink } from '../messages';
+import { emailLink, productMessage, whatsappLink } from '../messages';
 import type { MaterialItem, CatalogueProduct } from '../types';
 import React, { useEffect, useState } from 'react';
 import {
@@ -13,10 +13,12 @@ import {
   FileText,
   Building2,
   CheckCircle2,
+  Mail,
 } from 'lucide-react';
 import WhatsAppIcon from './icons/WhatsAppIcon';
 import { BrandLogo, getBrandMeta } from './icons/BrandBadges';
-import { COMPANY_INFO } from '../data/materialsData';
+import ProductImage from './ProductImage';
+import { useSiteContent } from '../site-content';
 
 export default function ProductDetailModal({
   product,
@@ -26,12 +28,13 @@ export default function ProductDetailModal({
   onToggleBOM,
 }: { product: CatalogueProduct | null; isOpen: boolean; onClose: () => void; inBOM: boolean; onToggleBOM: (product: MaterialItem) => void }) {
   const { items, updateItems, ready, canEdit, error } = useCustomer();
+  const siteContent = useSiteContent();
   const [specification, setSpecification] = useState('');
-  const [quantity, setQuantity] = useState('1');
+  const [quantity, setQuantity] = useState(() => String(Math.max(1, Number(product?.variants?.[0]?.minOrderQuantity || product?.minOrderQty?.match(/[\d.]+/)?.[0] || 0))));
   const [added, setAdded] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState('');
   const [selectedImage, setSelectedImage] = useState('');
-  useEffect(() => { setSpecification(''); setQuantity('1'); setAdded(false); setSelectedVariantId(''); setSelectedImage(''); }, [product?.id]);
+  useEffect(() => { setSpecification(''); setQuantity(String(Math.max(1, Number(product?.variants?.[0]?.minOrderQuantity || product?.minOrderQty?.match(/[\d.]+/)?.[0] || 0)))); setAdded(false); setSelectedVariantId(''); setSelectedImage(''); }, [product?.id]);
   // Lock background scroll, pause Lenis / Locomotive scroll, and handle ESC
   useEffect(() => {
     if (!isOpen || !product) return;
@@ -82,8 +85,8 @@ export default function ProductDetailModal({
   const brandMeta = getBrandMeta(product.brand);
   const variants = product.variants || [];
   const selectedVariant = variants.find(variant => variant.id === selectedVariantId) || variants[0];
-  const gallery = Array.from(new Set([...(product.galleryImages || []), product.image])).filter(Boolean);
-  const activeImage = selectedImage || gallery[0] || product.image;
+  const gallery = Array.from(new Set([...(product.galleryImages || []), product.image].filter((image): image is string => Boolean(image))));
+  const activeImage = selectedImage || gallery[0] || null;
   const selectedLabel = [selectedVariant?.label, specification.trim()].filter(Boolean).join(' · ');
   const basePrice = selectedVariant?.price ?? product.price;
   const quantityBreaks = (selectedVariant?.quantityBreaks || []).slice().sort((a, b) => Number(a.minimumQuantity) - Number(b.minimumQuantity));
@@ -92,7 +95,11 @@ export default function ProductDetailModal({
   const compareAtPrice = selectedVariant?.compareAtPrice ?? product.compareAtPrice;
   const unit = selectedVariant?.unit || product.unit;
   const selectedInStock = selectedVariant ? selectedVariant.inStock : product.inStock;
-  const waProductUrl = whatsappLink(productMessage({...product, unit, specification: selectedLabel}));
+  const selectedAvailability = selectedVariant?.availabilityStatus || product.availabilityStatus || (selectedInStock ? 'IN_STOCK' : 'CHECK_AVAILABILITY');
+  const minimumOrder = Number(selectedVariant?.minOrderQuantity || product.minOrderQty?.match(/[\d.]+/)?.[0] || 0) || 0;
+  const enquiryMessage = productMessage({...product, unit, specification: selectedLabel});
+  const waProductUrl = whatsappLink(enquiryMessage, siteContent["contact.phone"]);
+  const emailProductUrl = emailLink("Material Square — Product Enquiry", enquiryMessage, siteContent["contact.email"]);
 
   return (
     <div className="ms-modal-backdrop" onClick={onClose} data-lenis-prevent>
@@ -118,11 +125,11 @@ export default function ProductDetailModal({
           <div className="modal-left-media">
             <div className="modal-img-container">
               {selectedLabel && <span className="selected-size-badge">Selected: {selectedLabel}</span>}
-              <img src={activeImage} alt={product.name} />{(activeImage.includes('illustration') || activeImage.includes('/categories/')) && <span className="product-image-note">Illustrative image · confirm exact product</span>}
+              <ProductImage src={activeImage} alt={product.name} loading="eager" />
               <div className="modal-brand-overlay">
                 <div className="modal-brand-tag-with-logo">
                   <div className="modal-brand-mini-logo">
-                    <BrandLogo id={brandMeta?.id} className="modal-logo-svg" />
+                    <BrandLogo id={brandMeta?.id || product.brand} className="modal-logo-svg" />
                   </div>
                   <span className="brand-pill">{product.brand}</span>
                 </div>
@@ -130,7 +137,7 @@ export default function ProductDetailModal({
             </div>
 
             {gallery.length > 1 && <div className="catalogue-gallery-thumbnails" aria-label="Product images">
-              {gallery.map((image, index) => <button type="button" key={`${image}-${index}`} className={image === activeImage ? 'is-active' : ''} onClick={() => setSelectedImage(image)} aria-label={`View product image ${index + 1}`}><img src={image} alt="" /></button>)}
+              {gallery.map((image, index) => <button type="button" key={`${image}-${index}`} className={image === activeImage ? 'is-active' : ''} onClick={() => setSelectedImage(image)} aria-label={`View product image ${index + 1}`}><ProductImage src={image} alt="" /></button>)}
             </div>}
 
             <div className="modal-dispatch-box">
@@ -145,15 +152,18 @@ export default function ProductDetailModal({
             </div>
 
             <div className="modal-actions-stack">
-              <a
+              {waProductUrl && <a
                 href={waProductUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-whatsapp btn-block"
               >
                 <WhatsAppIcon size={18} color="#ffffff" />
-                <span>Get Bulk Rate on WhatsApp</span>
-              </a>
+                <span>Ask about this product on WhatsApp</span>
+              </a>}
+              {emailProductUrl && <a href={emailProductUrl} className="btn btn-secondary btn-block">
+                <Mail size={17} /> <span>Email about this product</span>
+              </a>}
 
               <form className="customer-form product-options" onSubmit={event => {
                 event.preventDefault();
@@ -168,17 +178,17 @@ export default function ProductDetailModal({
                 setAdded(accepted);
               }}>
                 {variants.length > 0 && <label>Choose size, pack or colour
-                  <select required value={selectedVariant?.id || ''} onChange={event => { setSelectedVariantId(event.target.value); setAdded(false); }}>
-                    {variants.map(variant => <option key={variant.id} value={variant.id}>{variant.label}{variant.price != null ? ` · ₹${Number(variant.price).toLocaleString('en-IN')}` : ''}{!variant.inStock ? ' · Check availability' : ''}</option>)}
+                    <select required value={selectedVariant?.id || ''} onChange={event => { const nextVariant = variants.find(variant => variant.id === event.target.value); const nextMinimum = Number(nextVariant?.minOrderQuantity || product.minOrderQty?.match(/[\d.]+/)?.[0] || 0); setSelectedVariantId(event.target.value); if (nextMinimum > 0 && Number(quantity) < nextMinimum) setQuantity(String(nextMinimum)); setAdded(false); }}>
+                    {variants.map(variant => { const status = variant.availabilityStatus || (variant.inStock ? 'IN_STOCK' : 'CHECK_AVAILABILITY'); return <option key={variant.id} value={variant.id}>{variant.label}{variant.price != null ? ` · ₹${Number(variant.price).toLocaleString('en-IN')}` : ''}{status === 'OUT_OF_STOCK' ? ' · Out of stock' : status === 'CHECK_AVAILABILITY' ? ' · Check availability' : ''}</option>; })}
                   </select>
                 </label>}
                 {!variants.length && <label>Required size / specification{product.specs?.sizes ? ' *' : ' (optional)'}
                   <input required={Boolean(product.specs?.sizes)} maxLength={500} value={specification} placeholder="Enter your required size or variant" onChange={e=>{setSpecification(e.target.value);setAdded(false);}}/>
                 </label>}
-                <label>Quantity ({unit})
-                  <input type="number" min="0.001" max="1000000" step="any" required value={quantity} onChange={e=>{setQuantity(e.target.value);setAdded(false);}}/>
+                <label>Quantity ({unit}){minimumOrder > 0 ? ` · minimum ${minimumOrder}` : ''}
+                  <input type="number" min={minimumOrder > 0 ? minimumOrder : 0.001} max="1000000" step="any" required value={quantity} onChange={e=>{setQuantity(e.target.value);setAdded(false);}}/>
                 </label>
-                <button disabled={!canEdit} className="btn btn-orange btn-block">{items.some(item => (item.catalogueId || item.id) === product.id && (item.variantId || '') === (selectedVariant?.id || '') && (item.specification || '') === selectedLabel) ? 'Update this size in Material List' : 'Add this selection to Material List'}</button>
+                <button disabled={!canEdit} className="btn btn-orange btn-block">{items.some(item => (item.catalogueId || item.id) === product.id && (item.variantId || '') === (selectedVariant?.id || '') && (item.specification || '') === selectedLabel) ? 'Update this size in quote list' : 'Add this selection to quote list'}</button>
                 {error && <p role="alert" className="customer-help">{error}</p>}
                 {added && !error && <p role="status" className="customer-help">Selection added. You can enter another size and quantity to add a separate line.</p>}
               </form>
@@ -195,12 +205,12 @@ export default function ProductDetailModal({
 
               <div className="modal-brand-official-banner">
                 <div className="modal-brand-logo-box">
-                  <BrandLogo id={brandMeta?.id} className="modal-header-logo-svg" />
+                  <BrandLogo id={brandMeta?.id || product.brand} className="modal-header-logo-svg" />
                 </div>
                 <div className="modal-brand-text-col">
-                  <span className="modal-brand-official-tagline">{brandMeta?.tagline || product.brandTagline}</span>
+                  <span className="modal-brand-official-tagline">{product.categoryLabel}</span>
                   <span className="modal-factory-direct-guarantee">
-                    Browse this brand in the catalogue
+                    Product listing in the current catalogue
                   </span>
                 </div>
               </div>
@@ -215,7 +225,7 @@ export default function ProductDetailModal({
                 {(selectedVariant?.offerLabel || product.offerLabel) && <span className="catalogue-offer-badge">{selectedVariant?.offerLabel || product.offerLabel}</span>}
                 {(selectedVariant?.priceNote || product.priceNote) && <small className="catalogue-price-caveat">{selectedVariant?.priceNote || product.priceNote}</small>}
               </div>
-              <span className="moq-pill">{selectedInStock ? 'In stock' : 'Availability to confirm'}{product.minOrderQty ? ` · Min order: ${product.minOrderQty}` : ''}</span>
+              <span className="moq-pill">{selectedAvailability === 'IN_STOCK' ? (selectedVariant?.stockQuantity != null ? `In stock · ${selectedVariant.stockQuantity} available` : 'In stock') : selectedAvailability === 'OUT_OF_STOCK' ? 'Out of stock' : 'Availability to confirm'}{minimumOrder > 0 ? ` · Min order: ${minimumOrder} ${unit}` : product.minOrderQty ? ` · Min order: ${product.minOrderQty}` : ''}</span>
             </div>
 
             {quantityBreaks.length > 0 && <div className="product-options" aria-label="Quantity discount prices">

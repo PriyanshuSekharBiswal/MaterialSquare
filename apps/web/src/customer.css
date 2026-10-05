@@ -217,6 +217,13 @@ button:disabled {
   float: right;
   margin: 0 0 12px 12px;
 }
+
+.material-thumb.product-image-placeholder {
+  display: grid;
+  place-items: center;
+  color: #8292a3;
+  background: #edf2f6;
+}
 .material-editor > .btn {
   margin: 4px 6px 4px 0;
 }
@@ -333,27 +340,6 @@ button:disabled {
   font-size: 11px;
 }
 
-.demo-login-box {
-  padding: 16px;
-  margin: 16px 0;
-  border: 1px solid #fed7aa;
-  border-radius: 12px;
-  background: #fff7ed;
-}
-.demo-login-box p,
-.demo-login-box small {
-  display: block;
-  margin: 8px 0;
-  color: #475569;
-}
-.demo-code {
-  display: block;
-  margin: 12px 0;
-  font-size: 30px;
-  font-weight: 700;
-  letter-spacing: 8px;
-  color: #c2410c;
-}
 .catalogue-offer-badge {
   display: inline-block;
   margin-top: 5px;

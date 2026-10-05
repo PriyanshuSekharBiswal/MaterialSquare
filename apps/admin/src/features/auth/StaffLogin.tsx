@@ -2,7 +2,6 @@ import type { FormEvent } from "react";
 import MaterialSquareLogo from "../../components/MaterialSquareLogo";
 
 type StaffLoginProps = {
-  demo: boolean;
   busy: boolean;
   error: string;
   marketplaceUrl: string;
@@ -10,7 +9,6 @@ type StaffLoginProps = {
 };
 
 export default function StaffLogin({
-  demo,
   busy,
   error,
   marketplaceUrl,
@@ -28,19 +26,6 @@ export default function StaffLogin({
           />
           <span className="login-badge-sub">EXECUTIVE COMMAND CENTER</span>
         </div>
-        {demo && (
-          <span
-            className="sidebar-mode-badge"
-            style={{
-              alignSelf: "center",
-              background: "#fff0d9",
-              color: "#9a3412",
-              borderColor: "#fed7aa",
-            }}
-          >
-            Demo environment active
-          </span>
-        )}
         <label>
           Mobile number or email
           <input
@@ -80,14 +65,16 @@ export default function StaffLogin({
         >
           {busy ? "Authenticating…" : "Sign In to Workspace"}
         </button>
-        <a
-          href={marketplaceUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="login-back-link"
-        >
-          ← Return to Material Square Marketplace
-        </a>
+        {marketplaceUrl && (
+          <a
+            href={marketplaceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="login-back-link"
+          >
+            ← Return to Material Square Marketplace
+          </a>
+        )}
       </form>
     </main>
   );

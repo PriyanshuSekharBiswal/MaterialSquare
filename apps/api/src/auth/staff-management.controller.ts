@@ -21,7 +21,6 @@ import {
   ASSIGNABLE_STAFF_ROLE_DEFINITIONS,
 } from "./staff-access";
 import { PrismaService } from "../prisma/prisma.service";
-import { demoAuthEnabled } from "./demo-mode";
 
 const roleSchema = z.enum(ASSIGNABLE_STAFF_ROLES);
 const createStaffSchema = z
@@ -57,7 +56,6 @@ export class StaffManagementController {
   @Get()
   list() {
     return this.prisma.staffUser.findMany({
-      where: { isDemo: demoAuthEnabled() },
       select: {
         id: true,
         name: true,
@@ -65,7 +63,6 @@ export class StaffManagementController {
         phone: true,
         role: true,
         isActive: true,
-        isDemo: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -85,7 +82,6 @@ export class StaffManagementController {
             phone: data.phone || null,
             role: data.role,
             passwordHash: hashPassword(data.password),
-            isDemo: demoAuthEnabled(),
           },
           select: {
             id: true,
@@ -94,7 +90,6 @@ export class StaffManagementController {
             phone: true,
             role: true,
             isActive: true,
-            isDemo: true,
             createdAt: true,
           },
         });
@@ -133,7 +128,7 @@ export class StaffManagementController {
       );
     const data = validate(updateStaffSchema, body);
     const target = await this.prisma.staffUser.findFirst({
-      where: { id, isDemo: demoAuthEnabled() },
+      where: { id },
       select: { id: true, role: true },
     });
     if (!target) throw new NotFoundException("Staff account not found");
@@ -152,7 +147,6 @@ export class StaffManagementController {
           phone: true,
           role: true,
           isActive: true,
-          isDemo: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -182,7 +176,7 @@ export class StaffManagementController {
       );
     const { password } = validate(passwordSchema, body);
     const target = await this.prisma.staffUser.findFirst({
-      where: { id, isDemo: demoAuthEnabled(), role: { not: "SUPER_ADMIN" } },
+      where: { id, role: { not: "SUPER_ADMIN" } },
       select: { id: true },
     });
     if (!target) throw new NotFoundException("Staff account not found");

@@ -15,9 +15,7 @@ export type Customer = {
   shippingAddress?: string;
   city: string;
   pincode: string;
-  materialList: Material[];
   createdAt?: string;
-  lastLoginAt?: string | null;
 };
 
 export type Followup = {

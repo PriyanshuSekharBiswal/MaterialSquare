@@ -5,13 +5,13 @@ import { ArrowRight, ClipboardList, Search, MessageCircle, BadgeIndianRupee, Use
 const V1_FEATURES = [
   {
     icon: Search,
-    title: 'Browse before signing in',
+    title: 'Browse without an account',
     description: 'Explore the catalogue and published product details without creating an account.',
   },
   {
     icon: ClipboardList,
     title: 'Keep a material list',
-    description: 'Sign in with your mobile number to save a list to your account and access it on another device.',
+    description: 'Build a material list in this browser, then send it to our team by WhatsApp or email.',
   },
   {
     icon: BadgeIndianRupee,

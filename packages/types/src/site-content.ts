@@ -34,10 +34,9 @@ export const SITE_CONTENT_DEFAULTS = {
   "home.contentBlocks": "[]",
   "home.heroImage": "",
   "home.calloutBadge": "Prepare a material request",
-  "home.calloutTitle":
-    '"Ghar banana tha... Material ki list khatam hi nahi ho rahi!"',
+  "home.calloutTitle": "Build your material list",
   "home.calloutDescription":
-    "Add products to your list or describe your requirements. Review the message, then send it to the team by WhatsApp or email.",
+    "Add products and quantities to your list, then review your request before copying or sending it.",
   "home.calloutButton": "Get a Quote",
   "home.calloutButtonPath": "/get-quote",
   "home.primaryCtaLabel": "Browse Full Marketplace",
@@ -45,10 +44,10 @@ export const SITE_CONTENT_DEFAULTS = {
   "home.secondaryCtaLabel": "Get a Quote",
   "home.secondaryCtaPath": "/get-quote",
   "home.eyebrow": "Browse without an account",
-  "home.title": "Why Make 5 Calls?\nOne Call. All Materials.",
+  "home.title": "Find materials for your project",
   "home.description":
-    "Browse cement, steel, pipes, electricals, paints, and sanitaryware in one place. Save the products you need, then send your request to the Material Square team by WhatsApp or email. Staff confirms current price, stock, taxes, and delivery details with you.",
-  "home.slogan": "Aap Construction Sambhaliye, Material Hum Sambhalenge.",
+    "Search products and brands in the catalogue. Add the items and quantities you need, then prepare a request for the team.",
+  "home.slogan": "",
   "whyUs.title": "Construction materials, organized in one place.",
   "whyUs.description":
     "Browse published products, make a material list, and send your request to the Material Square team. The team confirms product and delivery details with you directly.",
@@ -83,29 +82,21 @@ export const SITE_CONTENT_DEFAULTS = {
   "contact.title": "Tell us what your site needs.",
   "contact.description":
     "Prepare your enquiry with the site and product details. Review it, then choose WhatsApp or email to send it to our team.",
-  "contact.coverageTitle": "Confirm coverage for your site.",
+  "contact.coverageTitle": "Delivery information",
   "contact.coverageDescription":
-    "Serving Delhi NCR (Noida, Greater Noida, Delhi, Gurugram, Ghaziabad & Faridabad). Coverage, product availability, delivery timing, and any site charges are confirmed by staff for each request.",
-  "contact.phone": "9773505015",
-  "contact.phoneDisplay": "+91 97735 05015",
-  "contact.email": "orders@materialsquare.in",
-  "contact.location":
-    "Serving Delhi NCR (Noida, Greater Noida, Delhi, Gurugram, Ghaziabad & Faridabad)",
-  "contact.officeAddress":
-    "Plot 42, Mohan Nagar Link Road, Industrial Area, Ghaziabad, Uttar Pradesh 201007",
-  "footer.socialLinks": JSON.stringify([
-    {
-      id: "social-instagram",
-      label: "Follow @materialsquare.in on Instagram",
-      url: "https://www.instagram.com/materialsquare.in",
-    },
-  ]),
+    "Ask the team to confirm site coverage, delivery timing, and any applicable charges for your request.",
+  "contact.phone": "",
+  "contact.phoneDisplay": "",
+  "contact.email": "",
+  "contact.location": "",
+  "contact.officeAddress": "",
+  "footer.socialLinks": "[]",
   "footer.calloutTitle": "Ready to Order or Have a Material Query?",
   "footer.calloutDescription":
-    "Send your material list or site requirements to the team by WhatsApp or phone. Staff can confirm product and delivery details.",
-  "footer.slogan": "Aap Construction Sambhaliye, Material Hum Sambhalenge.",
+    "Build a material list and prepare a request with the products and quantities you need.",
+  "footer.slogan": "",
   "footer.description":
-    "Browse construction materials, save a list to your account, and contact the Material Square team to confirm product and delivery details.",
+    "Browse published products and keep a quote list in this browser while you plan your request.",
 } as const;
 
 export type SiteContentKey = keyof typeof SITE_CONTENT_DEFAULTS;

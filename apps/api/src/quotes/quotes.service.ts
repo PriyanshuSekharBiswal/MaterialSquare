@@ -7,7 +7,6 @@ import {
 import { CreateQuoteInput } from "@material-square/types";
 import { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
-import { demoAuthEnabled } from "../auth/demo-mode";
 import { DEFAULT_BUSINESS_RULES } from "../business/settings/business-rules";
 import {
   buildQuotationItems,
@@ -93,7 +92,6 @@ export class QuotesService {
       create: {
         phone: input.customerPhone,
         name: input.customerName,
-        isDemo: demoAuthEnabled(),
         email: input.customerEmail,
         shippingAddress: input.projectSiteAddress,
         pincode: input.sitePincode,

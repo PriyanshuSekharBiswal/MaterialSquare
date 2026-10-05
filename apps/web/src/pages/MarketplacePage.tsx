@@ -13,11 +13,12 @@ import {
   Phone,
   Package,
 } from 'lucide-react';
-import { COMPANY_INFO } from '../data/materialsData';
-import { BRAND_LIST, BrandLogo, getBrandMeta } from '../components/icons/BrandBadges';
+import { BrandLogo, getBrandMeta } from '../components/icons/BrandBadges';
 import BrandRoster from '../components/BrandRoster';
 import SearchSuggestions from '../components/SearchSuggestions';
 import WhatsAppIcon from '../components/icons/WhatsAppIcon';
+import ProductImage from '../components/ProductImage';
+import { useSiteContent } from '../site-content';
 
 export default function MarketplacePage({
   bomList = [],
@@ -27,6 +28,7 @@ export default function MarketplacePage({
   onOpenBOMDrawer,
 }: { products: CatalogueProduct[]; bomList?: MaterialItem[]; onToggleBOM: (product: MaterialItem) => void; onOpenProductModal: (product: CatalogueProduct) => void; onOpenBOMDrawer: () => void }) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const siteContent = useSiteContent();
   const initialCategory = searchParams.get('category') || 'all';
   const initialBrand = searchParams.get('brand') || '';
   const initialQuery = searchParams.get('q') || '';
@@ -34,11 +36,14 @@ export default function MarketplacePage({
   const [activeCategory, setActiveCategory] = useState(initialCategory);
   const [selectedBrand, setSelectedBrand] = useState(initialBrand);
   const [searchQuery, setSearchQuery] = useState(initialQuery);
-  const [onlyInStock, setOnlyInStock] = useState(false);
+  const [availability, setAvailability] = useState('all');
+  const [sortBy, setSortBy] = useState('relevance');
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [isStickyDismissed, setIsStickyDismissed] = useState(false);
   const prevBomCountRef = useRef(bomList.length);
   const searchRef = useRef<HTMLDivElement>(null);
+  const catalogueBrands = useMemo(() => Array.from(new Map(products.filter((product) => product.brand.trim()).map((product) => [product.brand, product.categoryLabel])).entries())
+    .map(([name, category]) => ({ name, category, meta: getBrandMeta(name) })), [products]);
   const catalogueCategories = useMemo(() => [
     { id: 'all', label: 'All Materials', count: products.length },
     ...Array.from(new Map(products.map((product) => [product.category, product.categoryLabel])).entries())
@@ -101,7 +106,7 @@ export default function MarketplacePage({
 
   // Filter products
   const filteredProducts = useMemo(() => {
-    return products.filter((item) => {
+    const matches = products.filter((item) => {
       // Category filter
       if (activeCategory !== 'all' && item.category !== activeCategory) {
         return false;
@@ -112,26 +117,43 @@ export default function MarketplacePage({
         return false;
       }
 
-      // In-stock filter
-      if (onlyInStock && !item.inStock) {
-        return false;
-      }
+      // Unavailable listings remain visible unless the user filters them out.
+      const itemAvailability = item.availabilityStatus || (item.inStock ? 'IN_STOCK' : 'CHECK_AVAILABILITY');
+      const variantStatuses = (item.variants || []).map((variant) => variant.availabilityStatus || (variant.inStock ? 'IN_STOCK' : 'CHECK_AVAILABILITY'));
+      const effectiveAvailability = itemAvailability === 'IN_STOCK' || variantStatuses.includes('IN_STOCK')
+        ? 'IN_STOCK'
+        : (itemAvailability === 'OUT_OF_STOCK' || (variantStatuses.length > 0 && variantStatuses.every((status) => status === 'OUT_OF_STOCK')))
+          ? 'OUT_OF_STOCK'
+          : 'CHECK_AVAILABILITY';
+      if (availability !== 'all' && availability !== effectiveAvailability) return false;
 
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchName = item.name.toLowerCase().includes(q);
-        const matchBrand = item.brand.toLowerCase().includes(q);
+        const matchBrand = item.brand.toLowerCase().includes(q) || (item.brandTagline || '').toLowerCase().includes(q);
+        const matchCategory = item.categoryLabel.toLowerCase().includes(q);
         const matchCode = item.code.toLowerCase().includes(q);
         const matchGrade = item.grade ? item.grade.toLowerCase().includes(q) : false;
         const matchFeatures = item.features ? item.features.some((f) => f.toLowerCase().includes(q)) : false;
+        const matchDescription = (item.description || '').toLowerCase().includes(q) || (item.applications || []).some((value) => value.toLowerCase().includes(q)) || Object.values(item.specs || {}).some((value) => String(value || '').toLowerCase().includes(q));
         const matchVariant = (item.variants || []).some(variant => variant.label.toLowerCase().includes(q) || Object.values(variant.attributes || {}).some(value => value.toLowerCase().includes(q)));
-        return matchName || matchBrand || matchCode || matchGrade || matchFeatures || matchVariant;
+        return matchName || matchBrand || matchCategory || matchCode || matchGrade || matchFeatures || matchDescription || matchVariant;
       }
 
       return true;
     });
-  }, [products, activeCategory, selectedBrand, onlyInStock, searchQuery]);
+    return matches.sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'brand') return a.brand.localeCompare(b.brand) || a.name.localeCompare(b.name);
+      if (sortBy === 'availability') {
+        const inStockA = a.inStock || (a.variants || []).some((variant) => variant.inStock);
+        const inStockB = b.inStock || (b.variants || []).some((variant) => variant.inStock);
+        return Number(inStockB) - Number(inStockA) || a.name.localeCompare(b.name);
+      }
+      return 0;
+    });
+  }, [products, activeCategory, selectedBrand, availability, searchQuery, sortBy]);
 
   // Check if item in BOM
   const isItemInBOM = (id: string) => bomList.some((item) => (item.catalogueId || item.id) === id);
@@ -141,7 +163,8 @@ export default function MarketplacePage({
     setActiveCategory('all');
     setSelectedBrand('');
     setSearchQuery('');
-    setOnlyInStock(false);
+    setAvailability('all');
+    setSortBy('relevance');
     setSearchParams({});
   };
 
@@ -158,21 +181,21 @@ export default function MarketplacePage({
               </span>
             </h1>
             <p className="page-subtitle reveal-text">
-              This test catalogue uses illustrative product names, variants, images and prices to exercise the website. They are not client-approved inventory. Compare size and pack options, then confirm the exact item, price, tax, stock and delivery with staff.
+              Search products in the catalogue by name, brand, colour, finish or pack size. Check listed availability, compare options and add what you need to a quote list.
             </p>
 
             <div className="page-hero-metrics reveal-stagger">
               <div className="metric-tag">
                 <Search size={14} className="metric-icon" />
-                <span>Browse without signing in</span>
+                <span>Browse and build a list as a guest</span>
               </div>
               <div className="metric-tag">
                 <ClipboardList size={14} className="metric-icon" />
-                <span>Save a material list with an account</span>
+                <span>Choose sizes, colours and quantities</span>
               </div>
               <div className="metric-tag">
                 <Phone size={14} className="metric-icon" />
-                <span>Confirm details with the team</span>
+                <span>Request a quote when you’re ready</span>
               </div>
             </div>
           </div>
@@ -190,7 +213,7 @@ export default function MarketplacePage({
                 <Search size={18} className="search-field-icon" />
                 <input
                   type="text"
-                  placeholder="Search product, brand, size or pack (e.g. cement, Astral, 25 mm, 20 L)..."
+                  placeholder="Search products, brands, colour, finish or pack size..."
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -199,6 +222,15 @@ export default function MarketplacePage({
                   onFocus={() => setIsSuggestionsOpen(true)}
                   onKeyDown={(e) => {
                     if (e.key === 'Escape') setIsSuggestionsOpen(false);
+                    if (e.key === 'Enter') {
+                      setIsSuggestionsOpen(false);
+                      setSearchParams((prev) => {
+                        const p = new URLSearchParams(prev);
+                        if (searchQuery.trim()) p.set('q', searchQuery.trim());
+                        else p.delete('q');
+                        return p;
+                      });
+                    }
                   }}
                   className="catalog-search-input"
                   autoComplete="off"
@@ -209,6 +241,11 @@ export default function MarketplacePage({
                     onClick={() => {
                       setSearchQuery('');
                       setIsSuggestionsOpen(true);
+                      setSearchParams((prev) => {
+                        const p = new URLSearchParams(prev);
+                        p.delete('q');
+                        return p;
+                      });
                     }}
                     className="search-clear-btn"
                     aria-label="Clear search"
@@ -258,26 +295,36 @@ export default function MarketplacePage({
                   className="brand-dropdown-select"
                   aria-label="Filter by Manufacturer Brand"
                 >
-                  <option value="">All 16 Brands</option>
-                  {BRAND_LIST.map((b) => (
-                    <option key={b.id} value={b.name}>
-                      {b.name} ({b.category})
+                  <option value="">All {catalogueBrands.length} Brands</option>
+                  {catalogueBrands.map((brand) => (
+                    <option key={brand.name} value={brand.name}>
+                      {brand.name} ({brand.category})
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* In-Stock Toggle */}
-              <label className="instock-checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={onlyInStock}
-                  onChange={(e) => setOnlyInStock(e.target.checked)}
-                />
-                <span>Ready Depot Stock</span>
-              </label>
+              <div className="catalog-select-wrap">
+                <label className="sr-only" htmlFor="catalog-availability">Availability</label>
+                <select id="catalog-availability" value={availability} onChange={(e) => setAvailability(e.target.value)} className="brand-dropdown-select">
+                  <option value="all">All availability</option>
+                  <option value="IN_STOCK">In stock</option>
+                  <option value="OUT_OF_STOCK">Out of stock</option>
+                  <option value="CHECK_AVAILABILITY">Check availability</option>
+                </select>
+              </div>
 
-              {(activeCategory !== 'all' || selectedBrand || searchQuery || onlyInStock) && (
+              <div className="catalog-select-wrap">
+                <label className="sr-only" htmlFor="catalog-sort">Sort products</label>
+                <select id="catalog-sort" value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="brand-dropdown-select">
+                  <option value="relevance">Sort: relevance</option>
+                  <option value="name">Name: A to Z</option>
+                  <option value="brand">Brand</option>
+                  <option value="availability">Availability</option>
+                </select>
+              </div>
+
+              {(activeCategory !== 'all' || selectedBrand || searchQuery || availability !== 'all' || sortBy !== 'relevance') && (
                 <button
                   type="button"
                   onClick={handleResetFilters}
@@ -333,20 +380,20 @@ export default function MarketplacePage({
                 >
                   <span>All Brands</span>
                 </button>
-                {BRAND_LIST.map((b) => {
-                  const isSelected = selectedBrand.toLowerCase() === b.name.toLowerCase() || (selectedBrand && b.name.toLowerCase().includes(selectedBrand.toLowerCase()));
+                {catalogueBrands.map((brand) => {
+                  const isSelected = selectedBrand.toLowerCase() === brand.name.toLowerCase() || (selectedBrand && brand.name.toLowerCase().includes(selectedBrand.toLowerCase()));
                   return (
                     <button
-                      key={b.id}
+                      key={brand.name}
                       type="button"
                       className={`brand-chip-btn ${isSelected ? 'active' : ''}`}
-                      onClick={() => handleBrandChange(isSelected ? '' : b.name)}
-                      title={`${b.name} — ${b.tagline}`}
+                      onClick={() => handleBrandChange(isSelected ? '' : brand.name)}
+                      title={`${brand.name} — products listed in ${brand.category}`}
                     >
                       <div className="brand-chip-logo-box">
-                        <BrandLogo id={b.id} className="brand-chip-svg" />
+                        <BrandLogo id={brand.meta?.id || brand.name} className="brand-chip-svg" />
                       </div>
-                      <span className="brand-chip-name">{b.name}</span>
+                      <span className="brand-chip-name">{brand.name}</span>
                     </button>
                   );
                 })}
@@ -357,16 +404,18 @@ export default function MarketplacePage({
           {/* Results Summary Bar */}
           <div className="results-summary-row reveal-text">
             <span className="results-count-text">
-              Showing <strong>{filteredProducts.length}</strong> listed materials
+              Showing <strong>{filteredProducts.length}</strong> products in this catalogue
               {activeCategory !== 'all' && ` in ${catalogueCategories.find((c) => c.id === activeCategory)?.label}`}
               {selectedBrand && ` by ${selectedBrand}`}
             </span>
 
             <div className="dispatch-help-note">
               <span>Need a custom quantity or site delivery information?</span>
-              <a href={`tel:${COMPANY_INFO.phone}`} className="phone-quick-link">
-                <Phone size={13} /> {COMPANY_INFO.phoneDisplay}
-              </a>
+              {siteContent["contact.phone"] && (
+                <a href={`tel:${siteContent["contact.phone"]}`} className="phone-quick-link">
+                  <Phone size={13} /> {siteContent["contact.phoneDisplay"] || siteContent["contact.phone"]}
+                </a>
+              )}
             </div>
           </div>
 
@@ -376,19 +425,26 @@ export default function MarketplacePage({
               {filteredProducts.map((product) => {
                 const inBOM = isItemInBOM(product.id);
                 const brandMeta = getBrandMeta(product.brand);
+                const productOffer = product.offerLabel || product.variants?.find((variant) => variant.offerLabel)?.offerLabel;
+                const itemAvailability = product.availabilityStatus || (product.inStock ? 'IN_STOCK' : 'CHECK_AVAILABILITY');
+                const variantStatuses = (product.variants || []).map((variant) => variant.availabilityStatus || (variant.inStock ? 'IN_STOCK' : 'CHECK_AVAILABILITY'));
+                const effectiveAvailability = itemAvailability === 'IN_STOCK' || variantStatuses.includes('IN_STOCK')
+                  ? 'IN_STOCK'
+                  : (itemAvailability === 'OUT_OF_STOCK' || (variantStatuses.length > 0 && variantStatuses.every((status) => status === 'OUT_OF_STOCK')))
+                    ? 'OUT_OF_STOCK'
+                    : 'CHECK_AVAILABILITY';
                 return (
                   <div key={product.id} className="catalog-product-card">
                     {/* Top Image & Category Pill */}
-                    <div className="product-media-box">
-                      <img src={product.image} alt={product.name} loading="lazy" />{product.image.includes('illustration') && <span className="product-image-note">Illustrative image · confirm selected size</span>}
+                    <div className="product-media-box" role="button" tabIndex={0} onClick={() => onOpenProductModal(product)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpenProductModal(product); } }} aria-label={`View ${product.name}`}>
+                      <ProductImage src={product.image} alt={product.name} />
                       <div className="media-overlay-tags">
                         <span className="product-cat-tag">{product.categoryLabel}</span>
-                        {product.inStock && (
-                          <span className="stock-status-tag">
-                            <span className="pulse-dot"></span> In Stock
-                          </span>
-                        )}
+                        <span className={`stock-status-tag ${effectiveAvailability === 'IN_STOCK' ? '' : 'is-unavailable'}`}>
+                          <span className="pulse-dot"></span> {effectiveAvailability === 'IN_STOCK' ? 'In stock' : effectiveAvailability === 'OUT_OF_STOCK' ? 'Out of stock' : 'Check availability'}
+                        </span>
                       </div>
+                      {productOffer && <span className="catalog-card-offer">{productOffer}</span>}
                     </div>
 
                     {/* Content Box */}
@@ -396,14 +452,14 @@ export default function MarketplacePage({
                       <div className="brand-code-line">
                         <div className="brand-title-badge">
                           <div className="brand-mini-logo-frame">
-                            <BrandLogo id={brandMeta?.id} className="brand-mini-svg" />
+                            <BrandLogo id={brandMeta?.id || product.brand} className="brand-mini-svg" />
                           </div>
                           <span className="brand-title">{product.brand}</span>
                         </div>
                         <span className="product-sku-code">{product.code}</span>
                       </div>
 
-                      <h3 className="product-card-title">{product.name}</h3>
+                      <h3 className="product-card-title" onClick={() => onOpenProductModal(product)}>{product.name}</h3>
                       {product.specs?.sizes && <p className="product-size-guide">Size guide: {product.specs.sizes}. Specify your requirement in product details.</p>}
 
                       {product.grade && (
@@ -411,6 +467,18 @@ export default function MarketplacePage({
                           <span>{product.grade}</span>
                         </div>
                       )}
+
+                      {(() => {
+                        const colourValues = Array.from(new Set((product.variants || []).flatMap((variant) => Object.entries(variant.attributes || {})
+                          .filter(([key]) => /colou?r|shade|finish/i.test(key))
+                          .map(([, value]) => value.trim()).filter(Boolean))));
+                        return colourValues.length > 0 ? (
+                          <div className="catalog-colour-preview" aria-label={`Available colours and finishes: ${colourValues.join(', ')}`}>
+                            <span>Colours &amp; finishes</span>
+                            <div className="catalog-colour-values">{colourValues.slice(0, 3).map((colour) => <small key={colour}>{colour}</small>)}{colourValues.length > 3 && <small>+{colourValues.length - 3}</small>}</div>
+                          </div>
+                        ) : null;
+                      })()}
 
                       {/* Key features */}
                       <ul className="product-features-preview">
@@ -441,16 +509,16 @@ export default function MarketplacePage({
                         <div>
                           <span className="rate-caption">{product.price == null && product.variants?.some(variant => variant.price != null) ? 'Starting from' : product.price == null ? 'Wholesale pricing' : 'Price per unit'}</span>
                           <span className="rate-amount">
-                            {product.price == null ? product.variants?.some(variant => variant.price != null) ? `₹${Math.min(...product.variants.filter(variant => variant.price != null).map(variant => Number(variant.price))).toLocaleString('en-IN')}` : 'Contact for price' : `₹${Number(product.price).toLocaleString('en-IN')}`}
+                            {product.price == null ? product.variants?.some(variant => variant.price != null) ? `₹${Math.min(...product.variants.filter(variant => variant.price != null).map(variant => Number(variant.price))).toLocaleString('en-IN')}` : 'Request a quote' : `₹${Number(product.price).toLocaleString('en-IN')}`}
                           </span>
                           {product.compareAtPrice != null && product.price != null && Number(product.compareAtPrice) > Number(product.price) && (
-                            <span className="catalogue-list-price"><del>₹{Number(product.compareAtPrice).toLocaleString('en-IN')}</del>{product.offerLabel && <strong>{product.offerLabel}</strong>}</span>
+                            <span className="catalogue-list-price"><del>₹{Number(product.compareAtPrice).toLocaleString('en-IN')}</del>{productOffer && <strong>{productOffer}</strong>}</span>
                           )}
                           {(product.price != null || product.variants?.some(variant => variant.price != null)) && <small className="catalogue-price-caveat">{product.priceNote || product.variants?.find(variant => variant.price != null)?.priceNote || "Final availability, GST and delivery charges confirmed by staff."}</small>}
                         </div>
                         <div className="min-order-pill">
                           <Package size={12} />
-                          <span>MOQ: {product.minOrderQty}</span>
+                          <span>MOQ: {product.minOrderQty || 'Confirm'}</span>
                         </div>
                       </div>
 
@@ -467,28 +535,28 @@ export default function MarketplacePage({
                         <button
                           type="button"
                           className={`btn-card-bom ${inBOM ? 'in-bom' : ''}`}
-                          onClick={() => onToggleBOM(product)}
+                          onClick={() => inBOM ? onOpenBOMDrawer() : onToggleBOM(product)}
                         >
                           {inBOM ? (
                             <>
-                              <Check size={14} /> Added to List
+                              <Check size={14} /> View quote list
                             </>
                           ) : (
                             <>
-                              <Plus size={14} /> {product.specs?.sizes ? "Choose size" : "Add to List"}
+                              <Plus size={14} /> {product.specs?.sizes || product.variants?.length ? "Choose options" : "Add to quote list"}
                             </>
                           )}
                         </button>
 
-                        <a
-                          href={whatsappLink(productMessage(product))}
+                        {siteContent["contact.phone"] && <a
+                          href={whatsappLink(productMessage(product), siteContent["contact.phone"])}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn-card-whatsapp"
                           title="Ask about this product on WhatsApp"
                         >
                           <WhatsAppIcon size={16} color="currentColor" />
-                        </a>
+                        </a>}
                       </div>
                     </div>
                   </div>
@@ -498,7 +566,7 @@ export default function MarketplacePage({
           ) : (
             <div className="no-products-state">
               <Package size={48} className="empty-icon" />
-              <h3>No materials match your current criteria</h3>
+              <h3>No products match your search</h3>
               <p>Try adjusting your filters or contact the team to ask about an item that is not listed.</p>
               <div className="empty-state-actions">
                 <button
@@ -508,17 +576,18 @@ export default function MarketplacePage({
                 >
                   Clear All Filters
                 </button>
-                <a
-                  href={`https://wa.me/919773505015?text=${encodeURIComponent(
-                    `Hello Material Square, I am looking for a material not listed: "${searchQuery}". Can you supply this to my site?`
-                  )}`}
+                {siteContent["contact.phone"] && <a
+                  href={whatsappLink(
+                    `Hello Material Square, I am looking for a material not listed: "${searchQuery}". Can you supply this to my site?`,
+                    siteContent["contact.phone"],
+                  )}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn btn-whatsapp"
                 >
                   <WhatsAppIcon size={18} color="#ffffff" />
                   <span>Request Custom Material on WhatsApp</span>
-                </a>
+                </a>}
               </div>
             </div>
           )}
@@ -526,8 +595,8 @@ export default function MarketplacePage({
         </div>
       </section>
 
-      {/* Authorized Manufacturer Partner Directory */}
-      <BrandRoster onSelectBrand={handleBrandChange} selectedBrand={selectedBrand} />
+      {/* Brands currently represented in the catalogue */}
+      {products.length > 0 && <BrandRoster products={products} onSelectBrand={handleBrandChange} selectedBrand={selectedBrand} />}
 
       {/* Sticky BOM trigger floating bottom bar if items in list and not dismissed (Rendered via Portal to document.body so it is perfectly fixed to the viewport) */}
       {typeof document !== 'undefined' &&

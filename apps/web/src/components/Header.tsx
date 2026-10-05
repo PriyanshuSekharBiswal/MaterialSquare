@@ -1,5 +1,4 @@
 import { publicNavigation } from "@material-square/types";
-import { useCustomer } from "../customer";
 import type { MaterialItem, CatalogueProduct } from "../types";
 import React, { useState } from "react";
 import { NavLink, Link } from "react-router-dom";
@@ -9,7 +8,6 @@ import {
   Menu,
   X,
   MapPin,
-  UserRound,
   ArrowRight,
 } from "lucide-react";
 import MaterialSquareLogo from "./icons/MaterialSquareLogo";
@@ -22,7 +20,6 @@ export default function Header({
   bomCount: number;
   onOpenBOMDrawer: () => void;
 }) {
-  const { customer } = useCustomer();
   const siteContent = useSiteContent();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -38,27 +35,25 @@ export default function Header({
             <span className="location-tag">
               <span className="live-dot" aria-hidden="true" />
               <MapPin size={12} className="loc-icon" />
-              <strong className="top-bar-serving">Service Area:</strong>
-              <span className="top-bar-cities">
-                {" "}
-                {siteContent["contact.location"] ||
-                  "Serving Delhi NCR (Noida, Greater Noida, Delhi, Gurugram, Ghaziabad & Faridabad)"}
-              </span>
+              {siteContent["contact.location"] && <>
+                <strong className="top-bar-serving">Service Area:</strong>
+                <span className="top-bar-cities"> {siteContent["contact.location"]}</span>
+              </>}
             </span>
           </div>
 
           <div className="top-bar-right">
             <span className="top-bar-tagline">Building Better Together</span>
-            <a
-              href={`tel:${siteContent["contact.phone"] || "+919773505015"}`}
+            {siteContent["contact.phone"] && <a
+              href={`tel:${siteContent["contact.phone"]}`}
               className="hotline-phone"
               title="Call Material Square Hotline"
             >
               <Phone size={12} />
               <span className="hotline-text">
-                {siteContent["contact.phoneDisplay"] || "+91 97735 05015"}
+                {siteContent["contact.phoneDisplay"] || siteContent["contact.phone"]}
               </span>
-            </a>
+            </a>}
           </div>
         </div>
       </div>
@@ -116,16 +111,6 @@ export default function Header({
               <span>Material List</span>
               {bomCount > 0 && <span className="bom-counter">{bomCount}</span>}
             </button>
-
-            <Link
-              to="/account"
-              onClick={closeMenu}
-              className="nav-btn nav-btn-ghost nav-account"
-              aria-label={customer ? "My Account" : "Login"}
-            >
-              <UserRound size={16} />
-              <span>{customer ? "My Account" : "Login"}</span>
-            </Link>
 
             <Link
               to="/get-quote"
@@ -199,14 +184,6 @@ export default function Header({
                 <FileText size={16} />
                 <span>View Material List ({bomCount})</span>
               </button>
-              <Link
-                to="/account"
-                onClick={closeMenu}
-                className="btn btn-secondary btn-block"
-              >
-                <UserRound size={16} />
-                <span>{customer ? "My Account" : "Login"}</span>
-              </Link>
             </div>
           </div>
         </div>

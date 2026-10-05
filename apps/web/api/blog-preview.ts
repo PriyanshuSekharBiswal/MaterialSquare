@@ -7,8 +7,6 @@ type PublicArticle = {
   featuredImageUrl: string | null;
 };
 
-const previewApiOrigin = "https://material-square-demo-api.onrender.com";
-
 function escapeHtml(value: string) {
   const entities: Record<string, string> = {
     "&": "&amp;",
@@ -148,9 +146,7 @@ export default async function handler(
     return;
   }
 
-  const configuredApiOrigin =
-    process.env.API_ORIGIN?.trim() ||
-    (process.env.VERCEL_ENV === "preview" ? previewApiOrigin : "");
+  const configuredApiOrigin = process.env.API_ORIGIN?.trim() || "";
   let apiOrigin: URL;
   try {
     apiOrigin = new URL(configuredApiOrigin);

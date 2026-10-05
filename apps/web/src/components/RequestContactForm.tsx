@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { useCustomer } from "../customer";
-import { customerApi } from "../api";
 import { trackWebsiteEvent } from "../analytics";
 import {
   emailLink,
@@ -9,12 +7,14 @@ import {
   requestMessage,
   type RequestDetails,
 } from "../messages";
+import { useSiteContent } from "../site-content";
 export default function RequestContactForm({
   enquiry = false,
 }: {
   enquiry?: boolean;
 }) {
-  const { customer, items, ready } = useCustomer();
+  const { items, ready } = useCustomer();
+  const siteContent = useSiteContent();
   const [details, setDetails] = useState<RequestDetails>({
     name: "",
     phone: "",
@@ -26,54 +26,30 @@ export default function RequestContactForm({
     delivery: "",
     notes: "",
   });
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState("");
-  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
-  const [channel, setChannel] = useState("whatsapp"),
+  const [channel, setChannel] = useState<"whatsapp" | "email" | "copy">(
+    siteContent["contact.phone"]
+      ? "whatsapp"
+      : siteContent["contact.email"]
+        ? "email"
+        : "copy",
+  ),
     [prepared, setPrepared] = useState(false),
     [error, setError] = useState("");
-  useEffect(() => {
-    if (customer)
-      setDetails((old) => ({
-        ...old,
-        name: customer.name,
-        phone: customer.phone,
-        email: customer.email || "",
-        company: customer.companyName || "",
-        address: customer.shippingAddress || "",
-        city: customer.city,
-        pincode: customer.pincode,
-      }));
-  }, [customer?.id]);
+  const [copied, setCopied] = useState(false);
   function update(key: keyof RequestDetails, value: string) {
     setPrepared(false);
-    setSubmitted("");
-    setRequestId(crypto.randomUUID());
+    setCopied(false);
     setDetails((old) => ({ ...old, [key]: value }));
   }
   useEffect(() => {
     setPrepared(false);
-    setSubmitted("");
-    setRequestId(crypto.randomUUID());
+    setCopied(false);
   }, [items]);
-  async function submitWebsiteRequest() {
-    if (!customer || submitting || submitted) return;
-    setSubmitting(true); setError("");
-    try {
-      const saved = await customerApi<{ id: string; status: string }>("/rfqs", "POST", {
-        requestId,
-        customerName: details.name.trim(), customerEmail: details.email.trim(),
-        companyName: details.company.trim(), shippingAddress: details.address.trim(),
-        city: details.city.trim(), pincode: details.pincode,
-        siteLocation: `${details.address.trim()}, ${details.city.trim()}, ${details.pincode}`,
-        deliveryTiming: details.delivery || undefined, notes: details.notes.trim(),
-        items: items.map(item => ({ material: item.name, brand: item.brand,
-          specification: item.specification || "", quantity: item.quantity || 1, unit: item.unit })),
-      }, customer.id);
-      setSubmitted(saved.id);
-    } catch (e) { setError((e as Error).message); }
-    finally { setSubmitting(false); }
-  }
+  useEffect(() => {
+    if (channel !== "copy") return;
+    if (siteContent["contact.phone"]) setChannel("whatsapp");
+    else if (siteContent["contact.email"]) setChannel("email");
+  }, [channel, siteContent["contact.email"], siteContent["contact.phone"]]);
   const message = requestMessage(details, items, enquiry);
   const fields: {
     key: keyof RequestDetails;
@@ -138,16 +114,6 @@ export default function RequestContactForm({
         Confirm the site location for this request. Our team will discuss
         availability and delivery with you.
       </p>
-      {!enquiry && !customer ? (
-        <div>
-          <p>
-            Sign in to save your list and include your verified mobile number.
-          </p>
-          <Link className="btn btn-primary" to="/account?next=/get-quote">
-            Sign in to continue
-          </Link>
-        </div>
-      ) : (
         <form
           className="customer-form"
           onSubmit={(e) => {
@@ -163,6 +129,14 @@ export default function RequestContactForm({
               setError("Enter a unit for every material.");
               return;
             }
+            if (channel === "whatsapp" && !siteContent["contact.phone"]) {
+              setError("WhatsApp contact is not configured. Choose email.");
+              return;
+            }
+            if (channel === "email" && !siteContent["contact.email"]) {
+              setError("Email contact is not configured. Choose WhatsApp.");
+              return;
+            }
             if (
               fields.some((f) => f.required && !details[f.key].trim()) ||
               (enquiry && !details.notes.trim())
@@ -173,18 +147,20 @@ export default function RequestContactForm({
             setPrepared(true);
           }}
         >
-          <fieldset disabled={submitting} className="request-fields">
+          <fieldset className="request-fields">
           <label>
             Preferred contact channel
             <select
               value={channel}
               onChange={(e) => {
-                setChannel(e.target.value);
+                setChannel(e.target.value as typeof channel);
                 setPrepared(false);
+                setCopied(false);
               }}
             >
-              <option value="whatsapp">WhatsApp</option>
-              <option value="email">Email</option>
+              <option value="whatsapp" disabled={!siteContent["contact.phone"]}>WhatsApp</option>
+              <option value="email" disabled={!siteContent["contact.email"]}>Email</option>
+              <option value="copy">Copy message</option>
             </select>
           </label>
           {fields.map((field) => (
@@ -198,7 +174,6 @@ export default function RequestContactForm({
                 pattern={field.pattern}
                 maxLength={field.max}
                 minLength={field.key === "name" ? 2 : undefined}
-                readOnly={field.key === "phone" && !!customer}
                 value={details[field.key]}
                 onChange={(e) => update(field.key, e.target.value)}
               />
@@ -228,7 +203,7 @@ export default function RequestContactForm({
               onChange={(e) => update("notes", e.target.value)}
             />
           </label>
-          <button className="btn btn-primary" disabled={!ready || submitting}>
+          <button className="btn btn-primary" disabled={!ready}>
             Preview {enquiry ? "enquiry" : "request"}
           </button>
           {error && (
@@ -238,28 +213,25 @@ export default function RequestContactForm({
           )}
           {prepared && (
             <div>
-              {!enquiry && <div className="website-request-submit">
-                <h3>Send to the Material Square team</h3>
-                <p>Submit these requirements directly to our team. You can track your request and review staff quotations in My Account.</p>
-                <button type="button" className="btn btn-primary" disabled={submitting || Boolean(submitted)} onClick={() => void submitWebsiteRequest()}>{submitting ? "Submitting…" : submitted ? "Request submitted" : "Submit quotation request"}</button>
-                {submitted && <p role="status" className="customer-notice">Request saved. Reference: {submitted}. <Link to="/account">View my requests</Link></p>}
-              </div>}
-              <h3>Or continue through {channel === "email" ? "email" : "WhatsApp"}</h3>
+              <h3>{channel === "copy" ? "Copy your" : "Send your"} {enquiry ? "enquiry" : "request"}{channel === "copy" ? " message" : ` through ${channel === "email" ? "email" : "WhatsApp"}`}</h3>
               <pre className="request-preview">{message}</pre>
               <p className="customer-help">
-                Review the details, then press Send in{" "}
-                {channel === "email" ? "your email app" : "WhatsApp"}. Opening
-                the app does not send this message automatically. Attach
-                drawings or photos there if needed.
+                {channel === "copy"
+                  ? "Review the details, copy the message, and paste it into your preferred messaging app."
+                  : <>Review the details, then press Send in{" "}
+                    {channel === "email" ? "your email app" : "WhatsApp"}. Opening
+                    the app does not send this message automatically. Attach
+                    drawings or photos there if needed.</>}
               </p>
-              <a
+              {channel !== "copy" && <a
                 className={`btn ${channel === "whatsapp" ? "btn-whatsapp" : "btn-primary"}`}
                 href={
                   channel === "whatsapp"
-                    ? whatsappLink(message)
+                    ? whatsappLink(message, siteContent["contact.phone"])
                     : emailLink(
                         `Material Square — ${enquiry ? "Enquiry" : "Quotation Request"} — ${details.name}`,
                         message,
+                        siteContent["contact.email"],
                       )
                 }
                 target={channel === "whatsapp" ? "_blank" : undefined}
@@ -267,7 +239,7 @@ export default function RequestContactForm({
                 onClick={() => trackWebsiteEvent({ type: "request_handoff", target: channel === "email" ? "email" : "whatsapp" })}
               >
                 Continue in {channel === "whatsapp" ? "WhatsApp" : "email"}
-              </a>
+              </a>}
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -275,6 +247,7 @@ export default function RequestContactForm({
                   try {
                     await navigator.clipboard.writeText(message);
                     setError("");
+                    setCopied(true);
                   } catch {
                     setError(
                       "Copy is unavailable. Select the preview text and copy it manually.",
@@ -282,8 +255,9 @@ export default function RequestContactForm({
                   }
                 }}
               >
-                Copy message
+                {channel === "copy" ? "Copy request message" : "Copy message"}
               </button>
+              {copied && <p role="status" className="customer-help">Message copied. Paste it into your messaging app to send it.</p>}
               <p className="customer-help">
                 For long lists or if your app does not open, copy the full
                 message and paste it into WhatsApp or email.
@@ -292,7 +266,6 @@ export default function RequestContactForm({
           )}
           </fieldset>
         </form>
-      )}
     </div>
   );
 }

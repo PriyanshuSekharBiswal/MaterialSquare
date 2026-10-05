@@ -1,11 +1,9 @@
-import type { MaterialItem } from "../types";
+import type { CatalogueProduct, MaterialItem } from "../types";
 import { Link } from "react-router-dom";
 import MaterialListEditor from "../components/MaterialListEditor";
 import RequestContactForm from "../components/RequestContactForm";
-import { useCustomer } from "../customer";
 import { useSiteContent } from "../site-content";
-export default function GetQuotePage(_props: { bomList?: MaterialItem[] }) {
-  const { error } = useCustomer();
+export default function GetQuotePage(_props: { bomList?: MaterialItem[]; products?: CatalogueProduct[] }) {
   const siteContent = useSiteContent();
   return (
     <section className="request-page container">
@@ -16,14 +14,9 @@ export default function GetQuotePage(_props: { bomList?: MaterialItem[] }) {
       <p className="request-intro">
         {siteContent["getQuote.description"]}
       </p>
-      {error && (
-        <p className="customer-error" role="alert">
-          {error}
-        </p>
-      )}
       <div className="request-grid">
         <div className="request-card">
-          <MaterialListEditor />
+          <MaterialListEditor products={_props.products} />
           <Link
             className="btn btn-secondary"
             style={{ marginTop: 20 }}

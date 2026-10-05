@@ -21,7 +21,6 @@ export type AdminStaff = {
   phone: string | null;
   email: string | null;
   role: string;
-  isDemo: boolean;
 };
 
 type NavigationItem = {
@@ -91,7 +90,7 @@ function isTabPermitted(id: WorkspaceTab, role?: string) {
 function pageTitle(tab: WorkspaceTab) {
   const titles: Record<WorkspaceTab, string> = {
     overview: "Executive Overview",
-    customers: "Customer Accounts",
+    customers: "Customer Records",
     followups: "Enquiry Follow-ups",
     catalogue: "Website Catalogue",
     content: "Website Pages & Content",
@@ -107,7 +106,6 @@ function pageTitle(tab: WorkspaceTab) {
 
 type AdminWorkspaceLayoutProps = {
   staff: AdminStaff;
-  demo: boolean;
   tab: WorkspaceTab;
   openFollowups: number;
   mobileNavOpen: boolean;
@@ -126,7 +124,6 @@ type AdminWorkspaceLayoutProps = {
 
 export default function AdminWorkspaceLayout({
   staff,
-  demo,
   tab,
   openFollowups,
   mobileNavOpen,
@@ -242,18 +239,17 @@ export default function AdminWorkspaceLayout({
         </nav>
 
         <div className="sidebar-footer">
-          {(demo || staff.isDemo) && (
-            <span className="sidebar-mode-badge">Demo environment</span>
+          {marketplaceUrl && (
+            <a
+              href={marketplaceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="sidebar-ext-link"
+            >
+              <ExternalLink size={14} />
+              <span>Visit Marketplace</span>
+            </a>
           )}
-          <a
-            href={marketplaceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="sidebar-ext-link"
-          >
-            <ExternalLink size={14} />
-            <span>Visit Marketplace</span>
-          </a>
           <button className="sidebar-signout-btn" onClick={onSignOut}>
             <LogOut size={16} />
             <span>Sign out</span>

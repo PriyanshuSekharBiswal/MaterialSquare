@@ -1,26 +1,27 @@
 import { materialId } from "../ids";
-import { PRODUCTS } from "../data/materialsData";
+import type { CatalogueProduct } from "../types";
 import React, { useState } from "react";
 import { useCustomer } from "../customer";
-export default function MaterialListEditor() {
+import ProductImage from "./ProductImage";
+export default function MaterialListEditor({ products = [] }: { products?: CatalogueProduct[] }) {
   const { items, updateItems, canEdit } = useCustomer();
   const [custom, setCustom] = useState("");
   return (
     <div>
       <h2>
-        Your material list <small>({items.length})</small>
+        Your quote list <small>({items.length})</small>
       </h2>
       <p>
-        Review quantities and enter the exact size or specification you need.
+        Select quantities and variants, then send the list to the team for a confirmed quote.
       </p>
       {!items.length && (
         <p>
-          No materials selected. Browse the marketplace or add a material below.
+          Your list is empty. Browse the catalogue and add the products you need.
         </p>
       )}
       {items.map((item) => (
         <div className="material-editor" key={item.id}>
-          {(() => { const product=PRODUCTS.find(p=>p.id===(item.catalogueId||item.id)); return product ? <img className="material-thumb" src={product.image} alt={`${item.name} — illustrative product image`} loading="lazy"/> : null; })()}
+          {(() => { const product=products.find(p=>p.id===(item.catalogueId||item.id)); return product ? <ProductImage className="material-thumb" src={product.image} alt={`${item.name} product`} /> : null; })()}
           <h3>{item.name}</h3>
           <span>
             {item.brand}

@@ -33,38 +33,6 @@ type CustomerFollowupWorkspaceProps = {
   save: (event: FormEvent<HTMLFormElement>) => void;
 };
 
-function Materials({ items }: { items: Material[] }) {
-  return items.length ? (
-    <div className="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Material</th>
-            <th>Quantity</th>
-            <th>Specification</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((material, index) => (
-            <tr key={index}>
-              <td>
-                <strong>{material.name}</strong>
-                <small>{material.brand}</small>
-              </td>
-              <td>
-                {material.quantity} {material.unit}
-              </td>
-              <td>{material.specification || "To be confirmed"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  ) : (
-    <p className="empty">No materials saved yet.</p>
-  );
-}
-
 export default function CustomerFollowupWorkspace({
   tab,
   customers,
@@ -143,12 +111,12 @@ export default function CustomerFollowupWorkspace({
           <section className="panel-card panel-body">
             <p className="muted">
               {result.total}{" "}
-              {tab === "customers" ? "customer accounts" : "follow-ups"}
+              {tab === "customers" ? "customer records" : "follow-ups"}
             </p>
             {!loading && !result.items.length && (
               <p className="empty">
                 {tab === "customers"
-                  ? "Customer accounts appear here after their first sign-in."
+                  ? "Customer records appear here after a quotation or follow-up is recorded."
                   : "No follow-ups found. Record an enquiry when staff receive it."}
               </p>
             )}
@@ -156,17 +124,16 @@ export default function CustomerFollowupWorkspace({
               ? customers.items.map((c) => (
                   <article className="workspace-record" key={c.id}>
                     <div>
-                      <h3>{c.name || "Profile not completed"}</h3>
+                      <h3>{c.name || "Unnamed contact"}</h3>
                       <p>
                         +91 {c.phone}
                         {c.companyName ? ` · ${c.companyName}` : ""}
                       </p>
                       <small>{c.city}</small>
                       <small>
-                        Last sign-in:{" "}
-                        {c.lastLoginAt
-                          ? new Date(c.lastLoginAt).toLocaleString("en-IN")
-                          : "Not recorded yet"}
+                        Record created {c.createdAt
+                          ? new Date(c.createdAt).toLocaleDateString("en-IN")
+                          : "date unavailable"}
                       </small>
                     </div>
                     <button
@@ -174,7 +141,7 @@ export default function CustomerFollowupWorkspace({
                       disabled={busy}
                       onClick={() => void openCustomer(c.id)}
                     >
-                      View account
+                      View contact
                     </button>
                   </article>
                 ))
@@ -261,20 +228,12 @@ export default function CustomerFollowupWorkspace({
                 .join(", ") || "Not provided"}
             </p>
             <p>
-              <strong>Account created</strong>
+              <strong>Record created</strong>
               {selected.createdAt
                 ? new Date(selected.createdAt).toLocaleString("en-IN")
                 : "Not available"}
             </p>
-            <p>
-              <strong>Last sign-in</strong>
-              {selected.lastLoginAt
-                ? new Date(selected.lastLoginAt).toLocaleString("en-IN")
-                : "Not recorded yet"}
-            </p>
           </div>
-          <h3>Saved material list</h3>
-          <Materials items={selected.materialList} />
           <div className="workspace-actions">
             <button
               className="btn-sm btn-primary"
@@ -292,15 +251,7 @@ export default function CustomerFollowupWorkspace({
                   siteAddress: selected.shippingAddress || "",
                   city: selected.city,
                   pincode: selected.pincode,
-                  materials: selected.materialList.map(
-                    ({ name, brand, quantity, unit, specification }) => ({
-                      name,
-                      brand,
-                      quantity,
-                      unit,
-                      specification: specification || "",
-                    }),
-                  ),
+                  materials: [],
                 });
               }}
             >

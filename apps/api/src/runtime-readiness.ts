@@ -1,5 +1,5 @@
 const isProductionRuntime = () =>
-  process.env.NODE_ENV === "production" && process.env.APP_ENV !== "demo";
+  process.env.NODE_ENV === "production";
 
 function validHttpsUrl(value: string | undefined, allowPath = false) {
   if (!value?.trim()) return false;
@@ -27,8 +27,6 @@ export function productionReadinessGaps(): string[] {
     .filter(Boolean);
   if (!origins.length || origins.some((origin) => !validHttpsUrl(origin)))
     gaps.push("CORS_ORIGINS");
-  if (!process.env.MSG91_AUTHKEY?.trim()) gaps.push("MSG91_AUTHKEY");
-
   const storageConfigured = Boolean(
     process.env.AWS_S3_BUCKET?.trim() &&
     process.env.AWS_ACCESS_KEY_ID?.trim() &&

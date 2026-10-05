@@ -1,10 +1,16 @@
-import { COMPANY_INFO } from "./data/materialsData";
 import type { MaterialItem } from "./types";
-export function whatsappLink(message: string) {
-  return `https://wa.me/91${COMPANY_INFO.phone}?text=${encodeURIComponent(message)}`;
+export function whatsappLink(message: string, phone: string | null | undefined) {
+  if (!phone) return "";
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) return "";
+  const internationalNumber = digits.length > 10 && digits.startsWith("91")
+    ? digits
+    : `91${digits}`;
+  return `https://wa.me/${internationalNumber}?text=${encodeURIComponent(message)}`;
 }
-export function emailLink(subject: string, message: string) {
-  return `mailto:${COMPANY_INFO.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
+export function emailLink(subject: string, message: string, email: string | null | undefined) {
+  if (!email?.trim()) return "";
+  return `mailto:${email.trim()}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
 }
 export function productMessage(product: MaterialItem) {
   return `Material Square — Product Enquiry\n\nProduct: ${product.name}\nBrand: ${product.brand}\nCode: ${product.code || product.id}${product.specification ? `\nSpecification: ${product.specification}` : ""}\n\nPlease help me confirm the required size, availability and pricing.`;

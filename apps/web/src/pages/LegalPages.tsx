@@ -19,7 +19,6 @@ function PolicyPage({ kind }: { kind: "privacy" | "terms" }) {
           <p style={{ whiteSpace: "pre-line" }}>{plainText(section.body)}</p>
         </section>
       ))}
-      <p className="legal-review-note">{plainText(policy.reviewNote)}</p>
       <Link
         className="btn btn-secondary"
         to={kind === "privacy" ? "/terms" : "/privacy"}

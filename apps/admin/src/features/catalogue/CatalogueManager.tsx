@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Image, PackagePlus, RefreshCw, Save, Upload, X } from "lucide-react";
+import CatalogueVariantsEditor, { type EditableVariant } from "./CatalogueVariantsEditor";
 import "./catalogue-manager.css";
 
 type Listing = {
@@ -27,30 +28,14 @@ type Listing = {
   offerStartsAt: string | null;
   offerEndsAt: string | null;
   isInStock: boolean;
+  availabilityStatus: "IN_STOCK" | "OUT_OF_STOCK" | "CHECK_AVAILABILITY";
   isPublished: boolean;
   features: string[];
   applications: string[];
   specifications: Record<string, string>;
   sortOrder: number;
 };
-type Variant = {
-  id?: string;
-  code?: string | null;
-  label: string;
-  attributes: Record<string, string>;
-  unit: string;
-  price?: string | number | null;
-  compareAtPrice?: string | number | null;
-  priceNote?: string | null;
-  offerLabel?: string | null;
-  offerStartsAt?: string | null;
-  offerEndsAt?: string | null;
-  inStock: boolean;
-  stockQuantity?: string | number | null;
-  minOrderQuantity?: string | number | null;
-  quantityBreaks?: Array<{ minimumQuantity: number; unitPrice: number }>;
-  sortOrder: number;
-};
+type Variant = EditableVariant;
 
 const blank: Listing = {
   id: "",
@@ -75,6 +60,7 @@ const blank: Listing = {
   priceNote: "",
   offerLabel: "",
   isInStock: false,
+  availabilityStatus: "CHECK_AVAILABILITY",
   offerStartsAt: null,
   offerEndsAt: null,
   isPublished: false,
@@ -111,98 +97,6 @@ const specsFromLines = (value: FormDataEntryValue | null) =>
   );
 const lines = (values: string[]) => values.join("\n");
 const dateField = (value: string | null) => (value ? value.slice(0, 10) : "");
-const parseVariants = (value: FormDataEntryValue | null): Variant[] =>
-  String(value || "")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line, sortOrder) => {
-      const [
-        label = "",
-        unit = "",
-        rawPrice = "",
-        rawCompare = "",
-        rawStock = "",
-        availability = "no",
-        rawAttributes = "",
-        offerLabel = "",
-        offerStartsAt = "",
-        offerEndsAt = "",
-        priceNote = "",
-        code = "",
-        rawQuantityBreaks = "",
-      ] = line.split("|").map((part) => part.trim());
-      const attributes = Object.fromEntries(
-        rawAttributes
-          .split(";")
-          .map((pair) => pair.trim())
-          .filter(Boolean)
-          .map((pair) => {
-            const index = pair.indexOf("=");
-            return index < 1
-              ? [pair, ""]
-              : [pair.slice(0, index).trim(), pair.slice(index + 1).trim()];
-          }),
-      );
-      const quantityBreaks = rawQuantityBreaks
-        .split(";")
-        .map((entry) => entry.trim())
-        .filter(Boolean)
-        .map((entry) => {
-          const [minimumQuantity, unitPrice] = entry.split("=").map(Number);
-          return { minimumQuantity, unitPrice };
-        })
-        .filter(
-          (row) =>
-            Number.isFinite(row.minimumQuantity) &&
-            row.minimumQuantity > 0 &&
-            Number.isFinite(row.unitPrice) &&
-            row.unitPrice >= 0,
-        )
-        .sort((a, b) => a.minimumQuantity - b.minimumQuantity);
-      return {
-        label,
-        unit,
-        code: code || null,
-        price: rawPrice ? Number(rawPrice) : null,
-        compareAtPrice: rawCompare ? Number(rawCompare) : null,
-        stockQuantity: rawStock ? Number(rawStock) : null,
-        inStock: availability.toLowerCase() === "yes",
-        attributes,
-        offerLabel: offerLabel || null,
-        offerStartsAt: offerStartsAt || null,
-        offerEndsAt: offerEndsAt || null,
-        priceNote: priceNote || null,
-        quantityBreaks,
-        sortOrder,
-      };
-    })
-    .filter((variant) => variant.label && variant.unit);
-const variantLines = (variants: Variant[]) =>
-  variants
-    .map((variant) =>
-      [
-        variant.label,
-        variant.unit,
-        variant.price ?? "",
-        variant.compareAtPrice ?? "",
-        variant.stockQuantity ?? "",
-        variant.inStock ? "yes" : "no",
-        Object.entries(variant.attributes || {})
-          .map(([key, value]) => `${key}=${value}`)
-          .join("; "),
-        variant.offerLabel || "",
-        dateField(variant.offerStartsAt || null),
-        dateField(variant.offerEndsAt || null),
-        variant.priceNote || "",
-        variant.code || "",
-        (variant.quantityBreaks || [])
-          .map((row) => `${row.minimumQuantity}=${row.unitPrice}`)
-          .join("; "),
-      ].join(" | "),
-    )
-    .join("\n");
-
 export default function CatalogueManager({
   token,
   role,
@@ -381,10 +275,15 @@ export default function CatalogueManager({
       setListings(
         rows.map((row) => ({
           ...row,
+          availabilityStatus: row.availabilityStatus || (row.isInStock ? "IN_STOCK" : "CHECK_AVAILABILITY"),
           galleryImages: Array.isArray(row.galleryImages)
             ? row.galleryImages
             : [],
-          variants: Array.isArray(row.variants) ? row.variants : [],
+          variants: Array.isArray(row.variants) ? row.variants.map((variant) => ({
+            ...variant,
+            availabilityStatus: variant.availabilityStatus || (variant.isInStock ? "IN_STOCK" : "CHECK_AVAILABILITY"),
+            inStock: variant.availabilityStatus ? variant.availabilityStatus === "IN_STOCK" : Boolean(variant.isInStock),
+          })) : [],
           features: Array.isArray(row.features) ? row.features : [],
           applications: Array.isArray(row.applications) ? row.applications : [],
           specifications:
@@ -435,20 +334,25 @@ export default function CatalogueManager({
       offerLabel: String(values.get("offerLabel") || "").trim() || null,
       offerStartsAt: String(values.get("offerStartsAt") || "") || null,
       offerEndsAt: String(values.get("offerEndsAt") || "") || null,
-      isInStock: values.get("isInStock") === "on",
+      availabilityStatus: String(values.get("availabilityStatus") || "CHECK_AVAILABILITY") as Listing["availabilityStatus"],
+      isInStock: values.get("availabilityStatus") === "IN_STOCK",
       isPublished: values.get("isPublished") === "on",
       features: fromLines(values.get("features")),
       applications: fromLines(values.get("applications")),
       specifications: specsFromLines(values.get("specifications")),
-      variants: parseVariants(values.get("variants")),
+      variants: (formProduct.variants || []).map((variant, sortOrder) => ({
+        ...variant,
+        isInStock: variant.availabilityStatus === "IN_STOCK",
+        code: variant.code || null,
+        price: variant.price === "" ? null : variant.price,
+        compareAtPrice: variant.compareAtPrice === "" ? null : variant.compareAtPrice,
+        stockQuantity: variant.stockQuantity === "" ? null : variant.stockQuantity,
+        minOrderQuantity: variant.minOrderQuantity === "" ? null : variant.minOrderQuantity,
+        quantityBreaks: variant.quantityBreaks || [],
+        sortOrder,
+      })),
       sortOrder: Number(values.get("sortOrder") || 0),
     };
-    if (!payload.image) {
-      setError(
-        "Add a primary product image before saving. One image is required.",
-      );
-      return;
-    }
     if (payload.galleryImages.length > MAX_GALLERY_IMAGES) {
       setError("A product can have up to four additional gallery images.");
       return;
@@ -732,10 +636,9 @@ export default function CatalogueManager({
               />
             </label>
             <label>
-              Primary product image (required)
+              Primary product image (optional)
               <input
                 name="image"
-                required
                 maxLength={1000}
                 placeholder="/images/products/example.png"
                 value={formProduct.image || ""}
@@ -744,8 +647,8 @@ export default function CatalogueManager({
                 }
               />
               <small>
-                This is the main photo shown on product cards. Upload one or
-                enter a site path or HTTPS URL.
+                Add a client-approved photo when available. Leave blank to use
+                the neutral product placeholder.
               </small>
               {formProduct.image && (
                 <span className="catalogue-image-preview">
@@ -769,7 +672,7 @@ export default function CatalogueManager({
                 }}
               />
               <small>
-                Required. PNG, JPEG or WebP, up to 5 MB. Uploading a new file
+                Optional. PNG, JPEG or WebP, up to 5 MB. Uploading a new file
                 replaces the primary photo.
               </small>
             </label>
@@ -787,8 +690,8 @@ export default function CatalogueManager({
                 }}
               />
               <small>
-                One site path or HTTPS URL per line. The primary image is
-                required; these four extra views are optional.
+                One site path or HTTPS URL per line. These four extra views are
+                optional.
               </small>
               {formProduct.galleryImages.length > 0 && (
                 <span className="catalogue-gallery-previews">
@@ -896,37 +799,19 @@ export default function CatalogueManager({
                   .join("\n")}
               />
             </label>
-            <label className="catalogue-wide">
-              Sellable variants
-              <textarea
-                aria-label="Sellable variants"
-                name="variants"
-                rows={6}
-                placeholder={
-                  "1 L | tin | 187 | 258 | 12 | yes | pack=1 L; shade=Base White | Sample offer | 2026-10-01 | 2026-10-15 | Confirm current price | SKU-001 | 10=170; 30=160"
-                }
-                defaultValue={variantLines(formProduct.variants || [])}
-              />
-              <small>
-                One per line: label | unit | price | original price | stock qty
-                | in stock yes/no | attributes | offer label | start date | end
-                date | price note | variant code | quantity breaks. Add quantity
-                breaks as minimum quantity=unit price, separated by semicolons
-                (for example 10=415; 30=405; 50=395). Each later break must use
-                a lower or equal price. Leave price blank if not confirmed.
-                Variant prices, compare-at prices, offer labels and dates are
-                optional.
-              </small>
-            </label>
+            <CatalogueVariantsEditor
+              variants={formProduct.variants || []}
+              onChange={(variants) => setEditing({ ...formProduct, variants })}
+            />
           </div>
           <div className="catalogue-form-checks">
             <label>
-              <input
-                name="isInStock"
-                type="checkbox"
-                defaultChecked={formProduct.isInStock}
-              />{" "}
-              Show as in stock
+              Availability
+              <select name="availabilityStatus" defaultValue={formProduct.availabilityStatus || (formProduct.isInStock ? "IN_STOCK" : "CHECK_AVAILABILITY")}>
+                <option value="IN_STOCK">In stock</option>
+                <option value="OUT_OF_STOCK">Out of stock</option>
+                <option value="CHECK_AVAILABILITY">Check availability</option>
+              </select>
             </label>
             <label>
               <input
@@ -963,13 +848,14 @@ export default function CatalogueManager({
         {listings.map((product) => (
           <article className="panel-card catalogue-listing" key={product.id}>
             <div className="catalogue-listing-image">
-              <img
-                src={
-                  product.image ||
-                  "/images/products/material-sack-illustration.png"
-                }
-                alt=""
-              />
+              {product.image || product.galleryImages?.[0] ? (
+                <img src={product.image || product.galleryImages?.[0] || ""} alt="" />
+              ) : (
+                <span className="catalogue-listing-image-placeholder" aria-label="Product image not provided">
+                  <Image size={22} />
+                  <small>No image</small>
+                </span>
+              )}
             </div>
             <div className="catalogue-listing-main">
               <div className="catalogue-listing-title">
@@ -1044,9 +930,11 @@ export default function CatalogueManager({
                               )}
                             </td>
                             <td>
-                              {variant.inStock
+                              {variant.availabilityStatus === "IN_STOCK" || variant.isInStock
                                 ? "In stock"
-                                : "Confirm availability"}
+                                : variant.availabilityStatus === "OUT_OF_STOCK"
+                                  ? "Out of stock"
+                                  : "Confirm availability"}
                             </td>
                             <td>
                               {variant.minOrderQuantity == null

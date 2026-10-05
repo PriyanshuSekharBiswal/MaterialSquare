@@ -14,12 +14,9 @@ import {
   Body,
   Param,
   Req,
-  NotFoundException,
 } from "@nestjs/common";
 import { QuotesService } from "./quotes.service";
 import { CreateQuoteSchema } from "@material-square/types";
-import { CustomerGuard } from "../auth/customer.guard";
-import { PrismaService } from "../prisma/prisma.service";
 import { QuotationAcceptanceService } from "./quotation-acceptance.service";
 import { ExternalQuotationAcceptanceSchema } from "./quotation-acceptance.schema";
 
@@ -121,48 +118,5 @@ export class QuotesController {
       validate(z.number().finite().min(0).max(100), marginPct),
       req.user.userId,
     );
-  }
-}
-
-@Controller("customer/quotes")
-@UseGuards(CustomerGuard)
-export class CustomerQuotesController {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly pdf: PdfService,
-  ) {}
-
-  @Get(":id/pdf")
-  async customerPdf(
-    @Param("id") id: string,
-    @Req() req: Request & { customerId: string },
-    @Res() response: Response,
-  ) {
-    const quote = await this.prisma.quotation.findFirst({
-      where: {
-        id,
-        customerId: req.customerId,
-        status: {
-          in: [
-            "QUOTE_SENT",
-            "ACCEPTED",
-            "REJECTED",
-            "EXPIRED",
-            "CONVERTED_TO_ORDER",
-          ],
-        },
-      },
-      include: { items: { include: { product: true, options: true } } },
-    });
-    if (!quote) throw new NotFoundException("Quotation not found");
-    const buffer = await this.pdf.generateQuotationPdf(quote);
-    response
-      .set({
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${quote.quoteNumber}.pdf"`,
-        "Cache-Control": "private, no-store",
-        "Content-Length": buffer.length,
-      })
-      .end(buffer);
   }
 }

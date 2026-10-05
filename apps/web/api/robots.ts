@@ -31,7 +31,6 @@ export default function handler(req: IncomingMessage, res: ServerResponse) {
       ? ["Disallow: /"]
       : [
           "Allow: /",
-          "Disallow: /account",
           "Disallow: /api/",
           `Sitemap: ${origin}/sitemap.xml`,
         ]),

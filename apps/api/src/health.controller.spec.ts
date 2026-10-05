@@ -3,7 +3,7 @@ import { HealthController } from './health.controller';
 import { PrismaService } from './prisma/prisma.service';
 
 const productionKeys = [
-  'NODE_ENV', 'APP_ENV', 'CORS_ORIGINS', 'MSG91_AUTHKEY', 'AWS_S3_BUCKET',
+  'NODE_ENV', 'CORS_ORIGINS', 'AWS_S3_BUCKET',
   'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_S3_PUBLIC_URL', 'AWS_S3_ENDPOINT',
 ] as const;
 
@@ -30,11 +30,9 @@ describe('Health checks', () => {
     await expect(controller.ready()).rejects.toThrow('Service not ready');
   });
 
-  it('keeps production unready until OTP, exact HTTPS origins, and image storage are configured', async () => {
+  it('keeps production unready until exact HTTPS origins and image storage are configured', async () => {
     process.env.NODE_ENV = 'production';
-    process.env.APP_ENV = 'production';
-    process.env.CORS_ORIGINS = 'https://shop.example.test,https://staff.example.test';
-    delete process.env.MSG91_AUTHKEY;
+    process.env.CORS_ORIGINS = 'https://shop.example.test';
     delete process.env.AWS_S3_BUCKET;
     delete process.env.AWS_ACCESS_KEY_ID;
     delete process.env.AWS_SECRET_ACCESS_KEY;
@@ -45,7 +43,6 @@ describe('Health checks', () => {
     } as unknown as PrismaService);
     await expect(controller.ready()).rejects.toThrow('Service not ready');
 
-    process.env.MSG91_AUTHKEY = 'test-only-authkey';
     process.env.AWS_S3_BUCKET = 'catalogue-images';
     process.env.AWS_ACCESS_KEY_ID = 'test-access-key';
     process.env.AWS_SECRET_ACCESS_KEY = 'test-secret-key';
@@ -55,9 +52,7 @@ describe('Health checks', () => {
 
   it('requires a configured S3-compatible endpoint to use HTTPS', async () => {
     process.env.NODE_ENV = 'production';
-    process.env.APP_ENV = 'production';
-    process.env.CORS_ORIGINS = 'https://shop.example.test,https://staff.example.test';
-    process.env.MSG91_AUTHKEY = 'test-only-authkey';
+    process.env.CORS_ORIGINS = 'https://shop.example.test';
     process.env.AWS_S3_BUCKET = 'catalogue-images';
     process.env.AWS_ACCESS_KEY_ID = 'test-access-key';
     process.env.AWS_SECRET_ACCESS_KEY = 'test-secret-key';
@@ -73,9 +68,7 @@ describe('Health checks', () => {
 
   it('does not accept localhost or non-HTTPS origins for a production readiness check', async () => {
     process.env.NODE_ENV = 'production';
-    process.env.APP_ENV = 'production';
     process.env.CORS_ORIGINS = 'http://localhost:5173';
-    process.env.MSG91_AUTHKEY = 'test-only-authkey';
     process.env.AWS_S3_BUCKET = 'catalogue-images';
     process.env.AWS_ACCESS_KEY_ID = 'test-access-key';
     process.env.AWS_SECRET_ACCESS_KEY = 'test-secret-key';
@@ -86,18 +79,4 @@ describe('Health checks', () => {
     await expect(controller.ready()).rejects.toThrow(ServiceUnavailableException);
   });
 
-  it('keeps the explicitly isolated demo deployment healthy without production integrations', async () => {
-    process.env.NODE_ENV = 'production';
-    process.env.APP_ENV = 'demo';
-    delete process.env.CORS_ORIGINS;
-    delete process.env.MSG91_AUTHKEY;
-    delete process.env.AWS_S3_BUCKET;
-    delete process.env.AWS_ACCESS_KEY_ID;
-    delete process.env.AWS_SECRET_ACCESS_KEY;
-    delete process.env.AWS_S3_PUBLIC_URL;
-    const controller = new HealthController({
-      $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }]),
-    } as unknown as PrismaService);
-    await expect(controller.ready()).resolves.toEqual({ status: 'ready' });
-  });
 });

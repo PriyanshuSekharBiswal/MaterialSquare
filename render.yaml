@@ -5,7 +5,7 @@ services:
     runtime: node
     plan: starter
     buildCommand: npm ci --include=dev && npm run db:generate && npm run build --workspace=@material-square/types && npm run build:api && npm prune --omit=dev && node scripts/verify-runtime-deps.cjs
-    preDeployCommand: npm run db:deploy
+    preDeployCommand: npm run db:deploy && npm run catalog:seed-starter
     startCommand: node apps/api/dist/main.js
     healthCheckPath: /api/health/ready
     envVars:
@@ -15,8 +15,6 @@ services:
         value: production
       - key: APP_ENV
         value: production
-      - key: DEMO_AUTH_ENABLED
-        value: "false"
       - key: DATABASE_URL
         fromDatabase:
           name: material-square-db
@@ -29,8 +27,6 @@ services:
         value: "1"
       - key: ENABLE_API_DOCS
         value: "false"
-      - key: MSG91_AUTHKEY
-        sync: false
       - key: AWS_REGION
         sync: false
       - key: AWS_S3_ENDPOINT

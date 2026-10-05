@@ -11,33 +11,9 @@ import type {
   QuotationSelection,
 } from "./quotation-acceptance.schema";
 
-type AcceptanceActor =
-  | { type: "CUSTOMER"; customerId: string }
-  | {
-      type: "STAFF";
-      staffId: string;
-      channel: ExternalAcceptanceChannel;
-    };
-
 @Injectable()
 export class QuotationAcceptanceService {
   constructor(private readonly prisma: PrismaService) {}
-
-  respondAsCustomer(
-    quoteId: string,
-    customerId: string,
-    decision: "ACCEPT" | "REJECT",
-    selections: QuotationSelection[],
-  ) {
-    if (decision === "REJECT") {
-      if (selections.length)
-        throw new ConflictException(
-          "Comparison choices are only used when accepting a quotation",
-        );
-      return this.declineCustomerQuote(quoteId, customerId);
-    }
-    return this.accept(quoteId, selections, { type: "CUSTOMER", customerId });
-  }
 
   acceptFromCommunication(
     quoteId: string,
@@ -45,63 +21,18 @@ export class QuotationAcceptanceService {
     channel: ExternalAcceptanceChannel,
     selections: QuotationSelection[],
   ) {
-    return this.accept(quoteId, selections, {
-      type: "STAFF",
-      staffId,
-      channel,
-    });
-  }
-
-  private async declineCustomerQuote(quoteId: string, customerId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const quote = await tx.quotation.findFirst({
-        where: { id: quoteId, customerId },
-        select: { id: true, quoteNumber: true, status: true, validUntil: true },
-      });
-      if (!quote) throw new NotFoundException("Quotation not found");
-      if (quote.status !== "QUOTE_SENT" || quote.validUntil <= new Date())
-        throw new ConflictException("This quotation is no longer current");
-      const declined = await tx.quotation.updateMany({
-        where: {
-          id: quote.id,
-          customerId,
-          status: "QUOTE_SENT",
-          validUntil: { gt: new Date() },
-        },
-        data: { status: "REJECTED" },
-      });
-      if (declined.count !== 1)
-        throw new ConflictException("This quotation has already been handled");
-      await tx.auditLog.create({
-        data: {
-          action: "CUSTOMER_QUOTATION_DECLINED",
-          entityType: "QUOTATION",
-          entityId: quote.id,
-          metadata: {
-            actorType: "CUSTOMER",
-            customerId,
-            quoteNumber: quote.quoteNumber,
-            decision: "REJECT",
-          },
-        },
-      });
-      return { decision: "REJECT", orderNumber: null };
-    });
+    return this.accept(quoteId, selections, staffId, channel);
   }
 
   private accept(
     quoteId: string,
     selections: QuotationSelection[],
-    actor: AcceptanceActor,
+    staffId: string,
+    channel: ExternalAcceptanceChannel,
   ) {
     return this.prisma.$transaction(async (tx) => {
       const quote = await tx.quotation.findFirst({
-        where: {
-          id: quoteId,
-          ...(actor.type === "CUSTOMER"
-            ? { customerId: actor.customerId }
-            : {}),
-        },
+        where: { id: quoteId },
         include: {
           items: {
             include: { product: { include: { brand: true } }, options: true },
@@ -144,9 +75,6 @@ export class QuotationAcceptanceService {
       const claimed = await tx.quotation.updateMany({
         where: {
           id: quote.id,
-          ...(actor.type === "CUSTOMER"
-            ? { customerId: actor.customerId }
-            : {}),
           status: "QUOTE_SENT",
           validUntil: { gt: new Date() },
         },
@@ -160,7 +88,7 @@ export class QuotationAcceptanceService {
         select: { name: true, phone: true, city: true },
       });
       if (!customer)
-        throw new ConflictException("Customer account is unavailable");
+        throw new ConflictException("Customer contact record is unavailable");
 
       const selectedAlternative = selections.length > 0;
       const subtotal = selectedAlternative
@@ -284,44 +212,27 @@ export class QuotationAcceptanceService {
             unit: item.unit,
             notes: item.specification,
           })),
-          notes: `Created from accepted customer quotation ${quote.quoteNumber}`,
+          notes: `Created from quotation accepted through ${channel} (${quote.quoteNumber})`,
         },
       });
 
       await tx.auditLog.create({
-        data:
-          actor.type === "CUSTOMER"
-            ? {
-                action: "CUSTOMER_QUOTATION_ACCEPTED",
-                entityType: "ORDER",
-                entityId: order.id,
-                metadata: {
-                  actorType: "CUSTOMER",
-                  customerId: actor.customerId,
-                  quoteId: quote.id,
-                  quoteNumber: quote.quoteNumber,
-                  orderNumber: order.orderNumber,
-                  procurementRequestId: procurement.id,
-                  itemCount: selectedItems.length,
-                  selectedAlternativeCount: selections.length,
-                },
-              }
-            : {
-                staffId: actor.staffId,
-                action: "STAFF_QUOTATION_ACCEPTED_EXTERNALLY",
-                entityType: "ORDER",
-                entityId: order.id,
-                metadata: {
-                  actorType: "STAFF",
-                  channel: actor.channel,
-                  quoteId: quote.id,
-                  quoteNumber: quote.quoteNumber,
-                  orderNumber: order.orderNumber,
-                  procurementRequestId: procurement.id,
-                  itemCount: selectedItems.length,
-                  selectedAlternativeCount: selections.length,
-                },
-              },
+        data: {
+          staffId,
+          action: "STAFF_QUOTATION_ACCEPTED_EXTERNALLY",
+          entityType: "ORDER",
+          entityId: order.id,
+          metadata: {
+            actorType: "STAFF",
+            channel,
+            quoteId: quote.id,
+            quoteNumber: quote.quoteNumber,
+            orderNumber: order.orderNumber,
+            procurementRequestId: procurement.id,
+            itemCount: selectedItems.length,
+            selectedAlternativeCount: selections.length,
+          },
+        },
       });
       return {
         decision: "ACCEPT",

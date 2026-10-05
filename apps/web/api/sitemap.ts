@@ -1,7 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-const previewApiOrigin = "https://material-square-demo-api.onrender.com";
-
 function getRequestOrigin(req: IncomingMessage) {
   const forwardedHost = req.headers["x-forwarded-host"];
   const host =
@@ -41,9 +39,7 @@ export default async function handler(
     return;
   }
 
-  const configuredApiOrigin =
-    process.env.API_ORIGIN?.trim() ||
-    (process.env.VERCEL_ENV === "preview" ? previewApiOrigin : "");
+  const configuredApiOrigin = process.env.API_ORIGIN?.trim() || "";
   let apiOrigin: URL;
   try {
     apiOrigin = new URL(configuredApiOrigin);

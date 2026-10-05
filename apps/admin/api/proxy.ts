@@ -6,11 +6,8 @@ const hopByHop = new Set([
   "te", "trailer", "transfer-encoding", "upgrade", "host",
 ]);
 const methods = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);
-const previewApiOrigin = "https://material-square-demo-api.onrender.com";
-
 export default function handler(req: IncomingMessage, res: ServerResponse) {
-  const configuredOrigin = process.env.API_ORIGIN?.trim() ||
-    (process.env.VERCEL_ENV === "preview" ? previewApiOrigin : "");
+  const configuredOrigin = process.env.API_ORIGIN?.trim();
   if (!configuredOrigin) {
     res.writeHead(503, { "Content-Type": "application/json", "Cache-Control": "no-store" });
     res.end(JSON.stringify({ message: "API is not configured" }));

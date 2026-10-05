@@ -589,7 +589,7 @@ export class PdfService {
       );
       const notesText = [
         hasComparisons
-          ? "Brand alternatives are shown by material. Choose options in your account to refresh the total before accepting."
+          ? "Brand alternatives are shown by material. Contact the team with your preferred options to confirm the quotation total."
           : "",
         quote.notes?.trim() || "",
       ]
@@ -815,7 +815,7 @@ export class PdfService {
         .font("Helvetica")
         .fillColor("#64748b")
         .text(
-          "Enterprise Steel & Construction Material Marketplace | Delhi NCR Hub",
+          "Construction Materials",
           { align: "center" },
         );
       doc

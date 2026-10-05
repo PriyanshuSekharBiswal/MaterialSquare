@@ -553,6 +553,14 @@ export function BrandLogo({ id, className = '', style = {} }: { id?: string; cla
       );
 
     default:
-      return null;
+      return (
+        <span
+          className={className}
+          style={{ display: 'inline-grid', placeItems: 'center', fontWeight: 800, ...style }}
+          aria-hidden="true"
+        >
+          {(id || 'Brand').trim().split(/\s+/).slice(0, 2).map((word) => word[0] || '').join('').toUpperCase()}
+        </span>
+      );
   }
 }
