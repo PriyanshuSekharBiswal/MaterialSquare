@@ -53,6 +53,9 @@ const nav = [
 ];
 
 export default function CustomerAccountPage() {
+  const isLocalhost = ["localhost", "127.0.0.1", "::1"].includes(
+    window.location.hostname,
+  );
   const location = useLocation();
   const navigate = useNavigate();
   const { updateItems } = useCustomer();
@@ -321,7 +324,11 @@ export default function CustomerAccountPage() {
               )}
               <button
                 className="account-primary-button"
-                disabled={busy || (!sent && !hasMsg91WidgetConfiguration())}
+                disabled={
+                  busy ||
+                  (!sent &&
+                    (isLocalhost || !hasMsg91WidgetConfiguration()))
+                }
               >
                 {busy
                   ? "Please wait…"
@@ -331,10 +338,11 @@ export default function CustomerAccountPage() {
                 <ArrowRight size={17} />
               </button>
             </form>
-            {!sent && !hasMsg91WidgetConfiguration() && (
+            {!sent && (isLocalhost || !hasMsg91WidgetConfiguration()) && (
               <p className="account-config-note" role="status">
-                Phone sign-in is not configured in this environment yet. You can
-                still browse products and build a guest material list.
+                {isLocalhost
+                  ? "Phone sign-in cannot be verified on localhost because MSG91 CAPTCHA requires an approved hostname. Use the approved HTTPS preview site; its MSG91 widget settings and API auth key must also be configured."
+                  : "Phone sign-in is not configured in this environment yet. You can still browse products and build a guest material list."}
               </p>
             )}
             {error && (
