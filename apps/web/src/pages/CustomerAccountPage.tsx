@@ -176,17 +176,33 @@ export default function CustomerAccountPage() {
     setBusy(true);
     setError("");
     try {
-      const accessToken = await verifyMsg91Otp(otp, requestId);
-      await customerApi<Profile>("/auth/customer/otp/verify-msg91", "POST", {
-        phone,
-        accessToken,
-      });
+      let accessToken: string;
+      try {
+        accessToken = await verifyMsg91Otp(otp, requestId);
+      } catch (err) {
+        throw new Error(
+          isLoopbackHost
+            ? "MSG91 cannot verify OTP on localhost. Open the approved HTTPS preview, request a fresh code there, and verify it on that same site."
+            : (err as Error).message,
+        );
+      }
+      const customer = await customerApi<Profile>(
+        "/auth/customer/otp/verify-msg91",
+        "POST",
+        { phone, accessToken },
+      );
+      // The verification endpoint already returns the authenticated customer.
+      // Use it directly instead of immediately repeating /customer/me: an old
+      // local API process may not yet expose that route even when verification
+      // itself succeeded and issued the session cookie.
+      setProfile(customer);
       setSent(false);
       setOtp("");
       // A completed login is implicit in the opened account workspace. Keep
       // this slot available for the more useful RFQ submission confirmation.
       setNotice("");
-      await refresh();
+      const data = await customerApi<Activity>("/customer/activity");
+      setActivity(data);
     } catch (err) {
       setError((err as Error).message);
     } finally {
