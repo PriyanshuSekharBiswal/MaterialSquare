@@ -15,7 +15,9 @@ export default function HeroBuildingCanvas({ className = '', centered = false })
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let animId = 0;
+    let animId: number | null = null;
+    let canvasIsVisible = true;
+    let lastFrameAt = 0;
     const startTime = performance.now();
     let targetTiltX = 0;
     let targetTiltY = 0;
@@ -99,6 +101,15 @@ export default function HeroBuildingCanvas({ className = '', centered = false })
     };
 
     const render = (timestamp: number) => {
+      animId = null;
+      if (!canvasIsVisible || document.visibilityState === 'hidden') return;
+      // The drawing is decorative; 30fps keeps its animation smooth while
+      // substantially reducing CPU and battery use on high-refresh displays.
+      if (timestamp - lastFrameAt < 1000 / 30) {
+        scheduleFrame();
+        return;
+      }
+      lastFrameAt = timestamp;
       // 14-second loop cycle matching cmemp.vercel.app
       const cycle = ((timestamp - startTime) / 1000) % 14;
       let buildProgress = 0;
@@ -123,7 +134,7 @@ export default function HeroBuildingCanvas({ className = '', centered = false })
       const h = rect.height;
 
       if (w <= 0 || h <= 0) {
-        animId = requestAnimationFrame(render);
+        scheduleFrame();
         return;
       }
 
@@ -423,15 +434,44 @@ export default function HeroBuildingCanvas({ className = '', centered = false })
       renderBlock(48, -5, 24, 52, 52, 132, 12, 4, 4, true);
 
       ctx.globalAlpha = 1;
-      animId = requestAnimationFrame(render);
+      scheduleFrame();
     };
+
+    const scheduleFrame = () => {
+      if (animId === null && canvasIsVisible && document.visibilityState !== 'hidden') {
+        animId = requestAnimationFrame(render);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && animId !== null) {
+        cancelAnimationFrame(animId);
+        animId = null;
+      } else {
+        scheduleFrame();
+      }
+    };
+
+    const visibilityObserver = 'IntersectionObserver' in window
+      ? new IntersectionObserver(([entry]) => {
+          canvasIsVisible = entry.isIntersecting;
+          if (!canvasIsVisible && animId !== null) {
+            cancelAnimationFrame(animId);
+            animId = null;
+          } else {
+            scheduleFrame();
+          }
+        }, { rootMargin: '100px' })
+      : null;
+    visibilityObserver?.observe(canvas);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     const handleResize = () => {
       const parent = canvas.parentElement;
       if (!parent) return;
       const rect = parent.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       const w = Math.round(rect.width);
       const h = Math.round(rect.height);
 
@@ -445,15 +485,17 @@ export default function HeroBuildingCanvas({ className = '', centered = false })
 
     handleResize();
     window.addEventListener('resize', handleResize);
-    animId = requestAnimationFrame(render);
+    scheduleFrame();
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      visibilityObserver?.disconnect();
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseleave', handlePointerLeave);
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handlePointerLeave);
-      cancelAnimationFrame(animId);
+      if (animId !== null) cancelAnimationFrame(animId);
     };
   }, [centered]);
 

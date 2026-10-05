@@ -6,6 +6,11 @@ const hopByHop = new Set([
   "te", "trailer", "transfer-encoding", "upgrade", "host",
 ]);
 const methods = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);
+const edgeCachedPublicPaths = new Set([
+  "products",
+  "products/partner-brands",
+  "site-content",
+]);
 export default function handler(req: IncomingMessage, res: ServerResponse) {
   const configuredOrigin = process.env.API_ORIGIN?.trim();
   if (!configuredOrigin) {
@@ -44,7 +49,16 @@ export default function handler(req: IncomingMessage, res: ServerResponse) {
     const responseHeaders = Object.fromEntries(
       Object.entries(response.headers).filter(([name, value]) => value !== undefined && !hopByHop.has(name.toLowerCase())),
     );
-    responseHeaders["cache-control"] = "no-store";
+    // Cache only anonymous, read-only catalogue/site copy at Vercel's edge.
+    // Customer and staff endpoints always remain private and uncached.
+    const publicPath = destination.pathname.replace(/^\/api\//, "");
+    const canCachePublicResponse =
+      (req.method === "GET" || req.method === "HEAD") &&
+      response.statusCode === 200 &&
+      edgeCachedPublicPaths.has(publicPath);
+    responseHeaders["cache-control"] = canCachePublicResponse
+      ? "public, s-maxage=15, stale-while-revalidate=60"
+      : "no-store";
     res.writeHead(response.statusCode || 502, responseHeaders);
     response.pipe(res);
   });
