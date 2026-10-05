@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   MapPin,
   Navigation,
@@ -87,6 +87,9 @@ export const ROAD_ROUTES = [
 
 export default function DirectionGoogleMaps({ className = '' }) {
   const siteContent = useSiteContent();
+  const mapSectionRef = useRef<HTMLElement>(null);
+  const mapSvgRef = useRef<SVGSVGElement>(null);
+  const [mapInView, setMapInView] = useState(false);
   const [activeRoute, setActiveRoute] = useState<(typeof ROAD_ROUTES)[number] | null>(null);
   const [isOfficeModalOpen, setIsOfficeModalOpen] = useState(false);
   const [mapTheme, setMapTheme] = useState<'clean' | 'dark' | 'satellite'>('clean'); // 'clean' | 'dark' | 'satellite'
@@ -97,6 +100,30 @@ export default function DirectionGoogleMaps({ className = '' }) {
   const officePhone = siteContent['contact.phone'].trim();
   const officePhoneDisplay = siteContent['contact.phoneDisplay'].trim() || officePhone;
 
+  // Keep the illustrated route map and its animations, but avoid downloading
+  // its large backdrop or running SVG animation work before the visitor reaches it.
+  useEffect(() => {
+    const section = mapSectionRef.current;
+    const svg = mapSvgRef.current;
+    if (!section || !svg) return;
+    svg.pauseAnimations();
+    if (!('IntersectionObserver' in window)) {
+      setMapInView(true);
+      svg.unpauseAnimations();
+      return;
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setMapInView(true);
+        svg.unpauseAnimations();
+      } else {
+        svg.pauseAnimations();
+      }
+    }, { rootMargin: '200px 0px' });
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
+
   // Open Google Maps only after the client has configured a destination.
   const handleOpenGoogleMaps = (cityName = '') => {
     if (!officeDestination) return;
@@ -104,7 +131,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
   };
 
   return (
-    <section className={`direction-google-maps-section ${className}`} id="transportation-map">
+    <section ref={mapSectionRef} className={`direction-google-maps-section ${className}`} id="transportation-map">
       <div className="container">
         {/* Section Header */}
         <div className="dmap-header">
@@ -204,6 +231,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
           {/* Full Interactive Google Maps Canvas */}
           <div className="gmaps-viewport">
             <svg
+              ref={mapSvgRef}
               className="gmaps-vector-svg"
               viewBox="0 0 1000 620"
               preserveAspectRatio="xMidYMid meet"
@@ -326,13 +354,13 @@ export default function DirectionGoogleMaps({ className = '' }) {
 
               {/* 1. Dynamic Map Style Graphic Layer */}
               <image
-                href={
+                href={mapInView ? (
                   mapTheme === 'clean'
-                    ? '/images/delhi_ncr_clean_map.jpg'
+                    ? '/images/delhi_ncr_clean_map.webp'
                     : mapTheme === 'dark'
-                    ? '/images/delhi_ncr_dark_map.jpg'
-                    : '/images/delhi_ncr_satellite_map.jpg'
-                }
+                    ? '/images/delhi_ncr_dark_map.webp'
+                    : '/images/delhi_ncr_satellite_map.webp'
+                ) : undefined}
                 x="0"
                 y="0"
                 width="1000"
