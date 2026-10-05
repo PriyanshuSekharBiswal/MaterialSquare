@@ -27,7 +27,7 @@ import ArchitecturalTicker from "../components/ArchitecturalTicker";
 import { useSiteContent } from "../site-content";
 import { whatsappLink } from "../messages";
 import { usePartnerBrands } from "../partner-brands";
-import ServiceAreaMap from "../components/ServiceAreaMap";
+import DirectionGoogleMaps from "../components/DirectionGoogleMaps";
 
 export default function HomePage({
   products,
@@ -535,7 +535,7 @@ export default function HomePage({
             {sections[id]}
           </div>
         ))}
-      <ServiceAreaMap compact />
+      <DirectionGoogleMaps />
     </div>
   );
 }

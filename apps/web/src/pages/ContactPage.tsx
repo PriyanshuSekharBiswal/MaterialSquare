@@ -4,7 +4,7 @@ import { whatsappLink } from '../messages';
 import { Mail, MapPin, Phone } from 'lucide-react';
 import WhatsAppIcon from '../components/icons/WhatsAppIcon';
 import { useSiteContent } from '../site-content';
-import ServiceAreaMap from "../components/ServiceAreaMap";
+import DirectionGoogleMaps from "../components/DirectionGoogleMaps";
 
 export default function ContactPage() {
   const siteContent = useSiteContent();
@@ -68,7 +68,7 @@ export default function ContactPage() {
         </div>
       </section>}
 
-      <ServiceAreaMap />
+      <DirectionGoogleMaps />
 
       <section className="contact-form-section">
         <div className="container">
