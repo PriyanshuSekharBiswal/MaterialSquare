@@ -19,6 +19,7 @@ import SearchSuggestions from '../components/SearchSuggestions';
 import WhatsAppIcon from '../components/icons/WhatsAppIcon';
 import ProductImage from '../components/ProductImage';
 import { useSiteContent } from '../site-content';
+import { matchesCatalogueSearch } from '../search/catalogue-search';
 
 export default function MarketplacePage({
   bomList = [],
@@ -129,16 +130,7 @@ export default function MarketplacePage({
 
       // Search query
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchName = item.name.toLowerCase().includes(q);
-        const matchBrand = item.brand.toLowerCase().includes(q) || (item.brandTagline || '').toLowerCase().includes(q);
-        const matchCategory = item.categoryLabel.toLowerCase().includes(q);
-        const matchCode = item.code.toLowerCase().includes(q);
-        const matchGrade = item.grade ? item.grade.toLowerCase().includes(q) : false;
-        const matchFeatures = item.features ? item.features.some((f) => f.toLowerCase().includes(q)) : false;
-        const matchDescription = (item.description || '').toLowerCase().includes(q) || (item.applications || []).some((value) => value.toLowerCase().includes(q)) || Object.values(item.specs || {}).some((value) => String(value || '').toLowerCase().includes(q));
-        const matchVariant = (item.variants || []).some(variant => variant.label.toLowerCase().includes(q) || Object.values(variant.attributes || {}).some(value => value.toLowerCase().includes(q)));
-        return matchName || matchBrand || matchCategory || matchCode || matchGrade || matchFeatures || matchDescription || matchVariant;
+        return matchesCatalogueSearch(item, searchQuery);
       }
 
       return true;

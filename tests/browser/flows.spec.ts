@@ -1171,6 +1171,47 @@ test("marketplace keeps out-of-stock products visible and filters all availabili
   await expect(page.getByRole("heading", { name: "Paint currently sold out" })).toHaveCount(0);
 });
 
+test("catalogue autocomplete and submitted search both match product specs and variant details", async ({ page }) => {
+  const catalogue = [
+    {
+      id: "paint-terracotta",
+      code: "PAINT-EXT-01",
+      name: "Exterior Weather Coat",
+      brand: "Asian Paints",
+      category: "paints",
+      categoryLabel: "Paints",
+      unit: "20 L bucket",
+      packaging: "20 L bucket",
+      features: ["Weather resistant"],
+      applications: ["Exterior walls"],
+      specs: { "Colour family": "Terracotta", finish: "Low sheen" },
+      inStock: true,
+      variants: [
+        {
+          id: "terra-low-sheen",
+          code: "AP-TERRA-LS",
+          label: "Terracotta · Low sheen",
+          attributes: { Colour: "Terracotta", Finish: "Low sheen", Pack: "20 L" },
+          unit: "bucket",
+          inStock: true,
+          sortOrder: 0,
+        },
+      ],
+    },
+  ];
+  await page.route("**/api/products", (route) => route.fulfill({ json: catalogue }));
+  await page.goto("/marketplace");
+
+  const search = page.getByPlaceholder(/Search products, brands, colour, finish or pack size/i);
+  await search.fill("Terracotta");
+  await expect(page.locator(".product-suggestion-item")).toContainText("Exterior Weather Coat");
+  await search.press("Enter");
+  await expect(page.getByRole("heading", { name: "Exterior Weather Coat" })).toBeVisible();
+
+  await search.fill("finish");
+  await expect(page.locator(".product-suggestion-item")).toContainText("Exterior Weather Coat");
+});
+
 test("request screen fits mobile and shows the WhatsApp preview", async ({ page }, testInfo) => {
   await page.goto("/");
   await page.evaluate(() => localStorage.removeItem("material-square-bom"));

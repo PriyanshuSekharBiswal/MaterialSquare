@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import './SearchSuggestions.css';
 import ProductImage from "./ProductImage";
+import { matchesCatalogueSearch } from '../search/catalogue-search';
 
 export default function SearchSuggestions({
   products = [],
@@ -29,16 +30,7 @@ export default function SearchSuggestions({
   // Filter matching products
   const matchingProducts = useMemo(() => {
     if (!isOpen || !trimmed) return [];
-    return products.filter((item) => {
-      return (
-        item.name.toLowerCase().includes(trimmed) ||
-        item.brand.toLowerCase().includes(trimmed) ||
-        (item.code && item.code.toLowerCase().includes(trimmed)) ||
-        (item.grade && item.grade.toLowerCase().includes(trimmed)) ||
-        (item.categoryLabel && item.categoryLabel.toLowerCase().includes(trimmed)) ||
-        (item.variants || []).some(variant => variant.label.toLowerCase().includes(trimmed) || Object.values(variant.attributes || {}).some(value => value.toLowerCase().includes(trimmed)))
-      );
-    }).sort((a, b) => {
+    return products.filter((item) => matchesCatalogueSearch(item, trimmed)).sort((a, b) => {
       const score = (item: CatalogueProduct) => {
         const name = item.name.toLowerCase();
         const brand = item.brand.toLowerCase();
