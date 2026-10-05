@@ -483,6 +483,8 @@ export default function MarketplacePage({
                 const inBOM = isItemInBOM(product.id);
                 const brandMeta = getBrandMeta(product.brand);
                 const productOffer = queryVariant?.offerLabel || product.offerLabel || product.variants?.find((variant) => variant.offerLabel)?.offerLabel;
+                const referencePriceNote = queryVariant?.priceNote || product.priceNote || product.variants?.find(variant => variant.price != null)?.priceNote || "Final availability, GST and delivery charges confirmed by staff.";
+                const isReferencePrice = /reference/i.test(product.priceNote || "") || /reference/i.test(referencePriceNote);
                 const itemAvailability = product.availabilityStatus || (product.inStock ? 'IN_STOCK' : 'CHECK_AVAILABILITY');
                 const variantStatuses = (product.variants || []).map((variant) => variant.availabilityStatus || (variant.inStock ? 'IN_STOCK' : 'CHECK_AVAILABILITY'));
                 const effectiveAvailability = queryVariant
@@ -566,14 +568,14 @@ export default function MarketplacePage({
                       {/* Pricing & Min Order */}
                       <div className="pricing-row">
                         <div>
-                          <span className="rate-caption">{product.price == null && product.variants?.some(variant => variant.price != null) ? 'Starting from' : product.price == null ? 'Wholesale pricing' : 'Price per unit'}</span>
+                          <span className="rate-caption">{isReferencePrice ? 'Online reference price' : product.price == null && product.variants?.some(variant => variant.price != null) ? 'Starting from' : product.price == null ? 'Wholesale pricing' : 'Price per unit'}</span>
                           <span className="rate-amount">
                             {queryVariant?.price != null ? `₹${Number(queryVariant.price).toLocaleString('en-IN')}` : product.price == null ? product.variants?.some(variant => variant.price != null) ? `₹${Math.min(...product.variants.filter(variant => variant.price != null).map(variant => Number(variant.price))).toLocaleString('en-IN')}` : 'Request a quote' : `₹${Number(product.price).toLocaleString('en-IN')}`}
                           </span>
                           {product.compareAtPrice != null && product.price != null && Number(product.compareAtPrice) > Number(product.price) && (
                             <span className="catalogue-list-price"><del>₹{Number(product.compareAtPrice).toLocaleString('en-IN')}</del>{productOffer && <strong>{productOffer}</strong>}</span>
                           )}
-                          {(product.price != null || product.variants?.some(variant => variant.price != null)) && <small className="catalogue-price-caveat">{queryVariant?.priceNote || product.priceNote || product.variants?.find(variant => variant.price != null)?.priceNote || "Final availability, GST and delivery charges confirmed by staff."}</small>}
+                          {(product.price != null || product.variants?.some(variant => variant.price != null)) && <small className="catalogue-price-caveat">{referencePriceNote}</small>}
                         </div>
                         <div className="min-order-pill">
                           <Package size={12} />

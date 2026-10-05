@@ -96,6 +96,8 @@ export default function ProductDetailPage({ products, loading = false, catalogue
   const price = matchedBreak?.unitPrice ?? selectedVariant?.price ?? product.price;
   const unit = selectedVariant?.unit || product.unit;
   const compareAtPrice = selectedVariant?.compareAtPrice ?? product.compareAtPrice;
+  const priceDisclosure = selectedVariant?.priceNote || product.priceNote || "";
+  const isReferencePrice = /reference/i.test(product.priceNote || "") || /reference/i.test(priceDisclosure);
   const availability = selectedVariant?.availabilityStatus || product.availabilityStatus || ((selectedVariant?.inStock ?? product.inStock) ? "IN_STOCK" : "CHECK_AVAILABILITY");
   const minimumOrder = Number(selectedVariant?.minOrderQuantity || product.minOrderQty?.match(/[\d.]+/)?.[0] || 0) || 0;
   const relatedProducts = products.filter((item) => item.id !== product.id && item.category === product.category).slice(0, 8);
@@ -192,7 +194,7 @@ export default function ProductDetailPage({ products, loading = false, catalogue
         <form className="product-detail-buy-box" onSubmit={addSelection}>
             <div className="product-detail-buy-heading"><span>Configure your selection</span><strong>{selectedVariant?.label || selectedLabel || "Choose a product option"}</strong><small>Options and pricing reflect the selected product combination.</small></div>
             <div className="product-detail-offer-row">
-              <div><span className="rate-k">{price == null ? "Pricing" : `Price per ${unit}`}</span><strong className="product-detail-price">{price == null ? "Request a quotation" : `₹${Number(price).toLocaleString("en-IN")}`}{price != null && compareAtPrice != null && Number(compareAtPrice) > Number(price) && <del>₹{Number(compareAtPrice).toLocaleString("en-IN")}</del>}</strong>
+              <div><span className="rate-k">{isReferencePrice ? "Online reference price" : price == null ? "Pricing" : `Price per ${unit}`}</span><strong className="product-detail-price">{price == null ? "Request a quotation" : `₹${Number(price).toLocaleString("en-IN")}`}{price != null && compareAtPrice != null && Number(compareAtPrice) > Number(price) && <del>₹{Number(compareAtPrice).toLocaleString("en-IN")}</del>}</strong>
                 {(selectedVariant?.offerLabel || product.offerLabel) && <span className="catalogue-offer-badge">{selectedVariant?.offerLabel || product.offerLabel}</span>}
                 {(selectedVariant?.priceNote || product.priceNote) && <small className="catalogue-price-caveat">{selectedVariant?.priceNote || product.priceNote}</small>}
               </div>
