@@ -4,6 +4,7 @@ import { whatsappLink } from '../messages';
 import { Mail, MapPin, Phone } from 'lucide-react';
 import WhatsAppIcon from '../components/icons/WhatsAppIcon';
 import { useSiteContent } from '../site-content';
+import ServiceAreaMap from "../components/ServiceAreaMap";
 
 export default function ContactPage() {
   const siteContent = useSiteContent();
@@ -67,17 +68,7 @@ export default function ContactPage() {
         </div>
       </section>}
 
-      <section className="coverage-zones-section">
-        <div className="container">
-          <div className="section-title-wrap text-center">
-            <span className="badge-pill">Delivery information</span>
-            <h2 className="section-title-clean">{siteContent["contact.coverageTitle"]}</h2>
-            <p className="section-subtitle-clean">
-              {siteContent["contact.coverageDescription"]}
-            </p>
-          </div>
-        </div>
-      </section>
+      <ServiceAreaMap />
 
       <section className="contact-form-section">
         <div className="container">
