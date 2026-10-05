@@ -4,7 +4,7 @@ import { whatsappLink } from '../messages';
 import { Mail, MapPin, Phone } from 'lucide-react';
 import WhatsAppIcon from '../components/icons/WhatsAppIcon';
 import { useSiteContent } from '../site-content';
-import DirectionGoogleMaps from "../components/DirectionGoogleMaps";
+import DeferredDirectionGoogleMaps from "../components/DeferredDirectionGoogleMaps";
 
 export default function ContactPage() {
   const siteContent = useSiteContent();
@@ -68,7 +68,7 @@ export default function ContactPage() {
         </div>
       </section>}
 
-      <DirectionGoogleMaps />
+      <DeferredDirectionGoogleMaps />
 
       <section className="contact-form-section">
         <div className="container">

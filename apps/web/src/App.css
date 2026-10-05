@@ -8139,3 +8139,13 @@
   .material-list-page .material-fields { grid-template-columns: minmax(0,1fr); }
 .material-list-page .material-fields .material-spec { grid-column: auto; }
 }
+.deferred-direction-map-placeholder {
+  min-height: 52rem;
+  background: #f8fafc;
+}
+
+@media (max-width: 768px) {
+  .deferred-direction-map-placeholder {
+    min-height: 58rem;
+  }
+}

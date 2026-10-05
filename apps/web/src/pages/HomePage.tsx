@@ -27,7 +27,7 @@ import ArchitecturalTicker from "../components/ArchitecturalTicker";
 import { useSiteContent } from "../site-content";
 import { whatsappLink } from "../messages";
 import { usePartnerBrands } from "../partner-brands";
-import DirectionGoogleMaps from "../components/DirectionGoogleMaps";
+import DeferredDirectionGoogleMaps from "../components/DeferredDirectionGoogleMaps";
 
 export default function HomePage({
   products,
@@ -547,7 +547,7 @@ export default function HomePage({
             {sections[id]}
           </div>
         ))}
-      <DirectionGoogleMaps />
+      <DeferredDirectionGoogleMaps />
     </div>
   );
 }
