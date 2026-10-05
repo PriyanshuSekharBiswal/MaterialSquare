@@ -41,7 +41,7 @@ describe("website content", () => {
     await expect(controller.get()).resolves.toEqual(SITE_CONTENT_DEFAULTS);
   });
 
-  it("hides unchanged preview contact details and copy but preserves client edits", () => {
+  it("replaces unchanged preview contact details and copy but preserves client edits", () => {
     const safe = sanitizePublicSiteContent({
       "contact.phone": "9773505015",
       "contact.phoneDisplay": "+91 97735 05015",
@@ -50,9 +50,13 @@ describe("website content", () => {
       "footer.slogan": "Client-approved slogan",
     });
 
-    expect(safe["contact.phone"]).toBe("");
-    expect(safe["contact.phoneDisplay"]).toBe("");
-    expect(safe["contact.location"]).toBe("");
+    expect(safe["contact.phone"]).toBe(SITE_CONTENT_DEFAULTS["contact.phone"]);
+    expect(safe["contact.phoneDisplay"]).toBe(
+      SITE_CONTENT_DEFAULTS["contact.phoneDisplay"],
+    );
+    expect(safe["contact.location"]).toBe(
+      SITE_CONTENT_DEFAULTS["contact.location"],
+    );
     expect(safe["home.title"]).toBe(SITE_CONTENT_DEFAULTS["home.title"]);
     expect(safe["footer.slogan"]).toBe("Client-approved slogan");
   });
