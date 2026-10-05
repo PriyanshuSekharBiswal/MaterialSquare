@@ -473,14 +473,14 @@ export default function MarketplacePage({
                       })()}
 
                       {/* Key features */}
-                      <ul className="product-features-preview">
+                      {product.features.length > 0 && <ul className="product-features-preview">
                         {product.features.slice(0, 2).map((feat, idx) => (
                           <li key={idx}>
                             <Check size={13} className="check-icon-green" />
                             <span>{feat}</span>
                           </li>
                         ))}
-                      </ul>
+                      </ul>}
 
                       {/* Technical Specs Preview */}
                       <div className="product-spec-preview-box">

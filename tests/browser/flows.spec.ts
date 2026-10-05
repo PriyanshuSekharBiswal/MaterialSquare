@@ -1147,6 +1147,17 @@ test("marketplace displays published API product prices and offer labels", async
   await expect(page.locator(".catalogue-price-caveat")).toHaveText(
     "per length, GST extra",
   );
+  await page.getByRole("button", { name: "Specs" }).click();
+  const detail = page.getByRole("dialog");
+  await expect(
+    detail.getByText("Technical & Testing Parameters", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    detail.getByText("Recommended Site Applications", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    detail.getByText("Performance Features", { exact: true }),
+  ).toHaveCount(0);
 });
 
 test("marketplace keeps out-of-stock products visible and filters all availability states", async ({ page }) => {

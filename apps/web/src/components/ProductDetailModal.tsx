@@ -85,6 +85,12 @@ export default function ProductDetailModal({
   const brandMeta = getBrandMeta(product.brand);
   const variants = product.variants || [];
   const selectedVariant = variants.find(variant => variant.id === selectedVariantId) || variants[0];
+  const technicalSpecs = Object.entries({
+    ...(product.specs || {}),
+    ...(selectedVariant?.attributes || {}),
+  }).filter(([, value]) => String(value ?? '').trim());
+  const applications = (product.applications || []).filter(value => value.trim());
+  const features = (product.features || []).filter(value => value.trim());
   const gallery = Array.from(new Set([...(product.galleryImages || []), product.image].filter((image): image is string => Boolean(image))));
   const activeImage = selectedImage || gallery[0] || null;
   const selectedLabel = [selectedVariant?.label, specification.trim()].filter(Boolean).join(' · ');
@@ -240,43 +246,39 @@ export default function ProductDetailModal({
             </div>}
 
             {/* Technical Parameters Table */}
-            <div className="modal-spec-table-wrap">
+            {technicalSpecs.length > 0 && <div className="modal-spec-table-wrap">
               <h4 className="spec-table-heading">Technical & Testing Parameters</h4>
               <div className="spec-table">
-                {selectedVariant?.attributes && Object.entries(selectedVariant.attributes).map(([key, val]) => (
-                  <div key={key} className="spec-table-row"><span className="spec-name">{key.replace(/([A-Z])/g, ' $1').toUpperCase()}</span><span className="spec-value mono">{String(val)}</span></div>
+                {technicalSpecs.map(([key, val]) => (
+                  <div key={key} className="spec-table-row">
+                    <span className="spec-name">{key.replace(/([A-Z])/g, ' $1').toUpperCase()}</span>
+                    <span className="spec-value mono">{String(val)}</span>
+                  </div>
                 ))}
-                {product.specs &&
-                  Object.entries(product.specs).map(([key, val]) => (
-                    <div key={key} className="spec-table-row">
-                      <span className="spec-name">{key.replace(/([A-Z])/g, ' $1').toUpperCase()}</span>
-                      <span className="spec-value mono">{String(val)}</span>
-                    </div>
-                  ))}
               </div>
-            </div>
+            </div>}
 
             {/* Approved Site Applications */}
-            <div className="modal-applications-box">
+            {applications.length > 0 && <div className="modal-applications-box">
               <h4 className="spec-table-heading">Recommended Site Applications</h4>
               <div className="app-chips-row">
-                {product.applications.map((app, i) => (
+                {applications.map((app, i) => (
                   <span key={i} className="app-chip">
                     <CheckCircle2 size={13} /> {app}
                   </span>
                 ))}
               </div>
-            </div>
+            </div>}
 
             {/* Key Advantages */}
-            <div className="modal-advantages-box">
+            {features.length > 0 && <div className="modal-advantages-box">
               <h4 className="spec-table-heading">Performance Features</h4>
               <ul className="modal-features-ul">
-                {product.features.map((feat, i) => (
+                {features.map((feat, i) => (
                   <li key={i}>{feat}</li>
                 ))}
               </ul>
-            </div>
+            </div>}
           </div>
         </div>
       </div>
