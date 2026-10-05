@@ -208,6 +208,7 @@
 
 .catalogue-search {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 9px;
   min-width: 0;
