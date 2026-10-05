@@ -6,28 +6,38 @@ and client content approval remain deployment tasks.
 
 ## Latest verification snapshot
 
-- Commit `93ef8c7` is pushed to `codex/live-preview-20261005`. The root
-  `npm run dev` command now starts the customer web app and API together;
-  `npm run dev:all` also starts the admin app. This avoids running the customer
-  Vite server against a missing or stale local API.
+- Commit `a4de6b6` is pushed to `codex/live-preview-20261005`. The root
+  `npm run dev` command starts the customer web app and API together;
+  `npm run dev:all` also starts the admin app.
 - The customer OTP screen blocks verification of a code requested on localhost
   and directs the customer to request a fresh code on an approved HTTPS host.
   MSG91 CAPTCHA does not support localhost.
-- `npm run build` passed for the types, API, customer app, and admin app.
+- `npm run build` passed for the types, API, customer app, and admin app. The
+  latest customer build and type check pass. Initial customer JavaScript is
+  356.88 KB (107.91 KB gzip); the map and smooth-scroll code load separately.
+  Five home category images total about 200 KB in WebP (previously about 1.4 MB
+  as JPEG). Public API edge cache is 60 seconds with a 5-minute stale window.
 - `npm test -- --runInBand` passed 197 API unit tests. The 19 database-backed
   integration tests were skipped because `TEST_DATABASE_URL` was not supplied.
 - `npm run test:browser` passed all 63 browser flows.
+- Local read-only smoke checks on 6 October returned 200 from the website shell,
+  catalogue, site-content, partner-brand, and API readiness endpoints. Anonymous
+  `/api/customer/me` returned the expected 401 (route exists, no session). Warm
+  local responses measured about 0.10 s for the shell and 0.01–0.05 s for the
+  three public APIs. These local timings do not establish live-network or cold
+  start performance.
 - The current live-test customer preview still reports that phone sign-in is
   not configured and disables its OTP button. Its Vercel Preview environment
   lacks the MSG91 widget build settings. The preview hostname also needs to be
   allowed by the MSG91 widget. Do not treat live customer authentication as
   verified until those are configured and a real OTP session is checked.
-- Staging API route checks made in the prior verification run returned 401 for
-  anonymous `/api/customer/me` (the route exists), 200 for `/api/products`
-  with an empty catalogue, and 503 for `/api/health/ready`. The readiness
-  endpoint is not the staging liveness check; production readiness still
-  requires image storage and exact CORS configuration. Recheck live API and
-  migration state before client handover.
+- The prior staging API check returned 401 for anonymous `/api/customer/me`,
+  200 for `/api/products` with an empty catalogue, and 503 for
+  `/api/health/ready`. The local readiness endpoint now returns 200; this does
+  not prove the staging endpoint or its migrations are healthy. Recheck live
+  API and migration state before client handover. Live authentication still
+  requires configured MSG91 widget settings, CAPTCHA allowlisting, and a real
+  OTP session.
 
 ## Current application behavior
 
