@@ -1,5 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
-import { SITE_CONTENT_DEFAULTS } from "@material-square/types";
+import { sanitizePublicSiteContent, SITE_CONTENT_DEFAULTS } from "@material-square/types";
 import {
   AdminSiteContentController,
   PublicSiteContentController,
@@ -39,6 +39,22 @@ describe("website content", () => {
   it("serves compiled defaults until the owner publishes page copy", async () => {
     const controller = new PublicSiteContentController(prisma);
     await expect(controller.get()).resolves.toEqual(SITE_CONTENT_DEFAULTS);
+  });
+
+  it("hides unchanged preview contact details and copy but preserves client edits", () => {
+    const safe = sanitizePublicSiteContent({
+      "contact.phone": "9773505015",
+      "contact.phoneDisplay": "+91 97735 05015",
+      "contact.location": "Serving Delhi NCR (Noida, Greater Noida, Delhi, Gurugram, Ghaziabad & Faridabad)",
+      "home.title": "Why Make 5 Calls?\nOne Call. All Materials.",
+      "footer.slogan": "Client-approved slogan",
+    });
+
+    expect(safe["contact.phone"]).toBe("");
+    expect(safe["contact.phoneDisplay"]).toBe("");
+    expect(safe["contact.location"]).toBe("");
+    expect(safe["home.title"]).toBe(SITE_CONTENT_DEFAULTS["home.title"]);
+    expect(safe["footer.slogan"]).toBe("Client-approved slogan");
   });
 
   it("builds a public sitemap from static pages and currently published articles", async () => {

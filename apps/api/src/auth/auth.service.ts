@@ -2,6 +2,8 @@ import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../prisma/prisma.service";
 import { verifyPassword } from "./password";
+import { createHash, randomBytes } from "node:crypto";
+import { Msg91WidgetService } from "./msg91-widget.service";
 
 type StaffLoginInput = {
   phone?: string;
@@ -14,6 +16,7 @@ export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    private readonly msg91Widget: Msg91WidgetService,
   ) {}
 
   async loginStaff(input: StaffLoginInput) {
@@ -22,7 +25,10 @@ export class AuthService {
         ? { phone: input.phone }
         : { email: input.email!.toLowerCase() },
     });
-    if (!staff?.isActive || !verifyPassword(input.password, staff.passwordHash)) {
+    if (
+      !staff?.isActive ||
+      !verifyPassword(input.password, staff.passwordHash)
+    ) {
       throw new UnauthorizedException("Invalid staff credentials");
     }
     return {
@@ -45,5 +51,45 @@ export class AuthService {
       where: { id },
       select: { name: true, phone: true, email: true, role: true },
     });
+  }
+
+  async verifyCustomerMsg91AccessToken(input: {
+    phone: string;
+    accessToken: string;
+  }) {
+    const verifiedPhone = await this.msg91Widget.verifyAccessToken(
+      input.accessToken,
+    );
+    if (verifiedPhone !== input.phone)
+      throw new UnauthorizedException("Verified phone number does not match");
+    const sessionToken = randomBytes(32).toString("hex");
+    const customer = await this.prisma.$transaction(async (db) => {
+      const account = await db.customer.upsert({
+        where: { phone: verifiedPhone },
+        update: {},
+        create: { phone: verifiedPhone, name: "", pincode: "" },
+      });
+      await db.customerSession.create({
+        data: {
+          id: createHash("sha256").update(sessionToken).digest("hex"),
+          customerId: account.id,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        },
+      });
+      return account;
+    });
+    return {
+      sessionToken,
+      customer: {
+        id: customer.id,
+        phone: customer.phone,
+        name: customer.name,
+        email: customer.email,
+        companyName: customer.companyName,
+        shippingAddress: customer.shippingAddress,
+        city: customer.city,
+        pincode: customer.pincode,
+      },
+    };
   }
 }

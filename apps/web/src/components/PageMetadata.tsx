@@ -85,17 +85,20 @@ export default function PageMetadata() {
     const defaultDescription = content["seo.description"];
     const isPrivacy = pathname === "/privacy";
     const isTerms = pathname === "/terms";
+    const isAccount = pathname === "/account" || pathname.startsWith("/account/");
     const title = isPrivacy
       ? parsePolicy(content["policy.privacy"], "privacy").title
       : isTerms
         ? parsePolicy(content["policy.terms"], "terms").title
-        : content[
+        : isAccount
+          ? `Customer account | ${content["seo.siteTitle"]}`
+          : content[
             titleKeys[pathname] ||
               (pathname.startsWith("/blogs/") ? "seo.blogsTitle" : "seo.siteTitle")
           ];
 
     setCanonical(pathname);
-    setMeta('meta[name="robots"]', "name", "robots", "index, follow");
+    setMeta('meta[name="robots"]', "name", "robots", isAccount ? "noindex, nofollow" : "index, follow");
     setPageMetadata({
       title,
       description: defaultDescription,

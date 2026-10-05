@@ -3,6 +3,7 @@ import { z } from "zod";
 export const PolicySchema = z.object({
   title: z.string().trim().min(3).max(200),
   notice: z.string().max(300),
+  published: z.boolean().default(false),
   sections: z
     .array(
       z.object({
@@ -19,14 +20,15 @@ export const DEFAULT_POLICIES: Record<"privacy" | "terms", WebsitePolicy> = {
   privacy: {
     title: "How we handle your information",
     notice: "Information about using this website",
+    published: false,
     sections: [
       {
         heading: "Information you provide",
-        body: "Browsing the catalogue does not require an account. The public website does not offer customer sign-in and does not collect visitor contact details when you browse. If you choose to prepare a request in WhatsApp or email, your device opens that service so you can review and send it.",
+        body: "Browsing the catalogue and preparing a browser-stored quote list do not require an account. Customers may choose to verify a mobile number using the configured MSG91 phone-verification service to access their account. The account can store contact and project-profile details and show requests, quotations, orders, delivery updates, and loyalty activity linked to that verified customer record. The business must confirm its retention periods, account-data handling, and customer-support process before publication.",
       },
       {
         heading: "How the website uses it",
-        body: "Your material list stays in this browser and is not sent to Material Square unless you choose an external contact method. The website records aggregate counts of page views, product-detail views, material-list additions, and WhatsApp or email handoff clicks for operations reporting. Those analytics do not include your name, phone number, saved-list contents, search text, or a visitor identifier.",
+        body: "Your guest quote list stays in this browser. If you sign in, the website uses a secure account session and retrieves only customer records associated with your verified account. The website also records aggregate counts of page views, product-detail views, material-list additions, and WhatsApp or email handoff clicks for operations reporting. Those analytics do not include your name, phone number, saved-list contents, search text, or a visitor identifier.",
       },
       {
         heading: "WhatsApp and email requests",
@@ -34,7 +36,7 @@ export const DEFAULT_POLICIES: Record<"privacy" | "terms", WebsitePolicy> = {
       },
       {
         heading: "Browser storage",
-        body: "The quote list is stored in your browser so it remains available while you browse. Clearing this browser's site data removes the saved list. Material Square should confirm any additional retention or request-handling practices before publication.",
+        body: "The guest quote list is stored in your browser so it remains available while you browse. Clearing this browser's site data removes the saved list. A signed-in account may also access business records linked to its verified phone number. Material Square should confirm account retention and request-handling practices before publication.",
       },
       {
         heading: "Contact",
@@ -47,6 +49,7 @@ export const DEFAULT_POLICIES: Record<"privacy" | "terms", WebsitePolicy> = {
   terms: {
     title: "Using the Material Square website",
     notice: "Information about using this website",
+    published: false,
     sections: [
       {
         heading: "Catalogue information",
@@ -59,6 +62,10 @@ export const DEFAULT_POLICIES: Record<"privacy" | "terms", WebsitePolicy> = {
       {
         heading: "Quote list",
         body: "The quote list is saved in this browser and can be removed by clearing this site's browser data. Review the request details before choosing to continue in WhatsApp or email.",
+      },
+      {
+        heading: "Customer account",
+        body: "Customer sign-in uses a one-time verification code sent through the configured phone-verification provider. Keep access to your verified phone number secure. Account access lets you view business records associated with that verified number. A customer account, quotation, saved list, or prepared message is not itself an order.",
       },
       {
         heading: "Contact",

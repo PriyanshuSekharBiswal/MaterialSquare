@@ -34,6 +34,8 @@ export interface CatalogueVariant {
   label: string;
   attributes: Record<string, string>;
   unit: string;
+  image?: string | null;
+  galleryImages?: string[];
   price?: number | string | null;
   compareAtPrice?: number | string | null;
   priceNote?: string | null;
@@ -56,8 +58,11 @@ export type MaterialItem = Pick<
     quantity?: number;
     specification?: string;
     variantId?: string;
+    minOrderQuantity?: number | string | null;
     price?: number | string | null;
     compareAtPrice?: number | string | null;
     priceNote?: string | null;
     specs?: Record<string, string | undefined>;
+    image?: string | null;
+    galleryImages?: string[];
   };

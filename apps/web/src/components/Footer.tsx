@@ -15,10 +15,15 @@ import WhatsAppIcon from "./icons/WhatsAppIcon";
 import { useSiteContent } from "../site-content";
 import { whatsappLink } from "../messages";
 import type { CatalogueProduct } from "../types";
+import { parsePolicy } from "@material-square/types";
 
 export default function Footer({ products = [] }: { products?: CatalogueProduct[] }) {
   const siteContent = useSiteContent();
   const socialLinks = parseSocialLinks(siteContent["footer.socialLinks"]);
+  const privacyPolicy = parsePolicy(siteContent["policy.privacy"], "privacy");
+  const termsPolicy = parsePolicy(siteContent["policy.terms"], "terms");
+  const privacyPublished = privacyPolicy.published;
+  const termsPublished = termsPolicy.published;
   const categories = Array.from(
     new Map(products.map((product) => [product.category, product.categoryLabel])).entries(),
   );
@@ -168,8 +173,8 @@ export default function Footer({ products = [] }: { products?: CatalogueProduct[
           </p>
 
           <nav className="footer-legal-links" aria-label="Legal information">
-            <Link to="/privacy">Privacy</Link>
-            <Link to="/terms">Website terms</Link>
+            {privacyPublished && <Link to="/privacy">Privacy</Link>}
+            {termsPublished && <Link to="/terms">Website terms</Link>}
           </nav>
 
           <button

@@ -12,7 +12,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { SITE_CONTENT_DEFAULTS } from "@material-square/types";
+import { sanitizePublicSiteContent, SITE_CONTENT_DEFAULTS } from "@material-square/types";
 import { SITE_CONTENT_KEYS, SiteContentSchema } from "./site-content.schema";
 import { StaffGuard } from "../auth/access.guard";
 import { validate } from "../common/validation";
@@ -33,14 +33,7 @@ export class PublicSiteContentController {
       !Array.isArray(saved.content)
         ? (saved.content as Record<string, unknown>)
         : {};
-    return Object.fromEntries(
-      SITE_CONTENT_KEYS.map((key) => [
-        key,
-        typeof content[key] === "string"
-          ? content[key]
-          : SITE_CONTENT_DEFAULTS[key],
-      ]),
-    );
+    return sanitizePublicSiteContent(content);
   }
 
   @Get("sitemap.xml")

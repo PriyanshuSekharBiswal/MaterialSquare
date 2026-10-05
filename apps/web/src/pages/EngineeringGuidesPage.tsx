@@ -518,7 +518,7 @@ export default function EngineeringGuidesPage({
                     <div className="tip-bullet">
                       <span className="tip-num">2</span>
                       <p>
-                        <strong>Shade Against Delhi Summer UV:</strong> Protect
+                        <strong>Protect from direct sunlight:</strong> Protect
                         uninstalled CPVC and PVC pipes under tarpaulin or tin
                         sheds. Direct scorching sun causes thermal warpage.
                       </p>

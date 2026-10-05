@@ -133,7 +133,8 @@ export default function CatalogueManager({
   const brands = [...new Set(listings.map((product) => product.brand).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b));
   const categories = [...new Map(
-    listings.map((product) => [product.category, product.categoryLabel]),
+    listings.filter((product) => product.category?.trim())
+      .map((product) => [product.category, product.categoryLabel]),
   ).entries()].sort((a, b) => a[1].localeCompare(b[1]));
   const normalizedQuery = catalogueQuery.trim().toLocaleLowerCase();
   const visibleListings = listings.filter((product) => {
@@ -146,7 +147,7 @@ export default function CatalogueManager({
       product.unit,
       product.grade,
       product.description,
-      ...product.variants.flatMap((variant) => [variant.label, variant.code, variant.unit]),
+      ...product.variants.flatMap((variant) => [variant.label, variant.code, variant.unit, ...Object.entries(variant.attributes || {}).flatMap(([key, value]) => [key, value])]),
       ...product.features,
       ...Object.values(product.specifications),
     ]
@@ -246,6 +247,45 @@ export default function CatalogueManager({
     }
   }
 
+  async function uploadVariantImage(file: File, input: HTMLInputElement, index: number) {
+    if (!new Set(["image/png", "image/jpeg", "image/webp"]).has(file.type)) {
+      setError("Choose a PNG, JPEG, or WebP product image.");
+      input.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Product images must be 5 MB or smaller.");
+      input.value = "";
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/storage/images`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body,
+        signal: AbortSignal.timeout(60000),
+      });
+      const result = await response.json().catch(() => null) as { url?: string; message?: string } | null;
+      if (response.status === 401) onSignOut();
+      if (!response.ok || !result?.url) throw new Error(typeof result?.message === "string" ? result.message : "Could not upload this option image.");
+      setEditing((current) => current ? {
+        ...current,
+        variants: current.variants.map((variant, rowIndex) => rowIndex === index ? { ...variant, image: result.url! } : variant),
+      } : current);
+      setNotice("Option photo uploaded. Save the product to keep it.");
+      input.value = "";
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not upload this option image.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function uploadGalleryImages(files: FileList, input: HTMLInputElement) {
     const selected = Array.from(files);
     const galleryCount = editing?.galleryImages.length || 0;
@@ -335,6 +375,7 @@ export default function CatalogueManager({
             : [],
           variants: Array.isArray(row.variants) ? row.variants.map((variant) => ({
             ...variant,
+            galleryImages: Array.isArray(variant.galleryImages) ? variant.galleryImages : [],
             availabilityStatus: variant.availabilityStatus || (variant.isInStock ? "IN_STOCK" : "CHECK_AVAILABILITY"),
             inStock: variant.availabilityStatus ? variant.availabilityStatus === "IN_STOCK" : Boolean(variant.isInStock),
           })) : [],
@@ -868,15 +909,18 @@ export default function CatalogueManager({
             <CatalogueVariantsEditor
               variants={formProduct.variants || []}
               onChange={(variants) => setEditing({ ...formProduct, variants })}
+              onUploadImage={(file, input, index) => void uploadVariantImage(file, input, index)}
+              defaultUnit={formProduct.unit}
+              busy={busy}
             />
           </div>
           <div className="catalogue-form-checks">
             <label>
               Availability
               <select name="availabilityStatus" defaultValue={formProduct.availabilityStatus || (formProduct.isInStock ? "IN_STOCK" : "CHECK_AVAILABILITY")}>
-                <option value="IN_STOCK">In stock</option>
-                <option value="OUT_OF_STOCK">Out of stock</option>
-                <option value="CHECK_AVAILABILITY">Check availability</option>
+                <option key="IN_STOCK" value="IN_STOCK">In stock</option>
+                <option key="OUT_OF_STOCK" value="OUT_OF_STOCK">Out of stock</option>
+                <option key="CHECK_AVAILABILITY" value="CHECK_AVAILABILITY">Check availability</option>
               </select>
             </label>
             <label>
@@ -925,32 +969,32 @@ export default function CatalogueManager({
           <label>
             Brand
             <select value={brandFilter} onChange={(event) => setBrandFilter(event.target.value)}>
-              <option value="all">All brands</option>
+              <option key="all" value="all">All brands</option>
               {brands.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
             </select>
           </label>
           <label>
             Category
             <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
-              <option value="all">All categories</option>
+              <option key="all" value="all">All categories</option>
               {categories.map(([category, label]) => <option key={category} value={category}>{label}</option>)}
             </select>
           </label>
           <label>
             Website status
             <select value={publicationFilter} onChange={(event) => setPublicationFilter(event.target.value)}>
-              <option value="all">Published and drafts</option>
-              <option value="published">Published</option>
-              <option value="draft">Drafts</option>
+              <option key="all" value="all">Published and drafts</option>
+              <option key="published" value="published">Published</option>
+              <option key="draft" value="draft">Drafts</option>
             </select>
           </label>
           <label>
             Availability
             <select value={availabilityFilter} onChange={(event) => setAvailabilityFilter(event.target.value)}>
-              <option value="all">All availability</option>
-              <option value="IN_STOCK">In stock</option>
-              <option value="OUT_OF_STOCK">Out of stock</option>
-              <option value="CHECK_AVAILABILITY">Check availability</option>
+              <option key="all" value="all">All availability</option>
+              <option key="IN_STOCK" value="IN_STOCK">In stock</option>
+              <option key="OUT_OF_STOCK" value="OUT_OF_STOCK">Out of stock</option>
+              <option key="CHECK_AVAILABILITY" value="CHECK_AVAILABILITY">Check availability</option>
             </select>
           </label>
         </div>
@@ -961,8 +1005,9 @@ export default function CatalogueManager({
       </div>
       {listings.length === 0 && !busy && (
         <section className="panel-card catalogue-empty">
-          <h3>No products found</h3>
-          <p>Refresh the catalogue or add the first product.</p>
+          <h3>No catalogue products yet</h3>
+          <p>{canManage ? "Add the first client-approved product as a draft, then publish it after checking its details and options." : "A catalogue manager can add client-approved products here. No sample products are being shown."}</p>
+          {canManage && <button className="btn-sm btn-primary" onClick={startNew}><PackagePlus size={15} /> Add first product</button>}
         </section>
       )}
       {listings.length > 0 && visibleListings.length === 0 && (

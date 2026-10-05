@@ -31,11 +31,15 @@ import DirectionGoogleMaps from "../components/DirectionGoogleMaps";
 
 export default function HomePage({
   products,
+  catalogueUnavailable = false,
+  onRetryCatalogue,
   onOpenBOMDrawer,
   bomList = [],
   onToggleBOM,
 }: {
   products: CatalogueProduct[];
+  catalogueUnavailable?: boolean;
+  onRetryCatalogue?: () => void;
   onOpenBOMDrawer: () => void;
   bomList?: MaterialItem[];
   onToggleBOM: (product: MaterialItem) => void;
@@ -83,10 +87,8 @@ export default function HomePage({
     cement: "/images/categories/cement-category.jpg",
     pipes: "/images/categories/pipes-category.jpg",
     wires: "/images/categories/wires-category.jpg",
-    steel: "/images/categories/wires-category.jpg",
     paints: "/images/categories/paints-category.jpg",
     sanitary: "/images/categories/sanitary-category.jpg",
-    adhesives: "/images/categories/pipes-category.jpg",
   };
   const categoryCards = Array.from(
     new Map(products.map((product) => [product.category, product.categoryLabel])).entries(),
@@ -233,10 +235,10 @@ export default function HomePage({
                     `/marketplace?brand=${encodeURIComponent(brandName)}`,
                   );
                 }}
-                onSelectProduct={(product) => {
+                onSelectProduct={(product, query) => {
                   setIsSuggestionsOpen(false);
                   navigate(
-                    `/marketplace?q=${encodeURIComponent(product.name)}`,
+                    `/marketplace?q=${encodeURIComponent(query)}`,
                   );
                 }}
               />
@@ -339,25 +341,35 @@ export default function HomePage({
             </Link>
           </div>
 
-          <div className="category-cards-grid reveal-stagger">
-            {categoryCards.map((cat) => (
-              <Link
-                key={cat.id}
-                to={`/marketplace?category=${cat.id}`}
-                className="category-gateway-card"
-              >
-                <div className="category-img-wrapper">
-                  {cat.image && <img src={cat.image} alt="" loading="lazy" />}
-                  <span className="category-badge-chip">{cat.badge}</span>
-                </div>
-                <div className="category-card-info">
-                  <h3 className="category-name">{cat.title}</h3>
-                  <p className="category-sub">{cat.subtitle}</p>
-                  <span className="explore-tag">Browse Category →</span>
-                </div>
-              </Link>
-            ))}
-          </div>
+          {catalogueUnavailable ? (
+            <div className="catalogue-load-state" role="alert">
+              <strong>Published inventory is temporarily unavailable.</strong>
+              <span>Please try again in a moment. No sample products are shown.</span>
+              {onRetryCatalogue && <button className="btn btn-secondary" type="button" onClick={onRetryCatalogue}>Retry inventory</button>}
+            </div>
+          ) : categoryCards.length ? (
+            <div className="category-cards-grid reveal-stagger">
+              {categoryCards.map((cat) => (
+                <Link
+                  key={cat.id}
+                  to={`/marketplace?category=${cat.id}`}
+                  className="category-gateway-card"
+                >
+                  <div className="category-img-wrapper">
+                    {cat.image ? <img src={cat.image} alt="" loading="lazy" /> : <Package className="category-image-fallback" size={42} aria-hidden="true" />}
+                    <span className="category-badge-chip">{cat.badge}</span>
+                  </div>
+                  <div className="category-card-info">
+                    <h3 className="category-name">{cat.title}</h3>
+                    <p className="category-sub">{cat.subtitle}</p>
+                    <span className="explore-tag">Browse Category →</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="catalogue-load-state">There are no published materials to browse yet.</p>
+          )}
         </div>
       </section>
     ),
@@ -400,7 +412,7 @@ export default function HomePage({
               The Material Square Difference
             </span>
             <h2 className="reveal-title">
-              "Itna Kyu Bhagna? Sab Alag Alag Jagah."
+              Construction materials, organized for your project.
             </h2>
             <p className="reveal-text">
               Keep your material request organized in one list. Review product

@@ -8,6 +8,7 @@ import { PrismaClient } from "@prisma/client";
 import { AppModule } from "./app.module";
 import { JwtService } from "@nestjs/jwt";
 import { hashPassword } from "./auth/password";
+import { Msg91WidgetService } from "./auth/msg91-widget.service";
 import request = require("supertest");
 const integration = process.env.TEST_DATABASE_URL ? describe : describe.skip;
 function indiaDateOffset(offsetDays = 0) {
@@ -89,15 +90,196 @@ integration("API with isolated PostgreSQL", () => {
       .send({ basePricePerMt: 1 })
       .expect(401);
   });
-  it("allows staff sign-in and has no customer sign-in endpoint", async () => {
+  it("allows staff sign-in and customer OTP sessions", async () => {
     await request(app.getHttpServer())
       .post("/api/auth/staff/login")
       .send({ email: "someone@example.invalid", password: "not-a-password" })
       .expect(401);
-    await request(app.getHttpServer())
+    jest
+      .spyOn(app.get(Msg91WidgetService), "verifyAccessToken")
+      .mockResolvedValue("9876543210");
+    const account = await request(app.getHttpServer())
       .post("/api/auth/customer/otp/verify-msg91")
-      .send({ phone: "9876543210", accessToken: "not-a-token" })
-      .expect(404);
+      .send({
+        phone: "9876543210",
+        accessToken: "verified-test-access-token-12345",
+      })
+      .expect(200);
+    expect(account.body.phone).toBe("9876543210");
+    const cookie = account.headers["set-cookie"]?.[0]?.split(";")[0];
+    expect(cookie).toMatch(/^ms_customer_session=/);
+    await request(app.getHttpServer())
+      .get("/api/customer/me")
+      .set("Cookie", cookie)
+      .expect(200);
+    await request(app.getHttpServer())
+      .get("/api/customer/activity")
+      .expect(401);
+    await request(app.getHttpServer())
+      .get("/api/customer/me")
+      .set("Cookie", cookie)
+      .set("X-Material-Account", "a-different-account")
+      .expect(409);
+    await request(app.getHttpServer())
+      .put("/api/customer/profile")
+      .set("Cookie", cookie)
+      .send({ name: "Verified Customer" })
+      .expect(403);
+    const savedProfile = await request(app.getHttpServer())
+      .put("/api/customer/profile")
+      .set("Cookie", cookie)
+      .set("X-Material-Square", "customer")
+      .set("X-Material-Account", account.body.id)
+      .send({
+        name: "Verified Customer",
+        email: "customer@example.test",
+        companyName: "Customer Build Co",
+        city: "Noida",
+        pincode: "201301",
+      })
+      .expect(200);
+    expect(savedProfile.body).toMatchObject({
+      id: account.body.id,
+      name: "Verified Customer",
+      companyName: "Customer Build Co",
+      city: "Noida",
+      pincode: "201301",
+    });
+    const listing = await db.catalogListing.create({
+      data: {
+        slug: `customer-rfq-${randomUUID()}`,
+        name: "UltraTech PPC Cement",
+        brand: "UltraTech Cement",
+        category: "cement",
+        categoryLabel: "Cement",
+        unit: "bag",
+        isPublished: true,
+        variants: {
+          create: {
+            label: "50 kg",
+            attributes: { pack: "50 kg" },
+            unit: "bag",
+            minOrderQuantity: 100,
+            availabilityStatus: "OUT_OF_STOCK",
+            isInStock: false,
+            sortOrder: 0,
+          },
+        },
+      },
+      include: { variants: true },
+    });
+    const submitted = await request(app.getHttpServer())
+      .post("/api/customer/rfqs")
+      .set("Cookie", cookie)
+      .set("X-Material-Square", "customer")
+      .set("X-Material-Account", account.body.id)
+      .send({
+        customerName: "Verified Customer",
+        email: "customer@example.test",
+        companyName: "Customer Build Co",
+        siteLocation: "Plot 42, Sector 10",
+        city: "Noida",
+        pincode: "201301",
+        deliveryTiming: "2026-10-20",
+        projectStage: "Foundation",
+        notes: "Please confirm next delivery date.",
+        items: [
+          {
+            catalogueId: listing.id,
+            variantId: listing.variants[0].id,
+            name: "Forged product name",
+            brand: "Forged brand",
+            category: "Forged category",
+            unit: "forged unit",
+            quantity: 120,
+            specification: "forged specification",
+          },
+          {
+            catalogueId: listing.id,
+            name: "UltraTech PPC Cement",
+            unit: "bulk delivery",
+            quantity: 1,
+            specification: "Delivery in a bulk tanker",
+          },
+        ],
+      })
+      .expect(201);
+    const savedRfq = await db.rfq.findUniqueOrThrow({
+      where: { id: submitted.body.id },
+    });
+    expect(savedRfq).toMatchObject({
+      customerId: account.body.id,
+      customerName: "Verified Customer",
+      customerPhone: "9876543210",
+      status: "NEW",
+      siteLocation: "Plot 42, Sector 10, Noida 201301",
+      deliveryTiming: "2026-10-20",
+    });
+    expect(savedRfq.items).toEqual([
+      {
+        catalogueId: listing.id,
+        variantId: listing.variants[0].id,
+        material: "UltraTech PPC Cement",
+        brand: "UltraTech Cement",
+        category: "Cement",
+        quantity: 120,
+        unit: "bag",
+        specification: "50 kg · 50 kg",
+        source: "client_catalogue",
+      },
+      {
+        catalogueId: listing.id,
+        variantId: null,
+        material: "UltraTech PPC Cement",
+        brand: "UltraTech Cement",
+        category: "Cement",
+        quantity: 1,
+        unit: "bulk delivery",
+        specification: "Delivery in a bulk tanker",
+        source: "client_catalogue",
+      },
+    ]);
+    await request(app.getHttpServer())
+      .post("/api/customer/rfqs")
+      .set("Cookie", cookie)
+      .set("X-Material-Square", "customer")
+      .set("X-Material-Account", account.body.id)
+      .send({
+        customerName: "Verified Customer",
+        siteLocation: "Plot 42, Sector 10",
+        city: "Noida",
+        pincode: "201301",
+        items: [{
+          catalogueId: listing.id,
+          variantId: listing.variants[0].id,
+          name: listing.name,
+          unit: "bag",
+          quantity: 50,
+        }],
+      })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post("/api/customer/rfqs")
+      .set("Cookie", cookie)
+      .set("X-Material-Square", "customer")
+      .send({
+        customerName: "Verified Customer",
+        siteLocation: "Plot 42, Sector 10",
+        city: "Noida",
+        pincode: "201301",
+        items: [],
+      })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post("/api/customer/logout")
+      .set("Cookie", cookie)
+      .set("X-Material-Square", "customer")
+      .send({})
+      .expect(201);
+    await request(app.getHttpServer())
+      .get("/api/customer/me")
+      .set("Cookie", cookie)
+      .expect(401);
     await request(app.getHttpServer())
       .post("/api/rfqs")
       .send({ customerName: "Guest", items: [] })
@@ -137,7 +319,6 @@ integration("API with isolated PostgreSQL", () => {
       fields: ["status"],
       status: "CONTACTED",
     });
-    await request(app.getHttpServer()).get("/api/customer/activity").expect(404);
   });
   it("does not allow customer JWTs into the staff API", async () => {
     const customerToken = app
@@ -496,7 +677,9 @@ integration("API with isolated PostgreSQL", () => {
     ]);
     expect(
       transportAudit
-        .filter((entry) => entry.action !== "STAFF_QUOTATION_ACCEPTED_EXTERNALLY")
+        .filter(
+          (entry) => entry.action !== "STAFF_QUOTATION_ACCEPTED_EXTERNALLY",
+        )
         .every((entry) => entry.staffId !== null),
     ).toBe(true);
     expect(
@@ -843,7 +1026,7 @@ integration("API with isolated PostgreSQL", () => {
       .set("Authorization", `Bearer ${token}`)
       .send({
         channel: "INTERNAL",
-        scheduledAt: new Date(Date.now() + 3600000).toISOString(),
+        scheduledAt: new Date(Date.now() + 2 * 3600000).toISOString(),
         notes: "Call customer",
       })
       .expect(201);
@@ -1281,18 +1464,38 @@ integration("API with isolated PostgreSQL", () => {
       .set("Authorization", `Bearer ${token}`)
       .expect(200);
     expect(initial.body).toHaveLength(17);
-    expect(initial.body.map((brand: { name: string }) => brand.name)).toContain("UltraTech Cement");
-    const next = initial.body.map((brand: { isActive: boolean }, index: number) => ({ ...brand, isActive: index !== 0 }));
-    next.push({ id: "integration-future-brand", name: "Integration Future Brand", category: "Paints", tagline: "Future", isActive: true, sortOrder: next.length });
+    expect(initial.body.map((brand: { name: string }) => brand.name)).toContain(
+      "UltraTech Cement",
+    );
+    const next = initial.body.map(
+      (brand: { isActive: boolean }, index: number) => ({
+        ...brand,
+        isActive: index !== 0,
+      }),
+    );
+    next.push({
+      id: "integration-future-brand",
+      name: "Integration Future Brand",
+      category: "Paints",
+      tagline: "Future",
+      isActive: true,
+      sortOrder: next.length,
+    });
     await request(app.getHttpServer())
       .put("/api/products/catalogue/partner-brands")
       .set("Authorization", `Bearer ${token}`)
       .send(next)
       .expect(200);
-    const publicBrands = await request(app.getHttpServer()).get("/api/products/partner-brands").expect(200);
+    const publicBrands = await request(app.getHttpServer())
+      .get("/api/products/partner-brands")
+      .expect(200);
     expect(publicBrands.body).toHaveLength(17);
-    expect(publicBrands.body.map((brand: { name: string }) => brand.name)).not.toContain("UltraTech Cement");
-    expect(publicBrands.body.map((brand: { name: string }) => brand.name)).toContain("Integration Future Brand");
+    expect(
+      publicBrands.body.map((brand: { name: string }) => brand.name),
+    ).not.toContain("UltraTech Cement");
+    expect(
+      publicBrands.body.map((brand: { name: string }) => brand.name),
+    ).toContain("Integration Future Brand");
     const adminBrands = await request(app.getHttpServer())
       .get("/api/products/catalogue/partner-brands")
       .set("Authorization", `Bearer ${token}`)
@@ -1334,6 +1537,8 @@ integration("API with isolated PostgreSQL", () => {
           label: "25 mm · 3 m length",
           attributes: { diameter: "25 mm", length: "3 m" },
           unit: "3 m length",
+          image: "/client/variants/cpvc-25mm.jpg",
+          galleryImages: ["/client/variants/cpvc-25mm-detail.jpg"],
           price: 320,
           compareAtPrice: 400,
           isInStock: true,
@@ -1374,6 +1579,8 @@ integration("API with isolated PostgreSQL", () => {
           variants: [
             expect.objectContaining({
               code: "MS-INT-CPVC-1-3M",
+              image: "/client/variants/cpvc-25mm.jpg",
+              galleryImages: ["/client/variants/cpvc-25mm-detail.jpg"],
               quantityBreaks: [
                 { minimumQuantity: 10, unitPrice: 300 },
                 { minimumQuantity: 30, unitPrice: 280 },

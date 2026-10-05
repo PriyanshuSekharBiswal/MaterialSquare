@@ -162,8 +162,21 @@ model Customer {
   rfqs            Rfq[]
   loyaltyAccount  LoyaltyAccount?
   commissions     CommissionRecord[]
+  sessions        CustomerSession[]
 
   @@map("customers")
+}
+
+model CustomerSession {
+  id         String   @id
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([customerId])
+  @@index([expiresAt])
+  @@map("customer_sessions")
 }
 
 // ----------------------------------------------------
@@ -269,6 +282,8 @@ model CatalogListingVariant {
   label            String
   attributes       Json           @default("{}")
   unit             String
+  image            String?
+  galleryImages    String[]       @default([])
   price            Decimal?       @db.Decimal(12, 2)
   compareAtPrice   Decimal?       @db.Decimal(12, 2)
   priceNote        String?

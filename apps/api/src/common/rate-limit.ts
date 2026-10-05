@@ -4,7 +4,11 @@ export function publicRateLimit() {
   return (request: Request, response: Response, next: NextFunction) => {
     if (request.method !== "POST") return next();
     const analyticsEvent = request.path === "/api/analytics/events";
-    if (!analyticsEvent && !/^\/api\/(auth|rfqs|inquiries)(\/|$)/.test(request.path)) return next();
+    if (
+      !analyticsEvent &&
+      !/^\/api\/(auth|rfqs|inquiries|customer\/rfqs)(\/|$)/.test(request.path)
+    )
+      return next();
     const now = Date.now();
     for (const [key, value] of windows)
       if (value.until <= now) windows.delete(key);

@@ -3,9 +3,14 @@ import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { ValidationPipe } from "@nestjs/common";
+import { json, urlencoded } from "express";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // Catalogue listings may contain up to 1,000 client-managed variants. Allow
+  // a bounded payload large enough for their option metadata and image URLs.
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  app.use(json({ limit: "5mb" }));
+  app.use(urlencoded({ extended: true, limit: "5mb" }));
 
   // Only enable proxy trust for an explicitly configured, private reverse-proxy hop count.
   const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0);

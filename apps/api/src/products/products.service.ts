@@ -39,6 +39,8 @@ export type CatalogListingInput = {
     label: string;
     attributes: Record<string, string>;
     unit: string;
+    image?: string | null;
+    galleryImages?: string[];
     price?: number | null;
     compareAtPrice?: number | null;
     priceNote?: string | null;
@@ -177,6 +179,8 @@ export class ProductsService {
                 inStock: this.resolveAvailabilityStatus(variantAvailability, variantInStock) === "IN_STOCK",
                 availabilityStatus: this.resolveAvailabilityStatus(variantAvailability, variantInStock),
                 attributes: variant.attributes as Record<string, string>,
+                image: variant.image || null,
+                galleryImages: variant.galleryImages,
                 compareAtPrice: variantOfferActive
                   ? variant.compareAtPrice
                   : null,
@@ -388,6 +392,8 @@ export class ProductsService {
       label: variant.label,
       attributes: variant.attributes as Prisma.InputJsonValue,
       unit: variant.unit,
+      image: variant.image || null,
+      galleryImages: variant.galleryImages || [],
       price: variant.price ?? null,
       compareAtPrice: variant.compareAtPrice ?? null,
       priceNote: variant.priceNote || null,

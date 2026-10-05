@@ -6,6 +6,20 @@ function PolicyPage({ kind }: { kind: "privacy" | "terms" }) {
   const policy = parsePolicy(content[`policy.${kind}`], kind);
   const plainText = (value: string) =>
     value.replaceAll("{{contactEmail}}", content["contact.email"]);
+  if (!policy.published) {
+    return (
+      <article className="legal-page container">
+        <span className="badge-pill">
+          {kind === "privacy" ? "Privacy" : "Website terms"}
+        </span>
+        <h1>{kind === "privacy" ? "Privacy information" : "Website terms"}</h1>
+        <p>This information is being reviewed and is not published yet.</p>
+        <Link className="btn btn-secondary" to="/contact">
+          Contact Material Square
+        </Link>
+      </article>
+    );
+  }
   return (
     <article className="legal-page container">
       <span className="badge-pill">

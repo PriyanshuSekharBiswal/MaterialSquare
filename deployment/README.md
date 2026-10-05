@@ -1,6 +1,6 @@
 # Self-hosted deployment preparation
 
-This is an alternative self-hosted option for the customer website, protected admin workspace, and API. It has not been deployed or container-tested in this environment. Caddy terminates HTTPS; PostgreSQL remains private and persists in a named volume. The admin workspace is served at `/admin/`; customer sign-in is not provided.
+This is an alternative self-hosted option for the public customer website, customer account portal, protected admin workspace, and API. It has not been deployed or container-tested in this environment. Caddy terminates HTTPS; PostgreSQL remains private and persists in a named volume. The admin workspace is served at `/admin/`. Customer browsing and guest material lists remain public; phone/OTP sign-in uses the configured MSG91 widget and server-side token verification.
 
 ## Required inputs
 
@@ -8,6 +8,7 @@ This is an alternative self-hosted option for the customer website, protected ad
 - Customer website DNS pointing to that server.
 - Client-approved contact details, catalogue, business claims, policies, and product images.
 - An S3-compatible object-storage bucket and CDN/public asset URL for product images.
+- MSG91 widget ID and token-auth value for the customer-site build, plus the server-only MSG91 auth key for the API. Keep the server key out of browser build variables.
 - An independent backup destination and monitoring service.
 
 ## Prepare and launch
@@ -18,9 +19,9 @@ This is an alternative self-hosted option for the customer website, protected ad
 4. Start the database with `docker compose --env-file .env.production -f compose.production.yaml up -d postgres`.
 5. Apply migrations with `docker compose --env-file .env.production -f compose.production.yaml run --rm api npm run db:deploy`.
 6. Start services with `docker compose --env-file .env.production -f compose.production.yaml up -d`.
-7. Run `npm run catalog:seed-starter` once to create the editable 50-item starter catalogue. The script skips existing product slugs and never overwrites client edits.
+7. Add only client-approved products in the admin catalogue. Deployment does not seed sample inventory; new listings remain unpublished until reviewed and explicitly published by staff.
 8. Provision the initial client administrator with `bash scripts/create-production-staff.sh` from a secure operator shell after setting `PRODUCTION_DATABASE_URL`. The script prompts for the administrator details and password without saving them. The client can create staff accounts in the workspace.
-9. Check HTTPS, `/admin/`, `/api/health/ready`, product search/detail pages, quote-list behavior, and WhatsApp/email handoff.
+9. Check HTTPS, `/admin/`, `/api/health/ready`, product search/detail pages, guest material-list behavior, MSG91 OTP and customer account ownership, and WhatsApp/email handoff.
 
 The gateway requires the domain to resolve correctly for certificate issuance. Only ports 80/443 are public; database and API ports are internal. `TRUST_PROXY_HOPS=1` matches this gateway topology. Reassess it if adding another proxy or exposing the API directly.
 

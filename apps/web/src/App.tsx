@@ -1,6 +1,7 @@
 import PageMetadata from "./components/PageMetadata";
 import { CustomerProvider, useCustomer } from './customer';
 import './customer.css';
+import './customer-portal.css';
 import type { CatalogueProduct, MaterialItem } from './types';
 import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -28,6 +29,7 @@ const PrivacyPage = lazy(() => import('./pages/LegalPages').then((m) => ({ defau
 const TermsPage = lazy(() => import('./pages/LegalPages').then((m) => ({ default: m.TermsPage })));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
 const MaterialListPage = lazy(() => import('./pages/MaterialListPage'));
+const CustomerAccountPage = lazy(() => import('./pages/CustomerAccountPage'));
 
 // Floating Icons
 import { FileText } from 'lucide-react';
@@ -57,6 +59,8 @@ function AppShell() {
 
   const [catalogue, setCatalogue] = useState<CatalogueProduct[]>([]);
   const [catalogueLoaded, setCatalogueLoaded] = useState(false);
+  const [catalogueUnavailable, setCatalogueUnavailable] = useState(false);
+  const [catalogueRetry, setCatalogueRetry] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -64,11 +68,29 @@ function AppShell() {
       headers: { Accept: "application/json" },
       signal: controller.signal,
     })
-      .then((response) => response.ok ? response.json() as Promise<CatalogueProduct[]> : null)
-      .then((items) => { if (Array.isArray(items)) setCatalogue(items); setCatalogueLoaded(true); })
-      .catch(() => { setCatalogueLoaded(true); /* Public browsing stays available; only API-published listings are shown. */ });
+      .then((response) => {
+        if (!response.ok) throw new Error("Catalogue request failed");
+        return response.json() as Promise<CatalogueProduct[]>;
+      })
+      .then((items) => {
+        if (!Array.isArray(items)) throw new Error("Catalogue response was invalid");
+        setCatalogue(items);
+        setCatalogueUnavailable(false);
+        setCatalogueLoaded(true);
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setCatalogue([]);
+        setCatalogueUnavailable(true);
+        setCatalogueLoaded(true);
+      });
     return () => controller.abort();
-  }, []);
+  }, [catalogueRetry]);
+
+  const retryCatalogue = () => {
+    setCatalogueLoaded(false);
+    setCatalogueRetry((attempt) => attempt + 1);
+  };
 
   const { items: bomList, updateItems: setBOMList } = useCustomer();
   const openBOMDrawer = () => {
@@ -111,6 +133,8 @@ function AppShell() {
                 element={
                   <HomePage
                     products={catalogue}
+                    catalogueUnavailable={catalogueUnavailable}
+                    onRetryCatalogue={retryCatalogue}
                     onOpenBOMDrawer={openBOMDrawer}
                     bomList={bomList}
                     onToggleBOM={handleToggleBOM}
@@ -124,16 +148,19 @@ function AppShell() {
                 element={
                   <MarketplacePage
                     products={catalogue}
+                    catalogueUnavailable={catalogueUnavailable}
+                    onRetryCatalogue={retryCatalogue}
                     bomList={bomList}
                     onToggleBOM={handleToggleBOM}
-                    onOpenProduct={(product) => navigate(`/product/${encodeURIComponent(product.id)}`)}
+                    onOpenProduct={(product, query) => navigate(`/product/${encodeURIComponent(product.id)}${query?.trim() ? `?q=${encodeURIComponent(query.trim())}` : ""}`)}
                     onOpenBOMDrawer={openBOMDrawer}
                   />
                 }
               />
 
-              <Route path="/product/:productId" element={<ProductDetailPage products={catalogue} loading={!catalogueLoaded} />} />
+              <Route path="/product/:productId" element={<ProductDetailPage products={catalogue} loading={!catalogueLoaded} catalogueUnavailable={catalogueUnavailable} onRetryCatalogue={retryCatalogue} />} />
               <Route path="/material-list" element={<MaterialListPage products={catalogue} />} />
+              <Route path="/account/*" element={<CustomerAccountPage />} />
 
               {/* 3. Why Material Square (5 Calls vs 1 Call) */}
               <Route

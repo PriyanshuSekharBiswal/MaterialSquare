@@ -9,6 +9,7 @@ import {
   X,
   MapPin,
   ArrowRight,
+  UserRound,
 } from "lucide-react";
 import MaterialSquareLogo from "./icons/MaterialSquareLogo";
 import { useSiteContent } from "../site-content";
@@ -111,6 +112,16 @@ export default function Header({
             </Link>
 
             <Link
+              to="/account"
+              className="nav-btn nav-btn-outline nav-account-trigger"
+              onClick={closeMenu}
+              title="Sign in to your customer account"
+            >
+              <UserRound size={15} />
+              <span>Account</span>
+            </Link>
+
+            <Link
               to="/get-quote"
               onClick={closeMenu}
               className="nav-btn nav-btn-primary nav-quote-btn"
@@ -170,6 +181,14 @@ export default function Header({
               >
                 <span>Get Instant Quote</span>
                 <ArrowRight size={16} />
+              </Link>
+              <Link
+                to="/account"
+                onClick={closeMenu}
+                className="btn btn-secondary btn-block"
+              >
+                <UserRound size={16} />
+                <span>Customer account</span>
               </Link>
               <Link
                 to="/material-list"

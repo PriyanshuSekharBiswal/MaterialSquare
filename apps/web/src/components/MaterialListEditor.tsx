@@ -1,5 +1,5 @@
 import { materialId } from "../ids";
-import type { CatalogueProduct } from "../types";
+import type { CatalogueProduct, CatalogueVariant } from "../types";
 import React, { useState } from "react";
 import { useCustomer } from "../customer";
 import ProductImage from "./ProductImage";
@@ -19,9 +19,33 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
           Your list is empty. Browse the catalogue and add the products you need.
         </p>
       )}
-      {items.map((item) => (
+      {items.map((item) => {
+        const product = products.find((candidate) => candidate.id === (item.catalogueId || item.id));
+        const selectedVariant = product?.variants?.find((variant) => variant.id === item.variantId);
+        const optionLabel = (variant: CatalogueVariant) => [
+          variant.label,
+          ...Object.entries(variant.attributes || {}).map(([key, value]) => `${key}: ${value}`),
+        ].filter(Boolean).join(" · ");
+        const changeVariant = (variantId: string) => {
+          const variant = product?.variants?.find((candidate) => candidate.id === variantId);
+          updateItems((old) => old.map((row) => row.id === item.id ? {
+            ...row,
+            variantId: variant?.id,
+            specification: variant ? optionLabel(variant) : "",
+            unit: variant?.unit || product?.unit || row.unit,
+            price: variant?.price ?? undefined,
+            compareAtPrice: variant?.compareAtPrice ?? undefined,
+            priceNote: variant?.priceNote || undefined,
+            minOrderQuantity: variant?.minOrderQuantity ?? undefined,
+            inStock: variant?.inStock,
+            image: variant?.image || product?.image || undefined,
+            galleryImages: variant?.galleryImages || product?.galleryImages,
+            quantity: variant?.minOrderQuantity && Number(row.quantity || 1) < Number(variant.minOrderQuantity) ? Number(variant.minOrderQuantity) : row.quantity,
+          } : row));
+        };
+        return (
         <div className="material-editor" key={item.id}>
-          {(() => { const product=products.find(p=>p.id===(item.catalogueId||item.id)); return product ? <ProductImage className="material-thumb" src={product.image} alt={`${item.name} product`} /> : null; })()}
+          {(product || item.image) && <ProductImage className="material-thumb" src={item.image || product?.image} alt={`${item.name} product`} />}
           <h3>{item.name}</h3>
           <span>
             {item.brand}
@@ -38,7 +62,7 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
               <input
                 aria-label={`Quantity for ${item.name}`}
                 type="number"
-                min="0.001"
+                min={item.minOrderQuantity || 0.001}
                 max="1000000"
                 step="any"
                 required
@@ -57,7 +81,9 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
             <label>
               Unit
               <select
+                aria-label={`Unit for ${item.name}`}
                 value={item.unit}
+                disabled={Boolean(selectedVariant)}
                 onChange={(e) =>
                   updateItems((old) =>
                     old.map((i) =>
@@ -84,11 +110,12 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
               </select>
             </label>
             <label className="material-spec">
-              Size / specification / preferred variant
+              {selectedVariant ? "Selected product option" : "Size / specification / preferred variant"}
               <input
                 maxLength={500}
                 placeholder="Enter the required size or ask staff to confirm"
                 value={item.specification || ""}
+                readOnly={Boolean(selectedVariant)}
                 onChange={(e) =>
                   updateItems((old) =>
                     old.map((i) =>
@@ -100,8 +127,19 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
                 }
               />
             </label>
+            {product?.variants?.length ? <label className="material-spec">
+              Product option
+              <select aria-label={`Product option for ${item.name}`} value={selectedVariant?.id || ""} onChange={(event) => changeVariant(event.target.value)}>
+                <option value="">Custom size or confirm with team</option>
+                {product.variants.map((variant) => {
+                  const status = variant.availabilityStatus || (variant.inStock ? "IN_STOCK" : "CHECK_AVAILABILITY");
+                  return <option key={variant.id} value={variant.id}>{optionLabel(variant)}{variant.price != null ? ` · ₹${Number(variant.price).toLocaleString("en-IN")}/${variant.unit}` : ""}{status === "OUT_OF_STOCK" ? " · Out of stock" : ""}</option>;
+                })}
+              </select>
+              {selectedVariant?.minOrderQuantity && <small>Minimum order for this option: {selectedVariant.minOrderQuantity} {selectedVariant.unit}</small>}
+            </label> : null}
           </div>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={()=>updateItems(old=>[...old,{...item,id:`variant-${materialId()}`,catalogueId:item.catalogueId||item.id,variantId:undefined,price:undefined,compareAtPrice:undefined,priceNote:undefined,specification:'',quantity:1}])}>Add another size</button>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={()=>updateItems(old=>[...old,{...item,id:`variant-${materialId()}`,catalogueId:item.catalogueId||item.id,variantId:undefined,minOrderQuantity:undefined,price:undefined,compareAtPrice:undefined,priceNote:undefined,specification:'',quantity:1}])}>{product?.variants?.length ? "Add another option" : "Add another size"}</button>
           <button
             type="button"
             className="btn btn-secondary btn-sm"
@@ -112,7 +150,7 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
             Remove {item.name}
           </button>
         </div>
-      ))}
+      );})}
       <div className="customer-form" style={{ marginTop: 20 }}>
         <label>
           Can't find a material?

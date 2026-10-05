@@ -1,14 +1,20 @@
 import type { MaterialItem } from "./types";
-export function whatsappLink(message: string, phone: string | null | undefined) {
+export function whatsappLink(
+  message: string,
+  phone: string | null | undefined,
+) {
   if (!phone) return "";
   const digits = phone.replace(/\D/g, "");
   if (!digits) return "";
-  const internationalNumber = digits.length > 10 && digits.startsWith("91")
-    ? digits
-    : `91${digits}`;
+  const internationalNumber =
+    digits.length > 10 && digits.startsWith("91") ? digits : `91${digits}`;
   return `https://wa.me/${internationalNumber}?text=${encodeURIComponent(message)}`;
 }
-export function emailLink(subject: string, message: string, email: string | null | undefined) {
+export function emailLink(
+  subject: string,
+  message: string,
+  email: string | null | undefined,
+) {
   if (!email?.trim()) return "";
   return `mailto:${email.trim()}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
 }
@@ -35,7 +41,9 @@ export function requestMessage(
     `Material Square — ${enquiry ? "General Enquiry" : "Quotation Request"}`,
     "",
     `Name: ${details.name.trim()}`,
-    `Mobile: +91 ${details.phone}`,
+    details.phone
+      ? `Mobile: +91 ${details.phone}`
+      : "Mobile: Verify during secure sign-in",
     details.company.trim() ? `Company: ${details.company.trim()}` : "",
     details.email.trim() ? `Email: ${details.email.trim()}` : "",
     "",

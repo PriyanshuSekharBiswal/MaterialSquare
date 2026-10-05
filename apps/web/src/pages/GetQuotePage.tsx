@@ -3,7 +3,10 @@ import { Link } from "react-router-dom";
 import MaterialListEditor from "../components/MaterialListEditor";
 import RequestContactForm from "../components/RequestContactForm";
 import { useSiteContent } from "../site-content";
-export default function GetQuotePage(_props: { bomList?: MaterialItem[]; products?: CatalogueProduct[] }) {
+export default function GetQuotePage(props: {
+  bomList?: MaterialItem[];
+  products?: CatalogueProduct[];
+}) {
   const siteContent = useSiteContent();
   return (
     <section className="request-page container">
@@ -11,12 +14,10 @@ export default function GetQuotePage(_props: { bomList?: MaterialItem[]; product
         Your site requirements
       </span>
       <h1>{siteContent["getQuote.title"]}</h1>
-      <p className="request-intro">
-        {siteContent["getQuote.description"]}
-      </p>
+      <p className="request-intro">{siteContent["getQuote.description"]}</p>
       <div className="request-grid">
         <div className="request-card">
-          <MaterialListEditor products={_props.products} />
+          <MaterialListEditor products={props.products} />
           <Link
             className="btn btn-secondary"
             style={{ marginTop: 20 }}
@@ -25,7 +26,7 @@ export default function GetQuotePage(_props: { bomList?: MaterialItem[]; product
             Browse more materials
           </Link>
         </div>
-        <RequestContactForm />
+        <RequestContactForm products={props.products} />
       </div>
     </section>
   );

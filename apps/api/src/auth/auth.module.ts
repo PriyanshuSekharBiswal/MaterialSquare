@@ -8,6 +8,9 @@ import { QuotesModule } from "../quotes/quotes.module";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { StaffManagementController } from "./staff-management.controller";
+import { CustomerController } from "./customer.controller";
+import { CustomerGuard } from "./customer.guard";
+import { Msg91WidgetService } from "./msg91-widget.service";
 
 @Global()
 @Module({
@@ -21,8 +24,14 @@ import { StaffManagementController } from "./staff-management.controller";
       }),
     }),
   ],
-  controllers: [AuthController, StaffManagementController],
-  providers: [AuthService, JwtStrategy, StaffGuard],
-  exports: [JwtModule, StaffGuard],
+  controllers: [AuthController, CustomerController, StaffManagementController],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    StaffGuard,
+    CustomerGuard,
+    Msg91WidgetService,
+  ],
+  exports: [JwtModule, StaffGuard, CustomerGuard],
 })
 export class AuthModule {}

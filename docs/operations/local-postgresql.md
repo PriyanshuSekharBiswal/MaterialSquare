@@ -10,7 +10,8 @@ The development database is separate from any hosted database.
    not generate product catalogue rows on startup.
 
 Use committed migrations to update an existing database. Do not reset a database
-to apply changes. The sign-in migrations preserve staff credentials, customer
-CRM records, and quote/order links during staging tests. Customer-only OTP,
-session, and saved-list state is retired. Remove temporary developer staff
-accounts as a separate handover operation after testing.
+to apply changes. The migrations preserve staff credentials, customer CRM
+records, and quote/order links. The phone-verified customer portal stores
+hashed, revocable account sessions; customer quote lists remain browser-local.
+Remove temporary developer staff accounts as a separate handover operation
+after testing.

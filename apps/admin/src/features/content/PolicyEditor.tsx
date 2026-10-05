@@ -24,6 +24,8 @@ export default function PolicyEditor({
       typeof draft.title === "string" &&
       "notice" in draft &&
       typeof draft.notice === "string" &&
+      "published" in draft &&
+      typeof draft.published === "boolean" &&
       "reviewNote" in draft &&
       typeof draft.reviewNote === "string" &&
       "sections" in draft &&
@@ -47,7 +49,7 @@ export default function PolicyEditor({
     <section className="panel-card panel-body">
       <h2>{kind === "privacy" ? "Privacy notice" : "Website terms"}</h2>
       <p>
-        Review the final copy with the client before publication. Use{" "}
+        Replace the draft with client-approved copy before publication. Use{" "}
         {"{{contactEmail}}"} to include the published contact email.
       </p>
       <fieldset disabled={disabled}>
@@ -161,6 +163,17 @@ export default function PolicyEditor({
             }
           />
         </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={policy.published}
+            onChange={(event) =>
+              save({ ...policy, published: event.target.checked })
+            }
+          />
+          Publish this {kind === "privacy" ? "privacy notice" : "website terms"} after client/legal approval
+        </label>
+        <small>Unpublished copy stays hidden from visitors. Review notes are for the admin team and are never shown publicly.</small>
       </fieldset>
     </section>
   );

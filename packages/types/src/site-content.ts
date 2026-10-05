@@ -103,6 +103,41 @@ export const SITE_CONTENT_DEFAULTS = {
 export type SiteContentKey = keyof typeof SITE_CONTENT_DEFAULTS;
 export type SiteContent = Record<SiteContentKey, string>;
 
+// Some existing installations still have the original preview copy saved in
+// WebsiteContent. Keep those exact, unapproved values from leaking to the
+// public site if their cleanup migration has not run yet. Values edited by the
+// client are preserved.
+const LEGACY_UNAPPROVED_SITE_CONTENT: Partial<Record<SiteContentKey, string>> = {
+  "contact.phone": "9773505015",
+  "contact.phoneDisplay": "+91 97735 05015",
+  "contact.email": "orders@materialsquare.in",
+  "contact.location": "Serving Delhi NCR (Noida, Greater Noida, Delhi, Gurugram, Ghaziabad & Faridabad)",
+  "contact.officeAddress": "Plot 42, Mohan Nagar Link Road, Industrial Area, Ghaziabad, Uttar Pradesh 201007",
+  "contact.coverageTitle": "Confirm coverage for your site.",
+  "contact.coverageDescription": "Serving Delhi NCR (Noida, Greater Noida, Delhi, Gurugram, Ghaziabad & Faridabad). Coverage, product availability, delivery timing, and any site charges are confirmed by staff for each request.",
+  "footer.socialLinks": '[{"id":"instagram","label":"Instagram","url":"https://www.instagram.com/materialsquare.in/"}]',
+  "home.slogan": "Aap Construction Sambhaliye, Material Hum Sambhalenge.",
+  "footer.slogan": "Aap Construction Sambhaliye, Material Hum Sambhalenge.",
+  "home.title": "Why Make 5 Calls?\nOne Call. All Materials.",
+  "home.description": "Browse products and brands published in the current catalogue. Add the quantities you need to a quote list, then contact the Material Square team by WhatsApp or email to confirm price, stock, taxes, and delivery details.",
+  "home.calloutTitle": '"Ghar banana tha... Material ki list khatam hi nahi ho rahi!"',
+  "home.calloutDescription": "Add products to your list or describe your requirements. Review the message, then send it to the team by WhatsApp or email.",
+  "footer.calloutDescription": "Send your material list or site requirements to the team by WhatsApp or phone. Staff can confirm product and delivery details.",
+  "footer.description": "Browse construction materials, keep a quote list in this browser, and contact the Material Square team to confirm product and delivery details.",
+};
+
+export function sanitizePublicSiteContent(
+  content: Record<string, unknown> | null | undefined,
+): SiteContent {
+  const safe = { ...SITE_CONTENT_DEFAULTS } as Record<SiteContentKey, string>;
+  for (const key of Object.keys(SITE_CONTENT_DEFAULTS) as SiteContentKey[]) {
+    if (typeof content?.[key] === "string") safe[key] = content[key] as string;
+    if (safe[key] === LEGACY_UNAPPROVED_SITE_CONTENT[key])
+      safe[key] = SITE_CONTENT_DEFAULTS[key];
+  }
+  return safe;
+}
+
 export const SITE_CONTENT_GROUPS: {
   label: string;
   fields: {

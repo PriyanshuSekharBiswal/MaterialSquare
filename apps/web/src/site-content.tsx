@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { SITE_CONTENT_DEFAULTS, type SiteContent } from "@material-square/types";
+import { sanitizePublicSiteContent, SITE_CONTENT_DEFAULTS, type SiteContent } from "@material-square/types";
 
 const SiteContentContext = createContext(SITE_CONTENT_DEFAULTS as SiteContent);
 
@@ -27,7 +27,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
           if (event.data?.type !== "material-square:site-content-preview") return;
           const value = event.data.content as Partial<SiteContent> | undefined;
           if (!value || typeof value !== "object") return;
-          setContent({ ...SITE_CONTENT_DEFAULTS, ...value });
+          setContent(sanitizePublicSiteContent(value as Record<string, unknown>));
         };
         window.addEventListener("message", onMessage);
         const announceReady = () => window.parent.postMessage(
@@ -51,7 +51,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       .then((response) => response.ok ? response.json() as Promise<SiteContent> : null)
       .then((value) => {
         if (value && !controller.signal.aborted)
-          setContent({ ...SITE_CONTENT_DEFAULTS, ...value });
+          setContent(sanitizePublicSiteContent(value as Record<string, unknown>));
       })
       .catch(() => {
         /* Saved copy is optional; compiled defaults stay visible. */

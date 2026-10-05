@@ -11,9 +11,10 @@ import {
 } from 'lucide-react';
 import './SearchSuggestions.css';
 import ProductImage from "./ProductImage";
-import { matchesCatalogueSearch } from '../search/catalogue-search';
+import { matchesCatalogueSearch, scoreCatalogueSearch } from '../search/catalogue-search';
 import { BrandLogo } from "./icons/BrandBadges";
 import { partnerBrandMatchesProduct, type PartnerBrand } from "../partner-brands";
+import { bestMatchingVariant } from "../search/variant-match";
 
 export default function SearchSuggestions({
   products = [],
@@ -25,7 +26,7 @@ export default function SearchSuggestions({
   onSelectBrand,
   onSelectProduct,
   className = '',
-}: { products?: CatalogueProduct[]; partnerBrands?: PartnerBrand[]; query?: string; isOpen?: boolean; onSelectSuggestion?: (query: string) => void; onSelectCategory?: (category: string) => void; onSelectBrand?: (brand: string) => void; onSelectProduct?: (product: CatalogueProduct) => void; className?: string }) {
+}: { products?: CatalogueProduct[]; partnerBrands?: PartnerBrand[]; query?: string; isOpen?: boolean; onSelectSuggestion?: (query: string) => void; onSelectCategory?: (category: string) => void; onSelectBrand?: (brand: string) => void; onSelectProduct?: (product: CatalogueProduct, query: string) => void; className?: string }) {
   const trimmed = query.trim().toLowerCase();
   const categories = useMemo(() => Array.from(new Map(products.map((product) => [product.category, product.categoryLabel])).entries()).map(([id, label]) => ({ id, label })), [products]);
   const brands = useMemo(() => {
@@ -40,17 +41,9 @@ export default function SearchSuggestions({
   // Filter matching products
   const matchingProducts = useMemo(() => {
     if (!isOpen || !trimmed) return [];
-    return products.filter((item) => matchesCatalogueSearch(item, trimmed)).sort((a, b) => {
-      const score = (item: CatalogueProduct) => {
-        const name = item.name.toLowerCase();
-        const brand = item.brand.toLowerCase();
-        return (name.startsWith(trimmed) ? 5 : 0)
-          + (brand.startsWith(trimmed) ? 4 : 0)
-          + (item.inStock || item.variants?.some((variant) => variant.inStock) ? 2 : 0)
-          + (name.includes(trimmed) ? 1 : 0);
-      };
-      return score(b) - score(a);
-    }).slice(0, 5); // Prioritize exact and in-stock matches, then show a short list.
+    return products.filter((item) => matchesCatalogueSearch(item, trimmed))
+      .sort((a, b) => scoreCatalogueSearch(b, trimmed) - scoreCatalogueSearch(a, trimmed))
+      .slice(0, 5);
   }, [isOpen, trimmed, products]);
 
   // Filter matching brands
@@ -131,33 +124,41 @@ export default function SearchSuggestions({
               </div>
               <div className="products-suggestion-list">
                 {matchingProducts.map((prod) => (
+                  (() => {
+                    const matchingVariant = bestMatchingVariant(prod, trimmed);
+                    const variantImage = matchingVariant?.image || prod.image;
+                    const variantPrice = matchingVariant?.price ?? prod.price;
+                    const variantState = matchingVariant?.availabilityStatus || (matchingVariant?.inStock ? "IN_STOCK" : prod.availabilityStatus || "CHECK_AVAILABILITY");
+                    return (
                   <button
                     key={prod.id}
                     type="button"
                     className="product-suggestion-item"
                     onClick={() => {
                       if (onSelectProduct) {
-                        onSelectProduct(prod);
+                        onSelectProduct(prod, query);
                       } else if (onSelectSuggestion) {
                         onSelectSuggestion(prod.name);
                       }
                     }}
                   >
-                    <ProductImage src={prod.image} alt={prod.name} className="product-suggest-thumb" />
+                    <ProductImage src={variantImage} alt={prod.name} className="product-suggest-thumb" />
                     <div className="product-suggest-info">
                       <div className="suggest-title">{prod.name}</div>
                       <div className="suggest-meta">
                         <span className="suggest-brand">{prod.brand} · {prod.categoryLabel}</span>
                         <span className="suggest-dot">•</span>
-                        <span className="suggest-price">{prod.price != null ? `₹${Number(prod.price).toLocaleString('en-IN')}` : prod.variants?.some(variant => variant.price != null) ? `From ₹${Math.min(...prod.variants.filter(variant => variant.price != null).map(variant => Number(variant.price))).toLocaleString('en-IN')}` : 'Request a quotation'}</span>
+                        <span className="suggest-price">{variantPrice != null ? `₹${Number(variantPrice).toLocaleString('en-IN')}` : prod.variants?.some(variant => variant.price != null) ? `From ₹${Math.min(...prod.variants.filter(variant => variant.price != null).map(variant => Number(variant.price))).toLocaleString('en-IN')}` : 'Request a quotation'}</span>
                       </div>
                       <div className="suggest-detail">
-                        {prod.variants?.find((variant) => `${variant.label} ${Object.values(variant.attributes || {}).join(" ")}`.toLocaleLowerCase().includes(trimmed))?.label || prod.packaging || prod.unit}
-                        <span className={`suggest-stock ${prod.availabilityStatus === "IN_STOCK" ? "is-stock" : ""}`}>{prod.availabilityStatus === "IN_STOCK" ? "In stock" : prod.availabilityStatus === "OUT_OF_STOCK" ? "Out of stock" : "Check availability"}</span>
+                        {matchingVariant ? `${matchingVariant.label}${Object.values(matchingVariant.attributes || {}).length ? ` · ${Object.values(matchingVariant.attributes).join(" · ")}` : ""}` : prod.packaging || prod.unit}
+                        <span className={`suggest-stock ${variantState === "IN_STOCK" ? "is-stock" : ""}`}>{variantState === "IN_STOCK" ? "In stock" : variantState === "OUT_OF_STOCK" ? "Out of stock" : "Check availability"}</span>
                       </div>
                     </div>
                     <ArrowRight size={14} className="suggest-arrow" />
                   </button>
+                    );
+                  })()
                 ))}
               </div>
             </div>

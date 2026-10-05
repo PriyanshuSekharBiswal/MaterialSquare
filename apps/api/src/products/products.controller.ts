@@ -59,6 +59,8 @@ const variantSchema = z
     label: z.string().trim().min(1).max(160),
     attributes: z.record(z.string(), z.string().trim().max(120)).default({}),
     unit: z.string().trim().min(1).max(100),
+    image: imagePath.nullable().optional(),
+    galleryImages: z.array(imagePath).max(4).default([]),
     price: z.number().finite().nonnegative().nullable().optional(),
     compareAtPrice: z.number().finite().nonnegative().nullable().optional(),
     priceNote: z.string().trim().max(120).nullable().optional(),
@@ -141,7 +143,7 @@ const listingSchema = z
     features: z.array(z.string().trim().min(1).max(300)).max(30),
     applications: z.array(z.string().trim().min(1).max(300)).max(30),
     specifications: z.record(z.string(), z.string().trim().max(300)),
-    variants: z.array(variantSchema).max(100).default([]),
+    variants: z.array(variantSchema).max(1000).default([]),
     sortOrder: z.number().int().min(0).max(100000),
   })
   .refine(

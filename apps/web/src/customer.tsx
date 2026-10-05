@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useCallback, useContext, useState } from "react";
 import type { MaterialItem } from "./types";
 
 const listStorageKey = "material-square-bom";
@@ -39,15 +39,8 @@ const Context = createContext<QuoteListState | null>(null);
 /** Guest-only quote list. Account storage and authentication are not used. */
 export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<MaterialItem[]>(readList);
-  const state: QuoteListState = {
-    customer: null,
-    items,
-    ready: true,
-    canEdit: true,
-    saving: false,
-    unsaved: false,
-    error: "",
-    updateItems(update) {
+  const updateItems = useCallback<QuoteListState["updateItems"]>(
+    (update) => {
       const next = typeof update === "function" ? update(items) : update;
       if (next.length > 100) return false;
       setItems(next);
@@ -58,6 +51,17 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
       }
       return true;
     },
+    [items],
+  );
+  const state: QuoteListState = {
+    customer: null,
+    items,
+    ready: true,
+    canEdit: true,
+    saving: false,
+    unsaved: false,
+    error: "",
+    updateItems,
   };
 
   return <Context.Provider value={state}>{children}</Context.Provider>;
