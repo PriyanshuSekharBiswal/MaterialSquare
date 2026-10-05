@@ -57,7 +57,7 @@ export default function handler(req: IncomingMessage, res: ServerResponse) {
       response.statusCode === 200 &&
       edgeCachedPublicPaths.has(publicPath);
     responseHeaders["cache-control"] = canCachePublicResponse
-      ? "public, s-maxage=15, stale-while-revalidate=60"
+      ? "public, s-maxage=60, stale-while-revalidate=300"
       : "no-store";
     res.writeHead(response.statusCode || 502, responseHeaders);
     response.pipe(res);
