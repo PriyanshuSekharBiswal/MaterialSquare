@@ -12,9 +12,12 @@ import {
 import './SearchSuggestions.css';
 import ProductImage from "./ProductImage";
 import { matchesCatalogueSearch } from '../search/catalogue-search';
+import { BrandLogo } from "./icons/BrandBadges";
+import { partnerBrandMatchesProduct, type PartnerBrand } from "../partner-brands";
 
 export default function SearchSuggestions({
   products = [],
+  partnerBrands = [],
   query = '',
   isOpen = false,
   onSelectSuggestion,
@@ -22,10 +25,17 @@ export default function SearchSuggestions({
   onSelectBrand,
   onSelectProduct,
   className = '',
-}: { products?: CatalogueProduct[]; query?: string; isOpen?: boolean; onSelectSuggestion?: (query: string) => void; onSelectCategory?: (category: string) => void; onSelectBrand?: (brand: string) => void; onSelectProduct?: (product: CatalogueProduct) => void; className?: string }) {
+}: { products?: CatalogueProduct[]; partnerBrands?: PartnerBrand[]; query?: string; isOpen?: boolean; onSelectSuggestion?: (query: string) => void; onSelectCategory?: (category: string) => void; onSelectBrand?: (brand: string) => void; onSelectProduct?: (product: CatalogueProduct) => void; className?: string }) {
   const trimmed = query.trim().toLowerCase();
   const categories = useMemo(() => Array.from(new Map(products.map((product) => [product.category, product.categoryLabel])).entries()).map(([id, label]) => ({ id, label })), [products]);
-  const brands = useMemo(() => Array.from(new Set(products.map((product) => product.brand).filter(Boolean))).map((name) => ({ name, category: products.find((product) => product.brand === name)?.categoryLabel || "" })), [products]);
+  const brands = useMemo(() => {
+    const directory = partnerBrands.map((brand) => ({ name: brand.name, category: brand.category, id: brand.id }));
+    const known = new Set(directory.map((brand) => brand.name.toLocaleLowerCase()));
+    const listed = Array.from(new Set(products.map((product) => product.brand).filter(Boolean)))
+      .filter((name) => !known.has(name.toLocaleLowerCase()))
+      .map((name) => ({ name, category: products.find((product) => product.brand === name)?.categoryLabel || "", id: name }));
+    return [...directory, ...listed];
+  }, [partnerBrands, products]);
 
   // Filter matching products
   const matchingProducts = useMemo(() => {
@@ -50,7 +60,7 @@ export default function SearchSuggestions({
       (b) =>
         b.name.toLowerCase().includes(trimmed) ||
         b.category.toLowerCase().includes(trimmed)
-    ).slice(0, 3);
+    ).slice(0, 5);
   }, [isOpen, trimmed, brands]);
 
   // Filter matching categories
@@ -137,9 +147,13 @@ export default function SearchSuggestions({
                     <div className="product-suggest-info">
                       <div className="suggest-title">{prod.name}</div>
                       <div className="suggest-meta">
-                        <span className="suggest-brand">{prod.brand}</span>
+                        <span className="suggest-brand">{prod.brand} · {prod.categoryLabel}</span>
                         <span className="suggest-dot">•</span>
                         <span className="suggest-price">{prod.price != null ? `₹${Number(prod.price).toLocaleString('en-IN')}` : prod.variants?.some(variant => variant.price != null) ? `From ₹${Math.min(...prod.variants.filter(variant => variant.price != null).map(variant => Number(variant.price))).toLocaleString('en-IN')}` : 'Request a quotation'}</span>
+                      </div>
+                      <div className="suggest-detail">
+                        {prod.variants?.find((variant) => `${variant.label} ${Object.values(variant.attributes || {}).join(" ")}`.toLocaleLowerCase().includes(trimmed))?.label || prod.packaging || prod.unit}
+                        <span className={`suggest-stock ${prod.availabilityStatus === "IN_STOCK" ? "is-stock" : ""}`}>{prod.availabilityStatus === "IN_STOCK" ? "In stock" : prod.availabilityStatus === "OUT_OF_STOCK" ? "Out of stock" : "Check availability"}</span>
                       </div>
                     </div>
                     <ArrowRight size={14} className="suggest-arrow" />
@@ -156,17 +170,20 @@ export default function SearchSuggestions({
                 <ShieldCheck size={14} className="brand-icon" />
                 <span>Brands</span>
               </div>
-              <div className="brands-suggestion-chips">
+              <div className="brands-suggestion-list">
                 {matchingBrands.map((brand) => (
                   <button
                     key={brand.name}
                     type="button"
-                    className="brand-suggest-chip"
+                    className="brand-suggestion-item"
                     onClick={() => onSelectBrand && onSelectBrand(brand.name)}
                   >
-                    <span className="brand-dot" />
-                    <strong>{brand.name}</strong>
-                    <span className="brand-category">({brand.category})</span>
+                    <span className="brand-suggest-thumb"><BrandLogo id={brand.id} className="brand-suggest-logo" /></span>
+                    <span className="brand-suggest-info">
+                      <strong>{brand.name}</strong>
+                      <span>{brand.category} · {products.filter((product) => partnerBrandMatchesProduct(brand.name, product.brand, `${product.category} ${product.categoryLabel}`)).length} listed products</span>
+                    </span>
+                    <span className="brand-suggest-link">Browse brand <ArrowRight size={13} /></span>
                   </button>
                 ))}
               </div>

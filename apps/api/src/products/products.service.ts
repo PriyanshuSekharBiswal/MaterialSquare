@@ -59,6 +59,55 @@ export type CatalogListingInput = {
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private readonly initialPartnerBrands = [
+    ["ultratech", "UltraTech Cement", "Cement", "The Engineer's Choice"],
+    ["ambuja", "Ambuja Cement", "Cement", "Giant Compressive Strength"],
+    ["jk-cement", "JK Cement", "Cement", "Build Safe & Strong"],
+    ["shree-cement", "Shree Cement", "Cement", "Master Concrete Solution"],
+    ["astral", "Astral Pipes", "Pipes", "CPVC Pro & Lead Free"],
+    ["supreme", "Supreme Industries", "Pipes", "People who know plastics best"],
+    ["finolex-pipes", "Finolex Pipes", "Pipes", "Pipes & Fittings"],
+    ["zoloto", "Zoloto Valves", "Pipes", "Forged Brass & Bronze Valves"],
+    ["polycab", "Polycab Wires", "Wires", "Wires & Cables"],
+    ["havells", "Havells India", "Wires", "Wires That Never Catch Fire"],
+    ["finolex-cables", "Finolex Cables Limited", "Wires", "Cables Limited"],
+    ["asian-paints", "Asian Paints", "Paints", "Har Ghar Kuch Kehta Hai"],
+    ["birla-opus", "Birla Opus Paints", "Paints", "Rich Colours, Superior Finish"],
+    ["jaquar", "Jaquar Bath + Light", "Sanitary", "Bath + Light"],
+    ["cera", "CERA Sanitaryware", "Sanitary", "Sanitaryware | Faucets | Tiles"],
+    ["tata-tiscon", "Tata Tiscon", "Steel", "Desh Ka Saria"],
+    ["myk-laticrete", "MYK Laticrete", "Adhesives", "World Leader in Tile Adhesives"],
+  ].map(([id, name, category, tagline], sortOrder) => ({
+    id, name, category, tagline, isActive: true, sortOrder,
+  }));
+
+  async getPartnerBrands() {
+    const saved = await this.prisma.websiteContent.findUnique({ where: { id: "partner-brands" } });
+    const content = saved?.content && typeof saved.content === "object" && !Array.isArray(saved.content)
+      ? saved.content as Record<string, unknown>
+      : {};
+    const brands = content["brands.directory"];
+    return Array.isArray(brands) ? brands : this.initialPartnerBrands;
+  }
+
+  async savePartnerBrands(brands: Array<{ id: string; name: string; category: string; tagline: string; isActive: boolean; sortOrder: number }>, staffId: string) {
+    return this.prisma.$transaction(async (db) => {
+      const previous = await db.websiteContent.findUnique({ where: { id: "partner-brands" } });
+      const content = previous?.content && typeof previous.content === "object" && !Array.isArray(previous.content)
+        ? previous.content as Record<string, unknown>
+        : {};
+      await db.websiteContent.upsert({
+        where: { id: "partner-brands" },
+        create: { id: "partner-brands", content: { ...content, "brands.directory": brands } },
+        update: { content: { ...content, "brands.directory": brands } },
+      });
+      await db.auditLog.create({
+        data: { staffId, action: "PARTNER_BRANDS_UPDATED", entityType: "WEBSITE_BRANDS", entityId: "partner-brands", metadata: { count: brands.length, active: brands.filter((brand) => brand.isActive).length } },
+      });
+      return brands;
+    });
+  }
+
   async findPublic() {
     const now = new Date();
     const indiaDateParts = new Intl.DateTimeFormat("en", {

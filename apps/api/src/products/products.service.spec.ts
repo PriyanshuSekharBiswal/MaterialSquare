@@ -2,6 +2,38 @@ import { PrismaService } from "../prisma/prisma.service";
 import { ProductsService } from "./products.service";
 
 describe("customer catalogue", () => {
+  it("keeps the full partner roster independent of published product inventory", async () => {
+    const service = new ProductsService({
+      websiteContent: { findUnique: jest.fn().mockResolvedValue(null) },
+    } as unknown as PrismaService);
+    const brands = await service.getPartnerBrands();
+    expect(brands).toHaveLength(17);
+    expect(brands.map((brand: { name: string }) => brand.name)).toContain("UltraTech Cement");
+    expect(brands.map((brand: { name: string }) => brand.name)).toContain("Asian Paints");
+  });
+
+  it("saves brand directory changes without replacing website copy and records an audit entry", async () => {
+    const existingContent = { "home.title": "Welcome", "brands.directory": [] };
+    const tx = {
+      websiteContent: {
+        findUnique: jest.fn().mockResolvedValue({ id: "partner-brands", content: existingContent }),
+        upsert: jest.fn().mockResolvedValue(undefined),
+      },
+      auditLog: { create: jest.fn().mockResolvedValue(undefined) },
+    };
+    const service = new ProductsService({
+      $transaction: (callback: (db: typeof tx) => unknown) => callback(tx),
+    } as unknown as PrismaService);
+    const brands = [{ id: "new-paints", name: "New Paints", category: "Paints", tagline: "", isActive: true, sortOrder: 17 }];
+    await service.savePartnerBrands(brands, "staff-1");
+    expect(tx.websiteContent.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      update: { content: { ...existingContent, "brands.directory": brands } },
+    }));
+    expect(tx.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ staffId: "staff-1", action: "PARTNER_BRANDS_UPDATED" }),
+    }));
+  });
+
   it("reads only client-published listings and preserves listings without images", async () => {
     const listings = [
       {

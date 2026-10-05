@@ -32,5 +32,7 @@ export function matchesCatalogueSearch(product: CatalogueProduct, query: string)
     ]),
   ];
 
-  return searchableValues.some((value) => String(value || '').toLocaleLowerCase().includes(term));
+  const normalizedValues = searchableValues.map((value) => String(value || '').toLocaleLowerCase());
+  const tokens = term.split(/\s+/).filter(Boolean);
+  return tokens.every((token) => normalizedValues.some((value) => value.includes(token)));
 }

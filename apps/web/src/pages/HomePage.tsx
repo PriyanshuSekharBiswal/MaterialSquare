@@ -26,6 +26,7 @@ import WhatsAppIcon from "../components/icons/WhatsAppIcon";
 import ArchitecturalTicker from "../components/ArchitecturalTicker";
 import { useSiteContent } from "../site-content";
 import { whatsappLink } from "../messages";
+import { usePartnerBrands } from "../partner-brands";
 
 export default function HomePage({
   products,
@@ -40,6 +41,7 @@ export default function HomePage({
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const siteContent = useSiteContent();
+  const partnerBrands = usePartnerBrands();
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [isMobileView, setIsMobileView] = useState(() => {
     return typeof window !== "undefined" ? window.innerWidth < 992 : false;
@@ -94,9 +96,7 @@ export default function HomePage({
     image: categoryImages[id],
     badge: title,
   }));
-  const listedBrands = Array.from(
-    new Map(products.filter((product) => product.brand.trim()).map((product) => [product.brand, product.categoryLabel])).entries(),
-  ).map(([name, category]) => ({ name, category, meta: getBrandMeta(name) }));
+  const listedBrands = partnerBrands.map((brand) => ({ name: brand.name, category: brand.category, meta: getBrandMeta(brand.id) }));
   const searchBrandExamples = listedBrands
     .slice(0, 3)
     .map((brand) => brand.name)
@@ -214,6 +214,7 @@ export default function HomePage({
               {/* Live Search Suggestions Dropdown */}
               <SearchSuggestions
                 products={products}
+                partnerBrands={partnerBrands}
                 query={searchQuery}
                 isOpen={isSuggestionsOpen}
                 onSelectSuggestion={(val) => {

@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import type { CatalogueProduct } from '../types';
 import { BrandLogo, getBrandMeta } from './icons/BrandBadges';
+import { partnerBrandMatchesProduct, type PartnerBrand } from '../partner-brands';
 
-export default function BrandRoster({ products, onSelectBrand, selectedBrand }: { products: CatalogueProduct[]; onSelectBrand: (brand: string) => void; selectedBrand: string }) {
+export default function BrandRoster({ products, partnerBrands, onSelectBrand, selectedBrand }: { products: CatalogueProduct[]; partnerBrands: PartnerBrand[]; onSelectBrand: (brand: string) => void; selectedBrand: string }) {
   const [filterCategory, setFilterCategory] = useState('All');
 
-  const brands = Array.from(new Map(products.filter((product) => product.brand.trim()).map((product) => [product.brand, product.categoryLabel])).entries())
-    .map(([name, category]) => ({ name, category, meta: getBrandMeta(name) }));
+  const brands = partnerBrands.map(({ name, category, id }) => ({ name, category, id, meta: getBrandMeta(id) }));
   const categories = ['All', ...Array.from(new Set(brands.map((brand) => brand.category)))];
 
   const filteredBrands = filterCategory === 'All'
@@ -19,7 +19,7 @@ export default function BrandRoster({ products, onSelectBrand, selectedBrand }: 
         {/* Section Header */}
         <div className="brand-roster-header">
           <div className="roster-header-text">
-            <span className="badge-orange reveal-text">Brands in the catalogue</span>
+            <span className="badge-orange reveal-text">Authorised partner brands</span>
             <h2 className="section-title reveal-title">
               <span className="ms-mask-line">
                 <span className="ms-mask-text">Explore brands.</span>
@@ -29,7 +29,7 @@ export default function BrandRoster({ products, onSelectBrand, selectedBrand }: 
               </span>
             </h2>
             <p className="section-subtitle reveal-text">
-                Choose a brand to see the products currently listed in the catalogue.
+                Browse all partner brands. Availability and product variants depend on current listings.
             </p>
           </div>
 
@@ -50,15 +50,15 @@ export default function BrandRoster({ products, onSelectBrand, selectedBrand }: 
 
         {/* Brand Cards Grid */}
         <div className="brand-cards-grid reveal-stagger">
-          {filteredBrands.map((brand) => {
-            const isSelected = selectedBrand === brand.name;
-            return (
-              <div
+            {filteredBrands.map((brand) => {
+              const isSelected = selectedBrand === brand.name;
+              const listedCount = products.filter((product) => partnerBrandMatchesProduct(brand.name, product.brand, `${product.category} ${product.categoryLabel}`)).length;
+              return (
+              <button
                 key={brand.name}
                 className={`brand-partner-card ${isSelected ? 'selected-brand' : ''}`}
+                type="button"
                 onClick={() => onSelectBrand(brand.name === selectedBrand ? '' : brand.name)}
-                role="button"
-                tabIndex={0}
                 title={`Filter products by ${brand.name}`}
               >
                 <div className="brand-card-top">
@@ -71,7 +71,7 @@ export default function BrandRoster({ products, onSelectBrand, selectedBrand }: 
                 </div>
 
                 <div className="brand-info-plate">
-                  <p className="brand-tagline-text">Products listed in {brand.category.toLowerCase()}</p>
+                  <p className="brand-tagline-text">{listedCount ? `${listedCount} product${listedCount === 1 ? '' : 's'} listed in ${brand.category.toLowerCase()}` : `Partner brand · ${brand.category}`}</p>
                 </div>
 
                 <div className="brand-card-footer">
@@ -79,7 +79,7 @@ export default function BrandRoster({ products, onSelectBrand, selectedBrand }: 
                     {isSelected ? '✓ Showing Products' : 'Click to View Products →'}
                   </span>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>

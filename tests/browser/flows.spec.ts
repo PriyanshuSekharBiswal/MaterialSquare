@@ -177,7 +177,7 @@ test("homepage search suggestions reflect the live catalogue and staff-set price
   ).toBeVisible();
   await expect(page.locator(".search-input")).toHaveAttribute(
     "placeholder",
-    /Manager Brand/,
+    /UltraTech Cement/,
   );
   const footerCategoryLinks = page.locator(".footer-nav-list").first().getByRole("link");
   await expect(footerCategoryLinks).toHaveCount(1);
@@ -831,6 +831,9 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   let saved: Record<string, unknown> = original;
   let updatedBody: Record<string, unknown> | undefined;
   let uploadedAuthorization = "";
+  const partnerBrands = ["UltraTech Cement", "Ambuja Cement", "JK Cement", "Shree Cement", "Astral Pipes", "Supreme Industries", "Finolex Pipes", "Zoloto Valves", "Polycab Wires", "Havells India", "Finolex Cables Limited", "Asian Paints", "Birla Opus Paints", "Jaquar Bath + Light", "CERA Sanitaryware", "Tata Tiscon", "MYK Laticrete"].map((name, sortOrder) => ({ id: `brand-${sortOrder}`, name, category: "Cement", tagline: "", isActive: true, sortOrder }));
+  let savedPartnerBrands = partnerBrands;
+  let updatedPartnerBrands: typeof partnerBrands | undefined;
   await page.route("**/api/auth/mode", (route) =>
     route.fulfill({ json: { demo: true } }),
   );
@@ -883,6 +886,13 @@ test("admin edits customer-facing catalogue price and offer details", async ({
     }
     return route.fulfill({ json: { success: true } });
   });
+  await page.route("**/api/products/catalogue/partner-brands", (route) => {
+    if (route.request().method() === "PUT") {
+      updatedPartnerBrands = route.request().postDataJSON();
+      savedPartnerBrands = updatedPartnerBrands!;
+    }
+    return route.fulfill({ json: savedPartnerBrands });
+  });
   await page.route("**/api/storage/images", (route) => {
     uploadedAuthorization = route.request().headers().authorization || "";
     return route.fulfill({
@@ -932,6 +942,13 @@ test("admin edits customer-facing catalogue price and offer details", async ({
     isInStock: false,
   });
   expect(uploadedAuthorization).toBe("Bearer test-staff-token");
+  await page.getByRole("button", { name: "Partner brands" }).click();
+  await expect(page.getByText("17 brands", { exact: true })).toBeVisible();
+  await page.getByLabel("Active in customer search").first().uncheck();
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("status")).toContainText("Active brands are now available");
+  expect(updatedPartnerBrands).toHaveLength(17);
+  expect(updatedPartnerBrands?.[0].isActive).toBe(false);
 });
 
 test("owner creates staff accounts, assigns roles, disables access, and resets passwords", async ({
@@ -1221,6 +1238,28 @@ test("catalogue autocomplete and submitted search both match product specs and v
 
   await search.fill("finish");
   await expect(page.locator(".product-suggestion-item")).toContainText("Exterior Weather Coat");
+});
+
+test("partner brand search keeps all seventeen brands discoverable and lets customers browse related catalogue items", async ({ page }) => {
+  const catalogue = [
+    { id: "ultratech-ppc", code: "UTC-PPC", name: "UltraTech PPC Cement", brand: "UltraTech Cement", category: "cement", categoryLabel: "Cement & Aggregates", unit: "50 kg bag", packaging: "50 kg bag", features: [], applications: [], specs: {}, inStock: true, availabilityStatus: "IN_STOCK", variants: [] },
+    { id: "ambuja-opc", code: "AMB-OPC", name: "Ambuja OPC Cement", brand: "Ambuja Cement", category: "cement", categoryLabel: "Cement & Aggregates", unit: "50 kg bag", packaging: "50 kg bag", features: [], applications: [], specs: {}, inStock: false, availabilityStatus: "CHECK_AVAILABILITY", variants: [] },
+  ];
+  await page.route("**/api/products", (route) => route.fulfill({ json: catalogue }));
+  await page.goto("/marketplace");
+  await expect(page.locator(".brand-partner-card")).toHaveCount(17);
+  const search = page.getByPlaceholder(/Search products, brands, colour, finish or pack size/i);
+  await search.fill("UltraTech Cement");
+  await expect(page.locator(".product-suggestion-item")).toContainText("UltraTech PPC Cement");
+  const brandSuggestion = page.locator(".brand-suggestion-item").filter({ hasText: "UltraTech Cement" }).first();
+  await expect(brandSuggestion).toBeVisible();
+  await brandSuggestion.click();
+  await expect(page.getByRole("heading", { name: "UltraTech PPC Cement" })).toBeVisible();
+  await page.getByRole("heading", { name: "UltraTech PPC Cement" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "More cement & aggregates products" })).toBeVisible();
+  await page.locator(".product-related-card").filter({ hasText: "Ambuja OPC Cement" }).click();
+  await expect(page.getByRole("heading", { name: "Ambuja OPC Cement" })).toBeVisible();
 });
 
 test("request screen fits mobile and shows the WhatsApp preview", async ({ page }, testInfo) => {

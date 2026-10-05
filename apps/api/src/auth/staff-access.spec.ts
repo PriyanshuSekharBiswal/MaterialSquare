@@ -62,6 +62,12 @@ describe("predefined staff access", () => {
     ).toThrow(ForbiddenException);
   });
 
+  it("allows catalogue managers to update partner brands through the catalogue endpoint", () => {
+    expect(() => assertStaffRoutePermission("GET", "/api/products/catalogue/partner-brands", "CATALOG_MANAGER")).not.toThrow();
+    expect(() => assertStaffRoutePermission("PUT", "/api/products/catalogue/partner-brands", "CATALOG_MANAGER")).not.toThrow();
+    expect(() => assertStaffRoutePermission("PUT", "/api/products/catalogue/partner-brands", "SALES_MANAGER")).toThrow(ForbiddenException);
+  });
+
   it("grants operational roles only their own workflows", () => {
     expect(() =>
       assertStaffRoutePermission("GET", "/api/quotes", "SALES_MANAGER"),

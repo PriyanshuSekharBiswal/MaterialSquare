@@ -206,10 +206,12 @@ function AppShell() {
         {/* Product Specification Modal */}
         {activeProductModal && <Suspense fallback={null}><ProductDetailModal
           product={activeProductModal}
+          catalogueProducts={catalogue}
           isOpen={Boolean(activeProductModal)}
           onClose={() => setActiveProductModal(null)}
           inBOM={activeProductModal ? bomList.some((b) => b.id === activeProductModal.id) : false}
           onToggleBOM={handleToggleBOM}
+          onViewProduct={(product) => { trackWebsiteEvent({ type: "product_view", target: product.id }); setActiveProductModal(product); }}
         /></Suspense>}
 
         {/* WhatsApp Bill-of-Materials (BOM) Slide-in Drawer */}

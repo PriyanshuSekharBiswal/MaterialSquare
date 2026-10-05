@@ -1275,6 +1275,32 @@ integration("API with isolated PostgreSQL", () => {
       where: { id: { in: suppliers.map(({ id }) => id) } },
     });
   });
+  it("lets catalogue staff add, archive and publish partner brands used by customer search", async () => {
+    const initial = await request(app.getHttpServer())
+      .get("/api/products/catalogue/partner-brands")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    expect(initial.body).toHaveLength(17);
+    expect(initial.body.map((brand: { name: string }) => brand.name)).toContain("UltraTech Cement");
+    const next = initial.body.map((brand: { isActive: boolean }, index: number) => ({ ...brand, isActive: index !== 0 }));
+    next.push({ id: "integration-future-brand", name: "Integration Future Brand", category: "Paints", tagline: "Future", isActive: true, sortOrder: next.length });
+    await request(app.getHttpServer())
+      .put("/api/products/catalogue/partner-brands")
+      .set("Authorization", `Bearer ${token}`)
+      .send(next)
+      .expect(200);
+    const publicBrands = await request(app.getHttpServer()).get("/api/products/partner-brands").expect(200);
+    expect(publicBrands.body).toHaveLength(17);
+    expect(publicBrands.body.map((brand: { name: string }) => brand.name)).not.toContain("UltraTech Cement");
+    expect(publicBrands.body.map((brand: { name: string }) => brand.name)).toContain("Integration Future Brand");
+    const adminBrands = await request(app.getHttpServer())
+      .get("/api/products/catalogue/partner-brands")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    expect(adminBrands.body).toHaveLength(18);
+    expect(adminBrands.body[0].isActive).toBe(false);
+  });
+
   it("lets staff publish, price, edit and unpublish public catalogue products", async () => {
     const payload = {
       slug: "integration-cpvc-pipe",

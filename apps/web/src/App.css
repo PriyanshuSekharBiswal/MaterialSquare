@@ -7378,6 +7378,9 @@
 }
 
 .brand-partner-card {
+  appearance: none;
+  font: inherit;
+  text-align: center;
   flex: 0 0 calc(25% - 0.95rem);
   width: calc(25% - 0.95rem);
   max-width: calc(25% - 0.95rem);

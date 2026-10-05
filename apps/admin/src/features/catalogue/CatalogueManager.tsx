@@ -5,10 +5,12 @@ import {
   RefreshCw,
   Save,
   Search,
+  Tags,
   Upload,
   X,
 } from "lucide-react";
 import CatalogueVariantsEditor, { type EditableVariant } from "./CatalogueVariantsEditor";
+import PartnerBrandsManager from "./PartnerBrandsManager";
 import "./catalogue-manager.css";
 
 type Listing = {
@@ -124,6 +126,8 @@ export default function CatalogueManager({
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [publicationFilter, setPublicationFilter] = useState("all");
   const [availabilityFilter, setAvailabilityFilter] = useState("all");
+  const [managingBrands, setManagingBrands] = useState(false);
+  const [partnerBrandOptions, setPartnerBrandOptions] = useState<string[]>([]);
   const canManage = ["SUPER_ADMIN", "ADMIN", "CATALOG_MANAGER"].includes(role);
 
   const brands = [...new Set(listings.map((product) => product.brand).filter(Boolean))]
@@ -353,6 +357,13 @@ export default function CatalogueManager({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+  useEffect(() => {
+    let active = true;
+    void request<Array<{ name: string; isActive: boolean }>>("/products/catalogue/partner-brands")
+      .then((brands) => { if (active) setPartnerBrandOptions(brands.filter((brand) => brand.isActive).map((brand) => brand.name)); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [request]);
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -471,6 +482,8 @@ export default function CatalogueManager({
     });
   const formProduct = editing;
 
+  if (managingBrands) return <PartnerBrandsManager token={token} role={role} onSignOut={onSignOut} onBack={() => setManagingBrands(false)} />;
+
   return (
     <div className="catalogue-manager">
       <header className="catalogue-manager-head">
@@ -484,6 +497,7 @@ export default function CatalogueManager({
           </p>
         </div>
         <div className="catalogue-manager-actions">
+          <button className="btn-sm btn-secondary" onClick={() => setManagingBrands(true)}><Tags size={15} /> Partner brands</button>
           <button
             className="btn-sm btn-secondary"
             disabled={busy}
@@ -542,9 +556,11 @@ export default function CatalogueManager({
               Brand
               <input
                 name="brand"
+                list="catalogue-partner-brand-options"
                 maxLength={120}
                 defaultValue={formProduct.brand}
               />
+              <datalist id="catalogue-partner-brand-options">{[...new Set([...partnerBrandOptions, ...brands, formProduct.brand].filter(Boolean))].map((brand) => <option key={brand} value={brand} />)}</datalist>
             </label>
             <label>
               Product code

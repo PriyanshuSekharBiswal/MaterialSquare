@@ -10,6 +10,7 @@ import {
   UseGuards,
   Post,
   Delete,
+  Put,
   Req,
 } from "@nestjs/common";
 import { CatalogListingInput, ProductsService } from "./products.service";
@@ -41,6 +42,17 @@ const availabilityStatusSchema = z.enum([
   "OUT_OF_STOCK",
   "CHECK_AVAILABILITY",
 ]);
+const partnerBrandsSchema = z.array(z.object({
+  id: z.string().trim().min(2).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  name: z.string().trim().min(2).max(120),
+  category: z.string().trim().min(2).max(80),
+  tagline: z.string().trim().max(160),
+  isActive: z.boolean(),
+  sortOrder: z.number().int().min(0).max(100000),
+}).strict()).max(200).refine((brands) =>
+  new Set(brands.map((brand) => brand.id)).size === brands.length &&
+  new Set(brands.map((brand) => brand.name.toLocaleLowerCase())).size === brands.length,
+"Brand names and IDs must be unique");
 const variantSchema = z
   .object({
     code: z.string().trim().max(80).nullable().optional(),
@@ -157,6 +169,26 @@ const listingSchema = z
 @Controller("products")
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
+
+  @Get("partner-brands")
+  async getPartnerBrands() {
+    return (await this.productsService.getPartnerBrands()).filter((brand: { isActive?: boolean }) => brand.isActive !== false);
+  }
+
+  @Get("catalogue/partner-brands")
+  @UseGuards(StaffGuard)
+  getAdminPartnerBrands() {
+    return this.productsService.getPartnerBrands();
+  }
+
+  @Put("catalogue/partner-brands")
+  @UseGuards(StaffGuard)
+  savePartnerBrands(@Req() req: StaffRequest, @Body() body: unknown) {
+    return this.productsService.savePartnerBrands(
+      validate(partnerBrandsSchema, body),
+      req.user.userId,
+    );
+  }
 
   @Get()
   getAllProducts() {

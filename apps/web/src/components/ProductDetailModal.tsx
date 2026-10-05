@@ -22,11 +22,13 @@ import { useSiteContent } from '../site-content';
 
 export default function ProductDetailModal({
   product,
+  catalogueProducts = [],
   isOpen,
   onClose,
   inBOM,
   onToggleBOM,
-}: { product: CatalogueProduct | null; isOpen: boolean; onClose: () => void; inBOM: boolean; onToggleBOM: (product: MaterialItem) => void }) {
+  onViewProduct,
+}: { product: CatalogueProduct | null; catalogueProducts?: CatalogueProduct[]; isOpen: boolean; onClose: () => void; inBOM: boolean; onToggleBOM: (product: MaterialItem) => void; onViewProduct?: (product: CatalogueProduct) => void }) {
   const { items, updateItems, ready, canEdit, error } = useCustomer();
   const siteContent = useSiteContent();
   const [specification, setSpecification] = useState('');
@@ -106,6 +108,7 @@ export default function ProductDetailModal({
   const enquiryMessage = productMessage({...product, unit, specification: selectedLabel});
   const waProductUrl = whatsappLink(enquiryMessage, siteContent["contact.phone"]);
   const emailProductUrl = emailLink("Material Square — Product Enquiry", enquiryMessage, siteContent["contact.email"]);
+  const relatedProducts = catalogueProducts.filter((item) => item.id !== product.id && item.category === product.category).slice(0, 4);
 
   return (
     <div className="ms-modal-backdrop" onClick={onClose} data-lenis-prevent>
@@ -281,6 +284,17 @@ export default function ProductDetailModal({
             </div>}
           </div>
         </div>
+        {relatedProducts.length > 0 && <section className="product-related-section" aria-label="More products in this category">
+          <div className="product-related-heading"><div><span>Keep browsing</span><h3>More {product.categoryLabel.toLowerCase()} products</h3></div><small>Other listed options · confirm suitability with the team</small></div>
+          <div className="product-related-grid">
+            {relatedProducts.map((item) => <button type="button" className="product-related-card" key={item.id} onClick={() => onViewProduct?.(item)}>
+              <ProductImage src={item.image} alt={item.name} />
+              <span className="product-related-brand">{item.brand}</span>
+              <strong>{item.name}</strong>
+              <small>{item.price != null ? `₹${Number(item.price).toLocaleString('en-IN')} / ${item.unit}` : 'Request a quotation'}</small>
+            </button>)}
+          </div>
+        </section>}
       </div>
     </div>
   );

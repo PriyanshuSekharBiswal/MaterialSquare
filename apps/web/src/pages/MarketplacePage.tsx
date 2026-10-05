@@ -20,6 +20,7 @@ import WhatsAppIcon from '../components/icons/WhatsAppIcon';
 import ProductImage from '../components/ProductImage';
 import { useSiteContent } from '../site-content';
 import { matchesCatalogueSearch } from '../search/catalogue-search';
+import { partnerBrandMatchesProduct, usePartnerBrands } from '../partner-brands';
 
 export default function MarketplacePage({
   bomList = [],
@@ -30,6 +31,7 @@ export default function MarketplacePage({
 }: { products: CatalogueProduct[]; bomList?: MaterialItem[]; onToggleBOM: (product: MaterialItem) => void; onOpenProductModal: (product: CatalogueProduct) => void; onOpenBOMDrawer: () => void }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const siteContent = useSiteContent();
+  const partnerBrands = usePartnerBrands();
   const initialCategory = searchParams.get('category') || 'all';
   const initialBrand = searchParams.get('brand') || '';
   const initialQuery = searchParams.get('q') || '';
@@ -43,8 +45,7 @@ export default function MarketplacePage({
   const [isStickyDismissed, setIsStickyDismissed] = useState(false);
   const prevBomCountRef = useRef(bomList.length);
   const searchRef = useRef<HTMLDivElement>(null);
-  const catalogueBrands = useMemo(() => Array.from(new Map(products.filter((product) => product.brand.trim()).map((product) => [product.brand, product.categoryLabel])).entries())
-    .map(([name, category]) => ({ name, category, meta: getBrandMeta(name) })), [products]);
+  const catalogueBrands = useMemo(() => partnerBrands.map((brand) => ({ name: brand.name, category: brand.category, meta: getBrandMeta(brand.id) })), [partnerBrands]);
   const catalogueCategories = useMemo(() => [
     { id: 'all', label: 'All Materials', count: products.length },
     ...Array.from(new Map(products.map((product) => [product.category, product.categoryLabel])).entries())
@@ -114,7 +115,7 @@ export default function MarketplacePage({
       }
 
       // Brand filter
-      if (selectedBrand && !item.brand.toLowerCase().includes(selectedBrand.toLowerCase())) {
+      if (selectedBrand && !partnerBrandMatchesProduct(selectedBrand, item.brand, `${item.category} ${item.categoryLabel}`)) {
         return false;
       }
 
@@ -146,6 +147,22 @@ export default function MarketplacePage({
       return 0;
     });
   }, [products, activeCategory, selectedBrand, availability, searchQuery, sortBy]);
+
+  const relatedProducts = useMemo(() => {
+    if (filteredProducts.length) return [];
+    const selectedPartner = partnerBrands.find((brand) => brand.name.toLocaleLowerCase() === selectedBrand.toLocaleLowerCase());
+    const categoryHints: Record<string, string[]> = {
+      cement: ["cement"], pipes: ["pipe", "plumb", "valve"], wires: ["wire", "cable"],
+      paints: ["paint", "coating"], sanitary: ["sanitary", "bath", "tile", "faucet"],
+      steel: ["steel", "rebar"], adhesives: ["adhesive", "tile"],
+    };
+    const hints = selectedPartner ? categoryHints[selectedPartner.category.toLocaleLowerCase()] || [selectedPartner.category.toLocaleLowerCase()] : [];
+    return products
+      .filter((product) => activeCategory === "all" || product.category === activeCategory)
+      .filter((product) => !selectedPartner || hints.some((hint) => `${product.category} ${product.categoryLabel}`.toLocaleLowerCase().includes(hint)))
+      .sort((a, b) => Number(b.inStock) - Number(a.inStock) || a.name.localeCompare(b.name))
+      .slice(0, 4);
+  }, [products, filteredProducts.length, activeCategory, selectedBrand, partnerBrands]);
 
   // Check if item in BOM
   const isItemInBOM = (id: string) => bomList.some((item) => (item.catalogueId || item.id) === id);
@@ -249,6 +266,7 @@ export default function MarketplacePage({
                 {/* Instant Search Suggestions Dropdown */}
                 <SearchSuggestions
                   products={products}
+                  partnerBrands={partnerBrands}
                   query={searchQuery}
                   isOpen={isSuggestionsOpen}
                   onSelectSuggestion={(val) => {
@@ -583,12 +601,20 @@ export default function MarketplacePage({
               </div>
             </div>
           )}
+          {!filteredProducts.length && relatedProducts.length > 0 && <section className="catalogue-related-section" aria-label="Other catalogue items">
+            <div><h3>Other items to explore</h3><p>These are listed in a related materials category. Confirm the exact brand and specification with the team.</p></div>
+            <div className="catalogue-related-grid">{relatedProducts.map((product) => <button type="button" key={product.id} className="catalogue-related-card" onClick={() => onOpenProductModal(product)}>
+              <ProductImage src={product.image} alt={product.name} />
+              <small>{product.brand}</small><strong>{product.name}</strong>
+              <span>{product.availabilityStatus === "IN_STOCK" ? "In stock" : product.availabilityStatus === "OUT_OF_STOCK" ? "Out of stock" : "Check availability"}</span>
+            </button>)}</div>
+          </section>}
 
         </div>
       </section>
 
       {/* Brands currently represented in the catalogue */}
-      {products.length > 0 && <BrandRoster products={products} onSelectBrand={handleBrandChange} selectedBrand={selectedBrand} />}
+      {partnerBrands.length > 0 && <BrandRoster products={products} partnerBrands={partnerBrands} onSelectBrand={handleBrandChange} selectedBrand={selectedBrand} />}
 
       {/* Sticky BOM trigger floating bottom bar if items in list and not dismissed (Rendered via Portal to document.body so it is perfectly fixed to the viewport) */}
       {typeof document !== 'undefined' &&
