@@ -20,7 +20,7 @@ import {
   Package,
 } from "lucide-react";
 import { BrandLogo, getBrandMeta } from "../components/icons/BrandBadges";
-import HeroBuildingCanvas from "../components/HeroBuildingCanvas";
+import DeferredHeroBuildingCanvas from "../components/DeferredHeroBuildingCanvas";
 import SearchSuggestions from "../components/SearchSuggestions";
 import WhatsAppIcon from "../components/icons/WhatsAppIcon";
 import ArchitecturalTicker from "../components/ArchitecturalTicker";
@@ -122,7 +122,7 @@ export default function HomePage({
         {/* Desktop: Full-bleed 3D Isometric Building Simulation (borderless, full scale) */}
         {!isMobileView && (
           <div className="hero-desktop-canvas-wrap">
-            <HeroBuildingCanvas centered={false} />
+            <DeferredHeroBuildingCanvas centered={false} />
           </div>
         )}
 
@@ -131,7 +131,7 @@ export default function HomePage({
           {isMobileView && (
             <div className="hero-mobile-building-col">
               <div className="hero-mobile-building-frame">
-                <HeroBuildingCanvas centered={true} />
+                <DeferredHeroBuildingCanvas centered={true} />
               </div>
             </div>
           )}

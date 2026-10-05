@@ -15,6 +15,11 @@ and client content approval remain deployment tasks.
 - `npm run build` passed for the types, API, customer app, and admin app. The
   latest customer build and type check pass. Initial customer JavaScript is
   356.88 KB (107.91 KB gzip); the map and smooth-scroll code load separately.
+  The homepage's animated building canvas now waits until the browser is idle,
+  so the hero text and search can become interactive first. This moved its
+  7.17 KB (2.77 KB gzip) module out of the homepage's initial render path and
+  reduced the homepage chunk from 20.09 KB to 13.65 KB (6.41 KB to 4.10 KB
+  gzip). The entrance animation and map remain enabled.
   Five home category images total about 200 KB in WebP (previously about 1.4 MB
   as JPEG). Public API edge cache is 60 seconds with a 5-minute stale window.
 - `npm test -- --runInBand` passed 197 API unit tests. The 19 database-backed
