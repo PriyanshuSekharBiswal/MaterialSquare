@@ -415,7 +415,17 @@ test("unconfigured client contact details stay hidden while quotation requests r
   page,
 }) => {
   await page.route("**/api/site-content", (route) =>
-    route.fulfill({ json: SITE_CONTENT_DEFAULTS }),
+    route.fulfill({
+      json: {
+        ...SITE_CONTENT_DEFAULTS,
+        "contact.phone": "",
+        "contact.phoneDisplay": "",
+        "contact.email": "",
+        "contact.officeName": "",
+        "contact.officeAddress": "",
+        "contact.mapUrl": "",
+      },
+    }),
   );
   await page.goto("/");
   const deferredMap = page.locator(".deferred-direction-map");
