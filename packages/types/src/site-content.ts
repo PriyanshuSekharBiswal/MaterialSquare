@@ -85,12 +85,13 @@ export const SITE_CONTENT_DEFAULTS = {
   "contact.coverageTitle": "Delivery information",
   "contact.coverageDescription":
     "Ask the team to confirm site coverage, delivery timing, and any applicable charges for your request.",
-  "contact.phone": "",
-  "contact.phoneDisplay": "",
-  "contact.email": "",
+  "contact.phone": "7735527252",
+  "contact.phoneDisplay": "+91 77355 27252",
+  "contact.email": "admin@materialsquare.in",
   "contact.location": "",
-  "contact.officeName": "",
-  "contact.officeAddress": "",
+  "contact.officeName": "Material Square",
+  "contact.officeAddress": "192, Prakash Industrial Estate, Sahibabad, Ghaziabad, Uttar Pradesh",
+  "contact.mapUrl": "https://maps.app.goo.gl/sPj9Ai7rZpLMPKh36",
   "footer.socialLinks": "[]",
   "footer.calloutTitle": "Ready to Order or Have a Material Query?",
   "footer.calloutDescription":
@@ -244,6 +245,7 @@ export const SITE_CONTENT_GROUPS: {
         label: "Office address",
         multiline: true,
       },
+      { key: "contact.mapUrl", label: "Exact Google Maps location link" },
     ],
   },
   {

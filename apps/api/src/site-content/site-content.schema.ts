@@ -237,6 +237,18 @@ export const SiteContentSchema = z
           });
       }
     }
+    if (content["contact.mapUrl"]) {
+      const result = z.string().url().safeParse(content["contact.mapUrl"]);
+      if (
+        !result.success ||
+        new URL(content["contact.mapUrl"]).protocol !== "https:"
+      )
+        ctx.addIssue({
+          code: "custom",
+          path: ["contact.mapUrl"],
+          message: "Use a valid HTTPS Google Maps link or leave blank",
+        });
+    }
     for (const key of [
       "home.primaryCtaPath",
       "home.secondaryCtaPath",

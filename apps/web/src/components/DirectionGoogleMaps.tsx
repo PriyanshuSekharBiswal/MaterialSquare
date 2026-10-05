@@ -16,6 +16,7 @@ import './DirectionGoogleMaps.css';
 
 // The NCR illustration keeps its delivery hub aligned with the Ghaziabad map label.
 export const OFFICE_HUB = {
+  exactLocationUrl: 'https://maps.app.goo.gl/sPj9Ai7rZpLMPKh36',
   directionsUrl: (destination: string, origin = '') =>
     `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}${origin ? `&origin=${encodeURIComponent(origin)}` : ''}`,
   svgPos: { x: 760, y: 155 }, // Exactly at Ghaziabad on clean map
@@ -96,6 +97,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
   const officeAddress = siteContent['contact.officeAddress'].trim();
   const serviceArea = siteContent['contact.location'].trim();
   const officeDestination = officeAddress;
+  const officeMapUrl = siteContent['contact.mapUrl'].trim() || OFFICE_HUB.exactLocationUrl;
   const officeName = siteContent['contact.officeName'].trim() || 'Material Square';
   const officePhone = siteContent['contact.phone'].trim();
   const officePhoneDisplay = siteContent['contact.phoneDisplay'].trim() || officePhone;
@@ -127,7 +129,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
   // Open Google Maps only after the client has configured a destination.
   const handleOpenGoogleMaps = (cityName = '') => {
     if (!officeDestination) return;
-    window.open(OFFICE_HUB.directionsUrl(officeDestination, cityName), '_blank', 'noopener,noreferrer');
+    window.open(cityName ? OFFICE_HUB.directionsUrl(officeDestination, cityName) : officeMapUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (

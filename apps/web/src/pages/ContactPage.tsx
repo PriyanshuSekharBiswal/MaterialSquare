@@ -60,7 +60,7 @@ export default function ContactPage() {
               <h2>Office</h2>
               <p>Contact the team before visiting so they can confirm the right location and availability.</p>
               <span className="depot-address">{siteContent["contact.officeAddress"]}</span>
-              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(siteContent["contact.officeAddress"])}`} target="_blank" rel="noopener noreferrer" className="channel-link">
+              <a href={siteContent["contact.mapUrl"] || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(siteContent["contact.officeAddress"])}`} target="_blank" rel="noopener noreferrer" className="channel-link">
                 Open in Google Maps ↗
               </a>
             </article>}
