@@ -292,6 +292,7 @@ test("customer OTP opens separate quotation and order account pages", async ({
   page,
 }) => {
   let authenticated = false;
+  let profileRequests = 0;
   const testQuote = {
     id: "quote-1",
     quoteNumber: "MS-QT-2026-0001",
@@ -361,11 +362,12 @@ test("customer OTP opens separate quotation and order account pages", async ({
     authenticated = true;
     return route.fulfill({ json: customer });
   });
-  await page.route("**/api/customer/me", (route) =>
-    authenticated
+  await page.route("**/api/customer/me", (route) => {
+    profileRequests += 1;
+    return authenticated
       ? route.fulfill({ json: customer })
-      : route.fulfill({ status: 401, json: { message: "Please sign in" } }),
-  );
+      : route.fulfill({ status: 401, json: { message: "Please sign in" } });
+  });
   await page.route("**/api/customer/activity", (route) =>
     route.fulfill({
       json: {
@@ -381,10 +383,12 @@ test("customer OTP opens separate quotation and order account pages", async ({
   await page.getByRole("button", { name: "Continue with OTP" }).click();
   await expect(page.getByLabel("Six-digit verification code")).toBeVisible();
   await page.getByLabel("Six-digit verification code").fill("123456");
+  const profileRequestsBeforeVerify = profileRequests;
   await page.getByRole("button", { name: "Verify and continue" }).click();
   await expect(
     page.getByRole("heading", { name: "Good to see you, Test" }),
   ).toBeVisible();
+  expect(profileRequests).toBe(profileRequestsBeforeVerify);
   await page.getByRole("link", { name: "Quotations" }).last().click();
   await expect(
     page.getByRole("heading", { name: "Quotations", exact: true }),
