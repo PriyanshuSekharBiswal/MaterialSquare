@@ -53,7 +53,7 @@ git diff --check
 ```
 
 Typecheck, the full build, all 211 API tests (including PostgreSQL integration),
-all 52 browser flows, and the diff whitespace check passed. The database tests
+all 53 browser flows, and the diff whitespace check passed. The database tests
 used a disposable local PostgreSQL cluster, which was removed afterward. The
 hosted database has not been changed. A production customer-site build still
 needs `VITE_PUBLIC_SITE_URL` set to the client-approved domain.

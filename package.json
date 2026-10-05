@@ -22,6 +22,7 @@
     "db:migrate": "npm run migrate --workspace=@material-square/db",
     "db:deploy": "node scripts/migrate.cjs",
     "catalog:seed-starter": "node scripts/seed-starter-catalog.cjs",
+    "staff:bootstrap-preview": "node scripts/bootstrap-preview-staff.cjs",
     "media:backfill": "node scripts/backfill-media-library.cjs",
     "test:browser": "playwright test",
     "infra:up": "docker compose up -d",
