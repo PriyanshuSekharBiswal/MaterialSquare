@@ -21,10 +21,10 @@ npm run infra:up
 npm run db:generate
 npm run db:deploy
 npm run build --workspace=@material-square/types
-npm run dev:all
+npm run dev
 ```
 
-The customer website runs at `http://localhost:5173`, the admin workspace at `http://localhost:5174`, and the API at `http://localhost:4000/api`. API documentation is available at `http://localhost:4000/api/docs`.
+`npm run dev` starts the customer website and API together. The customer site runs at `http://localhost:5173`, and the API at `http://localhost:4000/api`. Use `npm run dev:all` to start the admin workspace too; it runs at `http://localhost:5174`. API documentation is available at `http://localhost:4000/api/docs`.
 
 The API reads the root `.env`. Both Vite apps proxy `/api` to port 4000 in development. For Vercel, set the private `API_ORIGIN` to the HTTPS API origin and leave `VITE_API_URL` unset. Database migrations run explicitly with `npm run db:deploy`.
 

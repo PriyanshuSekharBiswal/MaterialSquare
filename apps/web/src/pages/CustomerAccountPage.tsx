@@ -308,7 +308,7 @@ export default function CustomerAccountPage() {
                   <button
                     type="button"
                     className="account-text-button"
-                    disabled={busy || cooldown > 0}
+                    disabled={busy || cooldown > 0 || isLocalhost}
                     onClick={() => void requestOtp(true)}
                   >
                     {cooldown ? `Resend in ${cooldown}s` : "Resend code"}
@@ -330,6 +330,7 @@ export default function CustomerAccountPage() {
                 className="account-primary-button"
                 disabled={
                   busy ||
+                  (sent && isLocalhost) ||
                   (!sent &&
                     (isLocalhost || !hasMsg91WidgetConfiguration()))
                 }
@@ -347,6 +348,13 @@ export default function CustomerAccountPage() {
                 {isLocalhost
                   ? "Phone sign-in cannot be verified on localhost because MSG91 CAPTCHA requires an approved hostname. Use the approved HTTPS preview site; its MSG91 widget settings and API auth key must also be configured."
                   : "Phone sign-in is not configured in this environment yet. You can still browse products and build a guest material list."}
+              </p>
+            )}
+            {sent && isLocalhost && (
+              <p className="account-config-note" role="status">
+                This code was requested on localhost, which MSG91 CAPTCHA does
+                not allow. Open the approved HTTPS preview, request a fresh
+                code there, and verify it on that same site.
               </p>
             )}
             {error && (
