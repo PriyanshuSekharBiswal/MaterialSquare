@@ -1,3 +1,4 @@
+import type { StaffRequest } from "./staff-request";
 import { demoAuthEnabled } from "./demo-mode";
 import { StaffGuard } from "./access.guard";
 import { PrismaService } from "../prisma/prisma.service";
@@ -36,7 +37,7 @@ export class AuthController {
   @Get("staff/me")
   @UseGuards(StaffGuard)
   me(
-    @Req() req: Request & { user: { userId: string } },
+    @Req() req: StaffRequest,
     @Res({ passthrough: true }) res: Response,
   ) {
     res.setHeader("Cache-Control", "no-store");

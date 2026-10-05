@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { customerApi } from "../api";
 import { useCustomer } from "../customer";
 import { retryMsg91Otp, sendMsg91Otp, verifyMsg91Otp } from "../msg91-widget";
+import CustomerActivity from "./CustomerActivity";
 export default function AccountPage() {
   const { customer, ready, load, logout, saveProfile, saving } = useCustomer();
   const [phone, setPhone] = useState(""),
@@ -273,6 +274,7 @@ export default function AccountPage() {
           </div>
         </div>
       )}
+      {customer && <CustomerActivity key={customer.id} customerId={customer.id} />}
       {error && (
         <p role="alert" className="customer-error">
           {error}

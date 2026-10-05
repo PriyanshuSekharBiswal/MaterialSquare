@@ -1,20 +1,20 @@
-import { z } from 'zod';
-export * from './catalog-data';
-export * from './site-content';
+import { z } from "zod";
+export * from "./catalog-data";
+export * from "./site-content";
 
 // ==========================================
 // USER & AUTH TYPES
 // ==========================================
 
 export enum StaffRole {
-  SUPER_ADMIN = 'SUPER_ADMIN',
-  ADMIN = 'ADMIN',
-  SALES_MANAGER = 'SALES_MANAGER',
-  DISPATCH_OFFICER = 'DISPATCH_OFFICER',
-  ACCOUNTS_MANAGER = 'ACCOUNTS_MANAGER',
-  PROCUREMENT_HEAD = 'PROCUREMENT_HEAD',
-  CATALOG_MANAGER = 'CATALOG_MANAGER',
-  CONTENT_MANAGER = 'CONTENT_MANAGER',
+  SUPER_ADMIN = "SUPER_ADMIN",
+  ADMIN = "ADMIN",
+  SALES_MANAGER = "SALES_MANAGER",
+  DISPATCH_OFFICER = "DISPATCH_OFFICER",
+  ACCOUNTS_MANAGER = "ACCOUNTS_MANAGER",
+  PROCUREMENT_HEAD = "PROCUREMENT_HEAD",
+  CATALOG_MANAGER = "CATALOG_MANAGER",
+  CONTENT_MANAGER = "CONTENT_MANAGER",
 }
 
 export interface StaffUser {
@@ -44,24 +44,39 @@ export interface CustomerProfile {
   createdAt: string;
 }
 
-export const StaffLoginSchema = z.object({
-  phone: z.string().regex(/^[6-9]\d{9}$/, 'Valid 10-digit mobile number required').optional(),
-  email: z.string().email('Invalid email address').optional(),
-  password: z.string().min(8, 'Password must be at least 8 characters').max(256),
-}).refine(v => Boolean(v.phone) !== Boolean(v.email), 'Use either mobile number or email');
+export const StaffLoginSchema = z
+  .object({
+    phone: z
+      .string()
+      .regex(/^[6-9]\d{9}$/, "Valid 10-digit mobile number required")
+      .optional(),
+    email: z.string().email("Invalid email address").optional(),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .max(256),
+  })
+  .refine(
+    (v) => Boolean(v.phone) !== Boolean(v.email),
+    "Use either mobile number or email",
+  );
 export type StaffLoginInput = z.infer<typeof StaffLoginSchema>;
 
 export const VerifyMsg91AccessTokenSchema = z.object({
-  phone: z.string().regex(/^[6-9]\d{9}$/, 'Must be a valid 10-digit Indian phone number'),
+  phone: z
+    .string()
+    .regex(/^[6-9]\d{9}$/, "Must be a valid 10-digit Indian phone number"),
   accessToken: z.string().min(20).max(4096),
 });
-export type VerifyMsg91AccessTokenInput = z.infer<typeof VerifyMsg91AccessTokenSchema>;
+export type VerifyMsg91AccessTokenInput = z.infer<
+  typeof VerifyMsg91AccessTokenSchema
+>;
 
 // ==========================================
 // PRODUCT & SPECIFICATION TYPES
 // ==========================================
 
-export type SteelGrade = 'Fe 500' | 'Fe 550' | 'Fe 550D' | 'Fe 600' | 'CRS';
+export type SteelGrade = "Fe 500" | "Fe 550" | "Fe 550D" | "Fe 600" | "CRS";
 
 export interface ProductBrand {
   id: string;
@@ -78,14 +93,15 @@ export interface ProductSKU {
   id: string;
   brandId: string;
   brandName: string;
-  category: 'TMT_REBAR' | 'STRUCTURAL_STEEL' | 'BINDING_WIRE' | 'CEMENT' | 'AGGREGATES';
+  category:
+    "TMT_REBAR" | "STRUCTURAL_STEEL" | "BINDING_WIRE" | "CEMENT" | "AGGREGATES";
   name: string;
   grade: SteelGrade;
   diameterMm: number; // 8, 10, 12, 16, 20, 25, 32
   standardLengthM: number; // 12m
   piecesPerBundle: number;
   weightPerMeterKg: number;
-  unit: 'MT' | 'KG' | 'BUNDLE' | 'PIECE';
+  unit: "MT" | "KG" | "BUNDLE" | "PIECE";
   basePricePerMt: number;
   taxPct: number; // 18% GST for steel
   inStock: boolean;
@@ -97,14 +113,14 @@ export interface ProductSKU {
 // ==========================================
 
 export type QuotationStatus =
-  | 'DRAFT'
-  | 'PENDING_REVIEW'
-  | 'MARGIN_ADJUSTED'
-  | 'QUOTE_SENT'
-  | 'ACCEPTED'
-  | 'CONVERTED_TO_ORDER'
-  | 'EXPIRED'
-  | 'REJECTED';
+  | "DRAFT"
+  | "PENDING_REVIEW"
+  | "MARGIN_ADJUSTED"
+  | "QUOTE_SENT"
+  | "ACCEPTED"
+  | "CONVERTED_TO_ORDER"
+  | "EXPIRED"
+  | "REJECTED";
 
 export interface QuotationLineItem {
   id: string;
@@ -142,19 +158,71 @@ export interface Quotation {
   updatedAt: string;
 }
 
+const QuoteProductSelectionSchema = z
+  .object({
+    productId: z.string().min(1).max(100).optional(),
+    catalogueId: z.string().min(1).max(100).optional(),
+    variantId: z.string().min(1).max(100).optional(),
+    unitPrice: z.number().finite().nonnegative().max(99999999),
+    specification: z.string().trim().max(500).default(""),
+  })
+  .superRefine((line, ctx) => {
+    if (Boolean(line.productId) === Boolean(line.catalogueId))
+      ctx.addIssue({
+        code: "custom",
+        message: "Select one inventory product or catalogue listing",
+      });
+    if (line.variantId && !line.catalogueId)
+      ctx.addIssue({
+        code: "custom",
+        message: "A variant requires its catalogue listing",
+      });
+  });
+
 export const CreateQuoteSchema = z.object({
-  customerName: z.string().min(2, 'Name is required'),
-  customerPhone: z.string().regex(/^[6-9]\d{9}$/, 'Valid 10-digit phone required'),
+  customerName: z.string().min(2, "Name is required"),
+  customerPhone: z
+    .string()
+    .regex(/^[6-9]\d{9}$/, "Valid 10-digit phone required"),
   customerEmail: z.string().email().optional(),
-  projectSiteAddress: z.string().min(5, 'Delivery address is required'),
-  sitePincode: z.string().regex(/^\d{6}$/, 'Valid 6-digit Indian PIN code required'),
-  items: z.array(
-    z.object({
-      productId: z.string(),
-      quantityMt: z.number().finite().positive('Quantity must be greater than zero'),
-      unitPrice: z.number().finite().nonnegative(),
-    })
-  ).min(1, 'At least one item is required'),
+  projectSiteAddress: z.string().min(5, "Delivery address is required"),
+  sitePincode: z
+    .string()
+    .regex(/^\d{6}$/, "Valid 6-digit Indian PIN code required"),
+  items: z
+    .array(
+      z
+        .object({
+          productId: z.string().min(1).max(100).optional(),
+          catalogueId: z.string().min(1).max(100).optional(),
+          variantId: z.string().min(1).max(100).optional(),
+          quantity: z.number().finite().positive().max(1000000).optional(),
+          quantityMt: z.number().finite().positive().max(1000000).optional(),
+          unitPrice: z.number().finite().nonnegative().max(99999999),
+          specification: z.string().trim().max(500).default(""),
+          alternatives: z.array(QuoteProductSelectionSchema).max(2).default([]),
+        })
+        .superRefine((line, ctx) => {
+          if (Boolean(line.productId) === Boolean(line.catalogueId))
+            ctx.addIssue({
+              code: "custom",
+              message: "Select one inventory product or catalogue listing",
+            });
+          if (line.variantId && !line.catalogueId)
+            ctx.addIssue({
+              code: "custom",
+              message: "A variant requires its catalogue listing",
+            });
+          if ((line.quantity == null) === (line.quantityMt == null))
+            ctx.addIssue({ code: "custom", message: "Enter one quantity" });
+        })
+        .transform(({ quantityMt, ...line }) => ({
+          ...line,
+          quantity: line.quantity ?? quantityMt!,
+        })),
+    )
+    .min(1, "At least one item is required")
+    .max(100),
   freightAmount: z.number().finite().nonnegative().default(0),
   taxPct: z.number().finite().min(0).max(100).default(18),
   drawingFileUrl: z.string().url().optional(),
@@ -167,14 +235,13 @@ export type CreateQuoteInput = z.infer<typeof CreateQuoteSchema>;
 // ==========================================
 
 export type OrderStatus =
-  | 'PENDING_PAYMENT'
-  | 'PAYMENT_CONFIRMED'
-  | 'PROCESSING_AT_YARD'
-  | 'LOADED_ON_TRUCK'
-  | 'IN_TRANSIT'
-  | 'OUT_FOR_DELIVERY'
-  | 'DELIVERED'
-  | 'CANCELLED';
+  | "PROCESSING_AT_YARD"
+  | "LOADED_ON_TRUCK"
+  | "IN_TRANSIT"
+  | "OUT_FOR_DELIVERY"
+  | "PARTIALLY_DELIVERED"
+  | "DELIVERED"
+  | "CANCELLED";
 
 export interface DispatchTracking {
   orderId: string;
@@ -206,8 +273,6 @@ export interface OrderRecord {
   taxAmount: number;
   freightAmount: number;
   grandTotal: number;
-  paidAmount: number;
-  paymentMode: 'NEFT_RTGS' | 'UPI' | 'NET_BANKING' | 'LETTER_OF_CREDIT' | 'CREDIT_LINE';
   dispatch?: DispatchTracking;
   invoiceUrl?: string;
   challanUrl?: string;
@@ -232,3 +297,24 @@ export interface ExecutiveDashboardKPIs {
   topMovingBrands: { brand: string; tonnageMt: number; revenueInr: number }[];
   dailyRevenueTrend: { date: string; revenueInr: number; tonnageMt: number }[];
 }
+
+export const TRANSPORTATION_TRANSITIONS = {
+  PLANNED: ["SCHEDULED", "CANCELLED"],
+  SCHEDULED: ["DISPATCHED", "DELAYED", "CANCELLED"],
+  DISPATCHED: ["IN_TRANSIT", "DELAYED"],
+  IN_TRANSIT: ["OUT_FOR_DELIVERY", "DELAYED"],
+  OUT_FOR_DELIVERY: ["DELIVERED", "DELAYED", "PARTIALLY_DELIVERED"],
+  PARTIALLY_DELIVERED: ["SCHEDULED", "DISPATCHED", "DELIVERED", "CANCELLED"],
+  DELAYED: [
+    "SCHEDULED",
+    "DISPATCHED",
+    "IN_TRANSIT",
+    "OUT_FOR_DELIVERY",
+    "CANCELLED",
+  ],
+  DELIVERED: [],
+  CANCELLED: [],
+} as const;
+export type TransportationStatus = keyof typeof TRANSPORTATION_TRANSITIONS;
+
+export * from "./legal-content";

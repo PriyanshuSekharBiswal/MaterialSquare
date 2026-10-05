@@ -21,6 +21,7 @@
     "db:generate": "npm run generate --workspace=@material-square/db",
     "db:migrate": "npm run migrate --workspace=@material-square/db",
     "db:deploy": "node scripts/migrate.cjs",
+    "media:backfill": "node scripts/backfill-media-library.cjs",
     "staff:create": "node scripts/create-staff.cjs",
     "test:browser": "playwright test",
     "infra:up": "docker compose up -d",

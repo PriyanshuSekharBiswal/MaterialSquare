@@ -1,0 +1,127 @@
+.operational-reports {
+  display: grid;
+  gap: 18px;
+}
+
+.operational-reports-header,
+.report-filters,
+.report-tabs,
+.report-status-groups,
+.report-summary-cards {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.operational-reports-header {
+  justify-content: space-between;
+}
+
+.operational-reports-header h2,
+.operational-reports h3 {
+  margin: 0 0 6px;
+}
+
+.operational-reports-header p,
+.report-range-note,
+.report-export-count {
+  margin: 0;
+  color: var(--muted, #6b7280);
+}
+
+.report-tabs {
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.report-tabs button {
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.report-tabs button.active {
+  border-color: var(--brand, #176b52);
+  color: var(--brand, #176b52);
+  font-weight: 700;
+}
+
+.report-filters {
+  flex-wrap: wrap;
+  align-items: end;
+}
+
+.report-filters label {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.report-filters input {
+  min-height: 38px;
+  padding: 6px 9px;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 7px;
+  background: var(--surface, #fff);
+  color: inherit;
+}
+
+.report-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.report-summary-cards article {
+  display: grid;
+  gap: 7px;
+  padding: 13px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 9px;
+}
+
+.report-summary-cards span {
+  color: var(--muted, #6b7280);
+  font-size: 12px;
+}
+
+.report-summary-cards strong {
+  font-size: 19px;
+}
+
+.report-truncated {
+  padding: 10px;
+  border-radius: 7px;
+  background: #fff7e6;
+  color: #714c00;
+}
+
+.report-status-groups {
+  align-items: start;
+  flex-wrap: wrap;
+}
+
+.report-status-groups > div {
+  min-width: 220px;
+  flex: 1;
+}
+
+.report-status-groups p {
+  display: flex;
+  justify-content: space-between;
+  margin: 6px 0;
+}
+
+@media (max-width: 640px) {
+  .operational-reports-header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .report-filters > * {
+    width: 100%;
+  }
+}

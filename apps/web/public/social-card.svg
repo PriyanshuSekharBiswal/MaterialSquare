@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+  <title id="title">Material Square</title>
+  <desc id="description">Construction materials, organized in one place.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#101827" />
+      <stop offset="1" stop-color="#26344a" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0" x2="1">
+      <stop offset="0" stop-color="#f97316" />
+      <stop offset="1" stop-color="#fb923c" />
+    </linearGradient>
+    <pattern id="grid" width="52" height="52" patternUnits="userSpaceOnUse" patternTransform="skewY(-25)">
+      <path d="M52 0H0V52" fill="none" stroke="#cbd5e1" stroke-opacity=".08" stroke-width="1" />
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#background)" />
+  <rect width="1200" height="630" fill="url(#grid)" />
+  <circle cx="1000" cy="300" r="230" fill="#f97316" fill-opacity=".08" />
+  <path d="M870 450 1000 375l130 75-130 75z" fill="#172235" stroke="#94a3b8" stroke-opacity=".65" stroke-width="3" />
+  <path d="M870 450v-155l130-75v155z" fill="#1d2a3e" stroke="#cbd5e1" stroke-opacity=".72" stroke-width="3" />
+  <path d="M1000 375V220l130 75v155z" fill="#25354a" stroke="#cbd5e1" stroke-opacity=".72" stroke-width="3" />
+  <path d="M900 281v143m32-161v143m32-161v143M1032 239l72 42m-72-5 72 42m-72-5 72 42" fill="none" stroke="url(#accent)" stroke-width="7" stroke-linecap="round" />
+  <rect x="86" y="91" width="14" height="52" rx="7" fill="url(#accent)" />
+  <text x="126" y="132" fill="#f8fafc" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="700" letter-spacing="4">MATERIAL SQUARE</text>
+  <text x="86" y="286" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="68" font-weight="700">Construction materials,</text>
+  <text x="86" y="370" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="68" font-weight="700">organized in one place.</text>
+  <text x="90" y="452" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400">Browse products · prepare your list · request a quote</text>
+  <text x="90" y="540" fill="#fb923c" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" letter-spacing="2">SERVING DELHI NCR</text>
+</svg>

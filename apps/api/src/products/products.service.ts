@@ -21,7 +21,7 @@ export type CatalogListingInput = {
   categoryLabel: string;
   unit: string;
   packaging?: string | null;
-  image?: string | null;
+  image: string;
   galleryImages: string[];
   grade?: string | null;
   description?: string | null;
@@ -75,17 +75,22 @@ const previewGallery = (product: (typeof PRODUCTS)[number]) =>
       ),
     ),
   );
-const legacyPreviewById = new Map(PREVIEW_CATALOG_LEGACY_SOURCE.map((product) => [product.id, product]));
+const legacyPreviewById = new Map(
+  PREVIEW_CATALOG_LEGACY_SOURCE.map((product) => [product.id, product]),
+);
 const stableJsonValue = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(stableJsonValue);
   if (value && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, stableJsonValue(item)]),
+      Object.entries(value)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, item]) => [key, stableJsonValue(item)]),
     );
   }
   return value ?? null;
 };
-const sameJson = (a: unknown, b: unknown) => JSON.stringify(stableJsonValue(a)) === JSON.stringify(stableJsonValue(b));
+const sameJson = (a: unknown, b: unknown) =>
+  JSON.stringify(stableJsonValue(a)) === JSON.stringify(stableJsonValue(b));
 
 @Injectable()
 export class ProductsService implements OnModuleInit {
@@ -94,7 +99,10 @@ export class ProductsService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
-    if (process.env.APP_ENV === "production" || (process.env.NODE_ENV === "production" && process.env.APP_ENV !== "demo")) {
+    if (
+      process.env.APP_ENV === "production" ||
+      (process.env.NODE_ENV === "production" && process.env.APP_ENV !== "demo")
+    ) {
       this.logger.log("Skipping preview catalogue seed in production.");
       return;
     }
@@ -126,42 +134,75 @@ export class ProductsService implements OnModuleInit {
           const legacy = legacyPreviewById.get(product.id);
           if (legacy) {
             const copyUpdate: Prisma.CatalogListingUpdateInput = {};
-            if (existing.grade === legacy.grade) copyUpdate.grade = product.grade || null;
-            if (existing.packaging === legacy.packaging) copyUpdate.packaging = product.packaging;
-            if (existing.dispatchTime === legacy.dispatchTime) copyUpdate.dispatchTime = product.dispatchTime;
-            if (existing.minOrderQty === legacy.minOrderQty) copyUpdate.minOrderQty = product.minOrderQty;
-            if (sameJson(existing.features, legacy.features)) copyUpdate.features = [...product.features];
-            if (sameJson(existing.applications, legacy.applications)) copyUpdate.applications = [...product.applications];
-            if (sameJson(existing.specifications, legacy.specs)) copyUpdate.specifications = product.specs as Prisma.InputJsonValue;
-            if (existing.description === "Preview catalogue item. Product details, price, tax and availability must be confirmed with the client before a sale.") {
+            if (existing.grade === legacy.grade)
+              copyUpdate.grade = product.grade || null;
+            if (existing.packaging === legacy.packaging)
+              copyUpdate.packaging = product.packaging;
+            if (existing.dispatchTime === legacy.dispatchTime)
+              copyUpdate.dispatchTime = product.dispatchTime;
+            if (existing.minOrderQty === legacy.minOrderQty)
+              copyUpdate.minOrderQty = product.minOrderQty;
+            if (sameJson(existing.features, legacy.features))
+              copyUpdate.features = [...product.features];
+            if (sameJson(existing.applications, legacy.applications))
+              copyUpdate.applications = [...product.applications];
+            if (sameJson(existing.specifications, legacy.specs))
+              copyUpdate.specifications =
+                product.specs as Prisma.InputJsonValue;
+            if (
+              existing.description ===
+              "Preview catalogue item. Product details, price, tax and availability must be confirmed with the client before a sale."
+            ) {
               copyUpdate.description = product.description;
             }
             if (Object.keys(copyUpdate).length) {
-              await this.prisma.catalogListing.update({ where: { id: existing.id }, data: copyUpdate });
+              await this.prisma.catalogListing.update({
+                where: { id: existing.id },
+                data: copyUpdate,
+              });
               backfilled++;
             }
           }
-          if (existing.category !== product.category || existing.categoryLabel !== product.categoryLabel) {
+          if (
+            existing.category !== product.category ||
+            existing.categoryLabel !== product.categoryLabel
+          ) {
             await this.prisma.catalogListing.update({
               where: { id: existing.id },
-              data: { category: product.category, categoryLabel: product.categoryLabel },
+              data: {
+                category: product.category,
+                categoryLabel: product.categoryLabel,
+              },
             });
           }
-          const variantsByCode = new Map(existing.variants.map((variant) => [variant.code, variant]));
-          const storedVariantsByOrder = existing.variants.slice().sort((a, b) => a.sortOrder - b.sortOrder);
+          const variantsByCode = new Map(
+            existing.variants.map((variant) => [variant.code, variant]),
+          );
+          const storedVariantsByOrder = existing.variants
+            .slice()
+            .sort((a, b) => a.sortOrder - b.sortOrder);
           for (const seedVariant of variants) {
-            const stored = variantsByCode.get(seedVariant.code) ||
-              (existing.variants.length === variants.length ? storedVariantsByOrder[seedVariant.sortOrder] : undefined);
-            if (!stored || stored.price != null || seedVariant.price == null) continue;
+            const stored =
+              variantsByCode.get(seedVariant.code) ||
+              (existing.variants.length === variants.length
+                ? storedVariantsByOrder[seedVariant.sortOrder]
+                : undefined);
+            if (!stored || stored.price != null || seedVariant.price == null)
+              continue;
             await this.prisma.catalogListingVariant.update({
               where: { id: stored.id },
               data: {
                 price: seedVariant.price,
                 compareAtPrice: seedVariant.compareAtPrice ?? null,
-                priceNote: seedVariant.priceNote || "Indicative preview price; client must confirm current price, tax, stock and delivery.",
-                quantityBreaks: stored.quantityBreaks && JSON.stringify(stored.quantityBreaks) !== "[]"
-                  ? undefined
-                  : (seedVariant.quantityBreaks || []) as Prisma.InputJsonValue,
+                priceNote:
+                  seedVariant.priceNote ||
+                  "Indicative preview price; client must confirm current price, tax, stock and delivery.",
+                quantityBreaks:
+                  stored.quantityBreaks &&
+                  JSON.stringify(stored.quantityBreaks) !== "[]"
+                    ? undefined
+                    : ((seedVariant.quantityBreaks ||
+                        []) as Prisma.InputJsonValue),
               },
             });
             backfilled++;
@@ -172,13 +213,23 @@ export class ProductsService implements OnModuleInit {
             await this.prisma.catalogListing.update({
               where: { id: existing.id },
               data: {
-                galleryImages: existing.galleryImages.length ? undefined : previewGallery(product),
-                variants: { create: variants.map((variant) => this.toVariantPrismaData(variant)) },
+                galleryImages: existing.galleryImages.length
+                  ? undefined
+                  : previewGallery(product),
+                variants: {
+                  create: variants.map((variant) =>
+                    this.toVariantPrismaData(variant),
+                  ),
+                },
               },
             });
             backfilled++;
           } catch (error) {
-            if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+            if (
+              !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+              error.code !== "P2002"
+            )
+              throw error;
           }
         } else {
           existingCount++;
@@ -210,18 +261,33 @@ export class ProductsService implements OnModuleInit {
             applications: product.applications,
             specifications: product.specs as Prisma.InputJsonValue,
             grade: product.grade || null,
-            variants: { create: variants.map((variant) => this.toVariantPrismaData(variant)) },
+            variants: {
+              create: variants.map((variant) =>
+                this.toVariantPrismaData(variant),
+              ),
+            },
             sortOrder,
           },
         });
         created++;
       } catch (error) {
-        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
-        this.logger.warn(`Preview catalogue seed skipped ${product.id}: a product or variant code already exists.`);
+        if (
+          !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+          error.code !== "P2002"
+        )
+          throw error;
+        this.logger.warn(
+          `Preview catalogue seed skipped ${product.id}: a product or variant code already exists.`,
+        );
       }
     }
-    this.logger.log(`Preview catalogue seed checked ${PRODUCTS.length} families: ${created} created, ${backfilled} backfilled, ${existingCount} preserved.`);
-    if (hidden.size) this.logger.warn(`Preview catalogue families remain unpublished (preserved staff state): ${[...hidden].join(", ")}`);
+    this.logger.log(
+      `Preview catalogue seed checked ${PRODUCTS.length} families: ${created} created, ${backfilled} backfilled, ${existingCount} preserved.`,
+    );
+    if (hidden.size)
+      this.logger.warn(
+        `Preview catalogue families remain unpublished (preserved staff state): ${[...hidden].join(", ")}`,
+      );
 
     // The first demo database used unpublished placeholder rows. Publish the
     // illustrative catalogue once so the public preview is usable, then keep
@@ -229,10 +295,15 @@ export class ProductsService implements OnModuleInit {
     // touched outside the isolated demo environment.
     if (process.env.APP_ENV === "demo") {
       const markerKey = "preview-catalogue-published-v1";
-      const bootstrapped = await this.prisma.demoBootstrapState.findUnique({ where: { key: markerKey } });
+      const bootstrapped = await this.prisma.demoBootstrapState.findUnique({
+        where: { key: markerKey },
+      });
       if (!bootstrapped) {
         await this.prisma.catalogListing.updateMany({
-          where: { slug: { in: PRODUCTS.map((product) => product.id) }, isPublished: false },
+          where: {
+            slug: { in: PRODUCTS.map((product) => product.id) },
+            isPublished: false,
+          },
           data: { isPublished: true },
         });
         await this.prisma.demoBootstrapState.upsert({
@@ -240,7 +311,9 @@ export class ProductsService implements OnModuleInit {
           create: { key: markerKey },
           update: {},
         });
-        this.logger.log("Published the illustrative demo catalogue once; staff can now manage its visibility.");
+        this.logger.log(
+          "Published the illustrative demo catalogue once; staff can now manage its visibility.",
+        );
       }
     }
   }
@@ -261,39 +334,56 @@ export class ProductsService implements OnModuleInit {
       include: { variants: { orderBy: { sortOrder: "asc" } } },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
-    return listings.map(({ specifications, isInStock, image, galleryImages, variants = [], ...listing }) => {
-      const offerStart = listing.offerStartsAt?.toISOString().slice(0, 10);
-      const offerEnd = listing.offerEndsAt?.toISOString().slice(0, 10);
-      const offerActive =
-        (!offerStart || offerStart <= todayInIndia) &&
-        (!offerEnd || offerEnd >= todayInIndia);
-      return {
-        ...listing,
-        code: listing.code || listing.slug,
-        brand: listing.brand || "",
-        image: image || "/images/products/material-sack-illustration.png",
-        galleryImages: galleryImages.length ? galleryImages : [image || "/images/products/material-sack-illustration.png"],
-        inStock: isInStock || variants.some((variant) => variant.isInStock),
-        specs: specifications as Record<string, string>,
-        wholesaleRate: listing.price == null ? "Request a quotation" : null,
-        compareAtPrice: offerActive ? listing.compareAtPrice : null,
-        offerLabel: offerActive ? listing.offerLabel : null,
-        variants: variants.map(({ isInStock: variantInStock, ...variant }) => {
-          const variantOfferStart = variant.offerStartsAt?.toISOString().slice(0, 10) || offerStart;
-          const variantOfferEnd = variant.offerEndsAt?.toISOString().slice(0, 10) || offerEnd;
-          const variantOfferActive =
-            (!variantOfferStart || variantOfferStart <= todayInIndia) &&
-            (!variantOfferEnd || variantOfferEnd >= todayInIndia);
-          return {
-            ...variant,
-            inStock: variantInStock,
-            attributes: variant.attributes as Record<string, string>,
-            compareAtPrice: variantOfferActive ? variant.compareAtPrice : null,
-            offerLabel: variantOfferActive ? variant.offerLabel : null,
-          };
-        }),
-      };
-    });
+    return listings.map(
+      ({
+        specifications,
+        isInStock,
+        image,
+        galleryImages,
+        variants = [],
+        ...listing
+      }) => {
+        const offerStart = listing.offerStartsAt?.toISOString().slice(0, 10);
+        const offerEnd = listing.offerEndsAt?.toISOString().slice(0, 10);
+        const offerActive =
+          (!offerStart || offerStart <= todayInIndia) &&
+          (!offerEnd || offerEnd >= todayInIndia);
+        return {
+          ...listing,
+          code: listing.code || listing.slug,
+          brand: listing.brand || "",
+          image: image || "/images/products/material-sack-illustration.png",
+          galleryImages: galleryImages.length
+            ? galleryImages
+            : [image || "/images/products/material-sack-illustration.png"],
+          inStock: isInStock || variants.some((variant) => variant.isInStock),
+          specs: specifications as Record<string, string>,
+          wholesaleRate: listing.price == null ? "Request a quotation" : null,
+          compareAtPrice: offerActive ? listing.compareAtPrice : null,
+          offerLabel: offerActive ? listing.offerLabel : null,
+          variants: variants.map(
+            ({ isInStock: variantInStock, ...variant }) => {
+              const variantOfferStart =
+                variant.offerStartsAt?.toISOString().slice(0, 10) || offerStart;
+              const variantOfferEnd =
+                variant.offerEndsAt?.toISOString().slice(0, 10) || offerEnd;
+              const variantOfferActive =
+                (!variantOfferStart || variantOfferStart <= todayInIndia) &&
+                (!variantOfferEnd || variantOfferEnd >= todayInIndia);
+              return {
+                ...variant,
+                inStock: variantInStock,
+                attributes: variant.attributes as Record<string, string>,
+                compareAtPrice: variantOfferActive
+                  ? variant.compareAtPrice
+                  : null,
+                offerLabel: variantOfferActive ? variant.offerLabel : null,
+              };
+            },
+          ),
+        };
+      },
+    );
   }
 
   findCatalogue() {
@@ -324,71 +414,150 @@ export class ProductsService implements OnModuleInit {
     }));
   }
 
-  async updatePrice(id: string, price: number) {
-    const result = await this.prisma.productSKU.updateMany({
-      where: { id }, data: { basePricePerMt: price },
-    });
-    if (!result.count) throw new NotFoundException("Product not found");
-    return this.prisma.productSKU.findUnique({ where: { id }, include: { brand: true } });
-  }
-
-  async create(data: CatalogListingInput) {
-    try {
-      return await this.prisma.catalogListing.create({
+  async updatePrice(id: string, price: number, staffId: string) {
+    return this.prisma.$transaction(async (db) => {
+      const result = await db.productSKU.updateMany({
+        where: { id },
+        data: { basePricePerMt: price },
+      });
+      if (!result.count) throw new NotFoundException("Product not found");
+      const product = await db.productSKU.findUnique({
+        where: { id },
+        include: { brand: true },
+      });
+      await db.auditLog.create({
         data: {
-          ...this.toPrismaData(data),
-          variants: { create: data.variants.map((variant) => this.toVariantPrismaData(variant)) },
+          staffId,
+          action: "PRODUCT_PRICE_UPDATED",
+          entityType: "PRODUCT_SKU",
+          entityId: id,
+          metadata: { fields: ["basePricePerMt"] },
         },
       });
+      return product;
+    });
+  }
+
+  async create(data: CatalogListingInput, staffId: string) {
+    try {
+      return await this.prisma.$transaction(async (db) => {
+        const product = await db.catalogListing.create({
+          data: {
+            ...this.toPrismaData(data),
+            variants: {
+              create: data.variants.map((variant) =>
+                this.toVariantPrismaData(variant),
+              ),
+            },
+          },
+        });
+        await db.auditLog.create({
+          data: {
+            staffId,
+            action: "CATALOG_PRODUCT_CREATED",
+            entityType: "CATALOG_PRODUCT",
+            entityId: product.id,
+            metadata: {
+              fields: Object.keys(data).sort(),
+              variantCount: data.variants.length,
+            },
+          },
+        });
+        return product;
+      });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-        throw new ConflictException("That product code or URL name is already in use");
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new ConflictException(
+          "That product code or URL name is already in use",
+        );
       }
       throw error;
     }
   }
 
-  async update(id: string, data: CatalogListingInput) {
+  async update(id: string, data: CatalogListingInput, staffId: string) {
     try {
-      return await this.prisma.catalogListing.update({
-        where: { id },
-        data: {
-          ...this.toPrismaData(data),
-          variants: {
-            deleteMany: {},
-            create: data.variants.map((variant) => this.toVariantPrismaData(variant)),
+      return await this.prisma.$transaction(async (db) => {
+        const product = await db.catalogListing.update({
+          where: { id },
+          data: {
+            ...this.toPrismaData(data),
+            variants: {
+              deleteMany: {},
+              create: data.variants.map((variant) =>
+                this.toVariantPrismaData(variant),
+              ),
+            },
           },
-        },
-        include: { variants: { orderBy: { sortOrder: "asc" } } },
+          include: { variants: { orderBy: { sortOrder: "asc" } } },
+        });
+        await db.auditLog.create({
+          data: {
+            staffId,
+            action: "CATALOG_PRODUCT_UPDATED",
+            entityType: "CATALOG_PRODUCT",
+            entityId: product.id,
+            metadata: {
+              fields: Object.keys(data).sort(),
+              variantCount: data.variants.length,
+            },
+          },
+        });
+        return product;
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-        throw new ConflictException("That product code or URL name is already in use");
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new ConflictException(
+          "That product code or URL name is already in use",
+        );
       }
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2025"
+      ) {
         throw new NotFoundException("Catalogue product not found");
       }
       throw error;
     }
   }
 
-  async archive(id: string) {
-    const result = await this.prisma.catalogListing.updateMany({
-      where: { id },
-      data: { isPublished: false },
+  async archive(id: string, staffId: string) {
+    return this.prisma.$transaction(async (db) => {
+      const result = await db.catalogListing.updateMany({
+        where: { id },
+        data: { isPublished: false },
+      });
+      if (!result.count)
+        throw new NotFoundException("Catalogue product not found");
+      await db.auditLog.create({
+        data: {
+          staffId,
+          action: "CATALOG_PRODUCT_ARCHIVED",
+          entityType: "CATALOG_PRODUCT",
+          entityId: id,
+          metadata: { fields: ["isPublished"] },
+        },
+      });
+      return { success: true };
     });
-    if (!result.count) throw new NotFoundException("Catalogue product not found");
-    return { success: true };
   }
 
-  private toPrismaData(data: CatalogListingInput): Prisma.CatalogListingUncheckedCreateInput {
+  private toPrismaData(
+    data: CatalogListingInput,
+  ): Prisma.CatalogListingUncheckedCreateInput {
     const { variants: _variants, ...listing } = data;
     return {
       ...listing,
       code: data.code || null,
       brandTagline: data.brandTagline || null,
       packaging: data.packaging || null,
-      image: data.image || null,
+      image: data.image,
       grade: data.grade || null,
       description: data.description || null,
       minOrderQty: data.minOrderQty || null,
@@ -404,7 +573,9 @@ export class ProductsService implements OnModuleInit {
     };
   }
 
-  private toVariantPrismaData(variant: CatalogListingInput["variants"][number]): Prisma.CatalogListingVariantUncheckedCreateWithoutListingInput {
+  private toVariantPrismaData(
+    variant: CatalogListingInput["variants"][number],
+  ): Prisma.CatalogListingVariantUncheckedCreateWithoutListingInput {
     return {
       code: variant.code || null,
       label: variant.label,

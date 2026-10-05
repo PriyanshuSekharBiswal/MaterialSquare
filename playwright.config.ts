@@ -16,6 +16,7 @@ export default defineConfig({
       env: {
         VITE_MSG91_WIDGET_ID: "browser-test-widget",
         VITE_MSG91_TOKEN_AUTH: "browser-test-token",
+        VITE_ADMIN_APP_ORIGIN: "http://127.0.0.1:4174",
       },
     },
     {
@@ -23,6 +24,9 @@ export default defineConfig({
         "npm run dev --workspace=@material-square/admin -- --host 127.0.0.1 --port 4174 --strictPort",
       url: "http://127.0.0.1:4174",
       reuseExistingServer: false,
+      env: {
+        VITE_CUSTOMER_APP_URL: "http://127.0.0.1:4173",
+      },
     },
   ],
 });

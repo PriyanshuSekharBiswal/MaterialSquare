@@ -1,7 +1,18 @@
 import { UseGuards } from "@nestjs/common";
 import { StaffGuard } from "../auth/access.guard";
-import { Body, Controller, Get, Patch, Param, Post, Res, Req, ForbiddenException, BadRequestException } from "@nestjs/common";
-import type { Request } from "express";
+import {
+  Body,
+  Controller,
+  Get,
+  Patch,
+  Param,
+  Post,
+  Res,
+  Req,
+  ForbiddenException,
+  BadRequestException,
+} from "@nestjs/common";
+import type { StaffRequest } from "../auth/staff-request";
 import { z } from "zod";
 import { validate } from "../common/validation";
 import { OrdersService } from "./orders.service";
@@ -22,31 +33,32 @@ export class OrdersController {
     return this.ordersService.findById(id);
   }
 
-  @Patch(":id/payment-confirmed")
-  confirmPayment(
-    @Param("id") id: string,
-    @Req() req: Request & { user: { userId: string; role: string } },
-  ) {
-    if (!["SUPER_ADMIN", "ADMIN", "ACCOUNTS_MANAGER"].includes(req.user.role))
-      throw new ForbiddenException("An accounts user must confirm payment");
-    return this.ordersService.confirmPayment(id, req.user.userId);
-  }
-
   @Post(":id/dispatch-challan")
-  createDispatchChallan(@Param("id") id: string, @Req() req: Request & { user: { role: string } }, @Body() body: unknown) {
+  createDispatchChallan(
+    @Param("id") id: string,
+    @Req() req: StaffRequest,
+    @Body() body: unknown,
+  ) {
     if (!["SUPER_ADMIN", "ADMIN", "DISPATCH_OFFICER"].includes(req.user.role))
-      throw new ForbiddenException("A dispatch user must create delivery challans");
-    const data = validate(z.object({
-      truckNumber: z.string().trim().min(3).max(30),
-      driverName: z.string().trim().min(2).max(150),
-      driverPhone: z.string().regex(/^[6-9]\d{9}$/),
-      weighbridgeGrossKg: z.number().positive(),
-      weighbridgeTareKg: z.number().nonnegative(),
-      estimatedArrival: z.string().datetime(),
-    }), body);
+      throw new ForbiddenException(
+        "A dispatch user must create delivery challans",
+      );
+    const data = validate(
+      z.object({
+        truckNumber: z.string().trim().min(3).max(30),
+        driverName: z.string().trim().min(2).max(150),
+        driverPhone: z.string().regex(/^[6-9]\d{9}$/),
+        weighbridgeGrossKg: z.number().positive(),
+        weighbridgeTareKg: z.number().nonnegative(),
+        estimatedArrival: z.string().datetime(),
+      }),
+      body,
+    );
     if (data.weighbridgeGrossKg <= data.weighbridgeTareKg)
-      throw new BadRequestException("Gross vehicle weight must exceed tare weight");
-    return this.ordersService.createDispatchChallan(id, data);
+      throw new BadRequestException(
+        "Gross vehicle weight must exceed tare weight",
+      );
+    return this.ordersService.createDispatchChallan(id, data, req.user.userId);
   }
 
   @Get(":id/track")
@@ -60,8 +72,8 @@ export class OrdersController {
   }
 
   @Patch(":id/advance-dispatch")
-  advanceDispatch(@Param("id") id: string) {
-    return this.ordersService.advanceDispatch(id);
+  advanceDispatch(@Param("id") id: string, @Req() req: StaffRequest) {
+    return this.ordersService.advanceDispatch(id, req.user.userId);
   }
 
   @Get(":id/challan/pdf")

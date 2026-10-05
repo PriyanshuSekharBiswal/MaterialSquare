@@ -1,16 +1,25 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { Phone, MapPin, Mail, ArrowUp, ShieldCheck } from 'lucide-react';
-import MaterialSquareLogo from './icons/MaterialSquareLogo';
-import InstagramIcon from './icons/InstagramIcon';
-import WhatsAppIcon from './icons/WhatsAppIcon';
-import { COMPANY_INFO } from '../data/materialsData';
-import { useSiteContent } from '../site-content';
+import { parseSocialLinks, publicNavigation } from "@material-square/types";
+import React from "react";
+import { Link } from "react-router-dom";
+import {
+  Phone,
+  MapPin,
+  Mail,
+  ArrowUp,
+  ShieldCheck,
+  ExternalLink,
+} from "lucide-react";
+import MaterialSquareLogo from "./icons/MaterialSquareLogo";
+import InstagramIcon from "./icons/InstagramIcon";
+import WhatsAppIcon from "./icons/WhatsAppIcon";
+import { COMPANY_INFO } from "../data/materialsData";
+import { useSiteContent } from "../site-content";
 
 export default function Footer() {
   const siteContent = useSiteContent();
+  const socialLinks = parseSocialLinks(siteContent["footer.socialLinks"]);
   const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
@@ -57,27 +66,50 @@ export default function Footer() {
               {siteContent["footer.description"]}
             </p>
 
-            <a
-              href={COMPANY_INFO.instagramUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="footer-instagram-link"
-            >
-              <InstagramIcon size={16} />
-              <span>Follow {COMPANY_INFO.handle} on Instagram</span>
-            </a>
+            {socialLinks.map((link) => (
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-instagram-link"
+                key={link.id}
+              >
+                {new URL(link.url).hostname.includes("instagram.com") ? (
+                  <InstagramIcon size={16} />
+                ) : (
+                  <ExternalLink size={16} />
+                )}
+                <span>{link.label}</span>
+              </a>
+            ))}
           </div>
 
           {/* Quick Categories Col */}
           <div className="footer-col">
             <h4 className="footer-heading">Browse categories</h4>
             <ul className="footer-nav-list">
-              <li><Link to="/marketplace?category=cement">Cement & aggregates</Link></li>
-              <li><Link to="/marketplace?q=steel">Structural steel & rebar</Link></li>
-              <li><Link to="/marketplace?category=pipes">Pipes & fittings</Link></li>
-              <li><Link to="/marketplace?category=wires">Wires & electrical</Link></li>
-              <li><Link to="/marketplace?category=paints">Paints & finishes</Link></li>
-              <li><Link to="/marketplace?category=sanitary">Sanitaryware & bath</Link></li>
+              <li>
+                <Link to="/marketplace?category=cement">
+                  Cement & aggregates
+                </Link>
+              </li>
+              <li>
+                <Link to="/marketplace?q=steel">Structural steel & rebar</Link>
+              </li>
+              <li>
+                <Link to="/marketplace?category=pipes">Pipes & fittings</Link>
+              </li>
+              <li>
+                <Link to="/marketplace?category=wires">Wires & electrical</Link>
+              </li>
+              <li>
+                <Link to="/marketplace?category=paints">Paints & finishes</Link>
+              </li>
+              <li>
+                <Link to="/marketplace?category=sanitary">
+                  Sanitaryware & bath
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -85,12 +117,24 @@ export default function Footer() {
           <div className="footer-col">
             <h4 className="footer-heading">Platform</h4>
             <ul className="footer-nav-list">
-              <li><Link to="/">Home</Link></li>
-              <li><Link to="/marketplace">Marketplace</Link></li>
-              <li><Link to="/why-us">Why Us</Link></li>
-              <li><Link to="/guides">Tools & Guides</Link></li>
-              <li><Link to="/get-quote">Get Quote</Link></li>
-              <li><Link to="/contact">Contact</Link></li>
+              {publicNavigation(siteContent).map((entry) => (
+                <li key={entry.id}>
+                  {entry.external ? (
+                    <a
+                      href={entry.path}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {entry.label}
+                    </a>
+                  ) : (
+                    <Link to={entry.path}>{entry.label}</Link>
+                  )}
+                </li>
+              ))}
+              <li>
+                <Link to="/get-quote">Get Quote</Link>
+              </li>
             </ul>
           </div>
 
@@ -112,7 +156,10 @@ export default function Footer() {
 
             <div className="footer-assurance-box">
               <ShieldCheck size={16} />
-              <span>Product, price, tax and delivery details are confirmed with staff.</span>
+              <span>
+                Product, price, tax and delivery details are confirmed with
+                staff.
+              </span>
             </div>
           </div>
         </div>
@@ -120,7 +167,8 @@ export default function Footer() {
         {/* Bottom Bar */}
         <div className="footer-bottom-row">
           <p className="copyright-text">
-            © {new Date().getFullYear()} Material Square. All rights reserved. Building Better Together.
+            © {new Date().getFullYear()} Material Square. All rights reserved.
+            Building Better Together.
           </p>
 
           <nav className="footer-legal-links" aria-label="Legal information">

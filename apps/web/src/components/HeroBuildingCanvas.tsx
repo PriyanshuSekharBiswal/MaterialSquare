@@ -29,16 +29,18 @@ export default function HeroBuildingCanvas({ className = '', centered = false })
           y: Math.min(h * 0.82, h - 35),
         };
       }
-      const showcaseCol = document.querySelector('.hero-showcase-col');
-      if (showcaseCol && rect) {
-        const colRect = showcaseCol.getBoundingClientRect();
+      const textCol = document.querySelector('.hero-text-col');
+      if (textCol && rect) {
+        const textRect = textCol.getBoundingClientRect();
+        // Position the 3D building comfortably to the right so the entire ground grid clears the search bar and buttons
+        const targetX = (textRect.right - rect.left) + 330;
         return {
-          x: (colRect.left - rect.left) + colRect.width * 0.5,
-          y: (colRect.top - rect.top) + colRect.height * 0.70,
+          x: Math.max(w * 0.58, Math.min(targetX, w - 160)),
+          y: h * 0.70,
         };
       }
       return {
-        x: w * 0.67,
+        x: w * 0.62,
         y: h * 0.70,
       };
     };
@@ -156,9 +158,9 @@ export default function HeroBuildingCanvas({ className = '', centered = false })
         };
       };
 
-      // 1. Ground Construction Grid (1:1 with cmemp.vercel.app - full expansive grid)
-      const gridExtent = 210 * scale;
-      const gridStep = 21 * scale;
+      // 1. Ground Construction Grid (Framed cleanly around building foundation)
+      const gridExtent = 165 * scale;
+      const gridStep = 18 * scale;
       const gridFade = Math.min(1, buildProgress * 4);
 
       ctx.save();

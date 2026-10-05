@@ -1,0 +1,38 @@
+.sales-external-acceptance {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid #e1e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.sales-external-acceptance legend {
+  padding: 0 6px;
+  color: #26354b;
+  font-weight: 700;
+}
+
+.sales-external-acceptance label {
+  display: grid;
+  gap: 6px;
+  max-width: 420px;
+  color: #34445c;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.sales-external-acceptance select {
+  width: 100%;
+  border: 1px solid #ccd7e4;
+  border-radius: 8px;
+  padding: 9px 11px;
+  color: #18263d;
+  background: #fff;
+  font: inherit;
+}
+
+.sales-external-acceptance button {
+  justify-self: start;
+}

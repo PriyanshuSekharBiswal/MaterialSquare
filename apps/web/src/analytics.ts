@@ -5,6 +5,7 @@ export type WebsiteAnalyticsEvent =
 
 /** Send aggregate, low-detail events only. Never include search text or customer fields. */
 export function trackWebsiteEvent(event: WebsiteAnalyticsEvent) {
+  if (new URLSearchParams(window.location.search).get("draftPreview") === "1") return;
   try {
     void fetch(`${import.meta.env.VITE_API_URL || "/api"}/analytics/events`, {
       method: "POST",

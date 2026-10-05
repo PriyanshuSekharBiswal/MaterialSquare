@@ -61,7 +61,11 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
       await db.staffEnquiry.deleteMany({ where: { id: followupId } });
     await db.customer.deleteMany({ where: { phone: { in: [a, b, real] } } });
     await db.staffUser.deleteMany({
-      where: { email: { in: ["demo-integration@example.test", ownerEmail, managedEmail] } },
+      where: {
+        email: {
+          in: ["demo-integration@example.test", ownerEmail, managedEmail],
+        },
+      },
     });
     await app?.close();
     await db?.$disconnect();
@@ -121,14 +125,29 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
       .get("/api/admin/staff/roles")
       .auth(ownerToken, { type: "bearer" })
       .expect(200);
-    expect(roles.body.some((role: { role: string }) => role.role === "SUPER_ADMIN")).toBe(false);
-    expect(roles.body.map((role: { role: string }) => role.role).sort()).toEqual([
-      "ADMIN", "CATALOG_MANAGER", "CONTENT_MANAGER", "SALES_MANAGER",
+    expect(
+      roles.body.some((role: { role: string }) => role.role === "SUPER_ADMIN"),
+    ).toBe(false);
+    expect(
+      roles.body.map((role: { role: string }) => role.role).sort(),
+    ).toEqual([
+      "ACCOUNTS_MANAGER",
+      "ADMIN",
+      "CATALOG_MANAGER",
+      "CONTENT_MANAGER",
+      "DISPATCH_OFFICER",
+      "PROCUREMENT_HEAD",
+      "SALES_MANAGER",
     ]);
     await request(app.getHttpServer())
       .post("/api/admin/staff")
       .auth(ownerToken, { type: "bearer" })
-      .send({ name: "Future module user", phone: "8999000006", role: "PROCUREMENT_HEAD", password: "future-role-password" })
+      .send({
+        name: "Future module user",
+        phone: "8999000006",
+        role: "UNKNOWN_ROLE",
+        password: "future-role-password",
+      })
       .expect(400);
 
     const created = await request(app.getHttpServer())
@@ -143,14 +162,29 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
       })
       .expect(201);
     expect(created.body).not.toHaveProperty("passwordHash");
+    expect(
+      await db.auditLog.findFirst({
+        where: { action: "STAFF_ACCOUNT_CREATED", entityId: created.body.id },
+        select: { staffId: true, metadata: true },
+      }),
+    ).toMatchObject({
+      staffId: owner.id,
+      metadata: { role: "CATALOG_MANAGER" },
+    });
 
     const phoneLogin = await request(app.getHttpServer())
       .post("/api/auth/staff/login")
-      .send({ phone: managedPhone, password: "catalog-manager-integration-password" })
+      .send({
+        phone: managedPhone,
+        password: "catalog-manager-integration-password",
+      })
       .expect(200);
     await request(app.getHttpServer())
       .post("/api/auth/staff/login")
-      .send({ email: managedEmail, password: "catalog-manager-integration-password" })
+      .send({
+        email: managedEmail,
+        password: "catalog-manager-integration-password",
+      })
       .expect(200);
     await request(app.getHttpServer())
       .get("/api/products/catalogue")
@@ -172,7 +206,10 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
       .expect(401);
     const resetLogin = await request(app.getHttpServer())
       .post("/api/auth/staff/login")
-      .send({ phone: managedPhone, password: "catalog-manager-new-integration-password" })
+      .send({
+        phone: managedPhone,
+        password: "catalog-manager-new-integration-password",
+      })
       .expect(200);
 
     await request(app.getHttpServer())
@@ -186,13 +223,37 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
       .expect(401);
     await request(app.getHttpServer())
       .post("/api/auth/staff/login")
-      .send({ phone: managedPhone, password: "catalog-manager-new-integration-password" })
+      .send({
+        phone: managedPhone,
+        password: "catalog-manager-new-integration-password",
+      })
       .expect(401);
+
+    const staffAudit = await db.auditLog.findMany({
+      where: { entityType: "STAFF_USER", entityId: created.body.id },
+      select: { staffId: true, action: true, metadata: true },
+    });
+    expect(staffAudit.map((entry) => entry.action)).toEqual(
+      expect.arrayContaining([
+        "STAFF_ACCOUNT_CREATED",
+        "STAFF_PASSWORD_RESET",
+        "STAFF_ACCESS_UPDATED",
+      ]),
+    );
+    expect(staffAudit.every((entry) => entry.staffId === owner.id)).toBe(true);
+    expect(JSON.stringify(staffAudit)).not.toContain(
+      "catalog-manager-new-integration-password",
+    );
 
     await request(app.getHttpServer())
       .post("/api/admin/staff")
       .auth(ownerToken, { type: "bearer" })
-      .send({ name: "Second owner", phone: "8999000006", role: "SUPER_ADMIN", password: "another-integration-password" })
+      .send({
+        name: "Second owner",
+        phone: "8999000006",
+        role: "SUPER_ADMIN",
+        password: "another-integration-password",
+      })
       .expect(400);
     await request(app.getHttpServer())
       .patch(`/api/admin/staff/${owner.id}`)
@@ -292,11 +353,46 @@ integration("Demo accounts and staff workspace with PostgreSQL", () => {
       .send(record)
       .expect(201);
     followupId = created.body.id;
+    const createAudit = await db.auditLog.findFirst({
+      where: { entityId: followupId, action: "STAFF_ENQUIRY_CREATED" },
+    });
+    expect(createAudit?.metadata).toEqual({
+      source: "WHATSAPP",
+      status: "NEW",
+      materialCount: 0,
+    });
+    expect(JSON.stringify(createAudit?.metadata)).not.toContain(a);
+    expect(JSON.stringify(createAudit?.metadata)).not.toContain(
+      "Demo Customer A",
+    );
     await request(app.getHttpServer())
       .put(`/api/workspace/followups/${followupId}`)
       .auth(staffToken, { type: "bearer" })
       .send({ ...record, status: "CONTACTED", version: 0 })
       .expect(200);
+    const updateAudit = await db.auditLog.findFirst({
+      where: { entityId: followupId, action: "STAFF_ENQUIRY_UPDATED" },
+    });
+    expect(updateAudit?.metadata).toEqual({
+      previousStatus: "NEW",
+      status: "CONTACTED",
+      changedFields: [
+        "customerName",
+        "phone",
+        "email",
+        "siteAddress",
+        "city",
+        "pincode",
+        "source",
+        "status",
+        "materials",
+        "notes",
+      ],
+    });
+    expect(JSON.stringify(updateAudit?.metadata)).not.toContain(a);
+    expect(JSON.stringify(updateAudit?.metadata)).not.toContain(
+      "Demo Customer A",
+    );
     await request(app.getHttpServer())
       .put(`/api/workspace/followups/${followupId}`)
       .auth(staffToken, { type: "bearer" })

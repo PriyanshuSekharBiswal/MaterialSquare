@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCustomer } from "../customer";
+import { customerApi } from "../api";
 import { trackWebsiteEvent } from "../analytics";
 import {
   emailLink,
@@ -25,6 +26,9 @@ export default function RequestContactForm({
     delivery: "",
     notes: "",
   });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState("");
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [channel, setChannel] = useState("whatsapp"),
     [prepared, setPrepared] = useState(false),
     [error, setError] = useState("");
@@ -43,11 +47,33 @@ export default function RequestContactForm({
   }, [customer?.id]);
   function update(key: keyof RequestDetails, value: string) {
     setPrepared(false);
+    setSubmitted("");
+    setRequestId(crypto.randomUUID());
     setDetails((old) => ({ ...old, [key]: value }));
   }
   useEffect(() => {
     setPrepared(false);
+    setSubmitted("");
+    setRequestId(crypto.randomUUID());
   }, [items]);
+  async function submitWebsiteRequest() {
+    if (!customer || submitting || submitted) return;
+    setSubmitting(true); setError("");
+    try {
+      const saved = await customerApi<{ id: string; status: string }>("/rfqs", "POST", {
+        requestId,
+        customerName: details.name.trim(), customerEmail: details.email.trim(),
+        companyName: details.company.trim(), shippingAddress: details.address.trim(),
+        city: details.city.trim(), pincode: details.pincode,
+        siteLocation: `${details.address.trim()}, ${details.city.trim()}, ${details.pincode}`,
+        deliveryTiming: details.delivery || undefined, notes: details.notes.trim(),
+        items: items.map(item => ({ material: item.name, brand: item.brand,
+          specification: item.specification || "", quantity: item.quantity || 1, unit: item.unit })),
+      }, customer.id);
+      setSubmitted(saved.id);
+    } catch (e) { setError((e as Error).message); }
+    finally { setSubmitting(false); }
+  }
   const message = requestMessage(details, items, enquiry);
   const fields: {
     key: keyof RequestDetails;
@@ -147,6 +173,7 @@ export default function RequestContactForm({
             setPrepared(true);
           }}
         >
+          <fieldset disabled={submitting} className="request-fields">
           <label>
             Preferred contact channel
             <select
@@ -201,7 +228,7 @@ export default function RequestContactForm({
               onChange={(e) => update("notes", e.target.value)}
             />
           </label>
-          <button className="btn btn-primary" disabled={!ready}>
+          <button className="btn btn-primary" disabled={!ready || submitting}>
             Preview {enquiry ? "enquiry" : "request"}
           </button>
           {error && (
@@ -211,7 +238,13 @@ export default function RequestContactForm({
           )}
           {prepared && (
             <div>
-              <h3>Your message</h3>
+              {!enquiry && <div className="website-request-submit">
+                <h3>Send to the Material Square team</h3>
+                <p>Submit these requirements directly to our team. You can track your request and review staff quotations in My Account.</p>
+                <button type="button" className="btn btn-primary" disabled={submitting || Boolean(submitted)} onClick={() => void submitWebsiteRequest()}>{submitting ? "Submitting…" : submitted ? "Request submitted" : "Submit quotation request"}</button>
+                {submitted && <p role="status" className="customer-notice">Request saved. Reference: {submitted}. <Link to="/account">View my requests</Link></p>}
+              </div>}
+              <h3>Or continue through {channel === "email" ? "email" : "WhatsApp"}</h3>
               <pre className="request-preview">{message}</pre>
               <p className="customer-help">
                 Review the details, then press Send in{" "}
@@ -257,6 +290,7 @@ export default function RequestContactForm({
               </p>
             </div>
           )}
+          </fieldset>
         </form>
       )}
     </div>

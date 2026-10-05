@@ -1,5 +1,14 @@
 # Material Square
 
+Product behavior and business requirements are documented in
+[Product Requirements](docs/product/requirements.md). Current implementation
+status and remaining release work are tracked in
+[Implementation Status](docs/engineering/implementation-status.md). See
+[Code Structure](docs/engineering/code-structure.md) for feature boundaries and maintenance
+guidance. The initial client release is in progress; website payments and
+payment-status management are out of scope. Future enhancements will be prioritized
+with the client after deployment.
+
 TypeScript monorepo with a React customer website, React staff app, NestJS API, and PostgreSQL/Prisma persistence.
 
 ## Local setup
@@ -32,18 +41,20 @@ The API reads the root `.env`. Both Vite apps proxy `/api` to port 4000 in devel
 
 ## Implemented flows
 
-- The launch website prepares structured WhatsApp/email messages. Customers review the message and send it in their own app. The site does not claim delivery or record a submitted RFQ from this handoff. Existing staff RFQ APIs remain available for later workflows.
+- Signed-in customers can submit quotation requests directly to the staff RFQ inbox and view their saved requests in My Account. Retry references prevent duplicate submissions. WhatsApp/email handoffs remain separate: customers review and send the message in their own app, and the site cannot confirm its delivery.
 - Guest material lists persist in browser storage. Signed-in customer lists persist in PostgreSQL and populate the direct request form.
 - Staff login verifies a scrypt password hash against an active database user. Tokens expire after eight hours. Staff routes reject anonymous and customer tokens; account deactivation takes effect on the next request.
-- The V1 dashboard shows customer and follow-up counts plus first-party aggregate page views, product-detail opens, add-to-list actions, and WhatsApp/email link clicks for the last 30 days. It does not estimate unique visitors or traffic sources.
+- The initial-release dashboard shows customer and follow-up counts plus first-party aggregate page views, product-detail opens, add-to-list actions, and WhatsApp/email link clicks for the last 30 days. It does not estimate unique visitors or traffic sources.
 - Staff can search customer accounts and review saved material lists, create and update follow-ups, manage staff accounts, assign predefined roles, and manage published product descriptions, images, prices, offers and availability.
-- Development and demo databases seed 22 illustrative catalogue families with sample prices for testing; all stock starts unavailable. The V1 production API deliberately does not seed this preview data: its catalogue starts empty, and client staff must add and approve real products before publication.
+- Development and demo databases seed 22 illustrative catalogue families with sample prices for testing; all stock starts unavailable. The production API deliberately does not seed this preview data: its catalogue starts empty, and client staff must add and approve real products before publication.
 - Redis/BullMQ forwards outbox jobs to the configured notification adapter, with retries. Provider failures are stored in `notification_outbox.failedAt`. If Redis or the notification adapter is not configured, outbox records remain pending.
-- Website quotation/PDF generation, checkout/payment, order fulfilment and customer quote history are outside the agreed V1. The V1 request form prepares a WhatsApp or email message; customers review it and press Send in their own app. The site cannot confirm delivery.
-- Legacy quotation/PDF APIs remain in the repository for a separately scoped later release; they are not part of the active V1 customer or staff workflow.
+- The initial release includes quotations, orders, internal procurement, logistics,
+  and customer history. See [Implementation Status](docs/engineering/implementation-status.md)
+  for verified workflows and remaining work. Website checkout and payment actions
+  remain excluded.
 - The staff catalogue editor uploads approved PNG/JPEG/WebP product images up to 5 MB through the staff-authenticated `/api/storage/images` endpoint. Configure S3-compatible storage before enabling uploads in production; failed uploads show an error rather than a fabricated URL.
 
-Role access is enforced by API guards as well as hidden staff navigation. V1 staff assignment includes Administrator, Sales & Customer Support, Catalogue & Pricing Manager, and Website Content Manager. The website editor changes approved page text and contact details; layout remains in code, and the product catalogue has its own editor. Owners cannot create custom permission sets. Website analytics aggregate event counts only; the client must approve their privacy notice and retention policy. Client staff must verify all business claims and enter real prices and promotions before publication.
+Role access is enforced by API guards as well as hidden staff navigation. The owner can assign Administrator, Sales & Customer Support, Catalogue & Pricing Manager, Website Content Manager, Procurement Head, Dispatch Officer, and Accounts Manager roles. Website editors can manage approved page content, navigation, homepage sections, up to ten repeatable text sections (add, duplicate, reorder, hide and delete), guides, FAQs, metadata, social links, and an optional hero image; structural layout changes remain code changes. Product and offer management has its own editor. Owners cannot create custom permission sets. Website analytics aggregate event counts only; the client must approve their privacy notice and retention policy. Client staff must verify all business claims and enter real prices and promotions before publication.
 
 ## Provider configuration
 
@@ -94,7 +105,7 @@ Styling continues to use CSS. Jest/Supertest and Playwright cover testing; Vites
 - Apply migration `202610020001_customer_accounts` with `npm run db:deploy` before using account routes. It adds customer profile city, material list/version and session records without removing existing data.
 - Guest lists remain in browser storage. Signing in merges guest-only items into the saved account list; the saved account version wins for duplicate IDs. Account lists include quantity, unit and requested specification, save to PostgreSQL, and use version checks to reject conflicting writes. Logout clears the browser view, not the database list. Saving failures are displayed.
 - `/get-quote` asks for verified mobile, name, full address, city and PIN, optional company/delivery date/notes, and email when email is selected. A preview prepares a message, then opens WhatsApp or the customer's mail app. A copy fallback supports long lists or unavailable handlers. Contact-page enquiries remain available to guests with their own message format. Product enquiries include product identity.
-- Request/quotation/order history is **not** provided by this release. Messages sent outside the website cannot be inferred as delivered or imported into account history.
+- Customer accounts now show saved website requests, published quotations, recorded orders, delivery progress, and loyalty points. Messages sent outside the website cannot be inferred as delivered or imported into account history.
 - Customer sign-in always requires MSG91 OTP verification, including in demo mode. Demo mode only affects staff/demo data scoping and staff credentials.
 - Product artwork: all 18 catalogue entries now use category-appropriate studio illustrations, explicitly labelled illustrative. These are representative renders, not exact manufacturer photographs. Manufacturer size/specification verification and client approval remain pending. Existing brand logos and brand text were preserved.
 
@@ -107,14 +118,17 @@ Built-in image generation prompt: photorealistic studio catalogue illustration o
 
 The customer and admin Vercel projects are deployed from GitHub `main`, with the NestJS API on Render's Free demo service. The hosted demo database has 22 product families and 63 variants with indicative prices, all stock unavailable. The demo API publishes these preview listings once and preserves later staff visibility changes. The admin failure screenshot is from a Vercel preview URL; preview functions now route to the demo API by default and are configured to wait through Render's free-service wake-up period. Customer OTP delivery has been observed, but the widget rejected verification before the API created a session; its latest deployed code logs a redacted MSG91 Widget/SDK failure detail for diagnosis.
 
-Do not use the free demo database for client data: Render Free Postgres expires after 30 days and has no backups. Production still requires the paid/persistent API and PostgreSQL resources in the root Render blueprint, client domain/DNS, private production secrets, storage, client-approved catalogue and policies, backups/restore checks, and a real SMS test. The latest V1 API code is running in the hosted test environment; that does not make its free demo database suitable for client data. See [managed deployment setup](deployment/vercel-render.md), the [client launch checklist](docs/client-launch-inputs.md), and [content review](docs/launch-content-review.md) for exact prerequisites.
+Do not use the free demo database for client data: Render Free Postgres expires after 30 days and has no backups. Production still requires the paid/persistent API and PostgreSQL resources in the root Render blueprint, client domain/DNS, private production secrets, storage, client-approved catalogue and policies, backups/restore checks, and a real SMS test. The hosted demo is for testing only and is not production-ready. See [managed deployment setup](deployment/vercel-render.md), the [production readiness checklist](docs/operations/production-readiness.md), and [content review](docs/content/review-checklist.md) for exact prerequisites.
 
-Automated verification completed for the current code: TypeScript typecheck, production builds, 56 API tests (40 unit/service tests and 16 PostgreSQL-backed integration tests), 17 browser acceptance tests, Prisma schema validation, and `git diff --check`. The PostgreSQL integration suites ran against a separate temporary database with all 18 migrations; that database was removed afterwards. CI audits production dependencies. The development test toolchain currently has an upstream-unpatched `braces` advisory through Jest; both Render blueprints prune dev dependencies after building, and Prisma CLI remains installed for database migrations. These checks do not replace the pending live OTP verification, production storage, backup/restore and client acceptance checks.
+Automated verification for the initial release is tracked in
+[`Implementation Status`](docs/engineering/implementation-status.md). Live OTP,
+production storage, backup/restore, and client acceptance still require production
+verification.
 
 The staff catalogue supports separate sellable pack/size/colour variants with their own units, price, offer dates, stock quantity and gallery. Customer selections retain their variant and clearly labelled indicative estimate in the saved material list and WhatsApp/email draft; final price and stock are reconfirmed by staff. New demo entries start unavailable until staff confirm inventory.
 
 ## Demo and first-release staff workspace
 
-Run `npm run demo` for persistent local account testing with MSG91 customer login and staff mobile/password login. See [demo testing instructions](docs/demo-testing.md) for multi-device checks and data separation. The current staff workspace contains customer accounts, saved material lists and manual follow-ups; the earlier quotation/order screens remain archived for later work.
+Run `npm run demo` for persistent local account testing with MSG91 customer login and staff mobile/password login. See [demo testing instructions](docs/operations/demo-testing.md) for multi-device checks and data separation. The staff workspace includes customer accounts, sales quotations, procurement, transportation, catalogue and content management. See the implementation status for current coverage and remaining work.
 
 For GitHub + Vercel + Render, follow [managed deployment setup](deployment/vercel-render.md). The customer-facing test site and staff panel are already deployed; the original client's production environment and approvals remain to be completed.

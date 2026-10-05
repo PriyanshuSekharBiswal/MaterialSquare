@@ -92,8 +92,8 @@ export default function WhyUsPage({ onOpenBOMDrawer }: { onOpenBOMDrawer: () => 
               </article>
             ))}
           </div>
-          <p className="v1-scope-note">
-            A saved list or prepared WhatsApp/email message is not an order, accepted quotation, payment, or delivery booking.
+          <p className="release-scope-note">
+            A saved list or prepared WhatsApp/email message is not an accepted quotation, confirmed order, or delivery booking.
           </p>
           <Link to="/contact" className="btn btn-primary">Contact the team</Link>
         </div>

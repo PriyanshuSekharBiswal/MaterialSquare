@@ -1,19 +1,32 @@
-import { useCustomer } from '../customer';
-import { UserRound } from 'lucide-react';
-import type { MaterialItem, CatalogueProduct } from '../types';
-import React, { useState } from 'react';
-import { NavLink, Link } from 'react-router-dom';
-import { Phone, FileText, Menu, X, MapPin } from 'lucide-react';
-import MaterialSquareLogo from './icons/MaterialSquareLogo';
-import WhatsAppIcon from './icons/WhatsAppIcon';
-import { COMPANY_INFO } from '../data/materialsData';
-import { useSiteContent } from '../site-content';
+import { publicNavigation } from "@material-square/types";
+import { useCustomer } from "../customer";
+import type { MaterialItem, CatalogueProduct } from "../types";
+import React, { useState } from "react";
+import { NavLink, Link } from "react-router-dom";
+import {
+  Phone,
+  FileText,
+  Menu,
+  X,
+  MapPin,
+  UserRound,
+  ArrowRight,
+} from "lucide-react";
+import MaterialSquareLogo from "./icons/MaterialSquareLogo";
+import { useSiteContent } from "../site-content";
 
-export default function Header({ bomCount, onOpenBOMDrawer }: { bomCount: number; onOpenBOMDrawer: () => void }) {
+export default function Header({
+  bomCount,
+  onOpenBOMDrawer,
+}: {
+  bomCount: number;
+  onOpenBOMDrawer: () => void;
+}) {
   const { customer } = useCustomer();
   const siteContent = useSiteContent();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const navigation = publicNavigation(siteContent);
   const closeMenu = () => setMobileMenuOpen(false);
 
   return (
@@ -23,16 +36,28 @@ export default function Header({ bomCount, onOpenBOMDrawer }: { bomCount: number
         <div className="container top-bar-content">
           <div className="top-bar-left">
             <span className="location-tag">
+              <span className="live-dot" aria-hidden="true" />
               <MapPin size={12} className="loc-icon" />
-              <strong className="top-bar-serving">Service area</strong>
-              <span className="top-bar-cities">: {siteContent["contact.location"]}</span>
+              <strong className="top-bar-serving">Service Area:</strong>
+              <span className="top-bar-cities">
+                {" "}
+                {siteContent["contact.location"] ||
+                  "Serving Delhi NCR (Noida, Greater Noida, Delhi, Gurugram, Ghaziabad & Faridabad)"}
+              </span>
             </span>
           </div>
 
           <div className="top-bar-right">
-            <a href={`tel:${siteContent["contact.phone"]}`} className="hotline-phone" title="Call Material Square Hotline">
+            <span className="top-bar-tagline">Building Better Together</span>
+            <a
+              href={`tel:${siteContent["contact.phone"] || "+919773505015"}`}
+              className="hotline-phone"
+              title="Call Material Square Hotline"
+            >
               <Phone size={12} />
-              <span className="hotline-text">{siteContent["contact.phoneDisplay"]}</span>
+              <span className="hotline-text">
+                {siteContent["contact.phoneDisplay"] || "+91 97735 05015"}
+              </span>
             </a>
           </div>
         </div>
@@ -42,86 +67,82 @@ export default function Header({ bomCount, onOpenBOMDrawer }: { bomCount: number
       <div className="ms-nav-main">
         <div className="container nav-content">
           {/* Logo */}
-          <Link to="/" className="nav-logo" onClick={closeMenu}>
+          <Link
+            to="/"
+            className="nav-logo"
+            onClick={closeMenu}
+            aria-label="Material Square Home"
+          >
             <MaterialSquareLogo size={42} showText={true} />
           </Link>
 
           {/* Desktop Navigation Links */}
-          <nav className="desktop-nav-links">
-            <NavLink
-              to="/"
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              Home
-            </NavLink>
-            <NavLink
-              to="/marketplace"
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              Marketplace
-            </NavLink>
-            <NavLink
-              to="/why-us"
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              Why Us
-            </NavLink>
-            <NavLink
-              to="/guides"
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              Tools & Guides
-            </NavLink>
-            <NavLink to="/blogs" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              Blogs
-            </NavLink>
-            <NavLink to="/experts" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              Experts
-            </NavLink>
-            <NavLink
-              to="/get-quote"
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              Get Quote
-            </NavLink>
-            <NavLink
-              to="/contact"
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              Contact
-            </NavLink>
+          <nav className="desktop-nav-links" aria-label="Main Navigation">
+            {navigation.map((entry) =>
+              entry.external ? (
+                <a
+                  key={entry.id}
+                  href={entry.path}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="nav-link"
+                >
+                  {entry.label}
+                </a>
+              ) : (
+                <NavLink
+                  key={entry.id}
+                  to={entry.path}
+                  end={entry.path === "/"}
+                  className={({ isActive }) =>
+                    `nav-link ${isActive ? "active" : ""}`
+                  }
+                >
+                  {entry.label}
+                </NavLink>
+              ),
+            )}
           </nav>
 
           {/* Action CTAs */}
           <div className="nav-action-buttons">
-            <Link to="/account" onClick={closeMenu} className="btn btn-secondary btn-sm nav-account" aria-label={customer ? "My Account" : "Login"}><UserRound size={18}/>{customer ? "My Account" : "Login"}</Link>
-            <a
-              href={COMPANY_INFO.whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-whatsapp btn-sm nav-wa-btn"
-              title="Chat with Material Square on WhatsApp"
-            >
-              <WhatsAppIcon size={16} color="#ffffff" />
-              <span>WhatsApp</span>
-            </a>
-
             <button
               type="button"
-              className={`btn btn-secondary btn-sm nav-bom-trigger ${bomCount > 0 ? 'has-items' : ''}`}
+              className={`nav-btn nav-btn-outline nav-bom-trigger ${bomCount > 0 ? "has-items" : ""}`}
               onClick={onOpenBOMDrawer}
+              title="View your saved material list"
             >
               <FileText size={15} />
               <span>Material List</span>
               {bomCount > 0 && <span className="bom-counter">{bomCount}</span>}
             </button>
 
+            <Link
+              to="/account"
+              onClick={closeMenu}
+              className="nav-btn nav-btn-ghost nav-account"
+              aria-label={customer ? "My Account" : "Login"}
+            >
+              <UserRound size={16} />
+              <span>{customer ? "My Account" : "Login"}</span>
+            </Link>
+
+            <Link
+              to="/get-quote"
+              onClick={closeMenu}
+              className="nav-btn nav-btn-primary nav-quote-btn"
+              title="Request a customized quote for your construction materials"
+            >
+              <span>Get Quote</span>
+              <ArrowRight size={14} className="quote-arrow" />
+            </Link>
+
             {/* Mobile Menu Button */}
             <button
               type="button"
-              className={`mobile-nav-toggle ${mobileMenuOpen ? 'is-active' : ''}`}
+              className={`mobile-nav-toggle ${mobileMenuOpen ? "is-active" : ""}`}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle navigation"
+              aria-label="Toggle navigation menu"
             >
               {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
@@ -133,35 +154,43 @@ export default function Header({ bomCount, onOpenBOMDrawer }: { bomCount: number
       {mobileMenuOpen && (
         <div className="mobile-menu-pane">
           <div className="container mobile-links-list">
-            <NavLink to="/" onClick={closeMenu} className="mobile-nav-item">
-              Home
-            </NavLink>
-            <NavLink to="/marketplace" onClick={closeMenu} className="mobile-nav-item">
-              Marketplace
-            </NavLink>
-            <NavLink to="/why-us" onClick={closeMenu} className="mobile-nav-item">
-              Why Us
-            </NavLink>
-            <NavLink to="/guides" onClick={closeMenu} className="mobile-nav-item">
-              Tools & Guides
-            </NavLink>
-            <NavLink to="/blogs" onClick={closeMenu} className="mobile-nav-item">
-              Blogs
-            </NavLink>
-            <NavLink to="/experts" onClick={closeMenu} className="mobile-nav-item">
-              Experts & Services
-            </NavLink>
-            <NavLink to="/get-quote" onClick={closeMenu} className="mobile-nav-item">
-              Get Quote
-            </NavLink>
-            <NavLink to="/contact" onClick={closeMenu} className="mobile-nav-item">
-              Contact
-            </NavLink>
+            {navigation.map((entry) =>
+              entry.external ? (
+                <a
+                  key={entry.id}
+                  href={entry.path}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={closeMenu}
+                  className="mobile-nav-item"
+                >
+                  {entry.label}
+                </a>
+              ) : (
+                <NavLink
+                  key={entry.id}
+                  to={entry.path}
+                  end={entry.path === "/"}
+                  onClick={closeMenu}
+                  className="mobile-nav-item"
+                >
+                  {entry.label}
+                </NavLink>
+              ),
+            )}
 
             <div className="mobile-actions-stack">
+              <Link
+                to="/get-quote"
+                onClick={closeMenu}
+                className="btn btn-primary btn-block mobile-quote-cta"
+              >
+                <span>Get Instant Quote</span>
+                <ArrowRight size={16} />
+              </Link>
               <button
                 type="button"
-                className="btn btn-primary btn-block"
+                className="btn btn-secondary btn-block"
                 onClick={() => {
                   closeMenu();
                   onOpenBOMDrawer();
@@ -170,15 +199,14 @@ export default function Header({ bomCount, onOpenBOMDrawer }: { bomCount: number
                 <FileText size={16} />
                 <span>View Material List ({bomCount})</span>
               </button>
-              <a
-                href={COMPANY_INFO.whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-whatsapp btn-block"
+              <Link
+                to="/account"
+                onClick={closeMenu}
+                className="btn btn-secondary btn-block"
               >
-                <WhatsAppIcon size={18} color="#ffffff" />
-                <span>Connect on WhatsApp</span>
-              </a>
+                <UserRound size={16} />
+                <span>{customer ? "My Account" : "Login"}</span>
+              </Link>
             </div>
           </div>
         </div>

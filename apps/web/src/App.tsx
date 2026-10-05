@@ -1,3 +1,4 @@
+import PageMetadata from "./components/PageMetadata";
 import { CustomerProvider, useCustomer } from './customer';
 import './customer.css';
 import type { CatalogueProduct, MaterialItem } from './types';
@@ -8,7 +9,7 @@ import { COMPANY_INFO } from './data/materialsData';
 import useScrollReveal from './hooks/useScrollReveal';
 import useSmoothScroll from './hooks/useSmoothScroll';
 import { trackWebsiteEvent } from './analytics';
-import { SiteContentProvider, useSiteContent } from './site-content';
+import { SiteContentProvider, useDraftPreview, useSiteContent } from './site-content';
 
 // Global Shell Components
 import Header from './components/Header';
@@ -35,6 +36,7 @@ import WhatsAppIcon from './components/icons/WhatsAppIcon';
 
 function AppShell() {
   const siteContent = useSiteContent();
+  const isDraftPreview = useDraftPreview();
   const location = useLocation();
   const navigate = useNavigate();
   useScrollReveal();
@@ -51,8 +53,8 @@ function AppShell() {
       : location.pathname === "/experts" ? "experts"
       : location.pathname === "/account" ? "account"
       : null;
-    if (page) trackWebsiteEvent({ type: "page_view", target: page });
-  }, [location.pathname]);
+    if (page && !isDraftPreview) trackWebsiteEvent({ type: "page_view", target: page });
+  }, [isDraftPreview, location.pathname]);
 
   const [isBOMOpen, setIsBOMOpen] = useState(false);
   const [activeProductModal, setActiveProductModal] = useState<CatalogueProduct | null>(null);
@@ -116,6 +118,7 @@ function AppShell() {
       <ScrollToTop />
       <div className="ms-construction-app">
         {/* Navigation Header with Delhi NCR Hotline & Navigation Links */}
+        <PageMetadata/>
         <Header
           bomCount={bomList.length}
           onOpenBOMDrawer={openBOMDrawer}
@@ -229,32 +232,34 @@ function AppShell() {
           onClearBOM={handleClearBOM}
         /></Suspense>}
 
-        {/* Floating Quick Action Widget on Mobile & Desktop */}
-        <aside className="floating-action-dock" aria-label="Quick Actions">
-          <button
-            type="button"
-            className={`dock-bom-btn ${bomList.length > 0 ? 'has-items' : ''}`}
-            onClick={openBOMDrawer}
-            title="Open Material List"
-            aria-label={`Open Material List with ${bomList.length} items`}
-          >
-            <FileText size={20} />
-            <span className="dock-label">Material List</span>
-            {bomList.length > 0 && <span className="dock-badge">{bomList.length}</span>}
-          </button>
+        {/* The sticky catalogue header and per-product contact links replace the dock here. */}
+        {location.pathname !== "/marketplace" && (
+          <aside className="floating-action-dock" aria-label="Quick Actions">
+            <button
+              type="button"
+              className={`dock-bom-btn ${bomList.length > 0 ? 'has-items' : ''}`}
+              onClick={openBOMDrawer}
+              title="Open Material List"
+              aria-label={`Open Material List with ${bomList.length} items`}
+            >
+              <FileText size={20} />
+              <span className="dock-label">Material List</span>
+              {bomList.length > 0 && <span className="dock-badge">{bomList.length}</span>}
+            </button>
 
-          <a
-            href={`https://wa.me/91${siteContent["contact.phone"]}?text=Material%20Square%20%E2%80%94%20General%20Enquiry`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="dock-whatsapp-btn"
-            title="Chat with Procurement Coordinator on WhatsApp"
-            aria-label="Chat on WhatsApp"
-          >
-            <WhatsAppIcon size={22} color="#ffffff" />
-            <span className="dock-label">WhatsApp</span>
-          </a>
-        </aside>
+            <a
+              href={`https://wa.me/91${siteContent["contact.phone"]}?text=Material%20Square%20%E2%80%94%20General%20Enquiry`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="dock-whatsapp-btn"
+              title="Chat with Procurement Coordinator on WhatsApp"
+              aria-label="Chat on WhatsApp"
+            >
+              <WhatsAppIcon size={22} color="#ffffff" />
+              <span className="dock-label">WhatsApp</span>
+            </a>
+          </aside>
+        )}
       </div>
     </>
   );

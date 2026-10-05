@@ -1,3 +1,4 @@
+import { AuditModule } from "./audit/audit.module";
 import { WorkspaceModule } from "./workspace/workspace.module";
 import { HealthController } from "./health.controller";
 import { RfqsModule } from "./rfqs/rfqs.module";
@@ -14,6 +15,7 @@ import { JobsModule } from "./jobs/jobs.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
 import { BusinessModule } from "./business/business.module";
 import { SiteContentModule } from "./site-content/site-content.module";
+import { ReportsModule } from "./reports/reports.module";
 
 @Module({
   controllers: [HealthController],
@@ -35,6 +37,8 @@ import { SiteContentModule } from "./site-content/site-content.module";
     AnalyticsModule,
     BusinessModule,
     SiteContentModule,
+    ReportsModule,
+    AuditModule,
   ],
 })
 export class AppModule {}

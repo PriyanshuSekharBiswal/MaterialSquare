@@ -44,7 +44,36 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
             if (job.data.outboxId)
               await this.prisma.notificationOutbox.update({
                 where: { id: job.data.outboxId },
-                data: { deliveredAt: new Date(), failedAt: null },
+                data: {
+                  skippedAt: new Date(),
+                  skipReason: "Follow-up is no longer scheduled",
+                  failedAt: null,
+                },
+              });
+            return;
+          }
+        }
+        if (job.name === "quote-expiry-reminder") {
+          const quote = job.data.quoteId
+            ? await this.prisma.quotation.findUnique({
+                where: { id: job.data.quoteId },
+                select: { status: true, validUntil: true },
+              })
+            : null;
+          if (
+            !quote ||
+            quote.status !== "QUOTE_SENT" ||
+            quote.validUntil <= new Date()
+          ) {
+            if (job.data.outboxId)
+              await this.prisma.notificationOutbox.update({
+                where: { id: job.data.outboxId },
+                data: {
+                  skippedAt: new Date(),
+                  skipReason:
+                    "Quotation is no longer awaiting a response or has expired",
+                  failedAt: null,
+                },
               });
             return;
           }
@@ -70,8 +99,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
             data: { deliveredAt: new Date(), failedAt: null },
           });
         if (job.data.followupId)
-          await this.prisma.quotationFollowUp.update({
-            where: { id: job.data.followupId },
+          await this.prisma.quotationFollowUp.updateMany({
+            where: { id: job.data.followupId, status: "SCHEDULED" },
             data: { status: "SENT", sentAt: new Date() },
           });
       },
@@ -90,8 +119,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
           );
       if (job?.data.followupId && job.attemptsMade >= (job.opts.attempts || 1))
         void this.prisma.quotationFollowUp
-          .update({
-            where: { id: job.data.followupId },
+          .updateMany({
+            where: { id: job.data.followupId, status: "SCHEDULED" },
             data: { status: "FAILED" },
           })
           .catch(() => this.logger.error("Could not record follow-up failure"));

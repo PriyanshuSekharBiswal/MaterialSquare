@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 5173",
-    "build": "tsc -b && vite build",
-    "typecheck": "tsc --noEmit",
+    "build": "tsc -b && vite build && node scripts/generate-crawler-assets.cjs",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.server.json",
     "lint": "oxlint",
     "preview": "vite preview"
   },

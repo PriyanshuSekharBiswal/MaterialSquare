@@ -6,7 +6,7 @@ This is an alternative self-hosted deployment option. It has not been deployed o
 
 - A Linux server with Docker Engine and Compose, sufficient disk space, and ports 80/443 available.
 - Website and staff subdomain DNS records pointing to that server.
-- Client-approved contact details, catalogue, business claims and policies (see `docs/launch-content-review.md`).
+- Client-approved contact details, catalogue, business claims and policies (see `docs/content/review-checklist.md`).
 - An active MSG91 OTP Widget. Keep its Authkey in the API host's private settings and the widget ID/client token in the customer frontend environment.
 - An S3-compatible object-storage bucket and CDN/public asset URL for product image uploads. Keep write credentials in the API host's private settings.
 - Independent backup destination and monitoring service.

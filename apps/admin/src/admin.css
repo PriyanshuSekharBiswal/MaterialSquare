@@ -989,3 +989,12 @@ input:focus, select:focus, textarea:focus {
     align-items: stretch;
   }
 }
+
+.quote-editor-fields { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 16px; width: 100%; grid-column: 1 / -1; }
+.quote-line { border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.quote-line select { width: 100%; min-width: 0; }
+.homepage-content-blocks > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.homepage-content-blocks > header p { max-width: 720px; margin-bottom: 0; color: var(--text-muted, #65758c); }
+.homepage-content-block-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.homepage-content-block .website-content-fields { margin-top: 12px; }
+@media (max-width: 700px) { .homepage-content-blocks > header, .homepage-content-block-heading { flex-direction: column; } }

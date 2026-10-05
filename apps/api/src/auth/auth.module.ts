@@ -10,10 +10,12 @@ import { AuthService } from "./auth.service";
 import { Msg91WidgetService } from "./msg91-widget.service";
 import { JwtStrategy } from "./jwt.strategy";
 import { StaffManagementController } from "./staff-management.controller";
+import { QuotesModule } from "../quotes/quotes.module";
 
 @Global()
 @Module({
   imports: [
+    QuotesModule,
     PassportModule.register({ defaultStrategy: "jwt" }),
     JwtModule.registerAsync({
       useFactory: () => ({

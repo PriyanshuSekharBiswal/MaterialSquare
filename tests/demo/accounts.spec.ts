@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { signInDemoStaff } from "./staff-session";
 
 test("demo mode does not expose generated customer OTPs", async ({ page }) => {
   await page.goto("/account");
@@ -10,4 +11,13 @@ test("demo mode does not expose generated customer OTPs", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Use demo code" })).toHaveCount(
     0,
   );
+});
+
+test("demo staff can sign in through the admin workspace against PostgreSQL", async ({
+  page,
+}) => {
+  await signInDemoStaff(page);
+  await expect(
+    page.getByRole("navigation", { name: "Workspace navigation" }),
+  ).toBeVisible();
 });

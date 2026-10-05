@@ -1,3 +1,4 @@
+import FaqSection from "../components/FaqSection";
 import RequestContactForm from '../components/RequestContactForm';
 import { whatsappLink } from '../messages';
 import { Mail, MapPin, Phone } from 'lucide-react';
@@ -88,6 +89,7 @@ export default function ContactPage() {
           </div>
         </div>
       </section>
+      <FaqSection/>
     </div>
   );
 }

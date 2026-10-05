@@ -15,7 +15,7 @@ const COLORS = {
 };
 
 type QuotePdf = Prisma.QuotationGetPayload<{
-  include: { items: { include: { product: true } } };
+  include: { items: { include: { product: true; options: true } } };
 }>;
 
 const QUOTE_STATUS_LABEL: Record<QuotePdf["status"], string> = {
@@ -34,7 +34,17 @@ export class PdfService {
   async generatePurchaseOrderPdf(po: {
     purchaseOrderNumber: string;
     createdAt: Date;
-    supplier: { name: string; legalName: string | null; gstin: string | null; address: string; city: string; pincode: string; phone: string; email: string | null };
+    supplier: {
+      name: string;
+      legalName: string | null;
+      gstin: string | null;
+      address: string;
+      city: string;
+      pincode: string;
+      phone: string;
+      email: string | null;
+    };
+    revisionNumber: number;
     shippingAddress: string;
     shippingContact: string;
     items: Prisma.JsonValue;
@@ -45,52 +55,189 @@ export class PdfService {
     notes: string | null;
   }): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ size: "A4", margin: 48, info: { Title: `Purchase Order ${po.purchaseOrderNumber}`, Author: "Material Square" } });
+      const doc = new PDFDocument({
+        size: "A4",
+        margin: 48,
+        info: {
+          Title: `Purchase Order ${po.purchaseOrderNumber}`,
+          Author: "Material Square",
+        },
+      });
       const chunks: Buffer[] = [];
       doc.on("data", (chunk: Buffer) => chunks.push(chunk));
       doc.on("end", () => resolve(Buffer.concat(chunks)));
       doc.on("error", reject);
       const width = doc.page.width - 96;
-      const money = (value: Prisma.Decimal) => `INR ${value.toNumber().toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const money = (value: Prisma.Decimal) =>
+        `INR ${value.toNumber().toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       doc.rect(0, 0, doc.page.width, 100).fill(COLORS.navy);
-      doc.font("Helvetica-Bold").fontSize(18).fillColor(COLORS.white).text("MATERIAL SQUARE", 48, 26);
-      doc.font("Helvetica").fontSize(9).fillColor("#C8D4E5").text("PURCHASE ORDER", 48, 56, { characterSpacing: 1.5 });
-      doc.font("Helvetica-Bold").fontSize(12).fillColor(COLORS.white).text(po.purchaseOrderNumber, 300, 44, { width: width - 252, align: "right" });
-      doc.font("Helvetica").fontSize(9).fillColor(COLORS.muted).text(`Issued ${po.createdAt.toLocaleDateString("en-IN")}`, 300, 63, { width: width - 252, align: "right" });
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(18)
+        .fillColor(COLORS.white)
+        .text("MATERIAL SQUARE", 48, 26);
+      doc
+        .font("Helvetica")
+        .fontSize(9)
+        .fillColor("#C8D4E5")
+        .text("PURCHASE ORDER", 48, 56, { characterSpacing: 1.5 });
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(12)
+        .fillColor(COLORS.white)
+        .text(po.purchaseOrderNumber, 300, 44, {
+          width: width - 252,
+          align: "right",
+        });
+      doc
+        .font("Helvetica")
+        .fontSize(9)
+        .fillColor(COLORS.muted)
+        .text(`Issued ${po.createdAt.toLocaleDateString("en-IN")}`, 300, 63, {
+          width: width - 252,
+          align: "right",
+        });
       doc.roundedRect(48, 120, 245, 112, 8).fill(COLORS.paper);
       doc.roundedRect(305, 120, 245, 112, 8).fill(COLORS.paleBlue);
-      doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.muted).text("SUPPLIER", 62, 134, { characterSpacing: 1 });
-      doc.font("Helvetica-Bold").fontSize(11).fillColor(COLORS.ink).text(po.supplier.legalName || po.supplier.name, 62, 153, { width: 215, ellipsis: true });
-      doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.ink).text(`${po.supplier.address}, ${po.supplier.city} ${po.supplier.pincode}\n${po.supplier.phone}\n${po.supplier.email || ""}${po.supplier.gstin ? `\nGSTIN ${po.supplier.gstin}` : ""}`, 62, 172, { width: 215, height: 52 });
-      doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.muted).text("SHIP TO", 319, 134, { characterSpacing: 1 });
-      doc.font("Helvetica").fontSize(9).fillColor(COLORS.ink).text(`${po.shippingAddress}\nContact: ${po.shippingContact}`, 319, 156, { width: 215, height: 64 });
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(8)
+        .fillColor(COLORS.muted)
+        .text("SUPPLIER", 62, 134, { characterSpacing: 1 });
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(11)
+        .fillColor(COLORS.ink)
+        .text(po.supplier.legalName || po.supplier.name, 62, 153, {
+          width: 215,
+          ellipsis: true,
+        });
+      doc
+        .font("Helvetica")
+        .fontSize(8.5)
+        .fillColor(COLORS.ink)
+        .text(
+          `${po.supplier.address}, ${po.supplier.city} ${po.supplier.pincode}\n${po.supplier.phone}\n${po.supplier.email || ""}${po.supplier.gstin ? `\nGSTIN ${po.supplier.gstin}` : ""}`,
+          62,
+          172,
+          { width: 215, height: 52 },
+        );
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(8)
+        .fillColor(COLORS.muted)
+        .text("SHIP TO", 319, 134, { characterSpacing: 1 });
+      doc
+        .font("Helvetica")
+        .fontSize(9)
+        .fillColor(COLORS.ink)
+        .text(
+          `${po.shippingAddress}\nContact: ${po.shippingContact}`,
+          319,
+          156,
+          { width: 215, height: 64 },
+        );
       let y = 256;
       doc.roundedRect(48, y, width, 28, 5).fill(COLORS.navy);
-      doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.white).text("MATERIAL / SPECIFICATION", 60, y + 9, { width: 275 });
-      doc.text("QTY", 348, y + 9, { width: 48, align: "right" }).text("UNIT", 405, y + 9, { width: 50 }).text("AMOUNT", 458, y + 9, { width: 77, align: "right" });
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(8)
+        .fillColor(COLORS.white)
+        .text("MATERIAL / SPECIFICATION", 60, y + 9, { width: 275 });
+      doc
+        .text("QTY", 348, y + 9, { width: 48, align: "right" })
+        .text("UNIT", 405, y + 9, { width: 50 })
+        .text("AMOUNT", 458, y + 9, { width: 77, align: "right" });
       y += 28;
+      doc
+        .font("Helvetica")
+        .fontSize(8)
+        .fillColor(COLORS.muted)
+        .text(`Revision ${po.revisionNumber}`, 48, 232);
       const rows = Array.isArray(po.items) ? po.items : [];
       rows.slice(0, 200).forEach((value, index) => {
-        const row = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, Prisma.JsonValue> : {};
+        const row =
+          value && typeof value === "object" && !Array.isArray(value)
+            ? (value as Record<string, Prisma.JsonValue>)
+            : {};
         const name = String(row.productName || row.name || "Material");
-        const detail = [row.brand, row.category].filter((item) => typeof item === "string" && item).join(" · ");
+        const detail = [row.brand, row.category]
+          .filter((item) => typeof item === "string" && item)
+          .join(" · ");
         const quantity = Number(row.quantity || row.quantityMt || 0);
         const unit = String(row.unit || "unit");
         const description = detail ? `${name}\n${detail}` : name;
         const rowHeight = detail ? 39 : 28;
-        if (y + rowHeight > doc.page.height - 125) { doc.addPage(); y = 54; }
+        if (y + rowHeight > doc.page.height - 125) {
+          doc.addPage();
+          y = 54;
+        }
         if (index % 2 === 0) doc.rect(48, y, width, rowHeight).fill("#F7F9FC");
-        doc.font("Helvetica-Bold").fontSize(8.5).fillColor(COLORS.ink).text(description, 60, y + 7, { width: 275, height: rowHeight - 10, ellipsis: true });
-        doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.ink).text(quantity.toLocaleString("en-IN"), 348, y + 8, { width: 48, align: "right" }).text(unit, 405, y + 8, { width: 50, ellipsis: true }).text("As quoted", 458, y + 8, { width: 77, align: "right" });
+        doc
+          .font("Helvetica-Bold")
+          .fontSize(8.5)
+          .fillColor(COLORS.ink)
+          .text(description, 60, y + 7, {
+            width: 275,
+            height: rowHeight - 10,
+            ellipsis: true,
+          });
+        doc
+          .font("Helvetica")
+          .fontSize(8.5)
+          .fillColor(COLORS.ink)
+          .text(quantity.toLocaleString("en-IN"), 348, y + 8, {
+            width: 48,
+            align: "right",
+          })
+          .text(unit, 405, y + 8, { width: 50, ellipsis: true })
+          .text("As quoted", 458, y + 8, { width: 77, align: "right" });
         y += rowHeight;
       });
       y += 18;
-      if (po.notes) { doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.muted).text("NOTES", 48, y); doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.ink).text(po.notes, 48, y + 14, { width: 260, height: 70, ellipsis: true }); }
+      if (po.notes) {
+        doc
+          .font("Helvetica-Bold")
+          .fontSize(8)
+          .fillColor(COLORS.muted)
+          .text("NOTES", 48, y);
+        doc
+          .font("Helvetica")
+          .fontSize(8.5)
+          .fillColor(COLORS.ink)
+          .text(po.notes, 48, y + 14, {
+            width: 260,
+            height: 70,
+            ellipsis: true,
+          });
+      }
       const sx = 350;
-      const row = (label: string, value: Prisma.Decimal) => { doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.muted).text(label, sx, y, { width: 95 }); doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.ink).text(money(value), sx + 96, y, { width: 104, align: "right" }); y += 18; };
-      row("Subtotal", po.subtotal); row("Tax", po.taxAmount); row("Freight", po.freightAmount);
+      const row = (label: string, value: Prisma.Decimal) => {
+        doc
+          .font("Helvetica")
+          .fontSize(8.5)
+          .fillColor(COLORS.muted)
+          .text(label, sx, y, { width: 95 });
+        doc
+          .font("Helvetica")
+          .fontSize(8.5)
+          .fillColor(COLORS.ink)
+          .text(money(value), sx + 96, y, { width: 104, align: "right" });
+        y += 18;
+      };
+      row("Subtotal", po.subtotal);
+      row("Tax", po.taxAmount);
+      row("Freight", po.freightAmount);
       doc.roundedRect(sx - 5, y, 205, 36, 6).fill(COLORS.navy);
-      doc.font("Helvetica-Bold").fontSize(9).fillColor(COLORS.white).text("TOTAL", sx + 7, y + 12).text(money(po.totalAmount), sx + 65, y + 11, { width: 123, align: "right" });
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(9)
+        .fillColor(COLORS.white)
+        .text("TOTAL", sx + 7, y + 12)
+        .text(money(po.totalAmount), sx + 65, y + 11, {
+          width: 123,
+          align: "right",
+        });
       doc.end();
     });
   }
@@ -205,7 +352,11 @@ export class PdfService {
           .font("Helvetica")
           .fontSize(9)
           .fillColor("#D9E5FF")
-          .text("Prepared for your project", left + 92, 81);
+          .text(
+            `Revision ${quote.revisionNumber} · Prepared for your project`,
+            left + 92,
+            81,
+          );
 
         const badgeWidth = 164;
         const badgeX = right - badgeWidth;
@@ -357,7 +508,19 @@ export class PdfService {
       quote.items.forEach((item, index) => {
         const descriptionWidth = 218;
         doc.font("Helvetica").fontSize(8.5);
-        const descriptionHeight = doc.heightOfString(item.product.name, {
+        const comparisonDetails = item.options.map(
+          (option) =>
+            `Alternative: ${option.brandName} · ${option.productName} · ${money(option.unitPrice)} / ${item.unit}`,
+        );
+        const description = [
+          [item.productName, item.brandName, item.specification]
+            .filter(Boolean)
+            .join("\n"),
+          ...comparisonDetails,
+        ]
+          .filter(Boolean)
+          .join("\n");
+        const descriptionHeight = doc.heightOfString(description, {
           width: descriptionWidth,
           lineGap: 1,
         });
@@ -382,7 +545,7 @@ export class PdfService {
           .font("Helvetica-Bold")
           .fontSize(8.5)
           .fillColor(COLORS.ink)
-          .text(item.product.name, left + 39, y + 8, {
+          .text(description, left + 39, y + 8, {
             width: descriptionWidth,
             lineGap: 1,
           });
@@ -399,7 +562,7 @@ export class PdfService {
               align: "right",
             },
           )
-          .text(item.product.unit, left + 318, y + 9, { width: 41 });
+          .text(item.unit, left + 318, y + 9, { width: 41 });
         doc
           .font("Helvetica")
           .fontSize(8.2)
@@ -421,7 +584,17 @@ export class PdfService {
         y += rowHeight;
       });
 
-      const notesText = quote.notes?.trim();
+      const hasComparisons = quote.items.some(
+        (item) => item.options.length > 0,
+      );
+      const notesText = [
+        hasComparisons
+          ? "Brand alternatives are shown by material. Choose options in your account to refresh the total before accepting."
+          : "",
+        quote.notes?.trim() || "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
       doc.font("Helvetica").fontSize(8.5);
       const notesHeight = notesText
         ? Math.min(90, doc.heightOfString(notesText, { width: 230 }) + 38)
@@ -622,7 +795,7 @@ export class PdfService {
     grossKg: number;
     tareKg: number;
     netTonnageMt: number;
-    items: { name: string; quantityMt: number }[];
+    items: { name: string; quantityMt: number; unit: string }[];
   }): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50 });
@@ -682,20 +855,25 @@ export class PdfService {
       doc
         .font("Helvetica-Bold")
         .fillColor("#15803d")
-        .text(`Net Material Dispatched: ${challan.netTonnageMt} MT`, 390, 260);
+        .text(`Net Vehicle Load: ${challan.netTonnageMt} MT`, 390, 260);
 
       doc.moveDown(5);
       doc.fillColor("#000").font("Helvetica-Bold").fontSize(10);
       doc.text("Material Description", 50, 310);
-      doc.text("Quantity (MT)", 430, 310, { align: "right" });
+      doc.text("Quantity / unit", 430, 310, { align: "right" });
       doc.moveTo(50, 325).lineTo(550, 325).stroke("#94a3b8");
 
       let y = 335;
       challan.items.forEach((item) => {
         doc.font("Helvetica").fontSize(9).text(item.name, 50, y);
-        doc.text(`${item.quantityMt.toFixed(2)} MT`, 430, y, {
-          align: "right",
-        });
+        doc.text(
+          `${item.quantityMt.toLocaleString("en-IN")} ${item.unit}`,
+          430,
+          y,
+          {
+            align: "right",
+          },
+        );
         y += 20;
       });
 

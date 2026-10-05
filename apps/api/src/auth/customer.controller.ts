@@ -10,14 +10,14 @@ import {
   UseGuards,
   ConflictException,
 } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { CustomerQuotationResponseSchema } from "../quotes/quotation-acceptance.schema";
+import { QuotationAcceptanceService } from "../quotes/quotation-acceptance.service";
 import { validate } from "../common/validation";
 import { CUSTOMER_COOKIE, CustomerGuard, sessionHash } from "./customer.guard";
-import { expireCustomerLoyaltyPoints } from "../business/loyalty.service";
+import { expireCustomerLoyaltyPoints } from "../business/loyalty/loyalty-expiry";
 const profile = z.object({
   name: z.string().trim().min(2).max(100),
   email: z.union([z.string().email().max(254), z.literal("")]).default(""),
@@ -44,7 +44,7 @@ const list = z
           quantity: z.number().positive().max(1000000),
           specification: z.string().max(500).default(""),
           // Customer-provided display estimate only. This JSON is never used
-          // to calculate or accept a payment or a confirmed quotation.
+          // to calculate or confirm a quotation.
           price: z.number().finite().nonnegative().optional(),
           compareAtPrice: z.number().finite().nonnegative().optional(),
           priceNote: z.string().max(160).optional(),
@@ -71,7 +71,10 @@ export const customerSelect = {
 @Controller("customer")
 @UseGuards(CustomerGuard)
 export class CustomerController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly quotationAcceptance: QuotationAcceptanceService,
+  ) {}
   @Get("me") me(
     @Req() req: Request & { customerId: string },
     @Res({ passthrough: true }) res: Response,
@@ -87,7 +90,9 @@ export class CustomerController {
     @Res({ passthrough: true }) res: Response,
   ) {
     res.setHeader("Cache-Control", "no-store");
-    await this.prisma.$transaction((tx) => expireCustomerLoyaltyPoints(tx, req.customerId));
+    await this.prisma.$transaction((tx) =>
+      expireCustomerLoyaltyPoints(tx, req.customerId),
+    );
     const where = { customerId: req.customerId };
     const [requests, quotations, orders, loyalty] = await Promise.all([
       this.prisma.rfq.findMany({
@@ -96,14 +101,32 @@ export class CustomerController {
         take: 100,
       }),
       this.prisma.quotation.findMany({
-        where,
-        include: { items: { include: { product: true } } },
+        where: {
+          ...where,
+          status: {
+            in: [
+              "QUOTE_SENT",
+              "ACCEPTED",
+              "CONVERTED_TO_ORDER",
+              "EXPIRED",
+              "REJECTED",
+            ],
+          },
+        },
+        include: { items: { include: { product: true, options: true } } },
         orderBy: { createdAt: "desc" },
         take: 100,
       }),
       this.prisma.order.findMany({
         where,
-        include: { items: { include: { product: true } }, dispatch: true },
+        include: {
+          items: { include: { product: true, deliveries: true } },
+          deliveries: {
+            orderBy: { deliveredAt: "desc" },
+            select: { deliveryNumber: true, deliveredAt: true },
+          },
+          dispatch: true,
+        },
         orderBy: { createdAt: "desc" },
         take: 100,
       }),
@@ -146,119 +169,81 @@ export class CustomerController {
     @Param("id") id: string,
     @Body() body: unknown,
   ) {
-    const { decision } = validate(
-      z.object({ decision: z.enum(["ACCEPT", "REJECT"]) }),
+    const { decision, selections } = validate(
+      CustomerQuotationResponseSchema,
       body,
     );
-    return this.prisma.$transaction(async (tx) => {
-      const quote = await tx.quotation.findFirst({
-        where: { id, customerId: req.customerId },
-        include: { items: { include: { product: { include: { brand: true } } } } },
-      });
-      if (!quote) throw new ConflictException("Quotation is unavailable");
-      if (quote.status !== "QUOTE_SENT" || quote.validUntil <= new Date())
-        throw new ConflictException("This quotation is no longer current");
-      if (decision === "REJECT") {
-        await tx.quotation.update({
-          where: { id: quote.id },
-          data: { status: "REJECTED" },
-        });
-        return { decision, orderNumber: null };
-      }
-      const customer = await tx.customer.findUniqueOrThrow({
-        where: { id: req.customerId },
-        select: { name: true, phone: true, city: true },
-      });
-      const orderNumber = `MS-ORD-${new Date().getFullYear()}-${randomUUID()}`;
-      const orderMaterialTotal = quote.subtotal
-        .sub(quote.discountAmount)
-        .add(quote.marginAmount);
-      const orderMultiplier = quote.subtotal.isZero()
-        ? new Prisma.Decimal(1)
-        : orderMaterialTotal.div(quote.subtotal);
-      const order = await tx.order.create({
-        data: {
-          orderNumber,
-          quotationId: quote.id,
-          customerId: req.customerId,
-          customerName: customer.name || quote.customerName,
-          customerPhone: customer.phone,
-          deliverySite: quote.projectSiteAddress,
-          pincode: quote.sitePincode,
-          status: "PENDING_PAYMENT",
-          subtotal: orderMaterialTotal,
-          taxAmount: quote.taxAmount,
-          freightAmount: quote.freightAmount,
-          grandTotal: quote.totalAmount,
-          items: {
-            create: quote.items.map((item) => ({
-              productId: item.productId,
-              quantityMt: item.quantityMt,
-              unitPrice: item.unitPrice.mul(orderMultiplier).toDecimalPlaces(2),
-              lineTotal: item.lineTotal.mul(orderMultiplier).toDecimalPlaces(2),
-            })),
-          },
-        },
-      });
-      await tx.quotation.update({
-        where: { id: quote.id },
-        data: { status: "CONVERTED_TO_ORDER" },
-      });
-      const procurement = await tx.procurementRequest.create({
-        data: {
-          requestNumber: `MS-PR-${new Date().getFullYear()}-${randomUUID()}`,
-          orderId: order.id,
-          deliveryAddress: quote.projectSiteAddress,
-          deliveryCity: customer.city || "Customer site",
-          deliveryPincode: quote.sitePincode,
-          items: quote.items.map((item) => ({
-            productName: item.product.name,
-            brand: item.product.brand.name,
-            category: item.product.category,
-            quantity: item.quantityMt.toNumber(),
-            unit: item.product.unit,
-            notes: "",
-          })),
-          notes: `Created from accepted customer quotation ${quote.quoteNumber}`,
-        },
-      });
-      return { decision, orderNumber: order.orderNumber, procurementNumber: procurement.requestNumber };
-    });
+    return this.quotationAcceptance.respondAsCustomer(
+      id,
+      req.customerId,
+      decision,
+      selections,
+    );
   }
   @Post("orders/:id/redeem-points") async redeemPoints(
     @Req() req: Request & { customerId: string },
     @Param("id") id: string,
     @Body() body: unknown,
   ) {
-    const { points } = validate(z.object({ points: z.number().int().positive().max(1000000) }), body);
+    const { points } = validate(
+      z.object({ points: z.number().int().positive().max(1000000) }),
+      body,
+    );
     return this.prisma.$transaction(async (tx) => {
       await expireCustomerLoyaltyPoints(tx, req.customerId);
-      const order = await tx.order.findFirst({ where: { id, customerId: req.customerId } });
-      if (!order || order.status !== "PENDING_PAYMENT")
-        throw new ConflictException("Points can only be applied to an unpaid order in your account");
+      const order = await tx.order.findFirst({
+        where: { id, customerId: req.customerId },
+      });
+      if (!order || order.status !== "PROCESSING_AT_YARD")
+        throw new ConflictException(
+          "Points can only be applied while your order is processing",
+        );
       if (order.loyaltyDiscountAmount.gt(0))
-        throw new ConflictException("Points have already been applied to this order");
-      const settings = await tx.loyaltyProgramSetting.findUnique({ where: { id: "default" } });
+        throw new ConflictException(
+          "Points have already been applied to this order",
+        );
+      const settings = await tx.loyaltyProgramSetting.findUnique({
+        where: { id: "default" },
+      });
       if (!settings?.enabled || settings.redemptionValuePerPoint.lte(0))
         throw new ConflictException("Points redemption is not available");
       if (points < settings.minimumRedemptionPoints)
-        throw new ConflictException(`Redeem at least ${settings.minimumRedemptionPoints} points`);
-      const account = await tx.loyaltyAccount.findUnique({ where: { customerId: req.customerId } });
+        throw new ConflictException(
+          `Redeem at least ${settings.minimumRedemptionPoints} points`,
+        );
+      const account = await tx.loyaltyAccount.findUnique({
+        where: { customerId: req.customerId },
+      });
       if (!account || account.pointsBalance < points)
         throw new ConflictException("Your points balance is too low");
-      const discount = settings.redemptionValuePerPoint.mul(points).toDecimalPlaces(2);
+      const discount = settings.redemptionValuePerPoint
+        .mul(points)
+        .toDecimalPlaces(2);
       if (discount.lte(0) || discount.gt(order.grandTotal))
-        throw new ConflictException("Points cannot reduce the order below zero");
+        throw new ConflictException(
+          "Points cannot reduce the order below zero",
+        );
       const debited = await tx.loyaltyAccount.updateMany({
         where: { id: account.id, pointsBalance: { gte: points } },
         data: { pointsBalance: { decrement: points } },
       });
-      if (!debited.count) throw new ConflictException("Your points balance changed. Reload and try again");
+      if (!debited.count)
+        throw new ConflictException(
+          "Your points balance changed. Reload and try again",
+        );
       const changed = await tx.order.updateMany({
-        where: { id: order.id, status: "PENDING_PAYMENT", loyaltyDiscountAmount: 0 },
-        data: { loyaltyDiscountAmount: discount, grandTotal: { decrement: discount } },
+        where: {
+          id: order.id,
+          status: "PROCESSING_AT_YARD",
+          loyaltyDiscountAmount: 0,
+        },
+        data: {
+          loyaltyDiscountAmount: discount,
+          grandTotal: { decrement: discount },
+        },
       });
-      if (!changed.count) throw new ConflictException("This order has already been updated");
+      if (!changed.count)
+        throw new ConflictException("This order has already been updated");
       await tx.loyaltyTransaction.create({
         data: {
           accountId: account.id,
@@ -269,7 +254,11 @@ export class CustomerController {
           description: `Points applied to order ${order.orderNumber}`,
         },
       });
-      return { pointsRedeemed: points, discountAmount: discount, grandTotal: order.grandTotal.sub(discount) };
+      return {
+        pointsRedeemed: points,
+        discountAmount: discount,
+        grandTotal: order.grandTotal.sub(discount),
+      };
     });
   }
   @Post("logout") async logout(
