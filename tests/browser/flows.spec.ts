@@ -1329,7 +1329,12 @@ test("technical guides disclose review limits and contact page avoids unsupporte
   await expect(
     page.getByText(/calculate exact conductor gauge/i),
   ).not.toBeVisible();
-  await expect(page.getByText(/wire selection checklist/i)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Wire Selection Checklist" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Open wire selection checklist" }),
+  ).toHaveAttribute("href", "/guides?tab=wire");
   await expect(page.getByText(/procurement desk/i)).not.toBeVisible();
   await page.goto("/guides");
   await expect(page.getByRole("note")).toContainText(

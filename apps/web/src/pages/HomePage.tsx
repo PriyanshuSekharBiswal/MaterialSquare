@@ -426,13 +426,13 @@ export default function HomePage({
               <Zap size={22} />
             </div>
             <div>
-              <h4>Wire Sizing Examples</h4>
+              <h4>Wire Selection Checklist</h4>
               <p>
                 Use our wire selection checklist to discuss your requirements
                 with a qualified electrician.
               </p>
               <Link to="/guides?tab=wire" className="tool-card-link">
-                Use Wire Calculator →
+                Open wire selection checklist →
               </Link>
             </div>
           </div>
