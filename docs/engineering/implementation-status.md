@@ -17,6 +17,10 @@ and client content approval remain deployment tasks.
 - Visitors review a request summary and continue through WhatsApp or email.
 - Customer sign-in is removed; client admin and staff sign-in remain enabled.
 - The client manages catalogue and staff records through the protected workspace.
+- The animated service-area map is on Home and Contact. Its office name,
+  address, service area, and phone actions use client-managed website content;
+  Google Maps directions stay disabled until the client enters an office
+  address.
 - The API process does not seed implicitly; the staging launch command applies
   migrations, then idempotently inserts at least 50 editable starter families
   before the server starts. No generated product photos or invented rates are
@@ -55,9 +59,14 @@ TEST_DATABASE_URL=postgresql://... npm test
 git diff --check
 ```
 
-Typecheck, the full build, all 211 API tests (including PostgreSQL integration),
-all 53 browser flows, and the diff whitespace check passed. The database tests
-used a disposable local PostgreSQL cluster, which was removed afterward. The
-staging Render API and Vercel customer/admin branch previews are live. A
-production customer-site build still needs `VITE_PUBLIC_SITE_URL` set to the
-client-approved domain and product-image storage configured.
+The latest local verification passed the full monorepo build, 196 API unit
+tests, all 54 Playwright browser flows, and `git diff --check`. The 19
+PostgreSQL integration tests were skipped because `TEST_DATABASE_URL` was not
+configured in this run; a prior local disposable-PostgreSQL run is documented
+in the release history. Browser flows use controlled API fixtures, so they do
+not replace a live database/API smoke test. The staging Render API and Vercel
+customer/admin branch previews were previously deployed; this environment
+could not resolve their hostnames for a fresh network check. Production still
+needs the client-approved domain, `VITE_PUBLIC_SITE_URL`, image storage,
+business content and catalogue approval, database backup/restore verification,
+and client account provisioning.

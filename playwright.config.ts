@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./tests/browser",
   fullyParallel: true,
+  workers: 1,
   use: {
     ...devices["Desktop Chrome"],
     baseURL: "http://127.0.0.1:4173",

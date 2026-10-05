@@ -89,6 +89,7 @@ export const SITE_CONTENT_DEFAULTS = {
   "contact.phoneDisplay": "",
   "contact.email": "",
   "contact.location": "",
+  "contact.officeName": "",
   "contact.officeAddress": "",
   "footer.socialLinks": "[]",
   "footer.calloutTitle": "Ready to Order or Have a Material Query?",
@@ -202,6 +203,7 @@ export const SITE_CONTENT_GROUPS: {
       { key: "contact.phoneDisplay", label: "Phone display text" },
       { key: "contact.email", label: "Customer service email" },
       { key: "contact.location", label: "Service area" },
+      { key: "contact.officeName", label: "Office or depot name" },
       {
         key: "contact.officeAddress",
         label: "Office address",

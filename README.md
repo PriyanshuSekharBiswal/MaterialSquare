@@ -34,6 +34,8 @@ The public catalogue is read from published `CatalogListing` records. The API ne
 
 A listing can contain brand and category details, product descriptions, specifications, sellable variants, colour or finish attributes, stock quantities, minimum order quantities, quantity breaks, prices, scheduled offers, and client-supplied product photos. Search suggestions, category links, and brand links are built from published inventory. Products with unavailable stock remain visible with an availability status.
 
+The animated service-area map appears on Home and Contact. The client edits the office or depot name, address, service area, and phone through Website Content in the admin workspace. Google Maps directions and office details stay hidden until an office address is configured.
+
 Product images must be supplied by the client. The website uses a neutral placeholder when an image is absent; it does not generate or substitute product photos. Published listings should use approved photos for the exact item and variant.
 
 ## Sign-in and account data

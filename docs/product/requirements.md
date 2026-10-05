@@ -15,6 +15,7 @@ staff need a protected operations workspace.
 | Quote list | Let visitors add products and quantities to a list stored in their browser. No sign-in is needed. |
 | Request handoff | Show a request summary and prepare a WhatsApp or email handoff. The site does not claim that an external message was sent or delivered. |
 | Information | Provide the public business pages, contact details, and approved policies/content. |
+| Service area map | Keep the animated route map on Home and Contact. Office name, address, service area, and contact actions must use client-managed website content; map destinations stay unavailable until an office address is configured. |
 | Admin workspace | Provide protected sign-in for client admins and staff, role-based operations, catalogue editing, staff provisioning, and business management. |
 
 ## Inventory and operations
@@ -42,5 +43,7 @@ photos and other client-specific assets come from the client.
   mobile.
 - Confirm WhatsApp and email summaries open with the expected product and
   quantity details.
+- Confirm the service map remains visible on Home and Contact and does not show
+  unconfigured office, service-area, or contact details.
 - Approve the business content, policies, catalogue, and client-provided imagery
   before launch.

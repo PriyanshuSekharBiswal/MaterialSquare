@@ -11,27 +11,17 @@ import {
   Layers,
 } from 'lucide-react';
 import WhatsAppIcon from './icons/WhatsAppIcon';
+import { useSiteContent } from '../site-content';
 import './DirectionGoogleMaps.css';
 
-// Central Office Location in Ghaziabad (Mohan Nagar Industrial Hub)
+// The NCR illustration keeps its delivery hub aligned with the Ghaziabad map label.
 export const OFFICE_HUB = {
-  id: 'ghaziabad-office',
-  name: 'Material Square Central Office',
-  city: 'Ghaziabad',
-  area: 'Mohan Nagar Industrial Area',
-  address: 'Plot 42, Mohan Nagar Link Road, Industrial Area, Ghaziabad, Uttar Pradesh 201007',
-  coordinates: { lat: 28.6791, lng: 77.382 },
-  googleMapsUrl: 'https://www.google.com/maps/search/?api=1&query=28.6791,77.3820+(Material+Square+Central+Office+Ghaziabad)',
-  directionsUrl: (origin = '') =>
-    `https://www.google.com/maps/dir/?api=1&destination=28.6791,77.3820+(Material+Square+Central+Office+Ghaziabad)${
-      origin ? `&origin=${encodeURIComponent(origin + ', Delhi NCR')}` : ''
-    }`,
-  phone: '+91 97735 05015',
-  phoneDisplay: '+91 97735 05015',
+  directionsUrl: (destination: string, origin = '') =>
+    `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}${origin ? `&origin=${encodeURIComponent(origin)}` : ''}`,
   svgPos: { x: 760, y: 155 }, // Exactly at Ghaziabad on clean map
 };
 
-// 6 Core Delhi NCR Delivery Routes DISPATCHED OUTWARD FROM our Ghaziabad Office
+// Six route animations on the Delhi NCR illustration.
 export const ROAD_ROUTES = [
   {
     id: 'delhi',
@@ -76,7 +66,7 @@ export const ROAD_ROUTES = [
   {
     id: 'ghaziabad-local',
     name: 'Ghaziabad',
-    routeLabel: 'GT Road → Mohan Nagar Flyover',
+    routeLabel: 'Ghaziabad urban corridors',
     // Right at the 'Ghaziabad' label in northeast
     pathD: 'M 760 155 Q 800 145 830 165',
     routePathId: 'road-office-to-ghaziabad',
@@ -96,13 +86,21 @@ export const ROAD_ROUTES = [
 ];
 
 export default function DirectionGoogleMaps({ className = '' }) {
+  const siteContent = useSiteContent();
   const [activeRoute, setActiveRoute] = useState<(typeof ROAD_ROUTES)[number] | null>(null);
   const [isOfficeModalOpen, setIsOfficeModalOpen] = useState(false);
   const [mapTheme, setMapTheme] = useState<'clean' | 'dark' | 'satellite'>('clean'); // 'clean' | 'dark' | 'satellite'
+  const officeAddress = siteContent['contact.officeAddress'].trim();
+  const serviceArea = siteContent['contact.location'].trim();
+  const officeDestination = officeAddress;
+  const officeName = siteContent['contact.officeName'].trim() || 'Material Square';
+  const officePhone = siteContent['contact.phone'].trim();
+  const officePhoneDisplay = siteContent['contact.phoneDisplay'].trim() || officePhone;
 
-  // Directly redirect user to Google Maps directions to our office
+  // Open Google Maps only after the client has configured a destination.
   const handleOpenGoogleMaps = (cityName = '') => {
-    window.open(OFFICE_HUB.directionsUrl(cityName), '_blank', 'noopener,noreferrer');
+    if (!officeDestination) return;
+    window.open(OFFICE_HUB.directionsUrl(officeDestination, cityName), '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -112,22 +110,22 @@ export default function DirectionGoogleMaps({ className = '' }) {
         <div className="dmap-header">
           <div className="dmap-badge reveal-text">
             <span className="google-pin-icon">📍</span>
-            <span>Google Maps Office Directions & Service Network</span>
+            <span>Illustrated service area</span>
           </div>
           <h2 className="dmap-title">
             <span className="ms-mask-line">
-              <span className="ms-mask-text">Directions to Our</span>
+              <span className="ms-mask-text">Explore our</span>
             </span>{' '}
             <span className="ms-mask-line">
-              <span className="ms-mask-text text-red delay-1">Ghaziabad Office</span>
+              <span className="ms-mask-text text-red delay-1">service network</span>
             </span>{' '}
             <span className="ms-mask-line">
-              <span className="ms-mask-text delay-2">& Service Network</span>
+              <span className="ms-mask-text delay-2">& delivery routes</span>
             </span>
           </h2>
           <p className="dmap-subtitle reveal-text">
-            Serving construction sites across <strong>Noida, Greater Noida, Delhi, Gurugram, Ghaziabad & Faridabad</strong> from our{' '}
-            <strong>Ghaziabad Central Office & Depot</strong>.
+            {siteContent['contact.coverageDescription']}
+            {serviceArea && <> <strong>{serviceArea}</strong></>}
           </p>
         </div>
 
@@ -151,11 +149,13 @@ export default function DirectionGoogleMaps({ className = '' }) {
               className="gmaps-search-box"
               onClick={() => handleOpenGoogleMaps()}
               title="Click to open Google Maps Directions"
+              role={officeDestination ? 'button' : undefined}
+              aria-disabled={!officeDestination}
             >
               <MapPin size={16} color="#ea4335" style={{ flexShrink: 0 }} />
               <div className="search-input-mock">
                 <span className="search-query">
-                  <strong>Material Square Central Office & Depot</strong> · Plot 42, Mohan Nagar, Ghaziabad
+                  <strong>{officeName}</strong>{officeAddress && <> · {officeAddress}</>}
                 </span>
               </div>
             </div>
@@ -166,6 +166,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
               className="btn-gmaps-launch"
               onClick={() => handleOpenGoogleMaps()}
               title="Open directions in Google Maps App / Website"
+              disabled={!officeDestination}
             >
               <Navigation size={15} />
               <span>Get Directions</span>
@@ -206,7 +207,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
               className="gmaps-vector-svg"
               viewBox="0 0 1000 620"
               preserveAspectRatio="xMidYMid meet"
-              aria-label="Google Maps directions to Material Square Office"
+                aria-label={officeAddress ? `Illustrated delivery routes around ${officeName}` : 'Illustrated delivery service area map'}
             >
               <defs>
                 {/* Google Maps Route Drop Shadows & Glow */}
@@ -606,7 +607,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
                     textAnchor="middle"
                     letterSpacing="0.02em"
                   >
-                    🏢 MATERIAL SQUARE CENTRAL OFFICE
+                    🏢 MATERIAL SQUARE
                   </text>
                   <text
                     x="0"
@@ -617,7 +618,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
                     fontFamily="sans-serif"
                     textAnchor="middle"
                   >
-                    ★ Mohan Nagar, Ghaziabad · Click to Visit ↗
+                    Service network hub
                   </text>
                 </g>
               </g>
@@ -625,7 +626,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
               {/* Google Maps Bottom Watermarks */}
               <g transform="translate(18, 604)">
                 <text x="0" y="0" fill="#70757a" fontSize="10" fontFamily="sans-serif">
-                  Google Maps · Office Route Directions
+                  Material Square · Service area routes
                 </text>
               </g>
 
@@ -703,13 +704,13 @@ export default function DirectionGoogleMaps({ className = '' }) {
             <div className="gmaps-bottom-left">
               <span className="dest-pin-badge">📍</span>
               <div>
-                <strong>Material Square Central Office & Depot</strong>
-                <p>Plot 42, Mohan Nagar Link Road, Industrial Area, Ghaziabad, UP 201007</p>
+                <strong>{officeName}</strong>
+                <p>{officeAddress || serviceArea || 'Contact the team to confirm service coverage.'}</p>
               </div>
             </div>
 
             <div className="gmaps-bottom-actions">
-              <button
+              {officeDestination && <button
                 type="button"
                 className="btn btn-primary btn-directions-main"
                 onClick={() => handleOpenGoogleMaps()}
@@ -717,16 +718,16 @@ export default function DirectionGoogleMaps({ className = '' }) {
                 <Navigation size={17} />
                 <span>Open in Google Maps</span>
                 <ExternalLink size={14} />
-              </button>
+              </button>}
 
-              <button
+              {officeAddress && <button
                 type="button"
                 className="btn btn-secondary btn-office-popup"
                 onClick={() => setIsOfficeModalOpen(true)}
               >
                 <MapPin size={16} />
                 <span>Office Details</span>
-              </button>
+              </button>}
             </div>
           </div>
         </div>
@@ -762,16 +763,16 @@ export default function DirectionGoogleMaps({ className = '' }) {
                     <MapPin size={32} />
                   </div>
                   <div>
-                    <h2 id="dmap-modal-title">{OFFICE_HUB.name}</h2>
-                    <span className="office-city-badge">📍 {OFFICE_HUB.city}, Delhi NCR</span>
+                    <h2 id="dmap-modal-title">{officeName}</h2>
+                    <span className="office-city-badge">📍 {serviceArea || 'Business location'}</span>
                   </div>
                 </div>
 
                 <div className="office-address-box">
                   <div className="address-label">Official Office & Dispatch Depot Address:</div>
-                  <div className="address-text">{OFFICE_HUB.address}</div>
+                  <div className="address-text">{officeAddress}</div>
                   <div className="coordinates-tag">
-                    GPS Coordinates: {OFFICE_HUB.coordinates.lat}° N, {OFFICE_HUB.coordinates.lng}° E
+                    Directions are matched to the address supplied by the client.
                   </div>
                 </div>
 
@@ -783,24 +784,24 @@ export default function DirectionGoogleMaps({ className = '' }) {
                     onClick={() => handleOpenGoogleMaps()}
                   >
                     <Navigation size={18} />
-                    <span>Open Exact Directions in Google Maps</span>
+                    <span>Open Directions in Google Maps</span>
                     <ExternalLink size={16} />
                   </button>
 
-                  <a href={`tel:${OFFICE_HUB.phone}`} className="btn btn-secondary btn-lg">
+                  {officePhone && <a href={`tel:${officePhone}`} className="btn btn-secondary btn-lg">
                     <Phone size={16} />
-                    <span>Call Office: {OFFICE_HUB.phoneDisplay}</span>
-                  </a>
+                    <span>Call: {officePhoneDisplay}</span>
+                  </a>}
 
-                  <a
-                    href={`https://wa.me/919773505015?text=Hello%20Material%20Square,%20I%20need%20directions%20to%20your%20Ghaziabad%20Office.`}
+                  {officePhone && <a
+                    href={`https://wa.me/${officePhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hello Material Square, I need directions to ${officeName}.`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn btn-whatsapp btn-lg"
                   >
                     <WhatsAppIcon size={18} color="#ffffff" />
-                    <span>WhatsApp for Location Pin</span>
-                  </a>
+                    <span>Ask for a location pin</span>
+                  </a>}
                 </div>
               </div>
             </div>
