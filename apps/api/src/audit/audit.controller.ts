@@ -81,6 +81,8 @@ export class AuditController {
         const title =
           typeof metadata.productName === "string"
             ? metadata.productName
+            : typeof metadata.originalName === "string"
+              ? metadata.originalName
             : recentEntityTitles[entry.entityType] || "Workspace settings";
 
         return {

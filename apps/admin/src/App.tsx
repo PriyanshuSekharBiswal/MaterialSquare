@@ -21,6 +21,7 @@ const NotificationStatus = lazy(
   () => import("./features/notifications/NotificationStatus"),
 );
 const AuditLog = lazy(() => import("./features/audit/AuditLog"));
+const RecentActivity = lazy(() => import("./features/overview/RecentActivity"));
 const CatalogueManager = lazy(
   () => import("./features/catalogue/CatalogueManager"),
 );
@@ -369,6 +370,15 @@ export function App() {
         />
       )}
       <FeatureBoundary key={tab}>
+        {tab === "recent" && staff && (
+          <RecentActivity
+            token={token}
+            role={staff.role}
+            onOpenCatalogue={() => navigate("catalogue")}
+            onOpenContent={() => navigate("content")}
+            onOpenSales={() => navigate("sales")}
+          />
+        )}
         {tab === "audit" && <AuditLog token={token} />}
         {tab === "notifications" && <NotificationStatus token={token} />}
         {tab === "catalogue" && (

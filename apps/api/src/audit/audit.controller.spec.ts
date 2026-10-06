@@ -19,7 +19,7 @@ describe("audit review", () => {
         action: "MEDIA_ASSET_UPLOADED",
         entityType: "MEDIA_ASSET",
         entityId: "asset-1",
-        metadata: { key: "catalogue/photo.png", phone: "private" },
+        metadata: { originalName: "photo.png", phone: "private" },
         createdAt: new Date("2026-10-06T08:00:00.000Z"),
         staff: { name: "Content editor", role: "CONTENT_MANAGER" },
       },
@@ -45,7 +45,7 @@ describe("audit review", () => {
     expect(
       result.items.map((item) => [item.title, item.category, item.actionLabel]),
     ).toEqual([
-      ["Storefront image", "Storefront", "Uploaded"],
+      ["photo.png", "Storefront", "Uploaded"],
       ["Quotation", "Sales", "Published"],
     ]);
     expect(JSON.stringify(result)).not.toContain("private");

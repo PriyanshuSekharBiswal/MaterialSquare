@@ -37,6 +37,7 @@ export type Followup = {
 export type Page<T> = { items: T[]; total: number; page: number };
 export type WorkspaceTab =
   | "overview"
+  | "recent"
   | "customers"
   | "followups"
   | "catalogue"

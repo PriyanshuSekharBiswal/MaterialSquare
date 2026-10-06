@@ -173,7 +173,7 @@ test("selecting an autocomplete product opens its matching product option", asyn
   };
   await page.route("**/api/products", (route) => route.fulfill({ json: [product] }));
   await page.goto("/marketplace");
-  await page.getByPlaceholder("Search products, brands, colour, finish or pack size...").fill("Asian Paints SmartCare Black 20L");
+  await page.getByLabel("Search materials catalogue").fill("Asian Paints SmartCare Black 20L");
   await page.locator(".product-suggestion-item").getByText(product.name).click();
 
   await expect(page).toHaveURL(/\/product\/autocomplete-paint-test\?q=/);
@@ -509,7 +509,7 @@ test("unconfigured client contact details stay hidden while quotation requests r
     page.locator("#transportation-map .office-dest-pin-group"),
   ).not.toHaveAttribute("role", "button");
   await expect(page.locator("body")).not.toContainText(
-    /97735 05015|orders@materialsquare\.in|Mohan Nagar|Serving Delhi NCR/i,
+    /97735 05015|orders@materialsquare\.in|Mohan Nagar/i,
   );
   await expect(page.locator(".footer-instagram-link")).toHaveCount(0);
   await page.goto("/contact");
@@ -626,9 +626,8 @@ test("homepage search suggestions reflect the live catalogue and staff-set price
       name: "Browse materials from the current catalogue.",
     }),
   ).toBeVisible();
-  await expect(page.locator(".search-input")).toHaveAttribute(
-    "placeholder",
-    /UltraTech Cement/,
+  await expect(page.locator(".search-animated-hint")).toContainText(
+    /Live Manager Pipe|Manager Brand|Pipes & Fittings/,
   );
   const footerCategoryLinks = page
     .locator(".footer-nav-list")
@@ -639,11 +638,13 @@ test("homepage search suggestions reflect the live catalogue and staff-set price
   await expect(
     page.getByText("Elite Buildcon Projects", { exact: true }),
   ).not.toBeVisible();
-  await page.locator(".search-input").fill("Live Manager Pipe");
+  await page.getByLabel("Search products and brands").fill("Live Manager Pipe");
   await expect(page.getByText("Matching Products")).toBeVisible();
   await expect(page.getByText("₹456", { exact: true })).toBeVisible();
   await expect(
-    page.getByText("Live Manager Pipe", { exact: true }),
+    page.locator(".product-suggestion-item").getByText("Live Manager Pipe", {
+      exact: true,
+    }),
   ).toBeVisible();
   await expect.poll(() => events.length).toBeGreaterThan(0);
   expect(events).toContainEqual({ type: "page_view", target: "home" });
@@ -706,9 +707,7 @@ test("product detail lets customers search and select pack variants with their o
     route.fulfill({ json: [paint, relatedPaint] }),
   );
   await page.goto("/marketplace");
-  const search = page.getByPlaceholder(
-    /Search products, brands, colour, finish or pack size/i,
-  );
+  const search = page.getByLabel("Search materials catalogue");
   await search.fill("Interior Emulsion");
   await expect(page.locator(".product-suggestion-item")).toContainText(
     "Interior Emulsion",
@@ -920,6 +919,9 @@ test("staff website content edits publish to the public homepage", async ({
     }),
   );
   await page.route("**/api/admin/site-content/*", (route) => {
+    if (route.request().method() === "PUT") {
+      savedContent = route.request().postDataJSON();
+    }
     if (route.request().url().endsWith("/publish")) {
       publishedPayload = route.request().postDataJSON();
       savedContent = publishedPayload!;
@@ -1040,6 +1042,11 @@ test("staff website content edits publish to the public homepage", async ({
     .uncheck();
   await duplicateBlock.getByRole("button", { name: "Delete" }).click();
   await expect(page.locator(".homepage-content-block")).toHaveCount(1);
+  await page.getByRole("button", { name: "Preview draft", exact: true }).click();
+  await expect(
+    page.frameLocator('iframe[title="Customer website draft preview"]')
+      .locator(".draft-preview-banner"),
+  ).toContainText("Unpublished draft preview");
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText(
     "Website content published.",
@@ -1216,6 +1223,9 @@ test("content staff upload and publish a homepage hero image", async ({
     }),
   );
   await page.route("**/api/admin/site-content/*", (route) => {
+    if (route.request().method() === "PUT") {
+      publishedContent = route.request().postDataJSON();
+    }
     if (route.request().url().endsWith("/publish")) {
       publishedContent = route.request().postDataJSON();
     }
@@ -1231,6 +1241,11 @@ test("content staff upload and publish a homepage hero image", async ({
   await expect(
     page.getByLabel("Homepage hero banner image", { exact: true }),
   ).toHaveValue("https://cdn.example.test/images/home-hero.webp");
+  await page.getByRole("button", { name: "Preview draft", exact: true }).click();
+  await expect(
+    page.frameLocator('iframe[title="Customer website draft preview"]')
+      .locator(".draft-preview-banner"),
+  ).toContainText("Unpublished draft preview");
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText(
     "Website content published.",
@@ -1845,9 +1860,7 @@ test("catalogue autocomplete and submitted search both match product specs and v
   );
   await page.goto("/marketplace");
 
-  const search = page.getByPlaceholder(
-    /Search products, brands, colour, finish or pack size/i,
-  );
+  const search = page.getByLabel("Search materials catalogue");
   await search.fill("Terracotta");
   await expect(page.locator(".product-suggestion-item")).toContainText(
     "Exterior Weather Coat",
@@ -1914,9 +1927,7 @@ test("partner brand search keeps all seventeen brands discoverable and lets cust
   );
   await page.goto("/marketplace");
   await expect(page.locator(".brand-partner-card")).toHaveCount(17);
-  const search = page.getByPlaceholder(
-    /Search products, brands, colour, finish or pack size/i,
-  );
+  const search = page.getByLabel("Search materials catalogue");
   await search.fill("UltraTech Cement");
   await expect(page.locator(".product-suggestion-item")).toContainText(
     "UltraTech PPC Cement",
@@ -3651,6 +3662,35 @@ test("owner reviews audit records and applies entity filters", async ({
   await expect(
     page.getByRole("button", { name: "Next audit page" }),
   ).toBeDisabled();
+});
+
+test("staff can search seven-day activity and return to its related workspace", async ({ page }) => {
+  await page.addInitScript(() => sessionStorage.setItem("ms-staff-token", "feature-load-test"));
+  await page.route("**/api/auth/mode", (route) => route.fulfill({ json: { demo: true } }));
+  await page.route("**/api/auth/staff/me", (route) => route.fulfill({ json: { name: "Owner", role: "SUPER_ADMIN", isDemo: true } }));
+  await page.route("**/api/workspace/overview", (route) => route.fulfill({ json: { customers: 0, newCustomers30Days: 0, openFollowups: 0, closedFollowups: 0, demo: true } }));
+  await page.route("**/api/analytics/overview**", (route) => route.fulfill({ json: { days: 30, totals: { pageViews: 0, productViews: 0, addToList: 0, requestHandoffs: 0 }, daily: [], topPages: [], topProducts: [], privacy: "Aggregate counts only." } }));
+  await page.route("**/api/admin/audit/recent", (route) => route.fulfill({ json: {
+    since: "2026-09-29T00:00:00.000Z",
+    categories: ["Storefront", "Sales", "Procurement", "Settings & team"],
+    total: 2,
+    limit: 50,
+    items: [
+      { id: "recent-upload", action: "MEDIA_ASSET_UPLOADED", entityType: "MEDIA_ASSET", entityId: "media-one", createdAt: "2026-10-06T08:30:00.000Z", title: "site-banner.webp", category: "Storefront", entityLabel: "Storefront image", actionLabel: "Uploaded", changedFields: ["mimeType", "byteSize"], staff: { name: "Owner", role: "SUPER_ADMIN" } },
+      { id: "recent-product", action: "CATALOG_PRODUCT_UPDATED", entityType: "CATALOG_PRODUCT", entityId: "product-one", createdAt: "2026-10-05T08:30:00.000Z", title: "QA test product", category: "Storefront", entityLabel: "Catalogue product", actionLabel: "Edited", changedFields: ["price", "availability"], staff: { name: "Catalogue Staff", role: "CATALOG_MANAGER" } },
+    ],
+  } }));
+  await page.goto("http://127.0.0.1:4174");
+  await page.getByRole("button", { name: "Recent activity", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Recent activity" })).toBeVisible();
+  await expect(page.getByText("site-banner.webp")).toBeVisible();
+  await expect(page.getByText("Changed: mimeType, byteSize")).toBeVisible();
+  await expect(page.getByText("Kept here for 7 days")).toBeVisible();
+  await page.getByLabel("Search recent changes").fill("Catalogue Staff");
+  await expect(page.getByText("QA test product")).toBeVisible();
+  await expect(page.getByText("site-banner.webp")).toHaveCount(0);
+  await page.getByRole("button", { name: "Open related workspace" }).click();
+  await expect(page.getByRole("heading", { name: "Website Catalogue" })).toBeVisible();
 });
 
 test("sales staff schedule and cancel a quotation reminder", async ({

@@ -169,6 +169,7 @@ export class MediaAssetsService {
           entityId: saved.id,
           metadata: {
             key: saved.key,
+            originalName: saved.originalName,
             mimeType: saved.mimeType,
             byteSize: saved.byteSize,
           },

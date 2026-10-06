@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Clock3,
   RefreshCw,
   ShieldCheck,
   Tags,
@@ -34,6 +35,7 @@ const navigationSections: { group: string; items: NavigationItem[] }[] = [
     group: "Core Workspace",
     items: [
       { id: "overview", label: "Overview", icon: LayoutDashboard },
+      { id: "recent", label: "Recent activity", icon: Clock3 },
       { id: "customers", label: "Customers", icon: Users },
       { id: "followups", label: "Follow-ups", icon: ClipboardList },
       { id: "sales", label: "Quotations & orders", icon: FileText },
@@ -90,6 +92,7 @@ function isTabPermitted(id: WorkspaceTab, role?: string) {
 function pageTitle(tab: WorkspaceTab) {
   const titles: Record<WorkspaceTab, string> = {
     overview: "Executive Overview",
+    recent: "Recent Activity · 7 days",
     customers: "Customer Records",
     followups: "Enquiry Follow-ups",
     catalogue: "Website Catalogue",
