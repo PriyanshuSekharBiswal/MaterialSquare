@@ -196,13 +196,15 @@ export default function AdminWorkspaceLayout({
             className="admin-brand-link"
             aria-label="Go to workspace overview"
           >
-            <MaterialSquareLogo
-              size={46}
-              showText={true}
-              lightMode={false}
-              tagline="OPERATIONS CONSOLE"
-              badgeText="ADMIN"
-            />
+            <span className="admin-brand-copy">
+              <MaterialSquareLogo
+                size={44}
+                showText={true}
+                lightMode={true}
+                tagline="BUILDING BETTER TOGETHER"
+              />
+              <span className="admin-brand-context">OPERATIONS CONSOLE</span>
+            </span>
           </button>
           <button
             className="mobile-menu-btn"
