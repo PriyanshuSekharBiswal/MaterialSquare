@@ -1371,3 +1371,133 @@ textarea:focus {
     flex-direction: column;
   }
 }
+
+/* Material Square workspace polish: keep the storefront navy, white and orange,
+   with clearer spacing and stronger visual hierarchy across every workspace. */
+.admin-layout {
+  background:
+    radial-gradient(ellipse at 96% 0%, rgba(234, 88, 12, 0.045), transparent 29rem),
+    #f4f6fa;
+}
+
+.admin-sidebar {
+  width: 286px;
+  background: linear-gradient(180deg, #111b31 0%, #0c1426 100%);
+  border-right-color: rgba(148, 163, 184, 0.14);
+}
+
+.admin-brand {
+  min-height: 102px;
+  padding: 16px 18px;
+  background: rgba(255, 255, 255, 0.025);
+  border-bottom-color: rgba(148, 163, 184, 0.14);
+}
+
+.admin-brand-link {
+  width: 100%;
+  min-height: 68px;
+  padding: 10px 12px;
+  border: 1px solid #e7ebf2;
+  border-radius: 12px;
+  background: linear-gradient(110deg, #fff 0%, #f8fafc 100%);
+  box-shadow: 0 5px 16px rgba(2, 8, 23, 0.16);
+}
+
+.admin-brand-link .ms-logo-svg { filter: none !important; }
+.admin-brand-link .ms-logo-tagline { color: #64748b !important; }
+
+.sidebar-staff-card {
+  margin: 15px 14px 7px;
+  padding: 12px;
+  border-color: rgba(148, 163, 184, 0.17);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.staff-avatar-badge {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: linear-gradient(145deg, #f97316, #c2410c);
+}
+
+.nav-group-title {
+  padding-top: 17px;
+  color: #8290a8;
+  letter-spacing: 0.12em;
+}
+
+.nav-item {
+  min-height: 42px;
+  border-radius: 9px;
+  font-size: 0.86rem;
+  transition: color 150ms ease, background 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.nav-item:hover { transform: translateX(2px); }
+.nav-item.active { background: linear-gradient(90deg, rgba(234, 88, 12, 0.2), rgba(234, 88, 12, 0.08)); }
+
+.admin-main {
+  min-width: 0;
+  overflow-x: clip;
+  padding: 30px clamp(22px, 3vw, 48px) 52px;
+  background: transparent;
+}
+
+.admin-header {
+  position: relative;
+  align-items: flex-end;
+  padding: 0 0 22px;
+  margin-bottom: 26px;
+  border-bottom: 1px solid #e5e9f0;
+}
+
+.header-left { gap: 6px; }
+.admin-header .eyebrow { color: #c2410c; letter-spacing: 0.13em; }
+.admin-header h1 { font-size: clamp(1.7rem, 2vw, 2.1rem); letter-spacing: -0.04em; }
+.admin-header-actions .btn-sm { min-height: 40px; padding-inline: 14px; border-radius: 10px; }
+
+.panel-card,
+.workspace-record,
+.kpi-card {
+  border-color: #e4e9f1;
+  border-radius: 15px;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.035), 0 1px 2px rgba(15, 23, 42, 0.025);
+}
+
+.panel-card { overflow: visible; }
+.panel-body { padding: 26px; }
+.panel-body h2 { letter-spacing: -0.025em; }
+
+.admin-main input:not([type="checkbox"]):not([type="radio"]),
+.admin-main select,
+.admin-main textarea {
+  min-width: 0;
+  border-color: #d7dfeb;
+  border-radius: 9px;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.admin-main input:not([type="checkbox"]):not([type="radio"]):focus,
+.admin-main select:focus,
+.admin-main textarea:focus {
+  border-color: #f97316;
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.13);
+}
+
+.admin-main button:not(.nav-item):not(.subnav-pill) { transition: box-shadow 150ms ease, border-color 150ms ease, background 150ms ease, transform 150ms ease; }
+.admin-main button:not(:disabled):hover { transform: translateY(-1px); }
+.admin-main :focus-visible { outline-color: #ea580c; outline-offset: 2px; }
+
+@media (max-width: 900px) {
+  .admin-brand { min-height: 0; }
+  .admin-brand-link { width: auto; }
+  .admin-main { padding: 22px 18px 38px; }
+}
+
+@media (max-width: 640px) {
+  .admin-header { align-items: flex-start; }
+  .admin-header h1 { font-size: 1.55rem; }
+  .panel-body { padding: 20px 16px; }
+}

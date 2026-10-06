@@ -140,6 +140,7 @@ export default function CatalogueManager({
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
   const [recoveredDraft, setRecoveredDraft] = useState<ProductDraft | null>(null);
   const [previewListing, setPreviewListing] = useState<Listing | null>(null);
+  const [previewMode, setPreviewMode] = useState<"card" | "detail">("card");
   const productForm = useRef<HTMLFormElement>(null);
   const canManage = ["SUPER_ADMIN", "ADMIN", "CATALOG_MANAGER"].includes(role);
 
@@ -1052,20 +1053,78 @@ export default function CatalogueManager({
                 ...formProduct,
                 name: String(values.get("name") || "").trim(),
                 brand: String(values.get("brand") || "").trim(),
+                code: String(values.get("code") || "").trim() || null,
                 categoryLabel: String(values.get("categoryLabel") || "").trim(),
                 unit: String(values.get("unit") || "").trim(),
+                grade: String(values.get("grade") || "").trim() || null,
+                packaging: String(values.get("packaging") || "").trim() || null,
                 price: String(values.get("price") || "").trim() || null,
+                compareAtPrice: String(values.get("compareAtPrice") || "").trim() || null,
+                priceNote: String(values.get("priceNote") || "").trim() || null,
+                offerLabel: String(values.get("offerLabel") || "").trim() || null,
+                minOrderQty: String(values.get("minOrderQty") || "").trim() || null,
+                dispatchTime: String(values.get("dispatchTime") || "").trim() || null,
                 description: String(values.get("description") || "").trim() || null,
+                features: String(values.get("features") || "").split("\n").map((item) => item.trim()).filter(Boolean),
+                applications: String(values.get("applications") || "").split("\n").map((item) => item.trim()).filter(Boolean),
+                specifications: Object.fromEntries(String(values.get("specifications") || "").split("\n").map((line) => {
+                  const separator = line.indexOf(":");
+                  return separator > 0 ? [line.slice(0, separator).trim(), line.slice(separator + 1).trim()] : ["", ""];
+                }).filter(([key, value]) => key && value)),
                 isPublished: values.get("isPublished") === "on",
+                availabilityStatus: String(values.get("availabilityStatus") || "CHECK_AVAILABILITY") as Listing["availabilityStatus"],
+                isInStock: values.get("availabilityStatus") === "IN_STOCK",
               };
               setPreviewListing(preview);
             }}>Preview listing</button>
           </div>
           {draftSavedAt && <p className="catalogue-draft-status" role="status">Recovery copy saved {new Date(draftSavedAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}. Kept in this browser for 7 days.</p>}
-          {previewListing && <aside className="catalogue-live-preview" aria-label="Product listing preview">
-            <div><span className="eyebrow">STOREFRONT PREVIEW</span><h4>{previewListing.name || "Product name"}</h4><p>{previewListing.brand || "Brand"} · {previewListing.categoryLabel}</p><p>{previewListing.description || "No description added."}</p><strong>{previewListing.price ? `₹${previewListing.price} / ${previewListing.unit || "unit"}` : "Request a quote"}</strong><small>{previewListing.isPublished ? "Would be visible after you save." : "Saved as a draft; hidden from customers."}</small></div>
-            {previewListing.image && <img src={previewListing.image} alt={`Preview of ${previewListing.name || "product"}`} />}
-          </aside>}
+          {previewListing && <section className="catalogue-storefront-preview" aria-label="Customer storefront preview">
+            <header className="catalogue-preview-toolbar">
+              <div><span className="eyebrow">STOREFRONT PREVIEW</span><p>See how this product will look to a customer. Changes here are not published.</p></div>
+              <div className="catalogue-preview-switch" role="group" aria-label="Preview layout">
+                <button type="button" className={previewMode === "card" ? "active" : ""} aria-pressed={previewMode === "card"} onClick={() => setPreviewMode("card")}>Listing card</button>
+                <button type="button" className={previewMode === "detail" ? "active" : ""} aria-pressed={previewMode === "detail"} onClick={() => setPreviewMode("detail")}>Product page</button>
+              </div>
+            </header>
+            {previewMode === "card" ? <article className="store-preview-card">
+              <div className="store-preview-media">
+                {(previewListing.image || previewListing.galleryImages[0]) ? <img src={previewListing.image || previewListing.galleryImages[0]} alt={previewListing.name || "Product preview"} /> : <div className="store-preview-placeholder"><PackagePlus size={34} /><span>Product image preview</span></div>}
+                <span className="store-preview-category">{previewListing.categoryLabel || "Category"}</span>
+                <span className={`store-preview-stock ${previewListing.availabilityStatus === "IN_STOCK" ? "available" : ""}`}>{previewListing.availabilityStatus === "IN_STOCK" ? "In stock" : previewListing.availabilityStatus === "OUT_OF_STOCK" ? "Out of stock" : "Check availability"}</span>
+                {previewListing.offerLabel && <span className="store-preview-offer">{previewListing.offerLabel}</span>}
+              </div>
+              <div className="store-preview-card-body">
+                <div className="store-preview-brand-line"><strong>{previewListing.brand || "Brand"}</strong>{previewListing.code && <span>{previewListing.code}</span>}</div>
+                <h3>{previewListing.name || "Product name"}</h3>
+                <p className="store-preview-unit">{previewListing.grade || previewListing.unit || "Product specification"}</p>
+                {previewListing.features.length > 0 && <ul>{previewListing.features.slice(0, 2).map((feature, index) => <li key={`${feature}-${index}`}>{feature}</li>)}</ul>}
+                <div className="store-preview-price">{previewListing.price ? <><strong>₹{Number(previewListing.price).toLocaleString("en-IN")}</strong><span> / {previewListing.unit || "unit"}</span>{previewListing.compareAtPrice && <del>₹{Number(previewListing.compareAtPrice).toLocaleString("en-IN")}</del>}</> : <strong>Request a quote</strong>}</div>
+                {previewListing.priceNote && <small>{previewListing.priceNote}</small>}
+                <button type="button" disabled>View product details</button>
+              </div>
+            </article> : <article className="store-preview-detail">
+              <div className="store-preview-detail-media">
+                {(previewListing.image || previewListing.galleryImages.length > 0) ? <img src={previewListing.image || previewListing.galleryImages[0]} alt={previewListing.name || "Product preview"} /> : <div className="store-preview-placeholder"><PackagePlus size={40} /><span>Product image preview</span></div>}
+                {previewListing.galleryImages.length > 0 && <div className="store-preview-thumbnails">{previewListing.galleryImages.slice(0, 4).map((image, index) => <img key={`${image}-${index}`} src={image} alt={`Product view ${index + 1}`} />)}</div>}
+              </div>
+              <div className="store-preview-detail-copy">
+                <div className="store-preview-brand-line"><strong>{previewListing.brand || "Brand"}</strong>{previewListing.code && <span>REF-{previewListing.code}</span>}</div>
+                <span className="store-preview-detail-category">{previewListing.categoryLabel || "Category"}</span>
+                <h2>{previewListing.name || "Product name"}</h2>
+                {previewListing.grade && <span className="store-preview-grade">{previewListing.grade}</span>}
+                <div className="store-preview-detail-price">{previewListing.price ? <><strong>₹{Number(previewListing.price).toLocaleString("en-IN")}</strong><span> / {previewListing.unit || "unit"}</span>{previewListing.compareAtPrice && <del>₹{Number(previewListing.compareAtPrice).toLocaleString("en-IN")}</del>}</> : <strong>Request a quote</strong>}</div>
+                {previewListing.priceNote && <p className="store-preview-note">{previewListing.priceNote}</p>}
+                <p>{previewListing.description || "A product description will appear here when you add one."}</p>
+                {previewListing.variants.length > 0 && <div className="store-preview-variants"><h3>Available options</h3><div>{previewListing.variants.slice(0, 8).map((variant, index) => <span key={`${variant.id || variant.label}-${index}`}><strong>{variant.label || Object.values(variant.attributes || {}).join(" · ") || `Option ${index + 1}`}</strong><small>{variant.price != null && variant.price !== "" ? `₹${Number(variant.price).toLocaleString("en-IN")}` : "Request a quote"}{(variant.availabilityStatus || (variant.inStock ? "IN_STOCK" : "CHECK_AVAILABILITY")) === "IN_STOCK" ? " · In stock" : " · Check availability"}</small></span>)}</div>{previewListing.variants.length > 8 && <small>+{previewListing.variants.length - 8} more options</small>}</div>}
+                <div className="store-preview-facts">{previewListing.packaging && <span><small>Packaging</small><strong>{previewListing.packaging}</strong></span>}{previewListing.minOrderQty && <span><small>Minimum order</small><strong>{previewListing.minOrderQty}</strong></span>}{previewListing.dispatchTime && <span><small>Dispatch</small><strong>{previewListing.dispatchTime}</strong></span>}</div>
+                {Object.keys(previewListing.specifications).length > 0 && <div className="store-preview-specs"><h3>Specifications</h3>{Object.entries(previewListing.specifications).map(([key, value]) => <div key={key}><span>{key}</span><strong>{value}</strong></div>)}</div>}
+                {previewListing.features.length > 0 && <div className="store-preview-list"><h3>Key features</h3><ul>{previewListing.features.map((feature, index) => <li key={`${feature}-${index}`}>{feature}</li>)}</ul></div>}
+                {previewListing.applications.length > 0 && <div className="store-preview-list"><h3>Applications</h3><ul>{previewListing.applications.map((application, index) => <li key={`${application}-${index}`}>{application}</li>)}</ul></div>}
+              </div>
+            </article>}
+            <footer className="catalogue-preview-footnote"><span className={previewListing.isPublished ? "preview-state-publish" : "preview-state-draft"}>{previewListing.isPublished ? "Ready to publish" : "Draft · hidden from customers"}</span><span>Preview only · save this product to keep your changes</span></footer>
+          </section>}
         </form>
       )}
       <section className="panel-card catalogue-filter-panel" aria-label="Filter catalogue">
@@ -1107,7 +1166,7 @@ export default function CatalogueManager({
           <label>
             Website status
             <select value={publicationFilter} onChange={(event) => setPublicationFilter(event.target.value)}>
-              <option key="all" value="all">Published and drafts</option>
+              <option key="all" value="all">All statuses</option>
               <option key="published" value="published">Published</option>
               <option key="draft" value="draft">Drafts</option>
             </select>
