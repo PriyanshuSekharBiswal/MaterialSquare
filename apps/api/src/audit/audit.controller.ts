@@ -78,6 +78,20 @@ export class AuditController {
             : Array.isArray(metadata.fields)
               ? metadata.fields.map(String)
               : [];
+        const staffChanges =
+          entry.entityType === "STAFF_USER" && Array.isArray(metadata.changes)
+            ? metadata.changes
+                .filter(
+                  (change): change is Record<string, unknown> =>
+                    Boolean(change) && typeof change === "object" && !Array.isArray(change),
+                )
+                .filter((change) => ["role", "isActive"].includes(String(change.field)))
+                .map((change) => ({
+                  field: String(change.field),
+                  before: change.before,
+                  after: change.after,
+                }))
+            : [];
         const title =
           typeof metadata.productName === "string"
             ? metadata.productName
@@ -98,6 +112,7 @@ export class AuditController {
             recentEntityTitles[entry.entityType] || "Workspace settings",
           actionLabel: describeRecentAction(entry.action),
           changedFields: [...new Set(changedFields)].slice(0, 8),
+          changes: staffChanges,
           staff: entry.staff,
         };
       }),

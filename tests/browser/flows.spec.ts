@@ -1322,18 +1322,29 @@ test("admin edits customer-facing catalogue price and offer details", async ({
     description: "Product description",
     minOrderQty: "1 length",
     dispatchTime: "Confirm",
-    price: "300",
-    compareAtPrice: "350",
-    priceNote: "per length, GST extra",
+    price: null,
+    compareAtPrice: null,
+    priceNote: null,
     offerLabel: "Offer",
     offerStartsAt: null,
     offerEndsAt: null,
-    isInStock: true,
-    availabilityStatus: "IN_STOCK",
+    isInStock: false,
+    availabilityStatus: "CHECK_AVAILABILITY",
     isPublished: true,
     features: ["Feature"],
     applications: ["Application"],
     specifications: { size: "25 mm" },
+    variants: [{
+      id: "starter-cpvc-variant",
+      label: "25 mm · 3 m",
+      attributes: { Size: "25 mm" },
+      unit: "3 m length",
+      price: 425,
+      priceNote: "Online reference price; confirm local price.",
+      inStock: false,
+      availabilityStatus: "CHECK_AVAILABILITY",
+      sortOrder: 0,
+    }],
     sortOrder: 0,
   };
   let saved: Record<string, unknown> = original;
@@ -1441,24 +1452,45 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page.getByRole("button", { name: "Products, prices & offers" }).click();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
-  await page.getByLabel("Price (₹ per unit)").fill("320");
-  const storefrontPreview = page.getByRole("region", {
-    name: "Customer storefront preview",
+  await page.getByRole("button", { name: "Preview storefront" }).click();
+  const storefrontPreview = page.getByRole("dialog", {
+    name: "See how customers will see this product",
   });
+  await expect(storefrontPreview).toBeVisible();
+  await expect(storefrontPreview.getByText("₹425", { exact: true })).toBeVisible();
+  await expect(storefrontPreview.getByText("Online reference price", { exact: true })).toBeVisible();
+  await expect(storefrontPreview.getByText("Online reference price; confirm local price.", { exact: true })).toBeVisible();
+  await expect(storefrontPreview.getByText("Check availability", { exact: true })).toBeVisible();
+  await storefrontPreview.getByRole("button", { name: "Product page" }).click();
+  await expect(storefrontPreview.locator(".store-preview-detail-price")).toContainText("₹425");
+  await expect(storefrontPreview.getByText("Online reference price; confirm local price.", { exact: true })).toBeVisible();
+  await expect(storefrontPreview.locator(".store-preview-detail-stock")).toHaveText("Check availability");
+  await storefrontPreview.getByRole("button", { name: "Marketplace card" }).click();
+  expect(updatedBody).toBeUndefined();
+  await storefrontPreview.getByRole("button", { name: "Back to editing" }).click();
+  await expect(storefrontPreview).toBeHidden();
+  await page.getByLabel("Price (₹ per unit)").fill("320");
+  await page.getByLabel("Compare-at price / MRP (₹, optional)").fill("350");
+  await page.getByPlaceholder("e.g. per bag, GST included").fill("per length, GST extra");
+  await page.getByRole("button", { name: "Preview storefront" }).click();
   await expect(storefrontPreview).toBeVisible();
   await expect(storefrontPreview.getByText("₹320", { exact: true })).toBeVisible();
   await expect(storefrontPreview.locator(".store-preview-topline")).toContainText("Serving Delhi NCR");
   await expect(storefrontPreview.getByText("BUILDING BETTER TOGETHER", { exact: true })).toBeVisible();
   await expect(storefrontPreview.locator(".store-preview-actions")).toContainText("View details");
   await expect(storefrontPreview.locator(".store-preview-moq")).toContainText("1 length");
+  expect(updatedBody).toBeUndefined();
+  await storefrontPreview.getByRole("button", { name: "Back to editing" }).click();
+  await expect(storefrontPreview).toBeHidden();
   await page.getByLabel("Compare-at price / MRP (₹, optional)").fill("400");
-  await page.getByLabel("Price note").fill("per length, GST extra");
-  await page.getByLabel("Offer label").fill("October offer");
+  await page.getByPlaceholder("e.g. per bag, GST included").fill("per length, GST extra");
+  await page.getByLabel("Offer label (optional)", { exact: true }).fill("October offer");
   await page
     .locator('select[name="availabilityStatus"]')
     .selectOption("OUT_OF_STOCK");
-  await page.getByLabel("Offer starts").fill("2026-10-05");
-  await page.getByLabel("Offer ends").fill("2026-10-31");
+  await page.getByLabel("Offer starts (optional)", { exact: true }).fill("2026-10-05");
+  await page.getByLabel("Offer ends (optional)", { exact: true }).fill("2026-10-31");
+  await page.getByRole("button", { name: "Remove option 1", exact: true }).click();
   await page.locator(".catalogue-combination-axis input").nth(0).fill("Pack size");
   await page.locator(".catalogue-combination-axis input").nth(1).fill("1 L, 4 L, 10 L");
   await page.getByRole("button", { name: "Add option group" }).click();
@@ -1486,7 +1518,8 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await expect(page.locator('input[name="image"]')).toHaveValue(
     "https://assets.example.test/images/test.png",
   );
-  await page.getByRole("button", { name: "View live preview" }).click();
+  await page.getByRole("button", { name: "Preview storefront" }).click();
+  await expect(storefrontPreview).toBeVisible();
   await expect(storefrontPreview.getByRole("heading", { name: "Starter CPVC Pipe" })).toBeVisible();
   await expect(storefrontPreview.getByText("October offer", { exact: true })).toBeVisible();
   await expect(storefrontPreview.getByText("Out of stock", { exact: true })).toBeVisible();
@@ -1503,6 +1536,8 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await expect(storefrontPreview.getByRole("button", { name: /Add to Material List/ })).toBeDisabled();
   await expect(storefrontPreview.getByText("1 L · White", { exact: true })).toBeVisible();
   expect(updatedBody).toBeUndefined();
+  await page.keyboard.press("Escape");
+  await expect(storefrontPreview).toBeHidden();
   await page.getByRole("button", { name: "Save product" }).click();
   await expect(page.getByRole("status")).toContainText(
     "Product saved and published",

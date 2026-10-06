@@ -2,6 +2,23 @@ import { useState } from "react";
 import { Clock3, FileText, Package, Pencil, Plus, Upload } from "lucide-react";
 import type { RecentChanges, Stats, WebsiteAnalytics } from "./contracts";
 
+function recentChangeValue(field: string, value: unknown) {
+  if (field === "isActive") return value ? "Active" : "Disabled";
+  if (field === "role") {
+    const roles: Record<string, string> = {
+      ADMIN: "Administrator",
+      SALES_MANAGER: "Sales & customer support",
+      CATALOG_MANAGER: "Catalogue & pricing manager",
+      PROCUREMENT_HEAD: "Procurement & suppliers",
+      DISPATCH_OFFICER: "Dispatch & transportation",
+      ACCOUNTS_MANAGER: "Accounts & finance",
+      CONTENT_MANAGER: "Website content manager",
+    };
+    return roles[String(value)] || String(value || "(empty)");
+  }
+  return String(value ?? "(empty)");
+}
+
 type WorkspaceOverviewProps = {
   stats: Stats | null;
   websiteAnalytics: WebsiteAnalytics | null;
@@ -36,6 +53,7 @@ export default function WorkspaceOverview({
     changedFields: Array.isArray(change.changedFields)
       ? change.changedFields
       : [],
+    changes: Array.isArray(change.changes) ? change.changes : [],
   }));
   const categories = [
     "All activity",
@@ -264,7 +282,11 @@ export default function WorkspaceOverview({
                         ? ` · ${change.changedFields.length} ${change.changedFields.length === 1 ? "detail" : "details"} updated`
                         : ""}
                     </span>
-                    {change.changedFields.length > 0 && (
+                    {change.changes.length > 0 ? change.changes.map((detail) => (
+                      <small key={`${detail.field}-${String(detail.before)}-${String(detail.after)}`}>
+                        {detail.field === "isActive" ? "Account status" : detail.field === "role" ? "Role" : detail.field.replace(/[._]/g, " ")}: {recentChangeValue(detail.field, detail.before)} → {recentChangeValue(detail.field, detail.after)}
+                      </small>
+                    )) : change.changedFields.length > 0 && (
                       <small>
                         {change.changedFields
                           .slice(0, 4)

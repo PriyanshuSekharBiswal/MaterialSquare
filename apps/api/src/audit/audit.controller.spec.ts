@@ -32,14 +32,31 @@ describe("audit review", () => {
         createdAt: new Date("2026-10-05T08:00:00.000Z"),
         staff: null,
       },
+      {
+        id: "activity-3",
+        action: "STAFF_ACCESS_UPDATED",
+        entityType: "STAFF_USER",
+        entityId: "staff-qa",
+        metadata: {
+          changedFields: ["role", "isActive"],
+          phone: "private-phone",
+          changes: [
+            { field: "role", before: "CONTENT_MANAGER", after: "CATALOG_MANAGER" },
+            { field: "isActive", before: false, after: true },
+            { field: "password", before: "secret", after: "secret-new" },
+          ],
+        },
+        createdAt: new Date("2026-10-06T09:00:00.000Z"),
+        staff: { name: "Owner", role: "SUPER_ADMIN" },
+      },
     ]);
-    count.mockResolvedValueOnce(2);
+    count.mockResolvedValueOnce(3);
 
     const result = await controller.recent({
       user: { userId: "admin-1", role: "ADMIN" },
     } as never);
 
-    expect(result.total).toBe(2);
+    expect(result.total).toBe(3);
     expect(result.limit).toBe(50);
     expect(result.categories).toContain("Procurement");
     expect(
@@ -47,8 +64,14 @@ describe("audit review", () => {
     ).toEqual([
       ["photo.png", "Storefront", "Uploaded"],
       ["Quotation", "Sales", "Published"],
+      ["Staff account", "Settings & team", "Access updated"],
     ]);
     expect(JSON.stringify(result)).not.toContain("private");
+    expect(JSON.stringify(result)).not.toContain("secret");
+    expect(result.items[2].changes).toEqual([
+      { field: "role", before: "CONTENT_MANAGER", after: "CATALOG_MANAGER" },
+      { field: "isActive", before: false, after: true },
+    ]);
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         take: 50,

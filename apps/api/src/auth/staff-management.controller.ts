@@ -129,7 +129,7 @@ export class StaffManagementController {
     const data = validate(updateStaffSchema, body);
     const target = await this.prisma.staffUser.findFirst({
       where: { id },
-      select: { id: true, role: true },
+      select: { id: true, role: true, isActive: true },
     });
     if (!target) throw new NotFoundException("Staff account not found");
     if (target.role === "SUPER_ADMIN")
@@ -151,13 +151,18 @@ export class StaffManagementController {
           updatedAt: true,
         },
       });
+      const changes = Object.entries(data).map(([field, value]) => ({
+        field,
+        before: field === "role" ? target.role : target.isActive,
+        after: value,
+      }));
       await tx.auditLog.create({
         data: {
           staffId: req.user.userId,
           action: "STAFF_ACCESS_UPDATED",
           entityType: "STAFF_USER",
           entityId: id,
-          metadata: { changedFields: Object.keys(data) },
+          metadata: { changedFields: Object.keys(data), changes },
         },
       });
       return staff;

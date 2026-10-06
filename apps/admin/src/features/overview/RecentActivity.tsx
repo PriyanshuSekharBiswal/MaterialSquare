@@ -10,6 +10,23 @@ type Props = {
   onOpenSales: () => void;
 };
 
+function changeValue(field: string, value: unknown) {
+  if (field === "isActive") return value ? "Active" : "Disabled";
+  if (field === "role") {
+    const roles: Record<string, string> = {
+      ADMIN: "Administrator",
+      SALES_MANAGER: "Sales & customer support",
+      CATALOG_MANAGER: "Catalogue & pricing manager",
+      PROCUREMENT_HEAD: "Procurement & suppliers",
+      DISPATCH_OFFICER: "Dispatch & transportation",
+      ACCOUNTS_MANAGER: "Accounts & finance",
+      CONTENT_MANAGER: "Website content manager",
+    };
+    return roles[String(value)] || String(value || "(empty)");
+  }
+  return String(value ?? "(empty)");
+}
+
 export default function RecentActivity({
   token,
   role,
@@ -76,6 +93,7 @@ export default function RecentActivity({
         item.staff?.name,
         item.entityId,
         ...(item.changedFields || []),
+        ...(item.changes || []).flatMap((change) => [String(change.before), String(change.after)]),
       ].some((value) => value?.toLowerCase().includes(query));
       return categoryMatches && searchMatches;
     });
@@ -137,7 +155,11 @@ export default function RecentActivity({
                 <div className="recent-change-copy">
                   <strong>{item.title || item.entityLabel}</strong>
                   <span>{item.actionLabel} · {item.entityLabel}</span>
-                  {item.changedFields.length > 0 && <small>Changed: {item.changedFields.join(", ")}</small>}
+                  {item.changes?.length ? item.changes.map((change) => (
+                    <small className="recent-change-diff" key={`${change.field}-${String(change.before)}-${String(change.after)}`}>
+                      {change.field === "isActive" ? "Account status" : change.field === "role" ? "Role" : change.field}: {changeValue(change.field, change.before)} → {changeValue(change.field, change.after)}
+                    </small>
+                  )) : item.changedFields.length > 0 && <small>Changed: {item.changedFields.join(", ")}</small>}
                   <small>{item.staff?.name || "System"}{item.staff?.role ? ` · ${item.staff.role.replaceAll("_", " ").toLowerCase()}` : ""}</small>
                   {canOpen && <button type="button" className="recent-change-open" onClick={() => openDestination(item.entityType)}>Open related workspace</button>}
                 </div>

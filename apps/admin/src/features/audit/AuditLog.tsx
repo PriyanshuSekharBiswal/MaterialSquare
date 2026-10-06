@@ -158,7 +158,7 @@ export default function AuditLog({ token }: { token: string }) {
                         {entry.metadata !== null && (
                           <details>
                             <summary>View details</summary>
-                            {(entry.entityType === "WEBSITE_CONTENT" || entry.entityType === "CATALOG_PRODUCT" || entry.entityType === "PRODUCT_SKU") &&
+                            {(entry.entityType === "WEBSITE_CONTENT" || entry.entityType === "CATALOG_PRODUCT" || entry.entityType === "PRODUCT_SKU" || entry.entityType === "STAFF_USER") &&
                             typeof entry.metadata === "object" &&
                             entry.metadata !== null &&
                             Array.isArray((entry.metadata as { changes?: unknown }).changes) ? (

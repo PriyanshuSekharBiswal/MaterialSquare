@@ -107,6 +107,24 @@ function pageTitle(tab: WorkspaceTab) {
   return titles[tab];
 }
 
+function pageDescription(tab: WorkspaceTab) {
+  const descriptions: Record<WorkspaceTab, string> = {
+    overview: "A clear view of enquiries, sales and website performance.",
+    recent: "Changes made across the workspace during the last 7 days.",
+    customers: "Customer details, conversations and recent activity.",
+    followups: "Keep every open enquiry moving toward a clear next step.",
+    catalogue: "Manage the products, prices and offers customers see online.",
+    content: "Prepare page updates, preview them and publish when ready.",
+    sales: "Review quotations and orders from enquiry through fulfilment.",
+    business: "Manage the teams, suppliers and services behind the storefront.",
+    reports: "Track operating activity and business performance.",
+    audit: "Review who changed records and when those changes happened.",
+    notifications: "Messages and alerts that need your attention.",
+    team: "Manage staff access and the work each role can perform.",
+  };
+  return descriptions[tab];
+}
+
 type AdminWorkspaceLayoutProps = {
   staff: AdminStaff;
   tab: WorkspaceTab;
@@ -179,10 +197,11 @@ export default function AdminWorkspaceLayout({
             aria-label="Go to workspace overview"
           >
             <MaterialSquareLogo
-              size={38}
+              size={42}
               showText={true}
               lightMode={true}
-              tagline="BUILDING BETTER TOGETHER"
+              tagline="OPERATIONS CONSOLE"
+              badgeText="ADMIN"
             />
           </button>
           <button
@@ -260,10 +279,9 @@ export default function AdminWorkspaceLayout({
       <main className="admin-main">
         <header className="admin-header">
           <div className="header-left">
-            <span className="eyebrow">
-              Material Square Operations
-            </span>
+            <div className="admin-breadcrumb"><span>Material Square</span><span aria-hidden="true">/</span><strong>Operations</strong></div>
             <h1>{pageTitle(tab)}</h1>
+            <p className="admin-page-description">{pageDescription(tab)}</p>
           </div>
           <div className="admin-header-actions">
             <button

@@ -1544,3 +1544,267 @@ textarea:focus {
   .admin-header h1 { font-size: 1.55rem; }
   .panel-body { padding: 20px 16px; }
 }
+
+/* Brand-led workspace shell */
+.admin-layout {
+  background:
+    radial-gradient(ellipse at 82% 0%, rgba(249, 115, 22, .055), transparent 27rem),
+    #f5f7fb;
+}
+
+.admin-sidebar {
+  width: 292px;
+  background: linear-gradient(180deg, #101a2e 0%, #0d1629 56%, #0a1221 100%);
+  border-right: 1px solid rgba(148, 163, 184, .16);
+}
+
+.admin-brand {
+  min-height: 112px;
+  padding: 20px 21px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, 0) 72%);
+  border-bottom-color: rgba(148, 163, 184, .15);
+}
+
+.admin-brand-link {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.admin-brand-link .ms-logo-wrapper { gap: 10px !important; }
+.admin-brand-link .ms-logo-svg { filter: drop-shadow(0 3px 8px rgba(0, 0, 0, .26)) !important; }
+.admin-brand-link .ms-logo-brand-name { font-size: 1.12rem !important; letter-spacing: .095em !important; }
+.admin-brand-link .ms-logo-sub-tag { margin-block: 4px 3px !important; }
+.admin-brand-link .ms-logo-tagline { color: #aebbd0 !important; font-size: .52rem !important; letter-spacing: .16em !important; }
+
+.sidebar-staff-card {
+  margin: 16px 14px 9px;
+  padding: 12px;
+  border-color: rgba(148, 163, 184, .17);
+  border-radius: 13px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .075), rgba(255, 255, 255, .035));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .035);
+}
+
+.staff-avatar-badge {
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 12px;
+  background: linear-gradient(145deg, #fb7834, #cf4306);
+  box-shadow: 0 5px 13px rgba(234, 88, 12, .28);
+}
+
+.staff-role-chip {
+  color: #aebbd0;
+  text-transform: capitalize;
+}
+
+.sidebar-nav-scroll { padding: 12px 12px 18px; gap: 7px; }
+.nav-group-title { padding: 17px 11px 7px; color: #8593aa; letter-spacing: .13em; }
+
+.nav-item {
+  position: relative;
+  min-height: 43px;
+  padding-inline: 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: #c2ccdc;
+  font-weight: 550;
+  transition: color 150ms ease, background 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.nav-item:hover {
+  transform: translateX(2px);
+  color: #fff;
+  background: rgba(255, 255, 255, .055);
+}
+
+.nav-item.active {
+  border-color: rgba(249, 115, 22, .27);
+  color: #ffad78;
+  background: linear-gradient(100deg, rgba(234, 88, 12, .22), rgba(234, 88, 12, .08));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .045);
+}
+
+.nav-item.active::before {
+  position: absolute;
+  inset: 8px auto 8px -1px;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: #f97316;
+  content: "";
+}
+
+.nav-item.active .nav-item-icon { color: #fb874c; }
+.sidebar-footer { background: rgba(5, 10, 20, .56); border-top-color: rgba(148, 163, 184, .14); }
+.sidebar-ext-link, .sidebar-signout-btn { min-height: 42px; border-radius: 10px; }
+
+.admin-main {
+  padding: 30px clamp(22px, 3.15vw, 50px) 54px;
+  background: transparent;
+}
+
+.admin-header {
+  min-height: 94px;
+  align-items: center;
+  padding: 0 0 22px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid #e3e8f0;
+}
+
+.header-left { gap: 5px; }
+
+.admin-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+  color: #8390a4;
+  font-size: .72rem;
+  font-weight: 650;
+  letter-spacing: .015em;
+}
+
+.admin-breadcrumb strong { color: #d85413; font-weight: 800; }
+.admin-header h1 { font-size: clamp(1.7rem, 2vw, 2.1rem); letter-spacing: -.045em; }
+.admin-page-description { max-width: 680px; color: #68778e; font-size: .88rem; }
+.admin-header-actions .btn-sm { min-height: 42px; padding-inline: 15px; border-radius: 11px; }
+
+.admin-main input:not([type="checkbox"]):not([type="radio"]),
+.admin-main select,
+.admin-main textarea {
+  min-height: 43px;
+  border-color: #d6dfeb;
+  border-radius: 10px;
+  background-color: #fff;
+}
+
+.admin-main input[type="file"] {
+  min-height: 0;
+  border-style: dashed;
+  border-color: #cbd5e1;
+  padding: 8px;
+  color: #58677d;
+  background: #f8fafc;
+  font-size: .78rem;
+}
+
+.admin-main input[type="file"]::file-selector-button {
+  margin-right: 10px;
+  border: 1px solid #f5bd9a;
+  border-radius: 7px;
+  padding: 7px 10px;
+  color: #b9470b;
+  background: #fff7f0;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.admin-main input[type="file"]::file-selector-button:hover {
+  background: #ffeddc;
+}
+
+.admin-main textarea { min-height: 110px; }
+.panel-card, .workspace-record, .kpi-card { border-color: #e3e8f0; border-radius: 16px; }
+.panel-card { box-shadow: 0 5px 20px rgba(21, 35, 57, .045), 0 1px 2px rgba(21, 35, 57, .025); }
+
+@media (max-width: 900px) {
+  .admin-header { min-height: 0; }
+}
+
+@media (max-width: 640px) {
+  .admin-main { padding: 20px 15px 36px; }
+  .admin-header { gap: 12px; padding-bottom: 17px; margin-bottom: 20px; }
+  .admin-page-description { max-width: 38ch; font-size: .82rem; }
+  .admin-header-actions .btn-sm { min-height: 39px; padding-inline: 11px; }
+}
+
+/* Final polish: make everyday admin work feel like one branded console. */
+.admin-layout {
+  min-height: 100dvh;
+  background:
+    radial-gradient(ellipse at 76% 0%, rgba(234, 88, 12, .045), transparent 34rem),
+    #f4f6fa;
+}
+
+.admin-sidebar {
+  box-shadow: 8px 0 30px rgba(12, 20, 36, .055);
+}
+
+.admin-brand {
+  position: relative;
+  min-height: 116px;
+  background:
+    radial-gradient(ellipse at 100% 0%, rgba(234, 88, 12, .15), transparent 65%),
+    linear-gradient(135deg, rgba(255,255,255,.055), transparent 70%);
+}
+
+.admin-brand::after {
+  position: absolute;
+  right: 20px;
+  bottom: -1px;
+  left: 20px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(234, 88, 12, .55), transparent);
+  content: "";
+}
+
+.admin-brand-link .ms-logo-wrapper { max-width: 100%; }
+.admin-brand-link .ms-logo-text-col { min-width: 0; }
+
+.admin-header {
+  padding: 2px 0 23px;
+  border-bottom-color: #e0e6ef;
+}
+
+.admin-breadcrumb {
+  color: #718096;
+  font-size: .7rem;
+  letter-spacing: .025em;
+}
+
+.admin-breadcrumb strong {
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: #b5470c;
+  background: #fff1e7;
+}
+
+.admin-header h1 {
+  color: #121c30;
+  letter-spacing: -.05em;
+}
+
+.admin-page-description { color: #6b7890; }
+
+.admin-main .panel-card,
+.admin-main .workspace-record,
+.admin-main .kpi-card {
+  border-color: #e1e7f0;
+  box-shadow: 0 5px 18px rgba(17, 32, 54, .04), 0 1px 2px rgba(17, 32, 54, .025);
+}
+
+.admin-main .panel-card > h2,
+.admin-main .panel-card > header h2,
+.admin-main .panel-card > .panel-heading h2 {
+  color: #172238;
+  letter-spacing: -.035em;
+}
+
+.admin-main label { color: #46556d; }
+
+.admin-main input:not([type="checkbox"]):not([type="radio"]),
+.admin-main select,
+.admin-main textarea {
+  color: #172238;
+  box-shadow: inset 0 1px 1px rgba(15, 23, 42, .018);
+}
+
+.admin-main input[type="file"] { box-shadow: none; }
+
+.admin-main button:not(:disabled):active { transform: translateY(0); }
+
+@media (max-width: 900px) {
+  .admin-brand { min-height: 0; }
+}

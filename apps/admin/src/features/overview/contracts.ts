@@ -36,6 +36,7 @@ export type RecentChange = {
   entityLabel: string;
   actionLabel: string;
   changedFields: string[];
+  changes: { field: string; before: unknown; after: unknown }[];
   staff: { name: string; role: string } | null;
 };
 
