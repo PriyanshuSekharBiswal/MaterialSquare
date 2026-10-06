@@ -199,8 +199,9 @@ export default function AdminWorkspaceLayout({
             <MaterialSquareLogo
               size={46}
               showText={true}
-              lightMode={true}
-              tagline="BUILDING BETTER TOGETHER"
+              lightMode={false}
+              tagline="OPERATIONS CONSOLE"
+              badgeText="ADMIN"
             />
           </button>
           <button
