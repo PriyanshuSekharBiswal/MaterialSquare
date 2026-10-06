@@ -34,6 +34,54 @@ describe("customer catalogue", () => {
     }));
   });
 
+  it("records who changed product fields with before and after values", async () => {
+    const before = {
+      id: "product-1", slug: "old-name", code: "P-1", name: "Old name",
+      brand: "Brand", brandTagline: null, category: "cement",
+      categoryLabel: "Cement", unit: "bag", packaging: null, image: null,
+      galleryImages: [], grade: null, description: null, minOrderQty: null,
+      dispatchTime: null, price: 400, compareAtPrice: null, priceNote: null,
+      offerLabel: null, offerStartsAt: null, offerEndsAt: null, isInStock: false,
+      availabilityStatus: "CHECK_AVAILABILITY" as const, isPublished: false,
+      features: [], applications: [], specifications: {}, sortOrder: 0,
+      variants: [],
+    };
+    const auditCreate = jest.fn().mockResolvedValue(undefined);
+    const tx = {
+      catalogListing: {
+        findUnique: jest.fn().mockResolvedValue(before),
+        update: jest.fn().mockResolvedValue({ ...before, name: "New name", price: 450 }),
+      },
+      auditLog: { create: auditCreate },
+    };
+    const service = new ProductsService({
+      $transaction: (callback: (db: typeof tx) => unknown) => callback(tx),
+    } as unknown as PrismaService);
+    const data = {
+      slug: "new-name", code: "P-1", name: "New name", brand: "Brand",
+      category: "cement", categoryLabel: "Cement", unit: "bag",
+      galleryImages: [], price: 450, isInStock: false,
+      availabilityStatus: "CHECK_AVAILABILITY" as const, isPublished: false,
+      features: [], applications: [], specifications: {}, variants: [], sortOrder: 0,
+    };
+
+    await service.update("product-1", data, "staff-editor");
+
+    expect(auditCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        staffId: "staff-editor",
+        action: "CATALOG_PRODUCT_UPDATED",
+        metadata: expect.objectContaining({
+          productName: "New name",
+          changes: expect.arrayContaining([
+            { field: "name", before: "Old name", after: "New name" },
+            { field: "price", before: "400", after: "450" },
+          ]),
+        }),
+      }),
+    }));
+  });
+
   it("reads only client-published listings and preserves listings without images", async () => {
     const listings = [
       {

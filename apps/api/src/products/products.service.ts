@@ -6,6 +6,37 @@ import {
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 
+function auditText(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "(empty)";
+  const serialized = typeof value === "string" ? value : JSON.stringify(value);
+  return (serialized || String(value)).slice(0, 500);
+}
+
+function listingChanges(before: Record<string, unknown>, after: CatalogListingInput) {
+  const fields = Object.keys(after) as Array<keyof CatalogListingInput>;
+  return fields.flatMap((field) => {
+    const oldValue = before[field as string];
+    const newValue = after[field];
+    const normalizedOld = field === "variants" && Array.isArray(oldValue)
+      ? oldValue.map((variant: Record<string, unknown>) => ({
+          label: variant.label, code: variant.code, unit: variant.unit,
+          price: variant.price === null || variant.price === undefined ? variant.price : String(variant.price),
+          availabilityStatus: variant.availabilityStatus,
+          isInStock: variant.isInStock,
+        }))
+      : oldValue;
+    const normalizedNew = field === "variants"
+      ? after.variants.map((variant) => ({
+          label: variant.label, code: variant.code, unit: variant.unit,
+          price: variant.price, availabilityStatus: variant.availabilityStatus,
+          isInStock: variant.isInStock,
+        }))
+      : newValue;
+    if (JSON.stringify(normalizedOld ?? null) === JSON.stringify(normalizedNew ?? null)) return [];
+    return [{ field, before: auditText(normalizedOld), after: auditText(normalizedNew) }];
+  });
+}
+
 export type CatalogListingInput = {
   slug: string;
   code?: string | null;
@@ -223,6 +254,8 @@ export class ProductsService {
 
   async updatePrice(id: string, price: number, staffId: string) {
     return this.prisma.$transaction(async (db) => {
+      const previous = await db.productSKU.findUnique({ where: { id }, include: { brand: true } });
+      if (!previous) throw new NotFoundException("Product not found");
       const result = await db.productSKU.updateMany({
         where: { id },
         data: { basePricePerMt: price },
@@ -238,7 +271,11 @@ export class ProductsService {
           action: "PRODUCT_PRICE_UPDATED",
           entityType: "PRODUCT_SKU",
           entityId: id,
-          metadata: { fields: ["basePricePerMt"] },
+          metadata: {
+            fields: ["basePricePerMt"],
+            productName: previous.name,
+            changes: [{ field: "basePricePerMt", before: auditText(previous.basePricePerMt), after: auditText(price) }],
+          },
         },
       });
       return product;
@@ -266,6 +303,12 @@ export class ProductsService {
             entityId: product.id,
             metadata: {
               fields: Object.keys(data).sort(),
+              productName: data.name,
+              changes: Object.entries(data).map(([field, value]) => ({
+                field,
+                before: "(empty)",
+                after: auditText(value),
+              })),
               variantCount: data.variants.length,
             },
           },
@@ -288,6 +331,11 @@ export class ProductsService {
   async update(id: string, data: CatalogListingInput, staffId: string) {
     try {
       return await this.prisma.$transaction(async (db) => {
+        const previous = await db.catalogListing.findUnique({
+          where: { id },
+          include: { variants: { orderBy: { sortOrder: "asc" } } },
+        });
+        if (!previous) throw new NotFoundException("Catalogue product not found");
         const product = await db.catalogListing.update({
           where: { id },
           data: {
@@ -309,6 +357,8 @@ export class ProductsService {
             entityId: product.id,
             metadata: {
               fields: Object.keys(data).sort(),
+              productName: data.name,
+              changes: listingChanges(previous as unknown as Record<string, unknown>, data),
               variantCount: data.variants.length,
             },
           },
@@ -336,6 +386,8 @@ export class ProductsService {
 
   async archive(id: string, staffId: string) {
     return this.prisma.$transaction(async (db) => {
+      const previous = await db.catalogListing.findUnique({ where: { id } });
+      if (!previous) throw new NotFoundException("Catalogue product not found");
       const result = await db.catalogListing.updateMany({
         where: { id },
         data: { isPublished: false },
@@ -348,7 +400,11 @@ export class ProductsService {
           action: "CATALOG_PRODUCT_ARCHIVED",
           entityType: "CATALOG_PRODUCT",
           entityId: id,
-          metadata: { fields: ["isPublished"] },
+          metadata: {
+            fields: ["isPublished"],
+            productName: previous.name,
+            changes: [{ field: "isPublished", before: String(previous.isPublished), after: "false" }],
+          },
         },
       });
       return { success: true };

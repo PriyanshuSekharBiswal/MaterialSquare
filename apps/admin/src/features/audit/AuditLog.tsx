@@ -158,7 +158,7 @@ export default function AuditLog({ token }: { token: string }) {
                         {entry.metadata !== null && (
                           <details>
                             <summary>View details</summary>
-                            {entry.entityType === "WEBSITE_CONTENT" &&
+                            {(entry.entityType === "WEBSITE_CONTENT" || entry.entityType === "CATALOG_PRODUCT" || entry.entityType === "PRODUCT_SKU") &&
                             typeof entry.metadata === "object" &&
                             entry.metadata !== null &&
                             Array.isArray((entry.metadata as { changes?: unknown }).changes) ? (
@@ -166,8 +166,8 @@ export default function AuditLog({ token }: { token: string }) {
                                 {(entry.metadata as { changes: Array<{ field?: string; before?: string; after?: string }> }).changes.map((change, index) => (
                                   <li key={`${change.field}-${index}`}>
                                     <strong>{(change.field || "Field").replace(/[._]/g, " ")}</strong>
-                                    <span>Before: {change.before || "(empty)"}</span>
-                                    <span>After: {change.after || "(empty)"}</span>
+                                    <span>Before: {change.before ?? "(empty)"}</span>
+                                    <span>After: {change.after ?? "(empty)"}</span>
                                   </li>
                                 ))}
                               </ul>

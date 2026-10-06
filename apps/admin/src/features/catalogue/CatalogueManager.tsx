@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
   Image,
   PackagePlus,
@@ -46,6 +46,15 @@ type Listing = {
   sortOrder: number;
 };
 type Variant = EditableVariant;
+type ProductDraft = {
+  savedAt: number;
+  values: Record<string, string | boolean>;
+  image: string;
+  galleryImages: string[];
+  variants: Variant[];
+};
+const PRODUCT_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const productDraftKey = (id: string) => `material-square:catalogue-draft:${id || "new"}`;
 
 const blank: Listing = {
   id: "",
@@ -128,6 +137,10 @@ export default function CatalogueManager({
   const [availabilityFilter, setAvailabilityFilter] = useState("all");
   const [managingBrands, setManagingBrands] = useState(false);
   const [partnerBrandOptions, setPartnerBrandOptions] = useState<string[]>([]);
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+  const [recoveredDraft, setRecoveredDraft] = useState<ProductDraft | null>(null);
+  const [previewListing, setPreviewListing] = useState<Listing | null>(null);
+  const productForm = useRef<HTMLFormElement>(null);
   const canManage = ["SUPER_ADMIN", "ADMIN", "CATALOG_MANAGER"].includes(role);
 
   const brands = [...new Set(listings.map((product) => product.brand).filter(Boolean))]
@@ -406,6 +419,79 @@ export default function CatalogueManager({
     return () => { active = false; };
   }, [request]);
 
+  useEffect(() => {
+    if (!editing || !recoveredDraft || !productForm.current) return;
+    for (const [name, value] of Object.entries(recoveredDraft.values)) {
+      const control = productForm.current.elements.namedItem(name);
+      if (control instanceof HTMLInputElement && control.type === "checkbox")
+        control.checked = Boolean(value);
+      else if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement || control instanceof HTMLSelectElement)
+        control.value = String(value);
+    }
+    setDraftSavedAt(recoveredDraft.savedAt);
+    setNotice("Recovered this product’s unsaved changes. They remain private until you save the product.");
+    setRecoveredDraft(null);
+  }, [editing?.id, recoveredDraft]);
+
+  useEffect(() => {
+    if (!editing) return;
+    const key = productDraftKey(editing.id);
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return;
+      const previous = JSON.parse(raw) as ProductDraft;
+      const draft: ProductDraft = {
+        ...previous,
+        savedAt: Date.now(),
+        image: editing.image || "",
+        galleryImages: editing.galleryImages || [],
+        variants: editing.variants || [],
+      };
+      localStorage.setItem(key, JSON.stringify(draft));
+      setDraftSavedAt(draft.savedAt);
+    } catch {
+      // Keep editing available if browser recovery storage is unavailable.
+    }
+  }, [editing?.id, editing?.image, editing?.galleryImages, editing?.variants]);
+
+  function captureProductDraft(event: ChangeEvent<HTMLFormElement>) {
+    if (!editing) return;
+    const values: ProductDraft["values"] = {};
+    for (const [name, value] of new FormData(event.currentTarget).entries()) {
+      const control = event.currentTarget.elements.namedItem(name);
+      if (control instanceof HTMLInputElement && control.type === "checkbox") values[name] = control.checked;
+      else values[name] = String(value);
+    }
+    const draft: ProductDraft = {
+      savedAt: Date.now(),
+      values,
+      image: editing.image || "",
+      galleryImages: editing.galleryImages || [],
+      variants: editing.variants || [],
+    };
+    try {
+      localStorage.setItem(productDraftKey(editing.id), JSON.stringify(draft));
+      setDraftSavedAt(draft.savedAt);
+    } catch {
+      setNotice("This browser could not save a recovery copy. Save the product before leaving this page.");
+    }
+  }
+
+  function recoverableDraftFor(product: Listing): ProductDraft | null {
+    try {
+      const raw = localStorage.getItem(productDraftKey(product.id));
+      if (!raw) return null;
+      const value = JSON.parse(raw) as ProductDraft;
+      if (!value || !Number.isFinite(value.savedAt) || Date.now() - value.savedAt > PRODUCT_DRAFT_TTL_MS) {
+        localStorage.removeItem(productDraftKey(product.id));
+        return null;
+      }
+      return value;
+    } catch {
+      return null;
+    }
+  }
+
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -487,7 +573,10 @@ export default function CatalogueManager({
           ? "Product saved and published to the website."
           : "Product saved as a draft.",
       );
+      try { localStorage.removeItem(productDraftKey(editing?.id || "")); } catch { /* browser storage is optional */ }
       setEditing(null);
+      setDraftSavedAt(null);
+      setPreviewListing(null);
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save this product.");
@@ -513,14 +602,26 @@ export default function CatalogueManager({
     }
   }
 
-  const startEdit = (product: Listing) => setEditing({ ...product });
-  const startNew = () =>
-    setEditing({
+  const startEdit = (product: Listing) => {
+    const recovery = recoverableDraftFor(product);
+    setPreviewListing(null);
+    setEditing({ ...product, ...(recovery ? { image: recovery.image, galleryImages: recovery.galleryImages, variants: recovery.variants } : {}) });
+    setRecoveredDraft(recovery);
+    setDraftSavedAt(recovery?.savedAt ?? null);
+  };
+  const startNew = () => {
+    const product = {
       ...blank,
       sortOrder: listings.length
         ? Math.max(...listings.map((p) => p.sortOrder)) + 1
         : 0,
-    });
+    };
+    const recovery = recoverableDraftFor(product);
+    setPreviewListing(null);
+    setEditing({ ...product, ...(recovery ? { image: recovery.image, galleryImages: recovery.galleryImages, variants: recovery.variants } : {}) });
+    setRecoveredDraft(recovery);
+    setDraftSavedAt(recovery?.savedAt ?? null);
+  };
   const formProduct = editing;
 
   if (managingBrands) return <PartnerBrandsManager token={token} role={role} onSignOut={onSignOut} onBack={() => setManagingBrands(false)} />;
@@ -569,8 +670,10 @@ export default function CatalogueManager({
       )}
       {canManage && formProduct && (
         <form
+          ref={productForm}
           className="panel-card catalogue-product-form"
           onSubmit={(event) => void save(event)}
+          onChange={captureProductDraft}
         >
           <div className="catalogue-form-title">
             <h3>{formProduct.id ? "Edit product" : "Add a product"}</h3>
@@ -941,7 +1044,28 @@ export default function CatalogueManager({
               <Save size={15} />
               {busy ? "Saving…" : "Save product"}
             </button>
+            <button type="button" className="btn-sm btn-secondary" disabled={busy} onClick={() => {
+              const form = productForm.current;
+              if (!form || !formProduct) return;
+              const values = new FormData(form);
+              const preview: Listing = {
+                ...formProduct,
+                name: String(values.get("name") || "").trim(),
+                brand: String(values.get("brand") || "").trim(),
+                categoryLabel: String(values.get("categoryLabel") || "").trim(),
+                unit: String(values.get("unit") || "").trim(),
+                price: String(values.get("price") || "").trim() || null,
+                description: String(values.get("description") || "").trim() || null,
+                isPublished: values.get("isPublished") === "on",
+              };
+              setPreviewListing(preview);
+            }}>Preview listing</button>
           </div>
+          {draftSavedAt && <p className="catalogue-draft-status" role="status">Recovery copy saved {new Date(draftSavedAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}. Kept in this browser for 7 days.</p>}
+          {previewListing && <aside className="catalogue-live-preview" aria-label="Product listing preview">
+            <div><span className="eyebrow">STOREFRONT PREVIEW</span><h4>{previewListing.name || "Product name"}</h4><p>{previewListing.brand || "Brand"} · {previewListing.categoryLabel}</p><p>{previewListing.description || "No description added."}</p><strong>{previewListing.price ? `₹${previewListing.price} / ${previewListing.unit || "unit"}` : "Request a quote"}</strong><small>{previewListing.isPublished ? "Would be visible after you save." : "Saved as a draft; hidden from customers."}</small></div>
+            {previewListing.image && <img src={previewListing.image} alt={`Preview of ${previewListing.name || "product"}`} />}
+          </aside>}
         </form>
       )}
       <section className="panel-card catalogue-filter-panel" aria-label="Filter catalogue">
