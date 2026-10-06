@@ -16,6 +16,7 @@ import { whatsappLink } from './messages';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
+const ManagedWebsitePage = lazy(() => import("./pages/ManagedWebsitePage"));
 const HomePage = lazy(() => import('./pages/HomePage'));
 const MarketplacePage = lazy(() => import('./pages/MarketplacePage'));
 const WhyUsPage = lazy(() => import('./pages/WhyUsPage'));
@@ -208,7 +209,7 @@ function AppShell() {
               <Route path="/terms" element={<TermsPage />} />
 
               {/* Fallback to Home */}
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<ManagedWebsitePage />} />
             </Routes>
             </Suspense>
           </div>

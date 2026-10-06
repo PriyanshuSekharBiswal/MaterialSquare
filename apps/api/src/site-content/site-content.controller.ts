@@ -12,7 +12,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { sanitizePublicSiteContent, SITE_CONTENT_DEFAULTS } from "@material-square/types";
+import { websitePages, sanitizePublicSiteContent, SITE_CONTENT_DEFAULTS } from "@material-square/types";
 import { SITE_CONTENT_KEYS, SiteContentSchema } from "./site-content.schema";
 import { StaffGuard } from "../auth/access.guard";
 import { validate } from "../common/validation";
@@ -33,7 +33,9 @@ export class PublicSiteContentController {
       !Array.isArray(saved.content)
         ? (saved.content as Record<string, unknown>)
         : {};
-    return sanitizePublicSiteContent(content);
+    const safe = sanitizePublicSiteContent(content);
+    safe["website.pages"] = JSON.stringify(websitePages(safe["website.pages"]).filter(page => page.published));
+    return safe;
   }
 
   @Get("sitemap.xml")
@@ -84,7 +86,10 @@ export class PublicSiteContentController {
       "/privacy",
       "/terms",
     ];
+    const savedPages = await this.prisma.websiteContent.findUnique({ where: { id: "global" } });
+    const managedPages = websitePages((savedPages?.content as Record<string, string> | undefined)?.["website.pages"] || "[]").filter(page => page.published);
     const urls = [
+      ...managedPages.map(page => ({ loc: `${origin}${page.path}`, lastmod: undefined })),
       ...staticPaths.map((path) => ({
         loc: `${origin}${path === "/" ? "/" : path}`,
         lastmod: undefined,

@@ -23,6 +23,7 @@ import {
 import { ApiError, customerApi } from "../api";
 import {
   hasMsg91WidgetConfiguration,
+  initializeMsg91Widget,
   retryMsg91Otp,
   sendMsg91Otp,
   verifyMsg91Otp,
@@ -53,13 +54,12 @@ const nav = [
 ];
 
 export default function CustomerAccountPage() {
-  const isLoopbackHost = ["localhost", "127.0.0.1", "::1"].includes(
-    window.location.hostname,
-  );
   const isLocalhostOtpTest =
     import.meta.env.DEV &&
     import.meta.env.VITE_ALLOW_LOCALHOST_OTP_TESTS === "true";
-  const isLocalhost = isLoopbackHost && !isLocalhostOtpTest;
+  const isLocalhost =
+    ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname) &&
+    !isLocalhostOtpTest;
   const location = useLocation();
   const navigate = useNavigate();
   const { updateItems } = useCustomer();
@@ -80,6 +80,7 @@ export default function CustomerAccountPage() {
   const [requestId, setRequestId] = useState("");
   const [sent, setSent] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [widgetReady, setWidgetReady] = useState(false);
   const pendingAttempted = useRef(false);
   const [pendingFailed, setPendingFailed] = useState(false);
 
@@ -113,6 +114,21 @@ export default function CustomerAccountPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+  useEffect(() => {
+    if (checking || profile || isLocalhost || !hasMsg91WidgetConfiguration())
+      return;
+    let active = true;
+    void initializeMsg91Widget()
+      .then(() => {
+        if (active) setWidgetReady(true);
+      })
+      .catch((cause) => {
+        if (active) setError((cause as Error).message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [checking, profile, isLocalhost]);
   useEffect(() => {
     if (!cooldown) return;
     const timer = window.setTimeout(() => setCooldown((n) => n - 1), 1000);
@@ -185,16 +201,7 @@ export default function CustomerAccountPage() {
     setBusy(true);
     setError("");
     try {
-      let accessToken: string;
-      try {
-        accessToken = await verifyMsg91Otp(otp, requestId);
-      } catch (err) {
-        throw new Error(
-          isLoopbackHost
-            ? "MSG91 cannot verify OTP on localhost. Open the approved HTTPS preview, request a fresh code there, and verify it on that same site."
-            : (err as Error).message,
-        );
-      }
+      const accessToken = await verifyMsg91Otp(otp, requestId);
       const customer = await customerApi<Profile>(
         "/auth/customer/otp/verify-msg91",
         "POST",
@@ -355,31 +362,35 @@ export default function CustomerAccountPage() {
                 className="account-primary-button"
                 disabled={
                   busy ||
+                  !widgetReady ||
                   (sent && isLocalhost) ||
-                  (!sent &&
-                    (isLocalhost || !hasMsg91WidgetConfiguration()))
+                  (!sent && (isLocalhost || !hasMsg91WidgetConfiguration()))
                 }
               >
                 {busy
                   ? "Please wait…"
-                  : sent
-                    ? "Verify and continue"
-                    : "Continue with OTP"}
+                  : !widgetReady &&
+                      hasMsg91WidgetConfiguration() &&
+                      !isLocalhost
+                    ? "Loading SMS security check…"
+                    : sent
+                      ? "Verify and continue"
+                      : "Continue with OTP"}
                 <ArrowRight size={17} />
               </button>
             </form>
             {!sent && (isLocalhost || !hasMsg91WidgetConfiguration()) && (
               <p className="account-config-note" role="status">
                 {isLocalhost
-                  ? "Phone sign-in cannot be verified on localhost because MSG91 CAPTCHA requires an approved hostname. Use the approved HTTPS preview site; its MSG91 widget settings and API auth key must also be configured."
+                  ? "Phone sign-in requires a hostname supported by CAPTCHA. For local development, open http://material-square.localtest.me:5173/account and request a fresh code there."
                   : "Phone sign-in is not configured in this environment yet. You can still browse products and build a guest material list."}
               </p>
             )}
             {sent && isLocalhost && (
               <p className="account-config-note" role="status">
-                This code was requested on localhost, which MSG91 CAPTCHA does
-                not allow. Open the approved HTTPS preview, request a fresh
-                code there, and verify it on that same site.
+                This code was requested on localhost. Open
+                http://material-square.localtest.me:5173/account, request a
+                fresh code there, and verify it on that same site.
               </p>
             )}
             {error && (

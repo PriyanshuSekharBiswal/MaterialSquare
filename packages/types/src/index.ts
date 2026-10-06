@@ -291,4 +291,6 @@ export type TransportationStatus = keyof typeof TRANSPORTATION_TRANSITIONS;
 
 export * from "./legal-content";
 
+export * from "./website-pages";
+
 export * from "./staff-login";

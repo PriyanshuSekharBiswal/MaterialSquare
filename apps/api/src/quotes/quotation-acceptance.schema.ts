@@ -11,10 +11,20 @@ export const QuotationSelectionsSchema = z
 
 export const CustomerQuotationResponseSchema = z
   .object({
-    decision: z.enum(["ACCEPT", "REJECT"]),
+    decision: z.enum(["ACCEPT", "REJECT", "REQUEST_CHANGES"]),
+    notes: z.string().trim().max(2000).default(""),
     selections: QuotationSelectionsSchema.default([]),
   })
   .superRefine((value, ctx) => {
+    if (
+      "decision" in value &&
+      value.decision === "REQUEST_CHANGES" &&
+      (!("notes" in value) || !value.notes)
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Describe the changes you need",
+      });
     if (
       new Set(value.selections.map((selection) => selection.itemId)).size !==
       value.selections.length

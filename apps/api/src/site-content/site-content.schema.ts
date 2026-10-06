@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  WebsitePagesSchema,
   PolicySchema,
   FaqEntriesSchema,
   PUBLIC_NAVIGATION,
@@ -19,6 +20,10 @@ const allowed = new Set<string>(SITE_CONTENT_KEYS);
 export const SiteContentSchema = z
   .record(z.string(), z.string().trim().max(50000))
   .superRefine((content, ctx) => {
+    try {
+      const pages = WebsitePagesSchema.safeParse(JSON.parse(content["website.pages"] || "[]"));
+      if (!pages.success) ctx.addIssue({ code: "custom", path: ["website.pages"], message: "Provide valid website pages with unique paths and sections" });
+    } catch { ctx.addIssue({ code: "custom", path: ["website.pages"], message: "Invalid website pages" }); }
     for (const key of Object.keys(content)) {
       if (!allowed.has(key))
         ctx.addIssue({
@@ -65,6 +70,7 @@ export const SiteContentSchema = z
     }
     for (const key of SITE_CONTENT_KEYS.filter(
       (key) =>
+        key !== "website.pages" &&
         key !== "faq.entries" &&
         key !== "home.contentBlocks" &&
         key !== "navigation.custom" &&

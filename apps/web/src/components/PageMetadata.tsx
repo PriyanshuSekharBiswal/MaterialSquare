@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { parsePolicy, type SiteContentKey } from "@material-square/types";
+import { websitePages, parsePolicy, type SiteContentKey } from "@material-square/types";
 import { useSiteContent } from "../site-content";
 
 type PublicArticleMetadata = {
@@ -97,7 +97,8 @@ export default function PageMetadata() {
     const isAccount = pathname === "/account" || pathname.startsWith("/account/");
     const areaMatch = pathname.match(/^\/locations\/([^/]+)$/);
     const area = areaMatch ? localSeo[decodeURIComponent(areaMatch[1])] : undefined;
-    const title = isPrivacy
+    const managedPage = websitePages(content["website.pages"]).find(page => page.path === pathname && page.published);
+    const title = managedPage ? managedPage.title : isPrivacy
       ? parsePolicy(content["policy.privacy"], "privacy").title
       : isTerms
         ? parsePolicy(content["policy.terms"], "terms").title
@@ -114,7 +115,7 @@ export default function PageMetadata() {
     setMeta('meta[name="robots"]', "name", "robots", isAccount ? "noindex, nofollow" : "index, follow");
     setPageMetadata({
       title,
-      description: area?.description || defaultDescription,
+      description: managedPage?.description || area?.description || defaultDescription,
       image: defaultImage,
     });
 

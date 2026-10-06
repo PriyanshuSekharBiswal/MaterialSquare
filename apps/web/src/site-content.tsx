@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { sanitizePublicSiteContent, SITE_CONTENT_DEFAULTS, type SiteContent } from "@material-square/types";
+import { websitePages, sanitizePublicSiteContent, SITE_CONTENT_DEFAULTS, type SiteContent } from "@material-square/types";
 
 const SiteContentContext = createContext(SITE_CONTENT_DEFAULTS as SiteContent);
 
@@ -27,7 +27,9 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
           if (event.data?.type !== "material-square:site-content-preview") return;
           const value = event.data.content as Partial<SiteContent> | undefined;
           if (!value || typeof value !== "object") return;
-          setContent(sanitizePublicSiteContent(value as Record<string, unknown>));
+          const draft = sanitizePublicSiteContent(value as Record<string, unknown>);
+          draft["website.pages"] = JSON.stringify(websitePages(draft["website.pages"]).map(page => ({ ...page, published: true })));
+          setContent(draft);
         };
         window.addEventListener("message", onMessage);
         const announceReady = () => window.parent.postMessage(

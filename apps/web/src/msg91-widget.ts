@@ -1,5 +1,6 @@
 let sdkPromise: Promise<void> | undefined;
 let initializationPromise: Promise<void> | undefined;
+let captchaContainer: HTMLElement | null = null;
 const sdkUrl = "https://verify.msg91.com/otp-provider.js";
 
 export function hasMsg91WidgetConfiguration(): boolean {
@@ -19,8 +20,15 @@ function widgetConfig() {
   return { widgetId, tokenAuth };
 }
 
-async function initialize(): Promise<void> {
+export async function initializeMsg91Widget(): Promise<void> {
   const config = widgetConfig();
+  const container = document.getElementById("msg91-captcha");
+  if (container && captchaContainer && container !== captchaContainer) {
+    // The SDK keeps its exposed methods bound to the original widget. Preserve
+    // its CAPTCHA and listeners when the account form is mounted again.
+    container.replaceChildren(...Array.from(captchaContainer.childNodes));
+    captchaContainer = container;
+  }
   if (!sdkPromise) {
     sdkPromise = new Promise<void>((resolve, reject) => {
       const existing = document.querySelector<HTMLScriptElement>(
@@ -79,9 +87,14 @@ async function initialize(): Promise<void> {
           done = true;
           reject(new Error("SMS verification could not initialize."));
         }
-      }, 5000);
+      }, 15000);
       const check = () => {
-        if (window.sendOtp && window.retryOtp && window.verifyOtp) {
+        if (
+          window.sendOtp &&
+          window.retryOtp &&
+          window.verifyOtp &&
+          (!window.getWidgetData || window.getWidgetData())
+        ) {
           done = true;
           window.clearTimeout(timeout);
           resolve();
@@ -95,7 +108,16 @@ async function initialize(): Promise<void> {
           exposeMethods: true,
           captchaRenderId: "msg91-captcha",
           success: () => {},
-          failure: () => {},
+          failure: () => {
+            if (done) return;
+            done = true;
+            window.clearTimeout(timeout);
+            reject(
+              new Error(
+                "SMS security check could not load. Please try again later.",
+              ),
+            );
+          },
         });
         check();
       } catch {
@@ -109,6 +131,7 @@ async function initialize(): Promise<void> {
     });
   }
   await initializationPromise;
+  captchaContainer = container;
 }
 
 function sdkCall(
@@ -119,17 +142,26 @@ function sdkCall(
   ) => void,
 ): Promise<Msg91WidgetResponse> {
   return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      reject(new Error("SMS verification timed out. Please try again."));
+    }, 20000);
     const failure = (error?: unknown) => {
+      window.clearTimeout(timeout);
       const details = safeFailureDetails(error);
       console.warn("MSG91 OTP widget request failed", { operation, details });
       reject(
         new Error(
-          "MSG91 couldn't verify this code. Complete the CAPTCHA, use the latest code, and try again from a hostname allowed in MSG91.",
+          /block|too many|throttl|limit|429/i.test(details)
+            ? "MSG91 has temporarily limited attempts from this network. Please try again later."
+            : operation === "verify"
+              ? "MSG91 couldn't verify this code. Use the latest code and try again."
+              : "MSG91 couldn't send the code. Complete the CAPTCHA and try again.",
         ),
       );
     };
     try {
       invoke((response) => {
+        window.clearTimeout(timeout);
         if (response.type?.toLowerCase() === "error") failure(response);
         else resolve(response);
       }, failure);
@@ -140,6 +172,8 @@ function sdkCall(
 }
 
 function safeFailureDetails(error: unknown): string {
+  if (Array.isArray(error))
+    return error.slice(0, 4).map(safeFailureDetails).join(" ").slice(0, 120);
   const value =
     error instanceof Error
       ? error.message
@@ -166,7 +200,13 @@ function requestId(response: Msg91WidgetResponse) {
 }
 
 export async function sendMsg91Otp(phone: string): Promise<string> {
-  await initialize();
+  await initializeMsg91Widget();
+  if (
+    window.getWidgetData?.()?.captchaValidations &&
+    window.isCaptchaVerified &&
+    !window.isCaptchaVerified()
+  )
+    throw new Error("Complete the CAPTCHA before requesting your code.");
   if (!window.sendOtp)
     throw new Error("SMS verification is unavailable. Please try again later.");
   const result = await sdkCall("send", (success, failure) =>
@@ -179,7 +219,7 @@ export async function sendMsg91Otp(phone: string): Promise<string> {
 }
 
 export async function retryMsg91Otp(reqId: string): Promise<string> {
-  await initialize();
+  await initializeMsg91Widget();
   if (!window.retryOtp)
     throw new Error("SMS resend is unavailable. Please try again later.");
   const result = await sdkCall("resend", (success, failure) =>
@@ -192,7 +232,7 @@ export async function verifyMsg91Otp(
   otp: string,
   reqId: string,
 ): Promise<string> {
-  await initialize();
+  await initializeMsg91Widget();
   if (!window.verifyOtp)
     throw new Error("SMS verification is unavailable. Please try again later.");
   const result = await sdkCall("verify", (success, failure) =>

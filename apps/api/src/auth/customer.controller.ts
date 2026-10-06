@@ -22,6 +22,9 @@ import {
   customerSessionHash,
 } from "./customer.guard";
 
+import { QuotationAcceptanceService } from "../quotes/quotation-acceptance.service";
+import { CustomerQuotationResponseSchema } from "../quotes/quotation-acceptance.schema";
+
 const customerSelect = {
   id: true,
   phone: true,
@@ -88,7 +91,31 @@ const customerRfqSchema = z
 @Controller("customer")
 @UseGuards(CustomerGuard)
 export class CustomerController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly acceptance: QuotationAcceptanceService,
+  ) {}
+
+  @Post("quotations/:id/response")
+  respond(
+    @Req() req: CustomerRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    const response = validate(CustomerQuotationResponseSchema, body);
+    return response.decision === "ACCEPT"
+      ? this.acceptance.acceptFromCustomer(
+          id,
+          req.customerId,
+          response.selections,
+        )
+      : this.acceptance.respondFromCustomer(
+          id,
+          req.customerId,
+          response.decision,
+          response.notes,
+        );
+  }
 
   @Get("me") async me(
     @Req() req: CustomerRequest,
@@ -401,7 +428,10 @@ export class CustomerController {
         throw new NotFoundException(
           "A requested product variant is no longer available",
         );
-      if (variant?.minOrderQuantity != null && item.quantity < Number(variant.minOrderQuantity))
+      if (
+        variant?.minOrderQuantity != null &&
+        item.quantity < Number(variant.minOrderQuantity)
+      )
         throw new BadRequestException(
           `${listing.name} requires a minimum of ${variant.minOrderQuantity.toString()} ${variant.unit}`,
         );

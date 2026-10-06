@@ -12,6 +12,8 @@ declare global {
   interface Window {
     __lenis?: LocomotiveScroll["lenisInstance"];
     __locomotiveScroll?: LocomotiveScroll;
+    getWidgetData?: () => { captchaValidations?: boolean } | null;
+    isCaptchaVerified?: () => boolean;
     initSendOTP?: (configuration: {
       widgetId: string;
       tokenAuth: string;

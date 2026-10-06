@@ -288,6 +288,78 @@ test("quotation submission verifies the customer and saves a request to the acco
   });
 });
 
+test("customer OTP waits for widget settings and requires CAPTCHA before sending", async ({
+  page,
+}) => {
+  await page.route("**/api/customer/me", (route) =>
+    route.fulfill({ status: 401, json: { message: "Please sign in" } }),
+  );
+  await page.route("https://verify.msg91.com/otp-provider.js", (route) =>
+    route.fulfill({
+      contentType: "application/javascript",
+      body: `window.initSendOTP = () => {
+        let ready = false, verified = false, sends = 0;
+        const count = document.createElement('output');
+        count.setAttribute('aria-label', 'Mock send count');
+        count.textContent = '0';
+        window.getWidgetData = () => ready ? {captchaValidations: true} : null;
+        window.isCaptchaVerified = () => verified;
+        window.sendOtp = (phone, success) => { count.textContent = String(++sends); success({reqId:'req-captcha'}); };
+        window.retryOtp = () => {};
+        window.verifyOtp = () => {};
+        setTimeout(() => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = 'Mark test CAPTCHA verified';
+          button.addEventListener('click', () => { verified = true; });
+          document.getElementById('msg91-captcha').append(button, count);
+          ready = true;
+        }, 1500);
+      };`,
+    }),
+  );
+  await page.goto("/account");
+  await expect(
+    page.getByRole("button", { name: "Loading SMS security check…" }),
+  ).toBeDisabled();
+  await page.getByLabel("Mobile number").fill("9876543210");
+  await page.getByRole("button", { name: "Continue with OTP" }).click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "Complete the CAPTCHA before requesting your code.",
+  );
+  await expect(page.getByLabel("Mock send count")).toHaveText("0");
+  await page
+    .getByRole("button", { name: "Mark test CAPTCHA verified" })
+    .click();
+  await page.getByRole("button", { name: "Continue with OTP" }).click();
+  await expect(page.getByLabel("Six-digit verification code")).toBeVisible();
+  await expect(page.getByLabel("Mock send count")).toHaveText("1");
+});
+
+test("customer OTP reports a provider rate limit and releases the pending button", async ({ page }) => {
+  await page.route("**/api/customer/me", (route) =>
+    route.fulfill({ status: 401, json: { message: "Please sign in" } }),
+  );
+  await page.route("https://verify.msg91.com/otp-provider.js", (route) =>
+    route.fulfill({
+      contentType: "application/javascript",
+      body: `window.initSendOTP = () => {
+        window.sendOtp = (phone, success, failure) => failure(['IP temporarily blocked']);
+        window.retryOtp = () => {};
+        window.verifyOtp = () => {};
+      };`,
+    }),
+  );
+  await page.goto("/account");
+  await page.getByLabel("Mobile number").fill("9876543210");
+  await page.getByRole("button", { name: "Continue with OTP" }).click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "MSG91 has temporarily limited attempts from this network. Please try again later.",
+  );
+  await expect(page.getByRole("button", { name: "Continue with OTP" })).toBeEnabled();
+  await expect(page.getByLabel("Six-digit verification code")).not.toBeVisible();
+});
+
 test("customer OTP opens separate quotation and order account pages", async ({
   page,
 }) => {
@@ -398,7 +470,7 @@ test("customer OTP opens separate quotation and order account pages", async ({
     page.getByRole("heading", { name: "MS-QT-2026-0001" }),
   ).toBeVisible();
   await expect(
-    page.getByText("Ambuja · Ambuja PPC Cement · ₹245.00 / bag"),
+    page.locator(".account-alternatives").getByText("Ambuja · Ambuja PPC Cement · ₹245.00 / bag"),
   ).toBeVisible();
   await page.getByRole("link", { name: "Orders & tracking" }).click();
   await expect(

@@ -5,6 +5,7 @@ import { z } from "zod";
  * plain text only; page layout and product data remain owned by the app.
  */
 export const SITE_CONTENT_DEFAULTS = {
+  "website.pages": "[]",
   "policy.privacy": JSON.stringify(DEFAULT_POLICIES.privacy),
   "policy.terms": JSON.stringify(DEFAULT_POLICIES.terms),
   "faq.entries": "[]",

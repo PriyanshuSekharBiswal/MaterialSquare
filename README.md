@@ -28,6 +28,8 @@ npm run dev
 
 The API reads the root `.env`. Both Vite apps proxy `/api` to port 4000 in development. For Vercel, set the private `API_ORIGIN` to the HTTPS API origin and leave `VITE_API_URL` unset. Database migrations run explicitly with `npm run db:deploy`.
 
+For real OTP sign-in during development, open `http://material-square.localtest.me:5173/account`. This hostname resolves to the local computer and avoids hCaptcha's unsupported `localhost` hostname. Include `http://material-square.localtest.me:5173` in the root `.env` variable `CORS_ORIGINS`. Keep `MSG91_AUTHKEY` in the API's root `.env` and the widget settings in `apps/web/.env.local`. Complete CAPTCHA before requesting a code. `VITE_ALLOW_LOCALHOST_OTP_TESTS` is reserved for automated browser tests with a mocked widget.
+
 ## Catalogue and inventory
 
 The public catalogue is read only from published `CatalogListing` records. The API never seeds products at startup, and deployment runs migrations only. Product listings must be entered and reviewed against the client's actual inventory in the admin catalogue; this repository does not generate sample product listings, prices, availability or variants. See [catalogue data policy](docs/product/starter-catalogue.md).

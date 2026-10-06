@@ -1,4 +1,5 @@
 import React from "react";
+import QuotationResponse from "../features/customer-account/QuotationResponse";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -105,6 +106,7 @@ export function AccountContent({
             <StatusBadge status={quote.status} />
           </div>
         </div>
+        <QuotationResponse key={quote.id} quote={quote} />
       </>
     );
   if (path.startsWith("/account/orders/") && order)

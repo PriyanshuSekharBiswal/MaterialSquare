@@ -36,6 +36,17 @@ describe("website content", () => {
     jest.clearAllMocks();
   });
 
+  it("does not expose unpublished pages or include them in the sitemap", async () => {
+    const page = { id: "page", path: "/our-services", title: "Services", description: "", published: false, sections: [] };
+    stored = { "website.pages": JSON.stringify([page]) };
+    const controller = new PublicSiteContentController(prisma);
+    expect((await controller.get())["website.pages"]).toBe("[]");
+    expect(await controller.sitemap("https://materials.example")).not.toContain("/our-services");
+    stored = { "website.pages": JSON.stringify([{ ...page, published: true }]) };
+    expect(JSON.parse((await controller.get())["website.pages"])).toHaveLength(1);
+    expect(await controller.sitemap("https://materials.example")).toContain("/our-services");
+  });
+
   it("serves compiled defaults until the owner publishes page copy", async () => {
     const controller = new PublicSiteContentController(prisma);
     await expect(controller.get()).resolves.toEqual(SITE_CONTENT_DEFAULTS);

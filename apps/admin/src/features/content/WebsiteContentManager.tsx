@@ -1,3 +1,4 @@
+import WebsitePageBuilder from "./WebsitePageBuilder";
 import PolicyEditor from "./PolicyEditor";
 import FaqEditor from "./FaqEditor";
 import NavigationControls from "./NavigationControls";
@@ -33,6 +34,7 @@ export default function WebsiteContentManager({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [preview, setPreview] = useState(false);
+  const [previewPath, setPreviewPath] = useState("/");
   const [previewContent, setPreviewContent] = useState<SiteContent | null>(
     null,
   );
@@ -191,6 +193,7 @@ export default function WebsiteContentManager({
         !url.username &&
         !url.password
       ) {
+        url.pathname = previewPath;
         url.searchParams.set("draftPreview", "1");
         previewUrl = url.toString();
       }
@@ -261,6 +264,10 @@ export default function WebsiteContentManager({
               </p>
             </div>
           </div>
+          <label>Preview page<select value={previewPath} onChange={event => setPreviewPath(event.target.value)}>
+            <option value="/">Home</option>
+            {JSON.parse(previewContent?.["website.pages"] || "[]").map((page: { id: string; path: string; title: string }) => <option key={page.id} value={page.path}>{page.title}</option>)}
+          </select></label>
           <iframe
             ref={previewFrame}
             title="Customer website draft preview"
@@ -302,6 +309,7 @@ export default function WebsiteContentManager({
         disabled={contentDisabled}
         onChange={setContent}
       />
+      <WebsitePageBuilder content={content} disabled={busy || loading} onChange={setContent} />
       <HomepageSectionControls
         content={content}
         disabled={contentDisabled}

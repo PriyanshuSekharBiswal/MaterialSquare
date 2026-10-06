@@ -24,15 +24,76 @@ export class QuotationAcceptanceService {
     return this.accept(quoteId, selections, staffId, channel);
   }
 
-  private accept(
+  acceptFromCustomer(
     quoteId: string,
+    customerId: string,
     selections: QuotationSelection[],
-    staffId: string,
-    channel: ExternalAcceptanceChannel,
+  ) {
+    return this.accept(
+      quoteId,
+      selections,
+      null,
+      "CUSTOMER_PORTAL",
+      customerId,
+    );
+  }
+
+  async respondFromCustomer(
+    quoteId: string,
+    customerId: string,
+    decision: "REJECT" | "REQUEST_CHANGES",
+    notes: string,
   ) {
     return this.prisma.$transaction(async (tx) => {
       const quote = await tx.quotation.findFirst({
-        where: { id: quoteId },
+        where: { id: quoteId, customerId },
+      });
+      if (!quote) throw new NotFoundException("Quotation not found");
+      const claimed = await tx.quotation.updateMany({
+        where: {
+          id: quoteId,
+          customerId,
+          status: "QUOTE_SENT",
+          validUntil: { gt: new Date() },
+        },
+        data: { status: "REJECTED" },
+      });
+      if (claimed.count !== 1)
+        throw new ConflictException("This quotation is no longer current");
+      if (decision === "REQUEST_CHANGES")
+        await tx.quotationFollowUp.create({
+          data: {
+            quotationId: quoteId,
+            channel: "INTERNAL",
+            scheduledAt: new Date(),
+            notes: `Customer requested changes: ${notes}`,
+          },
+        });
+      await tx.auditLog.create({
+        data: {
+          action: `CUSTOMER_QUOTATION_${decision}`,
+          entityType: "QUOTATION",
+          entityId: quoteId,
+          metadata: { actorType: "CUSTOMER", customerId, notes },
+        },
+      });
+      return { decision };
+    });
+  }
+
+  private accept(
+    quoteId: string,
+    selections: QuotationSelection[],
+    staffId: string | null,
+    channel: ExternalAcceptanceChannel | "CUSTOMER_PORTAL",
+    ownerCustomerId?: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const quote = await tx.quotation.findFirst({
+        where: {
+          id: quoteId,
+          ...(ownerCustomerId ? { customerId: ownerCustomerId } : {}),
+        },
         include: {
           items: {
             include: { product: { include: { brand: true } }, options: true },
@@ -219,11 +280,14 @@ export class QuotationAcceptanceService {
       await tx.auditLog.create({
         data: {
           staffId,
-          action: "STAFF_QUOTATION_ACCEPTED_EXTERNALLY",
+          action: ownerCustomerId
+            ? "CUSTOMER_QUOTATION_ACCEPTED"
+            : "STAFF_QUOTATION_ACCEPTED_EXTERNALLY",
           entityType: "ORDER",
           entityId: order.id,
           metadata: {
-            actorType: "STAFF",
+            actorType: ownerCustomerId ? "CUSTOMER" : "STAFF",
+            customerId,
             channel,
             quoteId: quote.id,
             quoteNumber: quote.quoteNumber,
