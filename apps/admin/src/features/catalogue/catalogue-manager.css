@@ -924,7 +924,7 @@
 .store-preview-detail-breadcrumb { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 11px 20px; border-bottom: 1px solid #eef1f5; color: #7c8798; font-size: 10px; }
 .store-preview-breadcrumb strong,
 .store-preview-detail-breadcrumb strong { color: #344258; }
-.store-preview-card { width: min(100%, 340px); border: 1px solid #e6eaf0; border-radius: 16px; box-shadow: 0 8px 24px rgba(20, 35, 58, .045); }
+.store-preview-card { width: min(100%, 340px); margin-inline: auto; border: 1px solid #e6eaf0; border-radius: 16px; box-shadow: 0 8px 24px rgba(20, 35, 58, .045); }
 .store-preview-media { height: 205px; }
 .store-preview-media > img { object-fit: cover; padding: 0; }
 .store-preview-stock { border-radius: 999px; background: rgba(22, 132, 82, .94); }
