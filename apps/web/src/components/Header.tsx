@@ -102,9 +102,9 @@ export default function Header({
               className={`nav-btn nav-btn-outline nav-bom-trigger ${bomCount > 0 ? "has-items" : ""}`}
               onClick={closeMenu}
               title="View your saved material list"
+              aria-label="Material List"
             >
               <FileText size={15} />
-              <span>Material List</span>
               {bomCount > 0 && <span className="bom-counter">{bomCount}</span>}
             </Link>
 
