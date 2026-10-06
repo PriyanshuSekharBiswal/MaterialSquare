@@ -1195,7 +1195,7 @@ export default function CatalogueManager({
           {previewListing && previewOpen && <div className="catalogue-preview-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewOpen(false); }}>
           <section id="catalogue-live-preview" className={`catalogue-storefront-preview preview-${previewViewport}`} role="dialog" aria-modal="true" aria-labelledby="catalogue-preview-title">
             <header className="catalogue-preview-toolbar">
-              <div className="catalogue-preview-heading"><span className="eyebrow">PRIVATE STOREFRONT PREVIEW</span><h2 id="catalogue-preview-title">See how customers will see this product</h2><p>Updates as you edit. Only the saved version appears on the storefront.</p></div>
+              <div className="catalogue-preview-heading"><span className="eyebrow">PRIVATE STOREFRONT PREVIEW</span><h2 id="catalogue-preview-title">{previewMode === "card" ? "Marketplace listing" : "Product detail page"}</h2><p>This is a private preview of your current edits. It will not publish until you save and publish the product.</p></div>
               <div className="catalogue-preview-controls">
                 <div className="catalogue-preview-switch" role="group" aria-label="Preview page">
                   <button type="button" className={previewMode === "card" ? "active" : ""} aria-pressed={previewMode === "card"} onClick={() => setPreviewMode("card")}>Marketplace card</button>
