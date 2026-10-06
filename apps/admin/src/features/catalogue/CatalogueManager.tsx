@@ -1167,7 +1167,19 @@ export default function CatalogueManager({
               <Save size={15} />
               {busy ? "Saving…" : "Save product"}
             </button>
-            <button type="button" className="btn-sm btn-secondary" disabled={busy} onClick={() => setPreviewOpen(true)}>Preview storefront</button>
+            <button
+              type="button"
+              className="btn-sm btn-secondary catalogue-preview-trigger"
+              disabled={busy}
+              onClick={() => {
+                if (productForm.current) {
+                  captureProductDraft({ currentTarget: productForm.current } as FormEvent<HTMLFormElement>);
+                }
+                setPreviewOpen(true);
+              }}
+            >
+              <Image size={15} /> Preview storefront
+            </button>
           </div>
           {draftSavedAt && <p className="catalogue-draft-status" role="status">Recovery copy saved {new Date(draftSavedAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}. Kept in this browser for 7 days.</p>}
           {previewListing && previewOpen && <div className="catalogue-preview-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewOpen(false); }}>

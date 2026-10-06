@@ -1248,3 +1248,87 @@
 
 /* The desktop device mockup must retain its full marketplace grid on narrow browser windows. */
 .catalogue-preview-overlay .preview-desktop .store-preview-marketplace-grid .store-preview-context-product { display: block; }
+
+/* Keep the private preview polished while preserving the storefront card itself. */
+.catalogue-preview-trigger {
+  border-color: #d7e0ec !important;
+  color: #1a2942 !important;
+  background: #fff !important;
+}
+
+.catalogue-preview-trigger:hover:not(:disabled) {
+  border-color: #f2a36f !important;
+  color: #b9470b !important;
+  background: #fff8f3 !important;
+}
+
+.catalogue-preview-overlay {
+  padding: clamp(10px, 2vw, 28px);
+  background: rgba(7, 14, 27, .78);
+  backdrop-filter: blur(9px) saturate(.85);
+}
+
+.catalogue-preview-overlay .catalogue-storefront-preview {
+  gap: 15px;
+  width: min(1540px, 100%);
+  padding: clamp(15px, 1.8vw, 25px);
+  border: 1px solid rgba(255, 255, 255, .82);
+  border-radius: 22px;
+  background: #f5f7fa;
+}
+
+.catalogue-preview-overlay .catalogue-preview-toolbar {
+  align-items: center;
+  padding: 2px 2px 3px;
+}
+
+.catalogue-preview-heading h2 { font-size: clamp(19px, 1.7vw, 24px); }
+.catalogue-preview-heading p { color: #64748b; }
+
+.catalogue-preview-overlay .catalogue-preview-stage {
+  min-height: 390px;
+  padding: clamp(13px, 2vw, 28px);
+  border-color: #d7dfeb;
+  border-radius: 17px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, .95), transparent 58%),
+    linear-gradient(145deg, #e8edf4, #dfe6ef);
+}
+
+.catalogue-preview-overlay .catalogue-preview-device-frame {
+  min-height: 0;
+  border-color: #dfe5ed;
+  border-radius: 15px;
+  box-shadow: 0 20px 55px rgba(18, 31, 51, .16);
+}
+
+.catalogue-preview-overlay .store-preview-marketplace-intro { padding-top: 19px; }
+.catalogue-preview-overlay .store-preview-card { box-shadow: 0 8px 24px rgba(20, 35, 58, .06); }
+.catalogue-preview-overlay .store-preview-current-product { outline-color: rgba(234, 88, 12, .42); }
+
+.catalogue-preview-overlay .catalogue-preview-footnote {
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 11px;
+  background: #fff;
+  font-size: 11px;
+}
+
+.catalogue-preview-footnote .preview-state-draft,
+.catalogue-preview-footnote .preview-state-publish {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 999px;
+  padding: 6px 9px;
+  font-weight: 800;
+}
+
+.catalogue-preview-footnote .preview-state-draft { color: #8a4a00; background: #fff3d9; }
+.catalogue-preview-footnote .preview-state-publish { color: #147243; background: #e8f7ee; }
+
+@media (max-width: 760px) {
+  .catalogue-preview-overlay .catalogue-storefront-preview { border-radius: 15px; }
+  .catalogue-preview-overlay .catalogue-preview-stage { min-height: 0; }
+  .catalogue-preview-overlay .catalogue-preview-toolbar { align-items: stretch; }
+}

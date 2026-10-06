@@ -1808,3 +1808,95 @@ textarea:focus {
 @media (max-width: 900px) {
   .admin-brand { min-height: 0; }
 }
+
+/* A calmer, more brand-led operations shell. */
+.admin-layout {
+  background:
+    radial-gradient(ellipse at 88% 2%, rgba(234, 88, 12, .065), transparent 30rem),
+    #f3f6fa;
+}
+
+.admin-sidebar {
+  width: 286px;
+  background: linear-gradient(180deg, #101a2e 0%, #0b1425 100%);
+  box-shadow: 10px 0 34px rgba(12, 20, 36, .08);
+}
+
+.admin-brand {
+  min-height: 108px;
+  padding: 17px 21px;
+  background:
+    radial-gradient(ellipse at 94% 0%, rgba(234, 88, 12, .18), transparent 62%),
+    linear-gradient(135deg, rgba(255, 255, 255, .045), transparent 72%);
+}
+
+.admin-brand-link {
+  min-height: 68px;
+  padding: 5px 0;
+}
+
+.admin-brand-link .ms-logo-wrapper { gap: 11px !important; }
+.admin-brand-link .ms-logo-svg { filter: drop-shadow(0 3px 8px rgba(0, 0, 0, .24)) !important; }
+.admin-brand-link .ms-logo-brand-name { font-size: 1.14rem !important; letter-spacing: .09em !important; }
+.admin-brand-link .ms-logo-tagline { color: #b4bfd0 !important; font-size: .5rem !important; }
+
+.admin-main {
+  padding: 30px clamp(22px, 3vw, 48px) 52px;
+  background: transparent;
+}
+
+.admin-header {
+  position: relative;
+  min-height: 132px;
+  align-items: center;
+  margin-bottom: 27px;
+  padding: 22px 25px 23px 28px;
+  overflow: hidden;
+  border: 1px solid #e4e9f1;
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse at 100% 0%, rgba(234, 88, 12, .075), transparent 27rem),
+    #fff;
+  box-shadow: 0 8px 24px rgba(19, 35, 58, .045), 0 1px 2px rgba(19, 35, 58, .025);
+}
+
+.admin-header::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, #f97316, #c2410c);
+  content: "";
+}
+
+.admin-header h1 { font-size: clamp(1.65rem, 2.4vw, 2.15rem); }
+.admin-page-description { max-width: 58ch; }
+.admin-header-actions .btn-sm { min-height: 42px; border-radius: 11px; }
+
+.sidebar-staff-card {
+  margin-inline: 13px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .075), rgba(255, 255, 255, .035));
+}
+
+.nav-item { min-height: 43px; border-radius: 10px; }
+.nav-item.active { box-shadow: inset 0 1px rgba(255, 255, 255, .04); }
+.nav-group-title { padding-top: 17px; }
+
+.admin-main .panel-card,
+.admin-main .workspace-record,
+.admin-main .kpi-card {
+  border-color: #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 7px 22px rgba(17, 32, 54, .045), 0 1px 2px rgba(17, 32, 54, .025);
+}
+
+.admin-main :focus-visible { outline-color: #ea580c; outline-offset: 3px; }
+
+@media (max-width: 900px) {
+  .admin-header { min-height: 0; padding: 19px 20px 20px 23px; }
+}
+
+@media (max-width: 640px) {
+  .admin-main { padding: 18px 13px 34px; }
+  .admin-header { align-items: flex-start; padding: 17px 15px 18px 18px; border-radius: 14px; }
+}
