@@ -34,15 +34,12 @@ export default function Header({
             <span className="location-tag">
               <span className="live-dot" aria-hidden="true" />
               <MapPin size={12} className="loc-icon" />
-              {siteContent["contact.location"] && <>
-                <strong className="top-bar-serving">Service Area:</strong>
-                <span className="top-bar-cities"> {siteContent["contact.location"]}</span>
-              </>}
+              <strong className="top-bar-serving">Serving Delhi NCR</strong>
+              <span className="top-bar-cities">: {siteContent["contact.location"] || "Noida, Greater Noida, Delhi, Gurugram, Ghaziabad & Faridabad"}</span>
             </span>
           </div>
 
           <div className="top-bar-right">
-            <span className="top-bar-tagline">Building Better Together</span>
             {siteContent["contact.phone"] && <a
               href={`tel:${siteContent["contact.phone"]}`}
               className="hotline-phone"
