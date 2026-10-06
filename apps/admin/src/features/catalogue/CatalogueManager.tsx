@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Image,
   PackagePlus,
@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import CatalogueVariantsEditor, { type EditableVariant } from "./CatalogueVariantsEditor";
+import MaterialSquareLogo from "../../components/MaterialSquareLogo";
 import PartnerBrandsManager from "./PartnerBrandsManager";
 import "./catalogue-manager.css";
 
@@ -141,6 +142,7 @@ export default function CatalogueManager({
   const [recoveredDraft, setRecoveredDraft] = useState<ProductDraft | null>(null);
   const [previewListing, setPreviewListing] = useState<Listing | null>(null);
   const [previewMode, setPreviewMode] = useState<"card" | "detail">("card");
+  const [previewViewport, setPreviewViewport] = useState<"desktop" | "mobile">("desktop");
   const productForm = useRef<HTMLFormElement>(null);
   const canManage = ["SUPER_ADMIN", "ADMIN", "CATALOG_MANAGER"].includes(role);
 
@@ -250,6 +252,7 @@ export default function CatalogueManager({
       setEditing((current) =>
         current ? { ...current, image: result.url! } : current,
       );
+      setPreviewListing((current) => current ? { ...current, image: result.url! } : current);
       setNotice("Image uploaded. Save the product to publish it.");
       input.value = "";
     } catch (e) {
@@ -288,6 +291,10 @@ export default function CatalogueManager({
       if (response.status === 401) onSignOut();
       if (!response.ok || !result?.url) throw new Error(typeof result?.message === "string" ? result.message : "Could not upload this option image.");
       setEditing((current) => current ? {
+        ...current,
+        variants: current.variants.map((variant, rowIndex) => rowIndex === index ? { ...variant, image: result.url! } : variant),
+      } : current);
+      setPreviewListing((current) => current ? {
         ...current,
         variants: current.variants.map((variant, rowIndex) => rowIndex === index ? { ...variant, image: result.url! } : variant),
       } : current);
@@ -360,6 +367,10 @@ export default function CatalogueManager({
             }
           : current,
       );
+      setPreviewListing((current) => current ? {
+        ...current,
+        galleryImages: Array.from(new Set([...(current.galleryImages || []), ...uploaded])),
+      } : current);
       setNotice(
         `${uploaded.length} gallery image${uploaded.length === 1 ? "" : "s"} uploaded. Save the product to keep them.`,
       );
@@ -455,7 +466,7 @@ export default function CatalogueManager({
     }
   }, [editing?.id, editing?.image, editing?.galleryImages, editing?.variants]);
 
-  function captureProductDraft(event: ChangeEvent<HTMLFormElement>) {
+  function captureProductDraft(event: FormEvent<HTMLFormElement>) {
     if (!editing) return;
     const values: ProductDraft["values"] = {};
     for (const [name, value] of new FormData(event.currentTarget).entries()) {
@@ -463,6 +474,31 @@ export default function CatalogueManager({
       if (control instanceof HTMLInputElement && control.type === "checkbox") values[name] = control.checked;
       else values[name] = String(value);
     }
+    const formValues = new FormData(event.currentTarget);
+    setPreviewListing({
+      ...editing,
+      name: String(formValues.get("name") || "").trim(),
+      brand: String(formValues.get("brand") || "").trim(),
+      code: String(formValues.get("code") || "").trim() || null,
+      categoryLabel: String(formValues.get("categoryLabel") || "").trim(),
+      unit: String(formValues.get("unit") || "").trim(),
+      grade: String(formValues.get("grade") || "").trim() || null,
+      packaging: String(formValues.get("packaging") || "").trim() || null,
+      price: String(formValues.get("price") || "").trim() || null,
+      compareAtPrice: String(formValues.get("compareAtPrice") || "").trim() || null,
+      priceNote: String(formValues.get("priceNote") || "").trim() || null,
+      offerLabel: String(formValues.get("offerLabel") || "").trim() || null,
+      minOrderQty: String(formValues.get("minOrderQty") || "").trim() || null,
+      dispatchTime: String(formValues.get("dispatchTime") || "").trim() || null,
+      description: String(formValues.get("description") || "").trim() || null,
+      features: fromLines(formValues.get("features")),
+      applications: fromLines(formValues.get("applications")),
+      specifications: specsFromLines(formValues.get("specifications")),
+      galleryImages: fromLines(formValues.get("galleryImages")),
+      isPublished: formValues.get("isPublished") === "on",
+      availabilityStatus: String(formValues.get("availabilityStatus") || "CHECK_AVAILABILITY") as Listing["availabilityStatus"],
+      isInStock: formValues.get("availabilityStatus") === "IN_STOCK",
+    });
     const draft: ProductDraft = {
       savedAt: Date.now(),
       values,
@@ -605,8 +641,10 @@ export default function CatalogueManager({
 
   const startEdit = (product: Listing) => {
     const recovery = recoverableDraftFor(product);
-    setPreviewListing(null);
-    setEditing({ ...product, ...(recovery ? { image: recovery.image, galleryImages: recovery.galleryImages, variants: recovery.variants } : {}) });
+    const next = { ...product, ...(recovery ? { image: recovery.image, galleryImages: recovery.galleryImages, variants: recovery.variants } : {}) };
+    setPreviewListing(next);
+    setPreviewMode("card");
+    setEditing(next);
     setRecoveredDraft(recovery);
     setDraftSavedAt(recovery?.savedAt ?? null);
   };
@@ -618,8 +656,10 @@ export default function CatalogueManager({
         : 0,
     };
     const recovery = recoverableDraftFor(product);
-    setPreviewListing(null);
-    setEditing({ ...product, ...(recovery ? { image: recovery.image, galleryImages: recovery.galleryImages, variants: recovery.variants } : {}) });
+    const next = { ...product, ...(recovery ? { image: recovery.image, galleryImages: recovery.galleryImages, variants: recovery.variants } : {}) };
+    setPreviewListing(next);
+    setPreviewMode("card");
+    setEditing(next);
     setRecoveredDraft(recovery);
     setDraftSavedAt(recovery?.savedAt ?? null);
   };
@@ -1012,7 +1052,11 @@ export default function CatalogueManager({
             </label>
             <CatalogueVariantsEditor
               variants={formProduct.variants || []}
-              onChange={(variants) => setEditing({ ...formProduct, variants })}
+              onChange={(variants) => {
+                const next = { ...formProduct, variants };
+                setEditing(next);
+                setPreviewListing((current) => current ? { ...current, variants } : current);
+              }}
               onUploadImage={(file, input, index) => void uploadVariantImage(file, input, index)}
               defaultUnit={formProduct.unit}
               busy={busy}
@@ -1045,49 +1089,24 @@ export default function CatalogueManager({
               <Save size={15} />
               {busy ? "Saving…" : "Save product"}
             </button>
-            <button type="button" className="btn-sm btn-secondary" disabled={busy} onClick={() => {
-              const form = productForm.current;
-              if (!form || !formProduct) return;
-              const values = new FormData(form);
-              const preview: Listing = {
-                ...formProduct,
-                name: String(values.get("name") || "").trim(),
-                brand: String(values.get("brand") || "").trim(),
-                code: String(values.get("code") || "").trim() || null,
-                categoryLabel: String(values.get("categoryLabel") || "").trim(),
-                unit: String(values.get("unit") || "").trim(),
-                grade: String(values.get("grade") || "").trim() || null,
-                packaging: String(values.get("packaging") || "").trim() || null,
-                price: String(values.get("price") || "").trim() || null,
-                compareAtPrice: String(values.get("compareAtPrice") || "").trim() || null,
-                priceNote: String(values.get("priceNote") || "").trim() || null,
-                offerLabel: String(values.get("offerLabel") || "").trim() || null,
-                minOrderQty: String(values.get("minOrderQty") || "").trim() || null,
-                dispatchTime: String(values.get("dispatchTime") || "").trim() || null,
-                description: String(values.get("description") || "").trim() || null,
-                features: String(values.get("features") || "").split("\n").map((item) => item.trim()).filter(Boolean),
-                applications: String(values.get("applications") || "").split("\n").map((item) => item.trim()).filter(Boolean),
-                specifications: Object.fromEntries(String(values.get("specifications") || "").split("\n").map((line) => {
-                  const separator = line.indexOf(":");
-                  return separator > 0 ? [line.slice(0, separator).trim(), line.slice(separator + 1).trim()] : ["", ""];
-                }).filter(([key, value]) => key && value)),
-                isPublished: values.get("isPublished") === "on",
-                availabilityStatus: String(values.get("availabilityStatus") || "CHECK_AVAILABILITY") as Listing["availabilityStatus"],
-                isInStock: values.get("availabilityStatus") === "IN_STOCK",
-              };
-              setPreviewListing(preview);
-            }}>Preview listing</button>
+            <button type="button" className="btn-sm btn-secondary" disabled={busy} onClick={() => document.getElementById("catalogue-live-preview")?.scrollIntoView({ behavior: "smooth", block: "center" })}>View live preview</button>
           </div>
           {draftSavedAt && <p className="catalogue-draft-status" role="status">Recovery copy saved {new Date(draftSavedAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}. Kept in this browser for 7 days.</p>}
-          {previewListing && <section className="catalogue-storefront-preview" aria-label="Customer storefront preview">
+          {previewListing && <section id="catalogue-live-preview" className={`catalogue-storefront-preview preview-${previewViewport}`} aria-label="Customer storefront preview">
             <header className="catalogue-preview-toolbar">
-              <div><span className="eyebrow">STOREFRONT PREVIEW</span><p>See how this product will look to a customer. Changes here are not published.</p></div>
-              <div className="catalogue-preview-switch" role="group" aria-label="Preview layout">
-                <button type="button" className={previewMode === "card" ? "active" : ""} aria-pressed={previewMode === "card"} onClick={() => setPreviewMode("card")}>Listing card</button>
-                <button type="button" className={previewMode === "detail" ? "active" : ""} aria-pressed={previewMode === "detail"} onClick={() => setPreviewMode("detail")}>Product page</button>
+              <div><span className="eyebrow">PRIVATE STOREFRONT PREVIEW</span><p>Updates as you edit. Only saving and publishing changes the live website.</p></div>
+              <div className="catalogue-preview-controls">
+                <div className="catalogue-preview-switch" role="group" aria-label="Preview page">
+                  <button type="button" className={previewMode === "card" ? "active" : ""} aria-pressed={previewMode === "card"} onClick={() => setPreviewMode("card")}>Marketplace card</button>
+                  <button type="button" className={previewMode === "detail" ? "active" : ""} aria-pressed={previewMode === "detail"} onClick={() => setPreviewMode("detail")}>Product page</button>
+                </div>
+                <div className="catalogue-preview-switch catalogue-preview-device" role="group" aria-label="Preview screen size">
+                  <button type="button" className={previewViewport === "desktop" ? "active" : ""} aria-pressed={previewViewport === "desktop"} onClick={() => setPreviewViewport("desktop")}>Desktop</button>
+                  <button type="button" className={previewViewport === "mobile" ? "active" : ""} aria-pressed={previewViewport === "mobile"} onClick={() => setPreviewViewport("mobile")}>Mobile</button>
+                </div>
               </div>
             </header>
-            {previewMode === "card" ? <article className="store-preview-card">
+            <div className="catalogue-preview-stage"><div className="catalogue-preview-device-frame"><div className="catalogue-preview-sitebar"><MaterialSquareLogo size={23} lightMode={false} tagline="" /><span>Marketplace</span><span>Account</span></div>{previewMode === "card" ? <article className="store-preview-card">
               <div className="store-preview-media">
                 {(previewListing.image || previewListing.galleryImages[0]) ? <img src={previewListing.image || previewListing.galleryImages[0]} alt={previewListing.name || "Product preview"} /> : <div className="store-preview-placeholder"><PackagePlus size={34} /><span>Product image preview</span></div>}
                 <span className="store-preview-category">{previewListing.categoryLabel || "Category"}</span>
@@ -1122,7 +1141,7 @@ export default function CatalogueManager({
                 {previewListing.features.length > 0 && <div className="store-preview-list"><h3>Key features</h3><ul>{previewListing.features.map((feature, index) => <li key={`${feature}-${index}`}>{feature}</li>)}</ul></div>}
                 {previewListing.applications.length > 0 && <div className="store-preview-list"><h3>Applications</h3><ul>{previewListing.applications.map((application, index) => <li key={`${application}-${index}`}>{application}</li>)}</ul></div>}
               </div>
-            </article>}
+            </article>}</div></div>
             <footer className="catalogue-preview-footnote"><span className={previewListing.isPublished ? "preview-state-publish" : "preview-state-draft"}>{previewListing.isPublished ? "Ready to publish" : "Draft · hidden from customers"}</span><span>Preview only · save this product to keep your changes</span></footer>
           </section>}
         </form>

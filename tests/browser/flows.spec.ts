@@ -1442,6 +1442,11 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await page.getByRole("button", { name: "Products, prices & offers" }).click();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page.getByLabel("Price (₹ per unit)").fill("320");
+  const storefrontPreview = page.getByRole("region", {
+    name: "Customer storefront preview",
+  });
+  await expect(storefrontPreview).toBeVisible();
+  await expect(storefrontPreview.getByText("₹320", { exact: true })).toBeVisible();
   await page.getByLabel("Compare-at price / MRP (₹, optional)").fill("400");
   await page.getByLabel("Price note").fill("per length, GST extra");
   await page.getByLabel("Offer label").fill("October offer");
@@ -1477,6 +1482,21 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await expect(page.locator('input[name="image"]')).toHaveValue(
     "https://assets.example.test/images/test.png",
   );
+  await page.getByRole("button", { name: "View live preview" }).click();
+  await expect(storefrontPreview.getByRole("heading", { name: "Starter CPVC Pipe" })).toBeVisible();
+  await expect(storefrontPreview.getByText("October offer", { exact: true })).toBeVisible();
+  await expect(storefrontPreview.getByText("Out of stock", { exact: true })).toBeVisible();
+  await expect(storefrontPreview.getByText("₹320", { exact: true })).toBeVisible();
+  await expect(storefrontPreview.getByText("per length, GST extra", { exact: true })).toBeVisible();
+  expect(updatedBody).toBeUndefined();
+  await storefrontPreview.getByRole("button", { name: "Product page" }).click();
+  await storefrontPreview.getByRole("button", { name: "Mobile" }).click();
+  await expect(page.locator(".preview-mobile .catalogue-preview-device-frame")).toBeVisible();
+  await expect(storefrontPreview.getByRole("heading", { name: "Starter CPVC Pipe" })).toBeVisible();
+  await expect(storefrontPreview.getByText("Specifications", { exact: true })).toBeVisible();
+  await expect(storefrontPreview.getByText("Applications", { exact: true })).toBeVisible();
+  await expect(storefrontPreview.getByText("1 L · White", { exact: true })).toBeVisible();
+  expect(updatedBody).toBeUndefined();
   await page.getByRole("button", { name: "Save product" }).click();
   await expect(page.getByRole("status")).toContainText(
     "Product saved and published",

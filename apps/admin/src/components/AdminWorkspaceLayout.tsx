@@ -183,8 +183,7 @@ export default function AdminWorkspaceLayout({
               size={38}
               showText={true}
               lightMode={true}
-              badgeText="ADMIN"
-              tagline="OPERATIONS CONSOLE"
+              tagline="BUILDING BETTER TOGETHER"
             />
           </button>
           <button

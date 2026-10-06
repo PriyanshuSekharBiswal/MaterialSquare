@@ -728,7 +728,7 @@ export default function SalesOperations({
           <MaterialSquareLogo
             size={36}
             lightMode={true}
-            tagline="OPERATIONS CONSOLE"
+            tagline="BUILDING BETTER TOGETHER"
           />
         </div>
         <div className="sidebar-nav-scroll">

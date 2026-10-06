@@ -42,8 +42,52 @@
 
 .catalogue-product-form {
   display: grid;
-  gap: 18px;
-  padding: 20px;
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+  border-color: #dce3ed;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .055);
+}
+
+.catalogue-product-form > .catalogue-form-title {
+  min-height: 74px;
+  padding: 16px 22px;
+  color: #fff;
+  background: linear-gradient(105deg, #111b31 0%, #1c2b46 72%, #263752 100%);
+}
+
+.catalogue-product-form > .catalogue-form-title h3 { color: #fff; font-size: 19px; letter-spacing: -.02em; }
+.catalogue-product-form > .catalogue-form-title .btn-secondary { border-color: rgba(255,255,255,.22); color: #f8fafc; background: rgba(255,255,255,.08); }
+
+.catalogue-product-form > .catalogue-fields { padding: 22px; }
+
+.catalogue-fields > label {
+  align-content: start;
+  padding: 12px;
+  border: 1px solid #e5eaf1;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fff, #fcfdff);
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.catalogue-fields > label:focus-within {
+  border-color: #f7b17f;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, .07);
+}
+
+.catalogue-fields > label > small { line-height: 1.45; }
+.catalogue-product-form > .catalogue-form-checks { margin: 0 22px; padding: 15px 16px; border: 1px solid #e5eaf1; border-radius: 10px; background: #f8fafc; }
+.catalogue-product-form > .catalogue-form-footer { margin: 0 22px; padding: 17px 0 20px; }
+.catalogue-product-form > .catalogue-storefront-preview { margin: 0 22px 22px; }
+.catalogue-product-form > .catalogue-draft-status { margin: 0 22px 16px; }
+
+@media (max-width: 720px) {
+  .catalogue-product-form > .catalogue-fields { padding: 15px; }
+  .catalogue-product-form > .catalogue-form-checks { margin-inline: 15px; }
+  .catalogue-product-form > .catalogue-form-footer { margin-inline: 15px; }
+  .catalogue-product-form > .catalogue-storefront-preview { margin-inline: 15px; }
+  .catalogue-product-form > .catalogue-draft-status { margin-inline: 15px; }
 }
 
 .catalogue-form-title h3 {
@@ -709,4 +753,156 @@
   .catalogue-preview-switch { width: 100%; }
   .catalogue-preview-switch button { flex: 1; }
   .catalogue-preview-footnote > span:last-child { line-height: 1.45; }
+}
+
+/* Product editing preview: a private, responsive storefront canvas. */
+.catalogue-storefront-preview {
+  gap: 18px;
+  padding: 22px;
+  border-color: #dce3ed;
+  background: #f1f4f8;
+}
+
+.catalogue-preview-toolbar {
+  align-items: flex-start;
+}
+
+.catalogue-preview-toolbar .eyebrow {
+  color: #c2410c;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.catalogue-preview-toolbar p {
+  max-width: 540px;
+  font-size: 13px;
+}
+
+.catalogue-preview-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.catalogue-preview-switch {
+  border-color: #d6deea;
+  border-radius: 10px;
+  padding: 3px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+
+.catalogue-preview-switch button {
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.catalogue-preview-switch button.active {
+  background: #17243b;
+}
+
+.catalogue-preview-device button.active {
+  background: #ea580c;
+}
+
+.catalogue-preview-stage {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  padding: 26px;
+  border: 1px solid #dce3ed;
+  border-radius: 15px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255,255,255,.96), transparent 64%),
+    #e8edf4;
+}
+
+.catalogue-preview-device-frame {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dbe2eb;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(22, 35, 57, .1);
+  transition: width 180ms ease, border-radius 180ms ease;
+}
+
+.catalogue-preview-sitebar {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-height: 55px;
+  padding: 8px 17px;
+  border-bottom: 1px solid #e9edf3;
+  color: #344258;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.catalogue-preview-sitebar .ms-logo-wrapper { margin-right: auto; gap: 7px !important; }
+.catalogue-preview-sitebar .ms-logo-brand-name { font-size: .83rem !important; }
+.catalogue-preview-sitebar .ms-logo-sub-tag { margin-block: 1px !important; }
+.catalogue-preview-sitebar .ms-logo-sub-tag span:last-child,
+.catalogue-preview-sitebar .ms-logo-sub-tag span:first-child { min-width: 4px !important; }
+
+.preview-mobile .catalogue-preview-stage { padding: 15px; }
+.preview-mobile .catalogue-preview-device-frame {
+  width: min(390px, 100%);
+  border-radius: 22px;
+  box-shadow: 0 14px 34px rgba(22, 35, 57, .16);
+}
+
+.preview-mobile .catalogue-preview-sitebar {
+  min-height: 48px;
+  gap: 9px;
+  padding-inline: 12px;
+  font-size: 10px;
+}
+
+.preview-mobile .store-preview-card,
+.preview-mobile .store-preview-detail { width: 100%; border: 0; border-radius: 0; box-shadow: none; }
+.preview-mobile .store-preview-media { height: 185px; }
+.preview-mobile .store-preview-detail { grid-template-columns: 1fr; gap: 17px; padding: 15px; }
+.preview-mobile .store-preview-detail-media > img,
+.preview-mobile .store-preview-detail-media > .store-preview-placeholder { min-height: 215px; }
+
+.store-preview-card {
+  width: min(100%, 390px);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.store-preview-media { height: 225px; background: #f4f6f8; }
+.store-preview-media > img { object-fit: contain; padding: 12px; }
+.store-preview-card-body { padding: 18px 20px 20px; }
+.store-preview-card-body > button { background: #f56612; }
+
+.store-preview-detail {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.catalogue-preview-footnote {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 2px;
+}
+
+@media (max-width: 900px) {
+  .catalogue-preview-toolbar { flex-direction: column; }
+  .catalogue-preview-controls { justify-content: flex-start; }
+}
+
+@media (max-width: 600px) {
+  .catalogue-preview-stage { padding: 11px; }
+  .catalogue-preview-controls,
+  .catalogue-preview-controls .catalogue-preview-switch { width: 100%; }
+  .catalogue-preview-controls .catalogue-preview-switch button { flex: 1; }
+  .catalogue-preview-sitebar > span:last-child { display: none; }
+  .catalogue-preview-footnote { align-items: flex-start; flex-direction: column; }
 }
