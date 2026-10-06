@@ -946,7 +946,14 @@ integration("API with isolated PostgreSQL", () => {
       include: { staff: true },
     });
     expect(event.staff?.name).toBe("Integration");
-    expect(event.metadata).toEqual({ changedFields: ["home.title"] });
+    expect(event.metadata).toEqual({
+      changedFields: ["home.title"],
+      changes: [{
+        field: "home.title",
+        before: SITE_CONTENT_DEFAULTS["home.title"],
+        after: "Integration audit headline",
+      }],
+    });
     await request(app.getHttpServer())
       .post("/api/admin/site-content/publish")
       .set("Authorization", `Bearer ${token}`)

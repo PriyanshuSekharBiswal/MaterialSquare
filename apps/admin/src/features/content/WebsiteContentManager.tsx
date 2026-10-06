@@ -9,8 +9,8 @@ import MediaLibrary from "./MediaLibrary";
 import SocialLinksEditor from "./SocialLinksEditor";
 import "./media-library.css";
 import ContentImageField from "../../components/ContentImageField";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { RotateCcw, Save } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type SetStateAction } from "react";
+import { Clock3, RotateCcw, Save, RotateCw } from "lucide-react";
 import {
   SITE_CONTENT_DEFAULTS,
   SITE_CONTENT_GROUPS,
@@ -18,6 +18,18 @@ import {
 } from "@material-square/types";
 
 const PREVIEW_MESSAGE = "material-square:site-content-preview";
+const RECOVERY_KEY = "material-square-website-content-recovery-v1";
+const RECOVERY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+type RecoveryPoint = {
+  id: string;
+  changedFields: unknown;
+  saveType: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+  staff: { name: string; role: string } | null;
+};
 
 export default function WebsiteContentManager({
   token,
@@ -41,16 +53,30 @@ export default function WebsiteContentManager({
     null,
   );
   const [mediaBusy, setMediaBusy] = useState(false);
+  const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved");
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [hasServerDraft, setHasServerDraft] = useState(false);
+  const [recoveryPoints, setRecoveryPoints] = useState<RecoveryPoint[]>([]);
+  const [restoringId, setRestoringId] = useState("");
+  const [browserRecovery, setBrowserRecovery] = useState<SiteContent | null>(null);
   const previewFrame = useRef<HTMLIFrameElement>(null);
+  const hydrated = useRef(false);
+  const lastSavedContent = useRef("");
+  const currentContent = useRef(content);
+  currentContent.current = content;
+  const previewedContent = useRef("");
+  const autosaveQueue = useRef(Promise.resolve());
 
   const request = useCallback(
     async (
       method = "GET",
       body?: SiteContent,
       action = "draft",
+      mode?: "autosave" | "manual",
     ): Promise<SiteContent> => {
+      const suffix = mode ? `?mode=${mode}` : "";
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "/api"}/admin/site-content/${action}`,
+        `${import.meta.env.VITE_API_URL || "/api"}/admin/site-content/${action}${suffix}`,
         {
           method,
           headers: {
@@ -78,7 +104,42 @@ export default function WebsiteContentManager({
     setLoading(true);
     setError("");
     try {
-      setContent(await request());
+      const serverDraft = await request();
+      const statusResponse = await fetch(
+        `${import.meta.env.VITE_API_URL || "/api"}/admin/site-content/draft/status`,
+        { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(65000) },
+      );
+      const draftStatus = statusResponse.ok ? await statusResponse.json() as { updatedAt: string | null } : { updatedAt: null };
+      let restored = serverDraft;
+      try {
+        const local = JSON.parse(localStorage.getItem(RECOVERY_KEY) || "null") as
+          | { content?: SiteContent; savedAt?: number }
+          | null;
+        const localIsFresh = !!local?.content && Number(local.savedAt) > 0 && Date.now() - Number(local.savedAt) < RECOVERY_WINDOW_MS;
+        const localIsNewer = !draftStatus.updatedAt || Number(local?.savedAt) > Date.parse(draftStatus.updatedAt);
+        if (localIsFresh && localIsNewer && JSON.stringify(local.content) !== JSON.stringify(serverDraft)) {
+          restored = local.content as SiteContent;
+          setNotice("Recovered unsaved website edits from this browser. They are being saved as a private draft.");
+        } else if (localIsFresh && !localIsNewer && JSON.stringify(local.content) !== JSON.stringify(serverDraft)) {
+          setBrowserRecovery(local.content as SiteContent);
+          setNotice("A newer shared draft is already saved. The older browser recovery copy was kept from replacing it.");
+        } else if (!localIsFresh) {
+          localStorage.removeItem(RECOVERY_KEY);
+        }
+      } catch {
+        localStorage.removeItem(RECOVERY_KEY);
+      }
+      setContent(restored);
+      lastSavedContent.current = JSON.stringify(serverDraft);
+      hydrated.current = true;
+      setHasServerDraft(!!draftStatus.updatedAt);
+      setLastSavedAt(draftStatus.updatedAt ? new Date(draftStatus.updatedAt) : null);
+      setSaveState("saved");
+      const historyResponse = await fetch(
+        `${import.meta.env.VITE_API_URL || "/api"}/admin/site-content/draft/history`,
+        { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(65000) },
+      );
+      if (historyResponse.ok) setRecoveryPoints(await historyResponse.json() as RecoveryPoint[]);
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Could not load website content.",
@@ -86,11 +147,54 @@ export default function WebsiteContentManager({
     } finally {
       setLoading(false);
     }
-  }, [request]);
+  }, [request, token]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const updateContent = useCallback((value: SetStateAction<SiteContent>) => {
+    setContent(value);
+    previewedContent.current = "";
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated.current) return;
+    const serialized = JSON.stringify(content);
+    if (serialized === lastSavedContent.current) return;
+    try {
+      localStorage.setItem(RECOVERY_KEY, JSON.stringify({ content, savedAt: Date.now() }));
+    } catch {
+      // The server autosave still runs when browser storage is unavailable.
+    }
+    setSaveState("saving");
+    const timer = window.setTimeout(() => {
+      const snapshot = { ...content };
+      const save = autosaveQueue.current.then(async () => {
+        const saved = await request("PUT", snapshot, "draft", "autosave");
+        const savedJson = JSON.stringify(saved);
+        lastSavedContent.current = savedJson;
+        setLastSavedAt(new Date());
+        setHasServerDraft(true);
+        const currentJson = JSON.stringify(currentContent.current);
+        setSaveState(currentJson === savedJson ? "saved" : "saving");
+        if (currentJson === savedJson) {
+          setError("");
+          try { localStorage.removeItem(RECOVERY_KEY); } catch { /* ignore */ }
+        }
+        const historyResponse = await fetch(
+          `${import.meta.env.VITE_API_URL || "/api"}/admin/site-content/draft/history`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (historyResponse.ok) setRecoveryPoints(await historyResponse.json() as RecoveryPoint[]);
+      });
+      autosaveQueue.current = save.catch((cause) => {
+        setSaveState("error");
+        setError(cause instanceof Error ? cause.message : "Automatic save failed. Your browser recovery copy is still available.");
+      });
+    }, 1400);
+    return () => window.clearTimeout(timer);
+  }, [content, request, token]);
 
   useEffect(() => {
     if (!preview || !previewContent) return;
@@ -124,10 +228,15 @@ export default function WebsiteContentManager({
   }, [customerUrl, preview, previewContent]);
 
   async function save(publish = false) {
+    if (publish && previewedContent.current !== JSON.stringify(content)) {
+      setError("Save and preview the current draft before publishing it.");
+      return;
+    }
     setBusy(true);
     setError("");
     setNotice("");
     try {
+      await autosaveQueue.current;
       setContent(
         await request(
           publish ? "POST" : "PUT",
@@ -135,6 +244,13 @@ export default function WebsiteContentManager({
           publish ? "publish" : "draft",
         ),
       );
+      lastSavedContent.current = JSON.stringify(content);
+      setLastSavedAt(new Date());
+      setHasServerDraft(true);
+      setSaveState("saved");
+      if (!publish) {
+        try { localStorage.removeItem(RECOVERY_KEY); } catch { /* ignore */ }
+      }
       setNotice(
         publish
           ? "Website content published."
@@ -158,10 +274,17 @@ export default function WebsiteContentManager({
     setError("");
     setNotice("");
     try {
+      await autosaveQueue.current;
       const savedDraft = await request("PUT", content, "draft");
       setContent(savedDraft);
+      lastSavedContent.current = JSON.stringify(savedDraft);
+      setLastSavedAt(new Date());
+      setHasServerDraft(true);
+      setSaveState("saved");
+      try { localStorage.removeItem(RECOVERY_KEY); } catch { /* ignore */ }
       setPreviewContent(savedDraft);
       setPreview(true);
+      previewedContent.current = JSON.stringify(savedDraft);
       setNotice(
         "Draft saved. The customer-site preview is private and has not been published.",
       );
@@ -173,6 +296,33 @@ export default function WebsiteContentManager({
       );
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function restoreRecoveryPoint(id: string) {
+    setRestoringId(id);
+    setError("");
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || "/api"}/admin/site-content/draft/restore/${encodeURIComponent(id)}`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(typeof result?.message === "string" ? result.message : "Could not restore that recovery point.");
+      const restored = result as SiteContent;
+      setContent(restored);
+      lastSavedContent.current = JSON.stringify(restored);
+      setLastSavedAt(new Date());
+      setHasServerDraft(true);
+      setSaveState("saved");
+      previewedContent.current = "";
+      setNotice("Recovery point restored as a private draft. Preview it before publishing.");
+      const historyResponse = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/admin/site-content/draft/history`, { headers: { Authorization: `Bearer ${token}` } });
+      if (historyResponse.ok) setRecoveryPoints(await historyResponse.json() as RecoveryPoint[]);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not restore that recovery point.");
+    } finally {
+      setRestoringId("");
     }
   }
 
@@ -217,7 +367,7 @@ export default function WebsiteContentManager({
             className="btn-sm btn-secondary"
             type="button"
             disabled={contentDisabled}
-            onClick={() => setContent({ ...SITE_CONTENT_DEFAULTS })}
+            onClick={() => updateContent({ ...SITE_CONTENT_DEFAULTS })}
           >
             <RotateCcw size={16} /> Restore draft defaults
           </button>
@@ -247,6 +397,21 @@ export default function WebsiteContentManager({
           </button>
         </div>
       </header>
+      <section className={`website-content-save-status is-${saveState}`} aria-live="polite">
+        <div><Clock3 size={17} /><strong>{saveState === "saving" ? "Saving your draft…" : saveState === "error" ? "Automatic save needs attention" : "Draft saved privately"}</strong></div>
+        <span>{saveState === "saved" && lastSavedAt ? `Last saved ${lastSavedAt.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}` : saveState === "error" ? "Your browser keeps a recovery copy for up to 7 days." : hasServerDraft ? "Edits are saved automatically. Recovery points are kept for 7 days." : "No private draft yet. New edits save automatically and stay recoverable for 7 days."}</span>
+        {browserRecovery && <button className="btn-sm btn-secondary" type="button" disabled={contentDisabled} onClick={() => { updateContent(browserRecovery); setBrowserRecovery(null); setNotice("Browser recovery copy selected. Saving it as the current private draft."); }}>Restore this browser copy</button>}
+        {recoveryPoints.length > 0 && <details className="website-content-history">
+          <summary>{recoveryPoints.length} recent recovery {recoveryPoints.length === 1 ? "point" : "points"}</summary>
+          <ul>{recoveryPoints.map((point) => {
+            const fields = Array.isArray(point.changedFields) ? point.changedFields.filter((field): field is string => typeof field === "string") : [];
+            return <li key={point.id}>
+              <div><strong>{new Date(point.updatedAt).toLocaleString("en-IN")}</strong><small>{point.staff?.name || "Former staff"} · {point.saveType === "MANUAL" ? "Manual save" : "Automatic save"}</small><small>{fields.slice(0, 4).join(", ")}{fields.length > 4 ? ` +${fields.length - 4} more` : ""}</small></div>
+              <button className="btn-sm btn-secondary" type="button" disabled={contentDisabled || restoringId !== "" || saveState === "saving"} onClick={() => void restoreRecoveryPoint(point.id)}>{restoringId === point.id ? "Restoring…" : <><RotateCw size={14} /> Restore</>}</button>
+            </li>;
+          })}</ul>
+        </details>}
+      </section>
       {preview && previewUrl && (
         <section
           className="panel-card panel-body website-content-preview"
@@ -300,56 +465,56 @@ export default function WebsiteContentManager({
           kind="privacy"
           content={content}
           disabled={contentDisabled}
-          onChange={setContent}
+          onChange={updateContent}
         />
         <PolicyEditor
           kind="terms"
           content={content}
           disabled={contentDisabled}
-          onChange={setContent}
+          onChange={updateContent}
         />
       </div>
       <div id="content-guides" className="website-content-anchor">
         <FaqEditor
           content={content}
           disabled={contentDisabled}
-          onChange={setContent}
+          onChange={updateContent}
         />
         <GuideControls
           content={content}
           disabled={contentDisabled}
-          onChange={setContent}
+          onChange={updateContent}
         />
       </div>
       <div id="content-pages" className="website-content-anchor">
         <NavigationControls
           content={content}
           disabled={contentDisabled}
-          onChange={setContent}
+          onChange={updateContent}
         />
         <WebsitePageBuilder
           content={content}
           disabled={busy || loading}
-          onChange={setContent}
+          onChange={updateContent}
         />
       </div>
       <div id="content-homepage" className="website-content-anchor">
         <HomepageSectionControls
           content={content}
           disabled={contentDisabled}
-          onChange={setContent}
+          onChange={updateContent}
         />
         <HomepageContentBlocks
           content={content}
           disabled={contentDisabled}
-          onChange={setContent}
+          onChange={updateContent}
         />
       </div>
       <div id="content-social" className="website-content-anchor">
         <SocialLinksEditor
           content={content}
           disabled={contentDisabled}
-          onChange={setContent}
+          onChange={updateContent}
         />
       </div>
       <div id="content-images" className="website-content-anchor">
@@ -384,7 +549,7 @@ export default function WebsiteContentManager({
                     value={content[key]}
                     label={label}
                     onChange={(url) =>
-                      setContent((old) => ({ ...old, [key]: url }))
+                      updateContent((old) => ({ ...old, [key]: url }))
                     }
                     onBusyChange={setMediaBusy}
                     onSignOut={onSignOut}
@@ -404,7 +569,7 @@ export default function WebsiteContentManager({
                         }
                         value={content[key]}
                         onChange={(event) =>
-                          setContent((old) => ({
+                          updateContent((old) => ({
                             ...old,
                             [key]: event.target.value,
                           }))
@@ -421,7 +586,7 @@ export default function WebsiteContentManager({
                         }
                         value={content[key]}
                         onChange={(event) =>
-                          setContent((old) => ({
+                          updateContent((old) => ({
                             ...old,
                             [key]: event.target.value,
                           }))

@@ -105,6 +105,7 @@ model StaffUser {
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
   auditLogs                  AuditLog[]
+  websiteContentRevisions    WebsiteContentRevision[]
   supplierRatings            SupplierRating[]     @relation("StaffSupplierRatings")
   createdProcurementRequests ProcurementRequest[] @relation("ProcurementCreator")
   approvedPurchaseOrders     PurchaseOrder[]      @relation("PurchaseOrderApprover")
@@ -121,6 +122,22 @@ model WebsiteContent {
   updatedAt DateTime @updatedAt
 
   @@map("website_content")
+}
+
+model WebsiteContentRevision {
+  id            String    @id @default(uuid())
+  staffId       String?
+  staff         StaffUser? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  content       Json
+  changedFields Json
+  saveType      String    @default("AUTOSAVE")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  expiresAt     DateTime
+
+  @@index([expiresAt])
+  @@index([createdAt, id])
+  @@map("website_content_revisions")
 }
 
 model MediaAsset {

@@ -158,15 +158,24 @@ export default function AuditLog({ token }: { token: string }) {
                         {entry.metadata !== null && (
                           <details>
                             <summary>View details</summary>
-                            <pre
-                              style={{
-                                whiteSpace: "pre-wrap",
-                                overflowWrap: "anywhere",
-                                maxWidth: 400,
-                              }}
-                            >
-                              {JSON.stringify(entry.metadata, null, 2)}
-                            </pre>
+                            {entry.entityType === "WEBSITE_CONTENT" &&
+                            typeof entry.metadata === "object" &&
+                            entry.metadata !== null &&
+                            Array.isArray((entry.metadata as { changes?: unknown }).changes) ? (
+                              <ul className="audit-change-list">
+                                {(entry.metadata as { changes: Array<{ field?: string; before?: string; after?: string }> }).changes.map((change, index) => (
+                                  <li key={`${change.field}-${index}`}>
+                                    <strong>{(change.field || "Field").replace(/[._]/g, " ")}</strong>
+                                    <span>Before: {change.before || "(empty)"}</span>
+                                    <span>After: {change.after || "(empty)"}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxWidth: 400 }}>
+                                {JSON.stringify(entry.metadata, null, 2)}
+                              </pre>
+                            )}
                           </details>
                         )}
                       </td>

@@ -29,6 +29,13 @@ describe("website content", () => {
       findUnique: jest.fn(async () => (stored ? { content: stored } : null)),
       upsert,
     },
+    websiteContentRevision: {
+      deleteMany: jest.fn(async () => ({ count: 0 })),
+      findFirst: jest.fn(async () => null),
+      create: jest.fn(async ({ data }: { data: unknown }) => data),
+      findMany: jest.fn(async () => []),
+      update: jest.fn(async ({ data }: { data: unknown }) => data),
+    },
   } as never;
 
   beforeEach(() => {
@@ -113,7 +120,10 @@ describe("website content", () => {
         action: "WEBSITE_CONTENT_PUBLISHED",
         entityType: "WEBSITE_CONTENT",
         entityId: "global",
-        metadata: { changedFields: ["home.title"] },
+        metadata: {
+          changedFields: ["home.title"],
+          changes: [{ field: "home.title", before: SITE_CONTENT_DEFAULTS["home.title"].slice(0, 240), after: "Updated headline\nSecond line" }],
+        },
       },
     });
   });
@@ -244,6 +254,13 @@ describe("website content", () => {
     const documents = new Map();
     const db = {
       auditLog: { create: auditCreate },
+      websiteContentRevision: {
+        deleteMany: jest.fn(async () => ({ count: 0 })),
+        findFirst: jest.fn(async () => null),
+        create: jest.fn(async ({ data }) => data),
+        findMany: jest.fn(async () => []),
+        update: jest.fn(async ({ data }) => data),
+      },
       $transaction: async (work: (tx: unknown) => Promise<unknown>) => work(db),
       websiteContent: {
         findUnique: jest.fn(
@@ -268,12 +285,59 @@ describe("website content", () => {
         action: "WEBSITE_CONTENT_DRAFT_SAVED",
         entityType: "WEBSITE_CONTENT",
         entityId: "draft",
-        metadata: { changedFields: ["home.title"] },
+        metadata: {
+          changedFields: ["home.title"],
+          changes: [{ field: "home.title", before: SITE_CONTENT_DEFAULTS["home.title"].slice(0, 240), after: "Draft headline" }],
+        },
       },
     });
     await expect(admin.draft()).resolves.toEqual(edited);
     await expect(publicContent.get()).resolves.toEqual(SITE_CONTENT_DEFAULTS);
     await admin.publish(edited);
     await expect(publicContent.get()).resolves.toEqual(edited);
+  });
+
+  it("keeps actor-attributed autosave recovery points for seven days without publishing", async () => {
+    const docs = new Map<string, { content: Record<string, string>; updatedAt: Date }>();
+    const revisionCreate = jest.fn(async ({ data }: { data: Record<string, unknown> }) => data);
+    const db = {
+      auditLog: { create: jest.fn() },
+      websiteContent: {
+        findUnique: jest.fn(async ({ where }: { where: { id: string } }) => docs.get(where.id) || null),
+        upsert: jest.fn(async ({ where, create, update }: { where: { id: string }; create: { content: Record<string, string> }; update: { content: Record<string, string> } }) => {
+          const value = docs.has(where.id) ? update : create;
+          docs.set(where.id, { content: value.content, updatedAt: new Date() });
+          return value;
+        }),
+      },
+      websiteContentRevision: {
+        deleteMany: jest.fn(async () => ({ count: 0 })),
+        findFirst: jest.fn(async () => null),
+        create: revisionCreate,
+        findMany: jest.fn(async () => []),
+        update: jest.fn(async ({ data }: { data: unknown }) => data),
+      },
+      $transaction: async (work: (tx: unknown) => Promise<unknown>) => work(db),
+    };
+    const admin = new AdminSiteContentController(db as never);
+    const live = { ...SITE_CONTENT_DEFAULTS, "home.title": "Live heading" };
+    docs.set("global", { content: live, updatedAt: new Date() });
+    const draft = { ...live, "home.title": "Recovered heading" };
+    await admin.saveDraft(draft, { user: { userId: "staff-editor" } } as never, "autosave");
+
+    expect(revisionCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        staffId: "staff-editor",
+        content: draft,
+        changedFields: ["home.title"],
+        saveType: "AUTOSAVE",
+        expiresAt: expect.any(Date),
+      }),
+    });
+    const expiresAt = (revisionCreate.mock.calls[0][0].data.expiresAt as Date).getTime();
+    expect(expiresAt).toBeGreaterThan(Date.now() + 6 * 24 * 60 * 60 * 1000);
+    expect(expiresAt).toBeLessThan(Date.now() + 8 * 24 * 60 * 60 * 1000);
+    expect(db.auditLog.create).not.toHaveBeenCalled();
+    await expect(new PublicSiteContentController(db as never).get()).resolves.toEqual(live);
   });
 });

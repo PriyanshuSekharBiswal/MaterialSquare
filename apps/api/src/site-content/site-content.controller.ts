@@ -7,6 +7,7 @@ import {
   Header,
   Put,
   Post,
+  Param,
   Query,
   Req,
   UseGuards,
@@ -130,6 +131,18 @@ function escapeXml(value: string) {
   return value.replace(/[&<>"']/g, (character) => entities[character]);
 }
 
+function auditChanges(
+  keys: string[],
+  before: Record<string, unknown>,
+  after: Record<string, string>,
+) {
+  return keys.map((field) => ({
+    field,
+    before: String(before[field] ?? (SITE_CONTENT_DEFAULTS as Record<string, string>)[field] ?? "").slice(0, 240),
+    after: String(after[field] ?? "").slice(0, 240),
+  }));
+}
+
 @Controller("admin/site-content")
 @UseGuards(StaffGuard)
 export class AdminSiteContentController {
@@ -151,14 +164,65 @@ export class AdminSiteContentController {
     };
   }
 
+  @Get("draft/status")
+  async draftStatus() {
+    const saved = await this.prisma.websiteContent.findUnique({ where: { id: "draft" } });
+    return { updatedAt: saved?.updatedAt || null };
+  }
+
+  @Get("draft/history")
+  async draftHistory() {
+    const now = new Date();
+    await this.prisma.websiteContentRevision.deleteMany({
+      where: { expiresAt: { lte: now } },
+    });
+    return this.prisma.websiteContentRevision.findMany({
+      where: { expiresAt: { gt: now } },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      take: 100,
+      select: {
+        id: true,
+        changedFields: true,
+        saveType: true,
+        createdAt: true,
+        updatedAt: true,
+        expiresAt: true,
+        staff: { select: { name: true, role: true } },
+      },
+    });
+  }
+
+  @Post("draft/restore/:id")
+  async restoreDraft(@Param("id") id: string, @Req() req?: StaffRequest) {
+    const revision = await this.prisma.websiteContentRevision.findFirst({
+      where: { id, expiresAt: { gt: new Date() } },
+    });
+    if (!revision) throw new BadRequestException("This recovery point has expired.");
+    return this.saveDraft(revision.content, req, "manual");
+  }
+
   @Put("draft")
-  async saveDraft(@Body() body: unknown, @Req() req?: StaffRequest) {
+  async saveDraft(
+    @Body() body: unknown,
+    @Req() req?: StaffRequest,
+    @Query("mode") mode = "manual",
+  ) {
+    if (mode !== "manual" && mode !== "autosave")
+      throw new BadRequestException("Draft save mode is invalid.");
     const content = validate(SiteContentSchema, body);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     await this.prisma.$transaction(async (db) => {
+      await db.websiteContentRevision.deleteMany({
+        where: { expiresAt: { lte: now } },
+      });
       const previous = await db.websiteContent.findUnique({
         where: { id: "draft" },
       });
-      const previousContent = (previous?.content || {}) as Record<
+      const published = previous ? null : await db.websiteContent.findUnique({
+        where: { id: "global" },
+      });
+      const previousContent = (previous?.content || published?.content || {}) as Record<
         string,
         unknown
       >;
@@ -166,20 +230,59 @@ export class AdminSiteContentController {
         (key) =>
           content[key] !== (previousContent[key] ?? SITE_CONTENT_DEFAULTS[key]),
       );
+      if (changedFields.length === 0) return;
       await db.websiteContent.upsert({
         where: { id: "draft" },
         create: { id: "draft", content: content as Prisma.InputJsonObject },
         update: { content: content as Prisma.InputJsonObject },
       });
-      await db.auditLog.create({
-        data: {
-          staffId: req?.user.userId,
-          action: "WEBSITE_CONTENT_DRAFT_SAVED",
-          entityType: "WEBSITE_CONTENT",
-          entityId: "draft",
-          metadata: { changedFields },
-        },
-      });
+      const priorRevision = mode === "autosave"
+        ? await db.websiteContentRevision.findFirst({
+            where: {
+              saveType: "AUTOSAVE",
+              staffId: req?.user.userId || null,
+              updatedAt: { gte: new Date(now.getTime() - 15 * 60_000) },
+            },
+            orderBy: { updatedAt: "desc" },
+          })
+        : null;
+      const priorFields = Array.isArray(priorRevision?.changedFields)
+        ? priorRevision.changedFields.filter((field): field is string => typeof field === "string")
+        : [];
+      if (priorRevision) {
+        await db.websiteContentRevision.update({
+          where: { id: priorRevision.id },
+          data: {
+            content: content as Prisma.InputJsonObject,
+            changedFields: [...new Set([...priorFields, ...changedFields])],
+            expiresAt,
+          },
+        });
+      } else {
+        await db.websiteContentRevision.create({
+          data: {
+            staffId: req?.user.userId,
+            content: content as Prisma.InputJsonObject,
+            changedFields,
+            saveType: mode === "autosave" ? "AUTOSAVE" : "MANUAL",
+            expiresAt,
+          },
+        });
+      }
+      if (mode === "manual") {
+        await db.auditLog.create({
+          data: {
+            staffId: req?.user.userId,
+            action: "WEBSITE_CONTENT_DRAFT_SAVED",
+            entityType: "WEBSITE_CONTENT",
+            entityId: "draft",
+            metadata: {
+              changedFields,
+              changes: auditChanges(changedFields, previousContent, content),
+            },
+          },
+        });
+      }
     });
     return content;
   }
@@ -215,7 +318,10 @@ export class AdminSiteContentController {
           action: "WEBSITE_CONTENT_PUBLISHED",
           entityType: "WEBSITE_CONTENT",
           entityId: "global",
-          metadata: { changedFields },
+          metadata: {
+            changedFields,
+            changes: auditChanges(changedFields, previousContent, content),
+          },
         },
       });
     });
