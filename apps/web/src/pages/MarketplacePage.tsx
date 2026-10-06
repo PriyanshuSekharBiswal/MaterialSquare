@@ -23,6 +23,7 @@ import { matchesCatalogueSearch, scoreCatalogueSearch } from '../search/catalogu
 import { partnerBrandMatchesProduct, usePartnerBrands } from '../partner-brands';
 import { bestMatchingVariant } from '../search/variant-match';
 import RotatingSearchPlaceholder from '../components/RotatingSearchPlaceholder';
+import { buildSearchExamples } from '../search/search-examples';
 
 export default function MarketplacePage({
   bomList = [],
@@ -45,13 +46,7 @@ export default function MarketplacePage({
   const [selectedBrand, setSelectedBrand] = useState(initialBrand);
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const searchExamples = Array.from(
-    new Set(
-      products.map((product) =>
-        product.categoryLabel.split("&")[0].trim().toLocaleLowerCase(),
-      ),
-    ),
-  ).slice(0, 4);
+  const searchExamples = buildSearchExamples(products);
   const [availability, setAvailability] = useState('all');
   const [variantFilters, setVariantFilters] = useState<Record<string, string>>({});
   const [sortBy, setSortBy] = useState('relevance');

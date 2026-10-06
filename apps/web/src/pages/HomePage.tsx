@@ -29,6 +29,7 @@ import { whatsappLink } from "../messages";
 import { usePartnerBrands } from "../partner-brands";
 import DeferredDirectionGoogleMaps from "../components/DeferredDirectionGoogleMaps";
 import RotatingSearchPlaceholder from "../components/RotatingSearchPlaceholder";
+import { buildSearchExamples } from "../search/search-examples";
 
 export default function HomePage({
   products,
@@ -108,13 +109,7 @@ export default function HomePage({
     category: brand.category,
     meta: getBrandMeta(brand.id),
   }));
-  const searchExamples = Array.from(
-    new Set(
-      products.map((product) =>
-        product.categoryLabel.split("&")[0].trim().toLocaleLowerCase(),
-      ),
-    ),
-  ).slice(0, 4);
+  const searchExamples = buildSearchExamples(products);
   const customContentBlocks = homeContentBlocks(
     siteContent["home.contentBlocks"],
   ).filter((block) => block.visible);

@@ -17,7 +17,7 @@ export default function RotatingSearchPlaceholder({
 
     const timer = window.setInterval(() => {
       setIndex((current) => (current + 1) % normalizedExamples.length);
-    }, 1700);
+    }, 1400);
 
     return () => window.clearInterval(timer);
   }, [visible, examplesKey]);
