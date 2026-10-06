@@ -1601,3 +1601,161 @@
   .catalogue-preview-overlay .store-preview-marketplace-intro { padding: 15px 13px 11px; }
   .catalogue-preview-overlay .store-preview-marketplace-grid { grid-template-columns: 1fr; padding-inline: 10px; }
 }
+
+/* Product preview finish: make the preview feel like a storefront window,
+   keep the controls easy to reach, and retain readable product proportions. */
+.catalogue-preview-overlay {
+  z-index: 500;
+  padding: clamp(10px, 2vw, 28px);
+  background: rgba(8, 16, 30, .78);
+  backdrop-filter: blur(10px);
+}
+
+.catalogue-preview-overlay .catalogue-storefront-preview {
+  width: min(1640px, 100%);
+  max-height: calc(100dvh - 44px);
+  gap: 15px;
+  padding: clamp(15px, 1.8vw, 26px);
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, .88);
+  border-radius: 21px;
+  background: #f5f7fa;
+  box-shadow: 0 32px 90px rgba(0, 0, 0, .32);
+}
+
+.catalogue-preview-overlay .catalogue-preview-toolbar {
+  position: sticky;
+  z-index: 2;
+  top: -1px;
+  align-items: center;
+  padding: 8px 3px 13px;
+  background: #f5f7fa;
+  border-bottom: 1px solid #e0e6ee;
+}
+
+.catalogue-preview-heading { flex: 1 1 360px; }
+.catalogue-preview-heading h2 { color: #142039; font-size: clamp(20px, 1.65vw, 25px); }
+.catalogue-preview-heading p { max-width: 60ch; color: #607087; font-size: 12px; line-height: 1.5; }
+.catalogue-preview-controls { gap: 8px; }
+.catalogue-preview-switch { border-color: #d9e1ec; }
+.catalogue-preview-switch button { min-height: 36px; }
+.catalogue-preview-switch button.active { color: #fff; background: #15243e; }
+.catalogue-preview-device button.active { background: #ea580c; }
+.catalogue-preview-close { min-height: 39px; border-color: #d8e0eb; }
+
+.catalogue-preview-overlay .catalogue-preview-stage {
+  min-height: 0;
+  padding: clamp(12px, 2vw, 26px);
+  border: 1px solid #dbe3ed;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #e9eef4, #e2e8f0);
+}
+
+.catalogue-preview-device-frame {
+  min-height: 0 !important;
+  border-color: #dce3ec;
+  border-radius: 13px;
+  box-shadow: 0 12px 32px rgba(18, 31, 51, .11);
+}
+
+.catalogue-preview-overlay .catalogue-preview-sitebar {
+  min-height: 74px;
+  gap: 17px;
+  padding: 9px 22px;
+  background: #fff;
+}
+
+.catalogue-preview-overlay .catalogue-preview-sitebar .ms-logo-wrapper { gap: 9px !important; }
+.catalogue-preview-overlay .catalogue-preview-sitebar .ms-logo-svg { width: 45px; height: 45px; }
+.catalogue-preview-overlay .catalogue-preview-sitebar .ms-logo-brand-name { color: #111b31 !important; font-size: 1rem !important; }
+.catalogue-preview-overlay .catalogue-preview-sitebar .ms-logo-tagline { color: #68778e !important; font-size: 8px !important; }
+.catalogue-preview-overlay .catalogue-preview-sitebar nav { gap: 2px; }
+.catalogue-preview-overlay .catalogue-preview-sitebar nav span { padding: 8px 9px; }
+.store-preview-topline { min-height: 35px; }
+
+.catalogue-preview-overlay .store-preview-marketplace-intro { padding: 19px 25px 14px; }
+.catalogue-preview-overlay .store-preview-marketplace-intro h2 { color: #142039; font-size: clamp(21px, 1.8vw, 26px); }
+.catalogue-preview-overlay .store-preview-filter-context { margin-inline: 25px; }
+.catalogue-preview-overlay .store-preview-marketplace-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 14px;
+  padding: 0 25px 26px;
+}
+
+.catalogue-preview-overlay .store-preview-card {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 100%;
+  margin: 0;
+  border: 1px solid #e3e8ef;
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: 0 5px 18px rgba(17, 32, 54, .045);
+}
+
+.catalogue-preview-overlay .store-preview-media { height: 205px; }
+.catalogue-preview-overlay .store-preview-media > img { object-fit: cover; padding: 0; }
+.catalogue-preview-overlay .store-preview-card-body { min-height: 350px; padding: 15px 16px 16px; }
+.catalogue-preview-overlay .store-preview-card h3 { font-size: 15px; }
+.catalogue-preview-overlay .store-preview-price-row { margin-top: auto; }
+.catalogue-preview-overlay .store-preview-context-product { display: flex; }
+.catalogue-preview-overlay .store-preview-current-product { outline: 0; }
+
+.catalogue-preview-overlay .store-preview-detail {
+  grid-template-columns: minmax(230px, .92fr) minmax(260px, 1.12fr) minmax(235px, .78fr);
+  gap: 22px;
+  width: 100%;
+  max-width: 1320px;
+  margin-inline: auto;
+  border: 1px solid #e3e8ef;
+  border-radius: 15px;
+  box-shadow: 0 5px 18px rgba(17, 32, 54, .045);
+}
+
+.catalogue-preview-overlay .store-preview-detail-media > img,
+.catalogue-preview-overlay .store-preview-detail-media > .store-preview-product-image,
+.catalogue-preview-overlay .store-preview-detail-media > .store-preview-placeholder { min-height: 300px; }
+.catalogue-preview-overlay .store-preview-detail-order { align-self: start; position: sticky; top: 12px; }
+.catalogue-preview-overlay .catalogue-preview-footnote { padding: 11px 13px; border: 1px solid #e1e7ef; border-radius: 11px; background: #fff; }
+
+@media (max-width: 1240px) {
+  .catalogue-preview-overlay .store-preview-marketplace-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .catalogue-preview-overlay .store-preview-marketplace-grid .store-preview-context-product:last-child { display: none; }
+}
+
+@media (max-width: 950px) {
+  .catalogue-preview-overlay .catalogue-preview-toolbar { align-items: flex-start; flex-direction: column; }
+  .catalogue-preview-controls { justify-content: flex-start; width: 100%; }
+  .catalogue-preview-overlay .store-preview-marketplace-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .catalogue-preview-overlay .store-preview-marketplace-grid .store-preview-context-product:last-child { display: flex; }
+  .catalogue-preview-overlay .store-preview-detail { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); }
+  .catalogue-preview-overlay .store-preview-detail-order { position: static; grid-column: 1 / -1; }
+}
+
+@media (max-width: 640px) {
+  .catalogue-preview-overlay { padding: 8px; }
+  .catalogue-preview-overlay .catalogue-storefront-preview { max-height: calc(100dvh - 16px); padding: 13px; border-radius: 15px; }
+  .catalogue-preview-overlay .catalogue-preview-toolbar { position: static; gap: 10px; }
+  .catalogue-preview-controls { display: grid; grid-template-columns: 1fr; }
+  .catalogue-preview-controls .catalogue-preview-switch { width: 100%; }
+  .catalogue-preview-overlay .catalogue-preview-stage { padding: 9px; }
+  .catalogue-preview-overlay .preview-mobile .catalogue-preview-device-frame { width: min(390px, 100%); border-radius: 20px; }
+  .catalogue-preview-overlay .preview-mobile .store-preview-topline { padding-inline: 10px; font-size: 8px; }
+  .catalogue-preview-overlay .preview-mobile .store-preview-topline span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .catalogue-preview-overlay .preview-mobile .store-preview-topline strong { font-size: 8px; }
+  .catalogue-preview-overlay .preview-mobile .catalogue-preview-sitebar { min-height: 58px; padding-inline: 12px; }
+  .catalogue-preview-overlay .preview-mobile .catalogue-preview-sitebar nav,
+  .catalogue-preview-overlay .preview-mobile .store-preview-nav-actions > span:nth-child(2) { display: none; }
+  .catalogue-preview-overlay .preview-mobile .store-preview-marketplace-grid { grid-template-columns: 1fr; max-width: 430px; padding: 0 10px 14px; }
+  .catalogue-preview-overlay .preview-mobile .store-preview-marketplace-grid .store-preview-context-product { display: none; }
+  .catalogue-preview-overlay .preview-mobile .store-preview-card-body { min-height: 0; }
+  .catalogue-preview-overlay .preview-mobile .store-preview-detail { grid-template-columns: 1fr; gap: 15px; padding: 14px; }
+  .catalogue-preview-overlay .preview-mobile .store-preview-detail-breadcrumb { margin: -14px -14px 1px; }
+  .catalogue-preview-overlay .preview-mobile .store-preview-detail-order { grid-column: auto; }
+  .catalogue-preview-overlay .preview-mobile .store-preview-detail-media > img,
+  .catalogue-preview-overlay .preview-mobile .store-preview-detail-media > .store-preview-product-image,
+  .catalogue-preview-overlay .preview-mobile .store-preview-detail-media > .store-preview-placeholder { min-height: 220px; }
+  .catalogue-preview-overlay .catalogue-preview-footnote { align-items: flex-start; flex-direction: column; }
+}

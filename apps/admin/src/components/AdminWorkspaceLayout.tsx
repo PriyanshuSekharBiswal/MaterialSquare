@@ -197,11 +197,10 @@ export default function AdminWorkspaceLayout({
             aria-label="Go to workspace overview"
           >
             <MaterialSquareLogo
-              size={42}
+              size={46}
               showText={true}
               lightMode={true}
               tagline="BUILDING BETTER TOGETHER"
-              badgeText="ADMIN"
             />
           </button>
           <button
