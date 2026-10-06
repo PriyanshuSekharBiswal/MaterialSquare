@@ -91,7 +91,9 @@ export default function HomePage({
     sanitary: "/images/categories/sanitary-category.webp",
   };
   const categoryCards = Array.from(
-    new Map(products.map((product) => [product.category, product.categoryLabel])).entries(),
+    new Map(
+      products.map((product) => [product.category, product.categoryLabel]),
+    ).entries(),
   ).map(([id, title]) => ({
     id,
     title,
@@ -99,7 +101,11 @@ export default function HomePage({
     image: categoryImages[id],
     badge: title,
   }));
-  const listedBrands = partnerBrands.map((brand) => ({ name: brand.name, category: brand.category, meta: getBrandMeta(brand.id) }));
+  const listedBrands = partnerBrands.map((brand) => ({
+    name: brand.name,
+    category: brand.category,
+    meta: getBrandMeta(brand.id),
+  }));
   const searchBrandExamples = listedBrands
     .slice(0, 3)
     .map((brand) => brand.name)
@@ -110,160 +116,163 @@ export default function HomePage({
 
   const sections: Record<string, import("react").ReactNode> = {
     hero: (
-      <section className="home-hero-section">
-        {siteContent["home.heroImage"] && (
-          <img
-            className="home-hero-image"
-            src={siteContent["home.heroImage"]}
-            alt=""
-            aria-hidden="true"
-          />
-        )}
-        {/* Desktop: Full-bleed 3D Isometric Building Simulation (borderless, full scale) */}
-        {!isMobileView && (
-          <div className="hero-desktop-canvas-wrap">
-            <DeferredHeroBuildingCanvas centered={false} />
-          </div>
-        )}
-
-        <div className="container hero-grid">
-          {/* Mobile: 3D Building Showcase at the top before text */}
-          {isMobileView && (
-            <div className="hero-mobile-building-col">
-              <div className="hero-mobile-building-frame">
-                <DeferredHeroBuildingCanvas centered={true} />
-              </div>
+      <>
+        <section className="home-hero-section">
+          {siteContent["home.heroImage"] && (
+            <img
+              className="home-hero-image"
+              src={siteContent["home.heroImage"]}
+              alt=""
+              aria-hidden="true"
+            />
+          )}
+          {/* Desktop: Full-bleed 3D Isometric Building Simulation (borderless, full scale) */}
+          {!isMobileView && (
+            <div className="hero-desktop-canvas-wrap">
+              <DeferredHeroBuildingCanvas centered={false} />
             </div>
           )}
 
-          {/* Left Text */}
-          <div className="hero-text-col">
-            <div className="eyebrow-row reveal-text">
-              <span className="badge-pill badge-orange-pill">
-                {siteContent["home.eyebrow"]}
-              </span>
-              <span className="serving-text">Browse published inventory</span>
-            </div>
+          <div className="container hero-grid">
+            {/* Mobile: 3D Building Showcase at the top before text */}
+            {isMobileView && (
+              <div className="hero-mobile-building-col">
+                <div className="hero-mobile-building-frame">
+                  <DeferredHeroBuildingCanvas centered={true} />
+                </div>
+              </div>
+            )}
 
-            <h1 className="hero-heading">
-              {siteContent["home.title"].split("\n").map((line, index) => (
-                <span
-                  className={`ms-mask-line${index ? " accent-text" : ""}`}
-                  key={index}
-                >
-                  {line}
+            {/* Left Text */}
+            <div className="hero-text-col">
+              <div className="eyebrow-row reveal-text">
+                <span className="badge-pill badge-orange-pill">
+                  {siteContent["home.eyebrow"]}
                 </span>
-              ))}
-            </h1>
+                <span className="serving-text">Browse published inventory</span>
+              </div>
 
-            {siteContent["home.slogan"] && <div className="hero-hindi-quote reveal-text">
-              <span>"{siteContent["home.slogan"]}"</span>
-            </div>}
+              <h1 className="hero-heading">
+                {siteContent["home.title"].split("\n").map((line, index) => (
+                  <span
+                    className={`ms-mask-line${index ? " accent-text" : ""}`}
+                    key={index}
+                  >
+                    {line}
+                  </span>
+                ))}
+              </h1>
 
-            <p className="hero-subtext reveal-text">
-              {siteContent["home.description"]}
-            </p>
+              {siteContent["home.slogan"] && (
+                <div className="hero-hindi-quote reveal-text">
+                  <span>"{siteContent["home.slogan"]}"</span>
+                </div>
+              )}
 
-            {/* Quick Search with Autocomplete Suggestions */}
-            <form
-              ref={searchRef}
-              onSubmit={handleSearchSubmit}
-              className="hero-search-form"
-            >
-              <Search size={18} className="search-icon" />
-              <input
-                type="text"
-                className="search-input"
-                placeholder={`Search products or brands${searchBrandExamples ? ` (e.g. ${searchBrandExamples})` : ""}...`}
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setIsSuggestionsOpen(true);
-                }}
-                onFocus={() => setIsSuggestionsOpen(true)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") setIsSuggestionsOpen(false);
-                }}
-                autoComplete="off"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  className="search-clear-btn"
-                  onClick={() => {
-                    setSearchQuery("");
+              <p className="hero-subtext reveal-text">
+                {siteContent["home.description"]}
+              </p>
+
+              {/* Quick Search with Autocomplete Suggestions */}
+              <form
+                ref={searchRef}
+                onSubmit={handleSearchSubmit}
+                className="hero-search-form"
+              >
+                <Search size={18} className="search-icon" />
+                <input
+                  type="text"
+                  className="search-input"
+                  placeholder={`Search products or brands${searchBrandExamples ? ` (e.g. ${searchBrandExamples})` : ""}...`}
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
                     setIsSuggestionsOpen(true);
                   }}
-                  aria-label="Clear search input"
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "#94a3b8",
-                    cursor: "pointer",
-                    padding: "0 8px",
-                    fontSize: "14px",
+                  onFocus={() => setIsSuggestionsOpen(true)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setIsSuggestionsOpen(false);
                   }}
+                  autoComplete="off"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className="search-clear-btn"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setIsSuggestionsOpen(true);
+                    }}
+                    aria-label="Clear search input"
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "#94a3b8",
+                      cursor: "pointer",
+                      padding: "0 8px",
+                      fontSize: "14px",
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  className="btn btn-primary search-submit-btn"
                 >
-                  ✕
+                  Search
                 </button>
-              )}
-              <button
-                type="submit"
-                className="btn btn-primary search-submit-btn"
-              >
-                Search
-              </button>
 
-              {/* Live Search Suggestions Dropdown */}
-              <SearchSuggestions
-                products={products}
-                partnerBrands={partnerBrands}
-                query={searchQuery}
-                isOpen={isSuggestionsOpen}
-                onSelectSuggestion={(val) => {
-                  setSearchQuery(val);
-                  setIsSuggestionsOpen(false);
-                  navigate(`/marketplace?q=${encodeURIComponent(val)}`);
-                }}
-                onSelectCategory={(catId) => {
-                  setIsSuggestionsOpen(false);
-                  navigate(`/marketplace?category=${catId}`);
-                }}
-                onSelectBrand={(brandName) => {
-                  setIsSuggestionsOpen(false);
-                  navigate(
-                    `/marketplace?brand=${encodeURIComponent(brandName)}`,
-                  );
-                }}
-                onSelectProduct={(product, query) => {
-                  setIsSuggestionsOpen(false);
-                  navigate(
-                    `/marketplace?q=${encodeURIComponent(query)}`,
-                  );
-                }}
-              />
-            </form>
+                {/* Live Search Suggestions Dropdown */}
+                <SearchSuggestions
+                  products={products}
+                  partnerBrands={partnerBrands}
+                  query={searchQuery}
+                  isOpen={isSuggestionsOpen}
+                  onSelectSuggestion={(val) => {
+                    setSearchQuery(val);
+                    setIsSuggestionsOpen(false);
+                    navigate(`/marketplace?q=${encodeURIComponent(val)}`);
+                  }}
+                  onSelectCategory={(catId) => {
+                    setIsSuggestionsOpen(false);
+                    navigate(`/marketplace?category=${catId}`);
+                  }}
+                  onSelectBrand={(brandName) => {
+                    setIsSuggestionsOpen(false);
+                    navigate(
+                      `/marketplace?brand=${encodeURIComponent(brandName)}`,
+                    );
+                  }}
+                  onSelectProduct={(product, query) => {
+                    setIsSuggestionsOpen(false);
+                    navigate(`/marketplace?q=${encodeURIComponent(query)}`);
+                  }}
+                />
+              </form>
 
-            {/* Quick Action Buttons */}
-            <div className="hero-cta-group">
-              <Link
-                to={siteContent["home.primaryCtaPath"]}
-                className="btn btn-primary btn-lg"
-              >
-                <span>{siteContent["home.primaryCtaLabel"]}</span>
-                <ArrowRight size={16} />
-              </Link>
-              <Link
-                to={siteContent["home.secondaryCtaPath"]}
-                className="btn btn-secondary btn-lg"
-              >
-                <FileText size={16} />
-                <span>{siteContent["home.secondaryCtaLabel"]}</span>
-              </Link>
+              {/* Quick Action Buttons */}
+              <div className="hero-cta-group">
+                <Link
+                  to={siteContent["home.primaryCtaPath"]}
+                  className="btn btn-primary btn-lg"
+                >
+                  <span>{siteContent["home.primaryCtaLabel"]}</span>
+                  <ArrowRight size={16} />
+                </Link>
+                <Link
+                  to={siteContent["home.secondaryCtaPath"]}
+                  className="btn btn-secondary btn-lg"
+                >
+                  <FileText size={16} />
+                  <span>{siteContent["home.secondaryCtaLabel"]}</span>
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+        <ArchitecturalTicker />
+      </>
     ),
     trust: (
       <section className="home-trust-strip">
@@ -287,7 +296,9 @@ export default function HomePage({
             </div>
             <div>
               <h4>Save a material list</h4>
-              <p>Your selected materials stay in this browser while you browse.</p>
+              <p>
+                Your selected materials stay in this browser while you browse.
+              </p>
             </div>
           </div>
 
@@ -344,8 +355,18 @@ export default function HomePage({
           {catalogueUnavailable ? (
             <div className="catalogue-load-state" role="alert">
               <strong>Published inventory is temporarily unavailable.</strong>
-              <span>Please try again in a moment. No sample products are shown.</span>
-              {onRetryCatalogue && <button className="btn btn-secondary" type="button" onClick={onRetryCatalogue}>Retry inventory</button>}
+              <span>
+                Please try again in a moment. No sample products are shown.
+              </span>
+              {onRetryCatalogue && (
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={onRetryCatalogue}
+                >
+                  Retry inventory
+                </button>
+              )}
             </div>
           ) : categoryCards.length ? (
             <div className="category-cards-grid reveal-stagger">
@@ -356,7 +377,15 @@ export default function HomePage({
                   className="category-gateway-card"
                 >
                   <div className="category-img-wrapper">
-                    {cat.image ? <img src={cat.image} alt="" loading="lazy" /> : <Package className="category-image-fallback" size={42} aria-hidden="true" />}
+                    {cat.image ? (
+                      <img src={cat.image} alt="" loading="lazy" />
+                    ) : (
+                      <Package
+                        className="category-image-fallback"
+                        size={42}
+                        aria-hidden="true"
+                      />
+                    )}
                     <span className="category-badge-chip">{cat.badge}</span>
                   </div>
                   <div className="category-card-info">
@@ -368,7 +397,9 @@ export default function HomePage({
               ))}
             </div>
           ) : (
-            <p className="catalogue-load-state">There are no published materials to browse yet.</p>
+            <p className="catalogue-load-state">
+              There are no published materials to browse yet.
+            </p>
           )}
         </div>
       </section>
@@ -392,7 +423,10 @@ export default function HomePage({
                 title={`Browse ${brand.name} Products`}
               >
                 <div className="brand-logo-frame" aria-label={brand.name}>
-                  <BrandLogo id={brand.meta?.id || brand.name} className="brand-logo-svg" />
+                  <BrandLogo
+                    id={brand.meta?.id || brand.name}
+                    className="brand-logo-svg"
+                  />
                 </div>
                 <div className="brand-card-meta">
                   <span className="brand-tagline-text">{brand.name}</span>
@@ -505,15 +539,20 @@ export default function HomePage({
               <FileText size={16} />
               <span>{siteContent["home.calloutButton"]}</span>
             </Link>
-            {siteContent["contact.phone"] && <a
-              href={whatsappLink("Material Square — General Enquiry", siteContent["contact.phone"])}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-whatsapp btn-lg"
-            >
-              <WhatsAppIcon size={20} color="#ffffff" />
-              <span>Connect on WhatsApp</span>
-            </a>}
+            {siteContent["contact.phone"] && (
+              <a
+                href={whatsappLink(
+                  "Material Square — General Enquiry",
+                  siteContent["contact.phone"],
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-whatsapp btn-lg"
+              >
+                <WhatsAppIcon size={20} color="#ffffff" />
+                <span>Connect on WhatsApp</span>
+              </a>
+            )}
           </div>
         </div>
       </section>
