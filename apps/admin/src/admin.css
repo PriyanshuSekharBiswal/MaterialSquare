@@ -1545,6 +1545,72 @@ textarea:focus {
   .panel-body { padding: 20px 16px; }
 }
 
+/* Shared brand finish across the operations workspace. */
+.admin-layout {
+  background:
+    radial-gradient(ellipse at 94% -6%, rgba(234, 88, 12, .075), transparent 29rem),
+    #f4f6fa;
+}
+.admin-sidebar {
+  background: linear-gradient(180deg, #111c30 0%, #0c1424 100%);
+  box-shadow: 8px 0 28px rgba(13, 24, 42, .06);
+}
+.admin-brand-link {
+  border-color: #e8ebf0;
+  box-shadow: 0 10px 26px rgba(2, 9, 20, .2), inset 0 1px #fff;
+}
+.admin-brand-link:focus-visible { outline: 3px solid #f97316; outline-offset: 3px; }
+.staff-avatar-badge { background: linear-gradient(145deg, #f97316, #c2410c); }
+.nav-item { position: relative; min-height: 45px; }
+.nav-item.active {
+  border-color: rgba(249, 115, 22, .3);
+  color: #ffae79;
+  background: linear-gradient(100deg, rgba(234, 88, 12, .2), rgba(234, 88, 12, .065));
+}
+.nav-item.active::before {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: -12px;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: #f97316;
+  content: "";
+}
+.admin-main {
+  width: min(100% - 292px, 1900px);
+  padding: 30px clamp(24px, 3vw, 54px) 56px;
+}
+.admin-header {
+  min-height: 104px;
+  align-items: center;
+  padding: 20px 24px;
+  border: 1px solid #e5e9f0;
+  border-radius: 17px;
+  background: linear-gradient(110deg, #fff 0%, #fff 68%, #fff8f2 100%);
+  box-shadow: 0 6px 22px rgba(16, 33, 56, .045);
+}
+.admin-breadcrumb { display: flex; align-items: center; gap: 8px; }
+.admin-breadcrumb > span:nth-child(2) { color: #c3ccd8; }
+.admin-header h1 { font-size: clamp(1.55rem, 2vw, 2rem); }
+.admin-page-description { margin-top: 3px; }
+.admin-header-actions .btn-sm { min-height: 41px; }
+.admin-main > .panel-card,
+.admin-main > .kpi-card,
+.admin-main > .workspace-record { border-radius: 16px; }
+@media (min-width: 1900px) {
+  .admin-main { margin-inline: auto; }
+}
+@media (max-width: 900px) {
+  .admin-main { width: 100%; padding: 21px 20px 40px; }
+  .admin-header { min-height: 0; }
+}
+@media (max-width: 640px) {
+  .admin-main { padding: 17px 13px 34px; }
+  .admin-header { gap: 14px; padding: 16px 16px 16px 19px; border-radius: 14px; }
+  .admin-header-actions { align-self: flex-end; }
+}
+
 /* Brand-led workspace shell */
 .admin-layout {
   background:

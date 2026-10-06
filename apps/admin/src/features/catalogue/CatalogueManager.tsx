@@ -718,6 +718,13 @@ export default function CatalogueManager({
   };
   const formProduct = editing;
 
+  const openProductPreview = () => {
+    if (productForm.current) {
+      captureProductDraft({ currentTarget: productForm.current } as FormEvent<HTMLFormElement>);
+    }
+    setPreviewOpen(true);
+  };
+
   if (managingBrands) return <PartnerBrandsManager token={token} role={role} onSignOut={onSignOut} onBack={() => setManagingBrands(false)} />;
 
   return (
@@ -778,6 +785,14 @@ export default function CatalogueManager({
             <span className={`catalogue-form-state ${(previewListing?.isPublished ?? formProduct.isPublished) ? "is-published" : "is-draft"}`}>
               <span aria-hidden="true" />{(previewListing?.isPublished ?? formProduct.isPublished) ? "Published" : "Private draft"}
             </span>
+            <button
+              type="button"
+              className="catalogue-header-preview"
+              disabled={busy}
+              onClick={openProductPreview}
+            >
+              <Image size={15} /> Preview storefront
+            </button>
             <button
               type="button"
               className="btn-sm btn-secondary"
@@ -1171,12 +1186,7 @@ export default function CatalogueManager({
               type="button"
               className="btn-sm btn-secondary catalogue-preview-trigger"
               disabled={busy}
-              onClick={() => {
-                if (productForm.current) {
-                  captureProductDraft({ currentTarget: productForm.current } as FormEvent<HTMLFormElement>);
-                }
-                setPreviewOpen(true);
-              }}
+              onClick={openProductPreview}
             >
               <Image size={15} /> Preview storefront
             </button>
