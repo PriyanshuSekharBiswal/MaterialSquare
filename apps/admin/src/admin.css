@@ -545,6 +545,168 @@ button, input, select, textarea {
   line-height: 1.55;
 }
 
+.recent-changes-panel {
+  margin: 0 0 24px;
+  padding: 22px 24px 0;
+}
+
+.recent-changes-header,
+.recent-changes-footer,
+.recent-change-item,
+.recent-change-meta {
+  display: flex;
+  align-items: center;
+}
+
+.recent-changes-header,
+.recent-changes-footer {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.recent-changes-eyebrow {
+  color: var(--ms-primary);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+}
+
+.recent-changes-header h2 {
+  margin: 3px 0 2px;
+  font-size: 1.2rem;
+}
+
+.recent-changes-header p,
+.recent-changes-message {
+  color: var(--ms-slate-500);
+  font-size: 0.84rem;
+}
+
+.recent-changes-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--ms-slate-200);
+  border-radius: 999px;
+  padding: 7px 11px;
+  color: var(--ms-slate-600);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.recent-change-open {
+  border: 0;
+  padding: 1px 0;
+  background: transparent;
+  color: var(--ms-primary-hover);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.recent-change-open:hover,
+.recent-change-open:focus-visible,
+.recent-changes-link:hover,
+.recent-changes-link:focus-visible {
+  text-decoration: underline;
+}
+
+.recent-changes-list {
+  list-style: none;
+  margin: 18px 0 0;
+  border-top: 1px solid var(--ms-slate-100);
+}
+
+.recent-change-item {
+  gap: 12px;
+  min-height: 68px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--ms-slate-100);
+}
+
+.recent-change-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--ms-primary-light);
+  color: var(--ms-primary);
+}
+
+.recent-change-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+.recent-change-copy strong {
+  overflow: hidden;
+  color: var(--ms-slate-800);
+  font-size: 0.88rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-change-copy span,
+.recent-change-copy small {
+  color: var(--ms-slate-500);
+  font-size: 0.76rem;
+}
+
+.recent-change-copy small {
+  color: var(--ms-slate-400);
+  text-transform: capitalize;
+}
+
+.recent-change-meta {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  color: var(--ms-slate-500);
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.recent-changes-empty {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 20px 0;
+  color: var(--ms-slate-500);
+  font-size: 0.86rem;
+}
+
+.recent-changes-footer {
+  min-height: 48px;
+  color: var(--ms-slate-400);
+  font-size: 0.74rem;
+}
+
+.recent-changes-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--ms-primary-hover);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .recent-changes-panel { padding: 18px 16px 0; }
+  .recent-changes-header { align-items: flex-start; }
+  .recent-change-item { align-items: flex-start; }
+  .recent-change-meta { align-items: flex-end; font-size: 0.68rem; }
+  .recent-changes-footer { align-items: flex-start; padding: 10px 0; }
+}
+
 .workspace-actions {
   display: flex;
   gap: 12px;

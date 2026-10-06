@@ -14,7 +14,7 @@ import AdminWorkspaceLayout, {
 import "./workspace.css";
 import FeatureBoundary from "./components/FeatureBoundary";
 import WorkspaceOverview from "./features/overview/WorkspaceOverview";
-import type { Stats, WebsiteAnalytics } from "./features/overview/contracts";
+import type { RecentChanges, Stats, WebsiteAnalytics } from "./features/overview/contracts";
 import StaffLogin from "./features/auth/StaffLogin";
 
 const NotificationStatus = lazy(
@@ -62,6 +62,8 @@ export function App() {
     [websiteAnalytics, setWebsiteAnalytics] = useState<WebsiteAnalytics | null>(
       null,
     ),
+    [recentChanges, setRecentChanges] = useState<RecentChanges | null>(null),
+    [recentChangesError, setRecentChangesError] = useState(""),
     [customers, setCustomers] = useState<Page<Customer>>({
       items: [],
       total: 0,
@@ -171,21 +173,34 @@ export function App() {
             return null;
           })
         : Promise.resolve(null);
+    const recentChangesRequest =
+      tab === "overview"
+        ? request<RecentChanges>("/admin/audit/recent").then((changes) => {
+            if (active) setRecentChangesError("");
+            return changes;
+          }).catch(() => {
+            if (active)
+              setRecentChangesError("Recent changes could not be loaded.");
+            return null;
+          })
+        : Promise.resolve(null);
     void Promise.all([
       request<AdminStaff>("/auth/staff/me"),
       request<Stats>("/workspace/overview"),
       analyticsRequest,
+      recentChangesRequest,
       tab === "customers"
         ? request<Page<Customer>>(`/workspace/customers?${params}`)
         : tab === "followups"
           ? request<Page<Followup>>(`/workspace/followups?${params}`)
           : Promise.resolve(null),
     ])
-      .then(([user, summary, analyticsResult, result]) => {
+      .then(([user, summary, analyticsResult, changesResult, result]) => {
         if (!active) return;
         setStaff(user);
         setStats(summary);
         if (analyticsResult) setWebsiteAnalytics(analyticsResult);
+        if (changesResult) setRecentChanges(changesResult);
         if (result && tab === "customers")
           setCustomers(result as Page<Customer>);
         if (result && tab === "followups")
@@ -316,7 +331,13 @@ export function App() {
         <WorkspaceOverview
           stats={stats}
           websiteAnalytics={websiteAnalytics}
+          recentChanges={recentChanges}
+          recentChangesError={recentChangesError}
+          staffRole={staff?.role || ""}
           onViewCustomers={() => navigate("customers")}
+          onViewAudit={() => navigate("audit")}
+          onOpenCatalogue={() => navigate("catalogue")}
+          onOpenContent={() => navigate("content")}
           onRecordEnquiry={() => {
             navigate("followups");
             setDraft(blankFollowup());

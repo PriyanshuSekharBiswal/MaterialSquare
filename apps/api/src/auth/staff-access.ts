@@ -211,6 +211,7 @@ function routePermission(method: string, path: string): StaffPermission {
   const verb = method.toUpperCase();
   const route = path.replace(/^\/api(?=\/)/, "").replace(/\/$/, "") || "/";
   if (route === "/admin/notifications" && verb === "GET") return "audit.read";
+  if (route === "/admin/audit/recent" && verb === "GET") return "dashboard.view";
   if (route === "/admin/audit" && verb === "GET") return "audit.read";
   if (route === "/auth/staff/me") return "staff.profile";
   if (route.startsWith("/admin/staff")) return "staff.manage";

@@ -24,3 +24,19 @@ export type WebsiteAnalytics = {
   topProducts: { id: string; name: string; views: number }[];
   privacy: string;
 };
+
+export type RecentChange = {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  createdAt: string;
+  title: string;
+  changedFields: string[];
+  staff: { name: string; role: string } | null;
+};
+
+export type RecentChanges = {
+  since: string;
+  items: RecentChange[];
+};

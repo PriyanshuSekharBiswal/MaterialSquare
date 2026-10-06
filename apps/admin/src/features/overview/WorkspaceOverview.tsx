@@ -1,16 +1,29 @@
-import type { Stats, WebsiteAnalytics } from "./contracts";
+import { Clock3, FileText, Package, Pencil, Plus, Upload } from "lucide-react";
+import type { RecentChanges, Stats, WebsiteAnalytics } from "./contracts";
 
 type WorkspaceOverviewProps = {
   stats: Stats | null;
   websiteAnalytics: WebsiteAnalytics | null;
+  recentChanges: RecentChanges | null;
+  recentChangesError: string;
+  staffRole: string;
   onViewCustomers: () => void;
+  onViewAudit: () => void;
+  onOpenCatalogue: () => void;
+  onOpenContent: () => void;
   onRecordEnquiry: () => void;
 };
 
 export default function WorkspaceOverview({
   stats,
   websiteAnalytics,
+  recentChanges,
+  recentChangesError,
+  staffRole,
   onViewCustomers,
+  onViewAudit,
+  onOpenCatalogue,
+  onOpenContent,
   onRecordEnquiry,
 }: WorkspaceOverviewProps) {
   if (!stats) return null;
@@ -126,6 +139,73 @@ export default function WorkspaceOverview({
           <p className="analytics-privacy-note">{websiteAnalytics.privacy}</p>
         </section>
       )}
+      <section className="panel-card recent-changes-panel" aria-labelledby="recent-changes-heading">
+        <div className="recent-changes-header">
+          <div>
+            <span className="recent-changes-eyebrow">TEAM ACTIVITY</span>
+            <h2 id="recent-changes-heading">Recent changes</h2>
+            <p>Products, images and website content changed in the last 7 days.</p>
+          </div>
+          <span className="recent-changes-range"><Clock3 size={15} aria-hidden="true" /> Last 7 days</span>
+        </div>
+        {recentChangesError ? (
+          <p className="recent-changes-message" role="status">{recentChangesError}</p>
+        ) : !recentChanges ? (
+          <p className="recent-changes-message" role="status">Loading recent changes…</p>
+        ) : recentChanges.items.length === 0 ? (
+          <div className="recent-changes-empty">
+            <Package size={20} aria-hidden="true" />
+            <span>No product or website changes recorded in the past 7 days.</span>
+          </div>
+        ) : (
+          <ul className="recent-changes-list">
+            {recentChanges.items.map((change) => {
+              const label = change.action.includes("CREATED") || change.action.includes("UPLOADED") || change.action.includes("PUBLISHED")
+                ? "Added or published"
+                : change.action.includes("ARCHIVED")
+                  ? "Archived"
+                  : "Edited";
+              const Icon = change.action.includes("CREATED") || change.action.includes("PUBLISHED")
+                ? Plus
+                : change.action.includes("UPLOADED")
+                  ? Upload
+                  : Pencil;
+              const catalogueChange = change.entityType === "CATALOG_PRODUCT" || change.entityType === "PRODUCT_SKU";
+              const canOpenCatalogue = ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER", "CATALOG_MANAGER"].includes(staffRole);
+              const canOpenContent = ["SUPER_ADMIN", "ADMIN", "CONTENT_MANAGER"].includes(staffRole);
+              return (
+                <li className="recent-change-item" key={change.id}>
+                  <span className="recent-change-icon"><Icon size={16} aria-hidden="true" /></span>
+                  <div className="recent-change-copy">
+                    <strong>{change.title}</strong>
+                    <span>{label}{change.changedFields.length ? ` · ${change.changedFields.length} ${change.changedFields.length === 1 ? "detail" : "details"} updated` : ""}</span>
+                    {change.changedFields.length > 0 && (
+                      <small>{change.changedFields.slice(0, 4).map((field) => field.replace(/[._]/g, " ")).join(" · ")}{change.changedFields.length > 4 ? ` +${change.changedFields.length - 4}` : ""}</small>
+                    )}
+                  </div>
+                  <div className="recent-change-meta">
+                    <span>{change.staff?.name || "System"}</span>
+                    <time dateTime={change.createdAt}>{new Date(change.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</time>
+                    {catalogueChange && canOpenCatalogue ? (
+                      <button className="recent-change-open" onClick={onOpenCatalogue}>Open catalogue</button>
+                    ) : !catalogueChange && canOpenContent ? (
+                      <button className="recent-change-open" onClick={onOpenContent}>Open website content</button>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <div className="recent-changes-footer">
+          <span>This feed shows the latest changes from the past 7 days.</span>
+          {(staffRole === "SUPER_ADMIN" || staffRole === "ADMIN") && (
+            <button className="recent-changes-link" onClick={onViewAudit}>
+              <FileText size={15} aria-hidden="true" /> Open full audit log
+            </button>
+          )}
+        </div>
+      </section>
       <section className="panel-card panel-body">
         <h2>Today’s work</h2>
         <p>
