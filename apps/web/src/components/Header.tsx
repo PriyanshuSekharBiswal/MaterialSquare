@@ -32,7 +32,6 @@ export default function Header({
         <div className="container top-bar-content">
           <div className="top-bar-left">
             <span className="location-tag">
-              <span className="live-dot" aria-hidden="true" />
               <MapPin size={12} className="loc-icon" />
               <strong className="top-bar-serving">Serving Delhi NCR</strong>
               <span className="top-bar-cities">: {siteContent["contact.location"] || "Noida, Greater Noida, Delhi, Gurugram, Ghaziabad & Faridabad"}</span>

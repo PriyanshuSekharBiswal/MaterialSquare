@@ -201,7 +201,6 @@ export default function AdminWorkspaceLayout({
           <div className="staff-meta">
             <span className="staff-name">{staff.name || "Staff Member"}</span>
             <span className="staff-role-chip">
-              <span className="live-indicator-dot" />
               {staff.role ? staff.role.replace(/_/g, " ") : "Operator"}
             </span>
           </div>
@@ -261,7 +260,7 @@ export default function AdminWorkspaceLayout({
         <header className="admin-header">
           <div className="header-left">
             <span className="eyebrow">
-              <span className="live-indicator-dot" /> Material Square Operations
+              Material Square Operations
             </span>
             <h1>{pageTitle(tab)}</h1>
           </div>

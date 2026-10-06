@@ -175,22 +175,6 @@ button, input, select, textarea {
   margin-top: 1px;
 }
 
-.live-indicator-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--accent-emerald);
-  box-shadow: 0 0 6px var(--accent-emerald);
-  display: inline-block;
-  animation: pulseLiveDot 2.2s infinite ease-in-out;
-}
-
-@keyframes pulseLiveDot {
-  0% { transform: scale(0.9); opacity: 0.7; }
-  50% { transform: scale(1.35); opacity: 1; }
-  100% { transform: scale(0.9); opacity: 0.7; }
-}
-
 /* Nav Area */
 .sidebar-nav-scroll {
   flex: 1;
