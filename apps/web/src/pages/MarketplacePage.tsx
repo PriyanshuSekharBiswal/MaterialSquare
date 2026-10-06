@@ -22,6 +22,7 @@ import { useSiteContent } from '../site-content';
 import { matchesCatalogueSearch, scoreCatalogueSearch } from '../search/catalogue-search';
 import { partnerBrandMatchesProduct, usePartnerBrands } from '../partner-brands';
 import { bestMatchingVariant } from '../search/variant-match';
+import { useRotatingSearchPlaceholder } from '../hooks/useRotatingSearchPlaceholder';
 
 export default function MarketplacePage({
   bomList = [],
@@ -43,6 +44,13 @@ export default function MarketplacePage({
   const [activeCategory, setActiveCategory] = useState(initialCategory);
   const [selectedBrand, setSelectedBrand] = useState(initialBrand);
   const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const searchExamples = Array.from(
+    new Set(products.map((product) => product.categoryLabel)),
+  ).slice(0, 4);
+  const searchPlaceholder = useRotatingSearchPlaceholder(
+    searchExamples,
+    !searchQuery,
+  );
   const [availability, setAvailability] = useState('all');
   const [variantFilters, setVariantFilters] = useState<Record<string, string>>({});
   const [sortBy, setSortBy] = useState('relevance');
@@ -258,7 +266,8 @@ export default function MarketplacePage({
                 <Search size={18} className="search-field-icon" />
                 <input
                   type="text"
-                  placeholder="Search products, brands, colour, finish or pack size..."
+                  aria-label="Search materials catalogue"
+                  placeholder={searchPlaceholder}
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);

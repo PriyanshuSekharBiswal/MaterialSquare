@@ -28,6 +28,7 @@ import { useSiteContent } from "../site-content";
 import { whatsappLink } from "../messages";
 import { usePartnerBrands } from "../partner-brands";
 import DeferredDirectionGoogleMaps from "../components/DeferredDirectionGoogleMaps";
+import { useRotatingSearchPlaceholder } from "../hooks/useRotatingSearchPlaceholder";
 
 export default function HomePage({
   products,
@@ -106,10 +107,13 @@ export default function HomePage({
     category: brand.category,
     meta: getBrandMeta(brand.id),
   }));
-  const searchBrandExamples = listedBrands
-    .slice(0, 3)
-    .map((brand) => brand.name)
-    .join(", ");
+  const searchExamples = Array.from(
+    new Set(products.map((product) => product.categoryLabel)),
+  ).slice(0, 4);
+  const searchPlaceholder = useRotatingSearchPlaceholder(
+    searchExamples,
+    !searchQuery,
+  );
   const customContentBlocks = homeContentBlocks(
     siteContent["home.contentBlocks"],
   ).filter((block) => block.visible);
@@ -183,7 +187,8 @@ export default function HomePage({
                 <input
                   type="text"
                   className="search-input"
-                  placeholder={`Search products or brands${searchBrandExamples ? ` (e.g. ${searchBrandExamples})` : ""}...`}
+                  aria-label="Search products and brands"
+                  placeholder={searchPlaceholder}
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
