@@ -28,27 +28,32 @@ export default function WorkspaceOverview({
   onRecordEnquiry,
 }: WorkspaceOverviewProps) {
   const [recentCategory, setRecentCategory] = useState("All activity");
+  const normalizedRecentItems = (recentChanges?.items || []).map((change) => ({
+    ...change,
+    category: change.category || recentCategoryForEntity(change.entityType),
+    entityLabel: change.entityLabel || recentEntityLabel(change.entityType),
+    actionLabel: change.actionLabel || recentActionLabel(change.action),
+    changedFields: Array.isArray(change.changedFields)
+      ? change.changedFields
+      : [],
+  }));
   const categories = [
     "All activity",
-    ...(recentChanges?.categories || [
-      "Storefront",
-      "Sales",
-      "Procurement",
-      "Settings & team",
-    ]),
+    ...(recentChanges?.categories?.length
+      ? recentChanges.categories
+      : ["Storefront", "Sales", "Procurement", "Settings & team"]),
   ];
-  const recentItems =
-    recentChanges?.items.filter(
-      (change) =>
-        recentCategory === "All activity" || change.category === recentCategory,
-    ) || [];
+  const recentItems = normalizedRecentItems.filter(
+    (change) =>
+      recentCategory === "All activity" || change.category === recentCategory,
+  );
   const recentCounts = new Map(
     categories.map((category) => [
       category,
       category === "All activity"
-        ? recentChanges?.items.length || 0
-        : recentChanges?.items.filter((change) => change.category === category)
-            .length || 0,
+        ? normalizedRecentItems.length
+        : normalizedRecentItems.filter((change) => change.category === category)
+            .length,
     ]),
   );
   if (!stats) return null;
@@ -211,7 +216,7 @@ export default function WorkspaceOverview({
           <p className="recent-changes-message" role="status">
             Loading recent changes…
           </p>
-        ) : recentChanges.items.length === 0 ? (
+        ) : normalizedRecentItems.length === 0 ? (
           <div className="recent-changes-empty">
             <Package size={20} aria-hidden="true" />
             <span>No admin changes recorded in the past 7 days.</span>
@@ -304,10 +309,12 @@ export default function WorkspaceOverview({
         )}
         <div className="recent-changes-footer">
           <span>
-            Showing {recentItems.length} of {recentChanges?.total || 0} recorded
+            Showing {recentItems.length} of{" "}
+            {recentChanges?.total ?? normalizedRecentItems.length} recorded
             changes from the past 7 days
-            {(recentChanges?.total || 0) > (recentChanges?.limit || 0)
-              ? ` · latest ${recentChanges?.limit}`
+            {(recentChanges?.total ?? normalizedRecentItems.length) >
+            (recentChanges?.limit ?? 50)
+              ? ` · latest ${recentChanges?.limit ?? 50}`
               : ""}
             .
           </span>
@@ -339,4 +346,83 @@ export default function WorkspaceOverview({
       </section>
     </>
   );
+}
+
+function recentCategoryForEntity(entityType: string) {
+  if (
+    [
+      "CATALOG_PRODUCT",
+      "PRODUCT_SKU",
+      "MEDIA_ASSET",
+      "WEBSITE_CONTENT",
+      "WEBSITE_BRANDS",
+      "BLOG_POST",
+      "EXPERT_ADVISOR",
+    ].includes(entityType)
+  )
+    return "Storefront";
+  if (["QUOTATION", "RFQ", "ORDER", "STAFF_ENQUIRY"].includes(entityType))
+    return "Sales";
+  if (
+    [
+      "PROCUREMENT_REQUEST",
+      "PURCHASE_ORDER",
+      "SUPPLIER",
+      "SUPPLIER_PRODUCT",
+      "SUPPLIER_QUOTE",
+    ].includes(entityType)
+  )
+    return "Procurement";
+  return "Settings & team";
+}
+
+function recentEntityLabel(entityType: string) {
+  const labels: Record<string, string> = {
+    CATALOG_PRODUCT: "Catalogue product",
+    PRODUCT_SKU: "Product variant",
+    MEDIA_ASSET: "Storefront image",
+    WEBSITE_CONTENT: "Website content",
+    WEBSITE_BRANDS: "Brand directory",
+    BLOG_POST: "Blog article",
+    EXPERT_ADVISOR: "Expert or service listing",
+    QUOTATION: "Quotation",
+    RFQ: "Quote request",
+    ORDER: "Order or delivery",
+    PROCUREMENT_REQUEST: "Procurement request",
+    PURCHASE_ORDER: "Purchase order",
+    SUPPLIER: "Supplier",
+    SUPPLIER_PRODUCT: "Supplier product",
+    SUPPLIER_QUOTE: "Supplier quote",
+    STAFF_ENQUIRY: "Customer enquiry",
+    STAFF_USER: "Staff account",
+    BUSINESS_RULES: "Business settings",
+    DISCOUNT_RULE: "Discount rule",
+    COMMISSION: "Commission settings",
+    CUSTOMER_LOYALTY: "Customer loyalty account",
+    LOYALTY_SETTINGS: "Loyalty settings",
+  };
+  return labels[entityType] || "Workspace settings";
+}
+
+function recentActionLabel(action: string) {
+  const labels: Record<string, string> = {
+    CREATED: "Added",
+    RECEIVED: "Received",
+    UPLOADED: "Uploaded",
+    PUBLISHED: "Published",
+    UPDATED: "Edited",
+    EDITED: "Edited",
+    SAVED: "Saved",
+    ARCHIVED: "Archived",
+    DELETED: "Removed",
+    RESET: "Reset",
+    ADVANCED: "Advanced",
+    ADJUSTED: "Adjusted",
+    COMPLETED: "Completed",
+    CHANGED: "Changed",
+  };
+  const verb = action.match(
+    /(?:^|_)(CREATED|RECEIVED|UPLOADED|PUBLISHED|UPDATED|EDITED|SAVED|ARCHIVED|DELETED|RESET|ADVANCED|ADJUSTED|COMPLETED|CHANGED)(?:_|$)/,
+  )?.[1];
+  return labels[verb || ""] || "Activity recorded";
 }
