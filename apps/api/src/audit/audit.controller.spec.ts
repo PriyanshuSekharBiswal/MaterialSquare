@@ -12,6 +12,77 @@ describe("audit review", () => {
   const controller = new AuditController(db as never);
   beforeEach(() => jest.clearAllMocks());
 
+  it("shows the latest seven days across workspace activity with safe labels", async () => {
+    findMany.mockResolvedValueOnce([
+      {
+        id: "activity-1",
+        action: "MEDIA_ASSET_UPLOADED",
+        entityType: "MEDIA_ASSET",
+        entityId: "asset-1",
+        metadata: { key: "catalogue/photo.png", phone: "private" },
+        createdAt: new Date("2026-10-06T08:00:00.000Z"),
+        staff: { name: "Content editor", role: "CONTENT_MANAGER" },
+      },
+      {
+        id: "activity-2",
+        action: "QUOTATION_PUBLISHED",
+        entityType: "QUOTATION",
+        entityId: "quote-1",
+        metadata: { customerName: "Private Customer", phone: "private" },
+        createdAt: new Date("2026-10-05T08:00:00.000Z"),
+        staff: null,
+      },
+    ]);
+    count.mockResolvedValueOnce(2);
+
+    const result = await controller.recent({
+      user: { userId: "admin-1", role: "ADMIN" },
+    } as never);
+
+    expect(result.total).toBe(2);
+    expect(result.limit).toBe(50);
+    expect(result.categories).toContain("Procurement");
+    expect(
+      result.items.map((item) => [item.title, item.category, item.actionLabel]),
+    ).toEqual([
+      ["Storefront image", "Storefront", "Uploaded"],
+      ["Quotation", "Sales", "Published"],
+    ]);
+    expect(JSON.stringify(result)).not.toContain("private");
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        take: 50,
+        where: {
+          createdAt: { gte: expect.any(Date) },
+          entityType: {
+            in: expect.arrayContaining(["MEDIA_ASSET", "QUOTATION"]),
+          },
+        },
+      }),
+    );
+  });
+
+  it("limits the recent activity feed to the signed-in staff member's workspace areas", async () => {
+    findMany.mockResolvedValueOnce([]);
+    count.mockResolvedValueOnce(0);
+
+    const result = await controller.recent({
+      user: { userId: "staff-1", role: "CONTENT_MANAGER" },
+    } as never);
+
+    expect(result.categories).toEqual(["Storefront"]);
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          createdAt: { gte: expect.any(Date) },
+          entityType: {
+            in: expect.arrayContaining(["MEDIA_ASSET", "BLOG_POST"]),
+          },
+        },
+      }),
+    );
+  });
+
   it("paginates and applies exact filters without returning staff secrets", async () => {
     await expect(
       controller.list({

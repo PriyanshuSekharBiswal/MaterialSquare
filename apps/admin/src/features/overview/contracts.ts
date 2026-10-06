@@ -32,11 +32,17 @@ export type RecentChange = {
   entityId: string;
   createdAt: string;
   title: string;
+  category: string;
+  entityLabel: string;
+  actionLabel: string;
   changedFields: string[];
   staff: { name: string; role: string } | null;
 };
 
 export type RecentChanges = {
   since: string;
+  categories: string[];
   items: RecentChange[];
+  total: number;
+  limit: number;
 };
