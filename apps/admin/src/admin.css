@@ -1388,23 +1388,24 @@ textarea:focus {
 
 .admin-brand {
   min-height: 102px;
-  padding: 16px 18px;
-  background: rgba(255, 255, 255, 0.025);
+  padding: 18px 20px;
+  background: linear-gradient(110deg, rgba(255,255,255,.035), transparent 78%);
   border-bottom-color: rgba(148, 163, 184, 0.14);
 }
 
 .admin-brand-link {
   width: 100%;
-  min-height: 68px;
-  padding: 10px 12px;
-  border: 1px solid #e7ebf2;
-  border-radius: 12px;
-  background: linear-gradient(110deg, #fff 0%, #f8fafc 100%);
-  box-shadow: 0 5px 16px rgba(2, 8, 23, 0.16);
+  min-height: 64px;
+  padding: 4px 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-.admin-brand-link .ms-logo-svg { filter: none !important; }
-.admin-brand-link .ms-logo-tagline { color: #64748b !important; }
+.admin-brand-link .ms-logo-svg { filter: drop-shadow(0 2px 7px rgba(0,0,0,.2)) !important; }
+.admin-brand-link .ms-logo-tagline { color: #aab6c8 !important; }
+.admin-brand-link .ms-logo-sub-tag { margin-block: 3px !important; }
 
 .sidebar-staff-card {
   margin: 15px 14px 7px;
@@ -1442,6 +1443,48 @@ textarea:focus {
   overflow-x: clip;
   padding: 30px clamp(22px, 3vw, 48px) 52px;
   background: transparent;
+}
+
+.admin-header {
+  min-height: 82px;
+  border-bottom-color: #e1e7f0;
+}
+
+.admin-header .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .68rem;
+  font-weight: 800;
+}
+
+.admin-header .eyebrow::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--ms-primary);
+  box-shadow: 0 0 0 3px rgba(234,88,12,.1);
+}
+
+.admin-header h1 { margin-top: 3px; }
+.sidebar-footer { padding: 14px 12px 16px; }
+.sidebar-ext-link,
+.sidebar-signout-btn { min-height: 43px; border-radius: 10px; }
+.admin-error,
+.saved-notice { border-radius: 12px; box-shadow: var(--shadow-xs); }
+.admin-main > [role="status"] { color: var(--ms-slate-600); }
+.admin-main .table-scroll,
+.admin-main .ops-table,
+.admin-main .staff-table { overflow: hidden; border: 1px solid #e4e9f1; border-radius: 13px; background: #fff; }
+.admin-main .table-scroll table,
+.admin-main .ops-table,
+.admin-main .staff-table { border-collapse: separate; border-spacing: 0; }
+.admin-main th:first-child { border-top-left-radius: 12px; }
+.admin-main th:last-child { border-top-right-radius: 12px; }
+
+@media (max-width: 900px) {
+  .admin-brand-link { width: 100%; }
 }
 
 .admin-header {

@@ -1447,6 +1447,10 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   });
   await expect(storefrontPreview).toBeVisible();
   await expect(storefrontPreview.getByText("₹320", { exact: true })).toBeVisible();
+  await expect(storefrontPreview.locator(".store-preview-topline")).toContainText("Serving Delhi NCR");
+  await expect(storefrontPreview.getByText("BUILDING BETTER TOGETHER", { exact: true })).toBeVisible();
+  await expect(storefrontPreview.locator(".store-preview-actions")).toContainText("View details");
+  await expect(storefrontPreview.locator(".store-preview-moq")).toContainText("1 length");
   await page.getByLabel("Compare-at price / MRP (₹, optional)").fill("400");
   await page.getByLabel("Price note").fill("per length, GST extra");
   await page.getByLabel("Offer label").fill("October offer");
@@ -1495,6 +1499,8 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await expect(storefrontPreview.getByRole("heading", { name: "Starter CPVC Pipe" })).toBeVisible();
   await expect(storefrontPreview.getByText("Specifications", { exact: true })).toBeVisible();
   await expect(storefrontPreview.getByText("Applications", { exact: true })).toBeVisible();
+  await expect(storefrontPreview.locator(".store-preview-detail-order")).toBeVisible();
+  await expect(storefrontPreview.getByRole("button", { name: /Add to Material List/ })).toBeDisabled();
   await expect(storefrontPreview.getByText("1 L · White", { exact: true })).toBeVisible();
   expect(updatedBody).toBeUndefined();
   await page.getByRole("button", { name: "Save product" }).click();
@@ -3601,19 +3607,23 @@ test("admin keeps navigation available when a feature download fails", async ({
 test("owner reviews audit records and applies entity filters", async ({
   page,
 }) => {
+  let staffIdentityCalls = 0;
+  let overviewCalls = 0;
   await page.addInitScript(() =>
     sessionStorage.setItem("ms-staff-token", "feature-load-test"),
   );
   await page.route("**/api/auth/mode", (route) =>
     route.fulfill({ json: { demo: true } }),
   );
-  await page.route("**/api/auth/staff/me", (route) =>
-    route.fulfill({
+  await page.route("**/api/auth/staff/me", (route) => {
+    staffIdentityCalls += 1;
+    return route.fulfill({
       json: { name: "Owner", role: "SUPER_ADMIN", isDemo: true },
-    }),
-  );
-  await page.route("**/api/workspace/overview", (route) =>
-    route.fulfill({
+    });
+  });
+  await page.route("**/api/workspace/overview", (route) => {
+    overviewCalls += 1;
+    return route.fulfill({
       json: {
         customers: 0,
         newCustomers30Days: 0,
@@ -3621,8 +3631,8 @@ test("owner reviews audit records and applies entity filters", async ({
         closedFollowups: 0,
         demo: true,
       },
-    }),
-  );
+    });
+  });
   await page.route("**/api/analytics/overview**", (route) =>
     route.fulfill({
       json: {
@@ -3666,11 +3676,25 @@ test("owner reviews audit records and applies entity filters", async ({
       },
     });
   });
+  await page.route("**/api/admin/notifications?**", (route) =>
+    route.fulfill({ json: { items: [], total: 0, pageSize: 25 } }),
+  );
   await page.goto("http://127.0.0.1:4174");
   await page.getByRole("button", { name: "Audit log", exact: true }).click();
   await expect(
     page.getByRole("cell", { name: "QUOTATION_PUBLISHED", exact: true }),
   ).toBeVisible();
+  const rootRequestsAfterAuditOpened = { staffIdentityCalls, overviewCalls };
+  await page.getByRole("button", { name: "Notifications", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Notification status", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Audit log", exact: true }).click();
+  await expect(
+    page.getByRole("cell", { name: "QUOTATION_PUBLISHED", exact: true }),
+  ).toBeVisible();
+  expect(staffIdentityCalls).toBe(rootRequestsAfterAuditOpened.staffIdentityCalls);
+  expect(overviewCalls).toBe(rootRequestsAfterAuditOpened.overviewCalls);
   await page.getByLabel("Entity reference").fill("q1");
   await page.getByLabel("From date (IST)").fill("2026-10-04");
   await page.getByLabel("Through date (IST)").fill("2026-10-04");

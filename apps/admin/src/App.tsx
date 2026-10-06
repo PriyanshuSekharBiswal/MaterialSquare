@@ -1,5 +1,5 @@
 import { StaffLoginSchema } from "@material-square/types";
-import { lazy, useCallback, useEffect, useState, type FormEvent } from "react";
+import { lazy, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import CustomerFollowupWorkspace from "./features/customers/CustomerFollowupWorkspace";
 import type {
   Customer,
@@ -88,6 +88,10 @@ export function App() {
     [revision, setRevision] = useState(0);
   const [selected, setSelected] = useState<Customer | null>(null),
     [draft, setDraft] = useState<Followup | null>(null);
+  const staffRequestRef = useRef<{
+    token: string;
+    promise: Promise<AdminStaff>;
+  } | null>(null);
   const setToken = useCallback((value: string) => {
     setTokenState(value);
     try {
@@ -158,7 +162,9 @@ export function App() {
   useEffect(() => {
     if (!token) return;
     let active = true;
-    setLoading(true);
+    const needsWorkspaceData =
+      tab === "overview" || tab === "customers" || tab === "followups";
+    setLoading(needsWorkspaceData || !staff);
     setError("");
     setAnalyticsError("");
     const params = new URLSearchParams({
@@ -185,9 +191,32 @@ export function App() {
             return null;
           })
         : Promise.resolve(null);
+    let staffRequest: Promise<AdminStaff>;
+    if (staff) {
+      staffRequest = Promise.resolve(staff);
+    } else if (staffRequestRef.current?.token === token) {
+      staffRequest = staffRequestRef.current.promise;
+    } else {
+      staffRequest = request<AdminStaff>("/auth/staff/me");
+      staffRequestRef.current = { token, promise: staffRequest };
+      void staffRequest.then(
+        () => {
+          if (staffRequestRef.current?.promise === staffRequest)
+            staffRequestRef.current = null;
+        },
+        () => {
+          if (staffRequestRef.current?.promise === staffRequest)
+            staffRequestRef.current = null;
+        },
+      );
+    }
+    const summaryRequest =
+      tab === "overview" || tab === "followups"
+        ? request<Stats>("/workspace/overview")
+        : Promise.resolve(null);
     void Promise.all([
-      request<AdminStaff>("/auth/staff/me"),
-      request<Stats>("/workspace/overview"),
+      staffRequest,
+      summaryRequest,
       analyticsRequest,
       recentChangesRequest,
       tab === "customers"
@@ -198,8 +227,8 @@ export function App() {
     ])
       .then(([user, summary, analyticsResult, changesResult, result]) => {
         if (!active) return;
-        setStaff(user);
-        setStats(summary);
+        if (user) setStaff(user);
+        if (summary) setStats(summary);
         if (analyticsResult) setWebsiteAnalytics(analyticsResult);
         if (changesResult) setRecentChanges(changesResult);
         if (result && tab === "customers")

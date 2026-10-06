@@ -154,7 +154,6 @@ export default function AdminWorkspaceLayout({
           size={32}
           showText={true}
           lightMode={true}
-          badgeText="ADMIN"
         />
         <button
           className="mobile-menu-btn"
@@ -182,7 +181,7 @@ export default function AdminWorkspaceLayout({
             <MaterialSquareLogo
               size={38}
               showText={true}
-              lightMode={false}
+              lightMode={true}
               tagline="BUILDING BETTER TOGETHER"
             />
           </button>
