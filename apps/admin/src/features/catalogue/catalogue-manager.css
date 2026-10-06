@@ -1297,6 +1297,7 @@
 
 .catalogue-preview-overlay .catalogue-preview-device-frame {
   min-height: 0;
+  overflow: clip;
   border-color: #dfe5ed;
   border-radius: 15px;
   box-shadow: 0 20px 55px rgba(18, 31, 51, .16);
@@ -1907,6 +1908,17 @@
 .catalogue-preview-overlay .catalogue-preview-sitebar .ms-logo-brand-name { font-size: .92rem !important; }
 .catalogue-preview-overlay .catalogue-preview-sitebar .ms-logo-tagline { font-size: 7px !important; }
 .catalogue-preview-overlay .store-preview-topline { min-height: 34px; padding-inline: 18px; }
+.catalogue-preview-overlay .store-preview-topline {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+}
+.catalogue-preview-overlay .catalogue-preview-sitebar {
+  position: sticky;
+  top: 34px;
+  z-index: 7;
+  box-shadow: 0 5px 14px rgba(17, 32, 54, .06);
+}
 .catalogue-preview-overlay .store-preview-marketplace-grid { gap: 14px; }
 .catalogue-preview-overlay .store-preview-current-product { outline: 2px solid rgba(234, 88, 12, .4); outline-offset: 2px; }
 .catalogue-preview-overlay .store-preview-card { box-shadow: 0 7px 20px rgba(20, 35, 58, .055); }
@@ -1935,6 +1947,7 @@
   .catalogue-preview-overlay .catalogue-preview-stage { padding: 8px; }
   .catalogue-preview-overlay .preview-mobile .catalogue-preview-device-frame { min-height: 0; border-radius: 19px; }
   .catalogue-preview-overlay .preview-mobile .store-preview-topline { padding-inline: 9px; }
+  .catalogue-preview-overlay .preview-mobile .catalogue-preview-sitebar { top: 30px; }
   .catalogue-preview-overlay .preview-mobile .catalogue-preview-sitebar { min-height: 56px; padding-inline: 11px; }
 }
 

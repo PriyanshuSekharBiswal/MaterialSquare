@@ -159,6 +159,7 @@ export default function CatalogueManager({
   const [previewViewport, setPreviewViewport] = useState<"desktop" | "mobile">("desktop");
   const [previewOpen, setPreviewOpen] = useState(false);
   const productForm = useRef<HTMLFormElement>(null);
+  const previewStage = useRef<HTMLDivElement>(null);
   const canManage = ["SUPER_ADMIN", "ADMIN", "CATALOG_MANAGER"].includes(role);
 
   useEffect(() => {
@@ -169,6 +170,29 @@ export default function CatalogueManager({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [previewOpen]);
+
+  useEffect(() => {
+    if (!previewOpen) return;
+    const frame = window.requestAnimationFrame(() => {
+      const stage = previewStage.current;
+      if (!stage) return;
+      if (previewMode !== "card") {
+        stage.scrollTo({ top: 0, behavior: "instant" });
+        return;
+      }
+      const product = stage.querySelector<HTMLElement>(".store-preview-current-product");
+      if (!product) return;
+      const stickyHeaders = stage.querySelectorAll<HTMLElement>(".store-preview-topline, .catalogue-preview-sitebar");
+      const headerHeight = Array.from(stickyHeaders).reduce((height, header) => height + header.getBoundingClientRect().height, 0);
+      const stageTop = stage.getBoundingClientRect().top;
+      const productTop = product.getBoundingClientRect().top;
+      stage.scrollTo({
+        top: Math.max(0, stage.scrollTop + productTop - stageTop - headerHeight - 12),
+        behavior: "auto",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [previewOpen, previewMode, previewListing?.id]);
 
   const brands = [...new Set(listings.map((product) => product.brand).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b));
@@ -1208,7 +1232,7 @@ export default function CatalogueManager({
                 <button type="button" className="catalogue-preview-close" onClick={() => setPreviewOpen(false)} aria-label="Back to editing"><X size={17} /><span>Back to editing</span></button>
               </div>
             </header>
-            <div className="catalogue-preview-stage"><div className="catalogue-preview-device-frame">
+            <div className="catalogue-preview-stage" ref={previewStage}><div className="catalogue-preview-device-frame">
               <div className="store-preview-topline"><span>Serving Delhi NCR · Noida, Delhi, Gurugram, Ghaziabad & Faridabad</span><strong>☎ +91 77355 27252</strong></div>
               <div className="catalogue-preview-sitebar">
                 <MaterialSquareLogo size={52} lightMode={false} tagline="BUILDING BETTER TOGETHER" />
