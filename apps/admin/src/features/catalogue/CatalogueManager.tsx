@@ -1218,8 +1218,8 @@ export default function CatalogueManager({
               {previewMode === "card" && <div className="store-preview-breadcrumb"><span>Home</span><span>/</span><span>Marketplace</span><span>/</span><strong>{previewListing.categoryLabel || "Products"}</strong></div>}
               {previewMode === "card" ? <>
               <div className="store-preview-marketplace-intro">
-                <div><span className="store-preview-kicker">CONSTRUCTION MATERIALS CATALOGUE</span><h2>Your marketplace listing</h2><p>This is how customers see this product before they open its details.</p></div>
-                <span className="store-preview-layout-label"><span aria-hidden="true" /> {previewViewport === "desktop" ? "Desktop product card" : "Mobile product card"}</span>
+                <div><span className="store-preview-kicker">MATERIAL SQUARE MARKETPLACE</span><h2>Construction Materials Catalog</h2><p>Search products by name, brand, colour, finish or pack size.</p></div>
+                <span className="store-preview-layout-label"><span aria-hidden="true" /> {previewViewport === "desktop" ? "Desktop catalogue grid" : "Mobile catalogue"}</span>
               </div>
               <div className="store-preview-filter-context" aria-label="Marketplace search and filters preview">
                 <span className="store-preview-search"><Search size={15} /> Search materials, brands or product codes</span>
@@ -1250,18 +1250,28 @@ export default function CatalogueManager({
                 <div className="store-preview-actions"><button type="button" disabled><Info size={13} /> View details</button><button type="button" disabled><PackagePlus size={13} /> {previewListing.variants.length || previewListing.specifications.sizes ? "Choose options" : "Add to quote list"}</button><button type="button" disabled aria-label="Ask on WhatsApp"><Phone size={14} /></button></div>
               </div>
             </article>
-            {previewGridNeighbors.map((listing) => <article className="store-preview-card store-preview-context-product" key={listing.id}>
+            {previewGridNeighbors.map((listing) => {
+              const listingPrice = listing.price || listing.variants.find((variant) => variant.price != null && variant.price !== "")?.price || null;
+              const listingStatus = listing.availabilityStatus || (listing.isInStock ? "IN_STOCK" : "CHECK_AVAILABILITY");
+              const listingFeatures = listing.features || [];
+              return <article className="store-preview-card store-preview-context-product" key={listing.id}>
               <div className="store-preview-media">
                 <StorefrontPreviewImage src={listing.image || listing.galleryImages[0] || ""} alt={listing.name || "Published product"} />
                 <span className="store-preview-category">{listing.categoryLabel || "Category"}</span>
+                <span className={`store-preview-stock ${listingStatus === "IN_STOCK" ? "available" : ""}`}>{listingStatus === "IN_STOCK" ? "In stock" : listingStatus === "OUT_OF_STOCK" ? "Out of stock" : "Check availability"}</span>
+                {listing.offerLabel && <span className="store-preview-offer">{listing.offerLabel}</span>}
               </div>
               <div className="store-preview-card-body">
-                <div className="store-preview-brand-line"><strong>{listing.brand || "Brand"}</strong>{listing.code && <span>{listing.code}</span>}</div>
+                <div className="store-preview-brand-line"><div className="store-preview-brand-title"><span className="store-preview-brand-mark" aria-hidden="true">{(listing.brand || "B").slice(0, 1).toUpperCase()}</span><strong>{listing.brand || "Brand"}</strong></div>{listing.code && <span>{listing.code}</span>}</div>
                 <h3>{listing.name || "Product name"}</h3>
                 {(listing.grade || listing.specifications.sizes) && <p className="store-preview-unit">{listing.grade || `Size guide: ${listing.specifications.sizes}`}</p>}
-                <div className="store-preview-price-row"><div><span className="store-preview-price-caption">{listing.priceNote && /reference/i.test(listing.priceNote) ? "Online reference price" : "Price per unit"}</span><div className="store-preview-price">{listing.price ? <><strong>₹{Number(listing.price).toLocaleString("en-IN")}</strong><span> / {listing.unit || "unit"}</span></> : <strong>Request a quote</strong>}</div></div><span className="store-preview-moq">MOQ: {listing.minOrderQty || "Confirm"}</span></div>
+                {listingFeatures.length > 0 && <ul>{listingFeatures.slice(0, 2).map((feature, index) => <li key={`${feature}-${index}`}><span className="store-preview-check">✓</span><span>{feature}</span></li>)}</ul>}
+                <div className="store-preview-product-specs"><div><span>Packaging</span><strong>{listing.packaging || listing.unit || "Add packaging"}</strong></div>{listing.specifications.standard && <div><span>IS Standard</span><strong>{listing.specifications.standard}</strong></div>}</div>
+                <div className="store-preview-price-row"><div><span className="store-preview-price-caption">{listing.priceNote && /reference/i.test(listing.priceNote) ? "Online reference price" : listingPrice ? "Price per unit" : "Wholesale pricing"}</span><div className="store-preview-price">{listingPrice ? <><strong>₹{Number(listingPrice).toLocaleString("en-IN")}</strong><span> / {listing.unit || "unit"}</span></> : <strong>Request a quote</strong>}</div>{listingPrice && <small>{listing.priceNote || "Final availability, GST and delivery charges confirmed by staff."}</small>}</div><span className="store-preview-moq">MOQ: {listing.minOrderQty || "Confirm"}</span></div>
+                <div className="store-preview-actions"><button type="button" disabled><Info size={13} /> View details</button><button type="button" disabled><PackagePlus size={13} /> {listing.variants.length || listing.specifications.sizes ? "Choose options" : "Add to quote list"}</button><button type="button" disabled aria-label="Ask on WhatsApp"><Phone size={14} /></button></div>
               </div>
-            </article>)}
+            </article>;
+            })}
             </div>
             </> : <article className="store-preview-detail">
               <div className="store-preview-detail-breadcrumb"><span>Home</span><span>/</span><span>{previewListing.brand || "Brand"}</span><span>/</span><strong>{previewListing.name || "Product details"}</strong></div>
