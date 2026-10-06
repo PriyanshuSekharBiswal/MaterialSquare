@@ -36,6 +36,18 @@
   color: var(--ms-slate-600);
 }
 
+.content-image-preview {
+  display: block;
+  width: auto;
+  max-width: min(100%, 320px);
+  max-height: 220px;
+  margin: 12px 0;
+  border: 1px solid var(--ms-slate-200);
+  border-radius: 10px;
+  background: #f8fafc;
+  object-fit: contain;
+}
+
 .material-row {
   display: grid;
   grid-template-columns: 2fr 1.2fr 0.8fr 1fr 1.6fr auto;

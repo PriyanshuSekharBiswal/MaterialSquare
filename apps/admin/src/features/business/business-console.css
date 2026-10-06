@@ -3,7 +3,6 @@
 
 fieldset.bc-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 
-.content-image-preview { display: block; max-width: 240px; max-height: 180px; object-fit: contain; margin: 12px 0; }
 
 .procurement-table { width:100%; overflow-x:auto; }
 .procurement-table table { width:100%; border-collapse:collapse; text-align:left; }
