@@ -1211,15 +1211,15 @@ export default function CatalogueManager({
             <div className="catalogue-preview-stage"><div className="catalogue-preview-device-frame">
               <div className="store-preview-topline"><span>Serving Delhi NCR · Noida, Delhi, Gurugram, Ghaziabad & Faridabad</span><strong>☎ +91 77355 27252</strong></div>
               <div className="catalogue-preview-sitebar">
-                <MaterialSquareLogo size={44} lightMode={false} tagline="BUILDING BETTER TOGETHER" />
+                <MaterialSquareLogo size={52} lightMode={false} tagline="BUILDING BETTER TOGETHER" />
                 <nav aria-label="Preview storefront navigation"><span>Home</span><span className="is-current">Marketplace</span><span>Why Us</span><span>Tools &amp; Guides</span><span>Blogs</span><span>Experts</span><span>Contact</span></nav>
                 <div className="store-preview-nav-actions"><span title="Material List"><FileText size={15} /></span><span><Users size={14} /> Account</span><strong>Get Quote <ArrowRight size={13} /></strong></div>
               </div>
               {previewMode === "card" && <div className="store-preview-breadcrumb"><span>Home</span><span>/</span><span>Marketplace</span><span>/</span><strong>{previewListing.categoryLabel || "Products"}</strong></div>}
               {previewMode === "card" ? <>
               <div className="store-preview-marketplace-intro">
-                <div><span className="store-preview-kicker">CONSTRUCTION MATERIALS CATALOGUE</span><h2>Explore products</h2><p>Review how this listing sits in the customer marketplace.</p></div>
-                <span className="store-preview-layout-label"><span aria-hidden="true" /> Marketplace card · {previewViewport === "desktop" ? "Desktop grid" : "Mobile layout"}</span>
+                <div><span className="store-preview-kicker">CONSTRUCTION MATERIALS CATALOGUE</span><h2>Your marketplace listing</h2><p>This is how customers see this product before they open its details.</p></div>
+                <span className="store-preview-layout-label"><span aria-hidden="true" /> {previewViewport === "desktop" ? "Desktop product card" : "Mobile product card"}</span>
               </div>
               <div className="store-preview-filter-context" aria-label="Marketplace search and filters preview">
                 <span className="store-preview-search"><Search size={15} /> Search materials, brands or product codes</span>

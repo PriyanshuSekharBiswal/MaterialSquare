@@ -2183,3 +2183,75 @@ textarea:focus {
   .admin-main { padding: 15px 12px 28px; }
   .admin-header { padding: 15px 13px 15px 17px; }
 }
+
+/* Final brand layer: keep the console logo crisp on the same navy used by the
+   Material Square storefront, and give the workspace a calmer, consistent frame. */
+.admin-sidebar {
+  background: linear-gradient(180deg, #101a2e 0%, #0b1323 100%);
+  border-right: 1px solid rgba(148, 163, 184, .13);
+}
+
+.admin-brand {
+  min-height: 100px;
+  padding: 15px 18px;
+  background: linear-gradient(110deg, rgba(255,255,255,.045), transparent 78%);
+}
+
+.admin-brand-link,
+.admin-brand-link:hover,
+.admin-brand-link:focus-visible {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 4px 0;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.admin-brand-link .ms-logo-wrapper { gap: 10px !important; }
+.admin-brand-link .ms-logo-svg { filter: none !important; }
+.admin-brand-link .ms-logo-brand-name { font-size: 1.1rem !important; letter-spacing: .075em !important; }
+.admin-brand-link .ms-logo-tagline { color: #aab6c8 !important; }
+
+.admin-header {
+  padding-bottom: 20px;
+  border-bottom-color: #e2e8f0;
+}
+
+.admin-breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin-bottom: 2px;
+  color: #738198;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.admin-breadcrumb strong { color: #c2410c; font-weight: 800; }
+.admin-page-description { max-width: 66ch; color: #6b778a; }
+.admin-header-actions .btn-sm { box-shadow: 0 2px 5px rgba(15, 23, 42, .04); }
+
+.nav-group-title { color: #8a98ad; font-size: 10px; }
+.nav-item { color: #bac5d5; }
+.nav-item:hover { color: #fff; background: rgba(255,255,255,.055); }
+.nav-item.active { color: #ffb17e; }
+.sidebar-staff-card { background: rgba(255,255,255,.045); }
+.sidebar-footer { background: linear-gradient(180deg, rgba(11,19,35,0), #0b1323 18%); }
+
+.admin-main .panel-card,
+.admin-main .workspace-record,
+.admin-main .kpi-card {
+  border-color: #e3e8f0;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(20, 35, 58, .045), 0 1px 2px rgba(20, 35, 58, .025);
+}
+
+.admin-main th { color: #65748b; background: #f7f9fc; }
+.admin-main td { color: #344258; }
+
+@media (max-width: 900px) {
+  .admin-brand-link { width: 100%; }
+}
