@@ -1937,3 +1937,33 @@
   .catalogue-preview-overlay .preview-mobile .store-preview-topline { padding-inline: 9px; }
   .catalogue-preview-overlay .preview-mobile .catalogue-preview-sitebar { min-height: 56px; padding-inline: 11px; }
 }
+
+/* The preview viewport can be mobile-sized inside a desktop window. Keep its
+   product detail layout responsive to the selected device, not the browser. */
+.catalogue-preview-overlay .preview-mobile .store-preview-detail {
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  gap: 15px;
+  padding: 14px;
+}
+
+.catalogue-preview-overlay .preview-mobile .store-preview-detail > *,
+.catalogue-preview-overlay .preview-mobile .store-preview-detail-copy,
+.catalogue-preview-overlay .preview-mobile .store-preview-detail-order {
+  min-width: 0;
+}
+
+.catalogue-preview-overlay .preview-mobile .store-preview-detail-order {
+  grid-column: auto;
+  position: static;
+}
+
+.catalogue-preview-overlay .preview-mobile .store-preview-detail-breadcrumb {
+  margin: -14px -14px 1px;
+}
+
+.catalogue-preview-overlay .preview-mobile .store-preview-detail-copy h2 {
+  overflow-wrap: anywhere;
+}
