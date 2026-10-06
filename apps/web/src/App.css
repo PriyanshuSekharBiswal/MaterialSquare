@@ -7989,6 +7989,8 @@
 .marketplace-page .products-directory-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); justify-content: stretch; gap: 1.15rem; }
 .marketplace-page .catalog-product-card { width: auto; max-width: none; min-width: 0; flex-basis: auto; border-radius: 16px; border-color: #e6eaf0; box-shadow: 0 8px 24px rgba(20, 35, 58, .045); }
 .marketplace-page .catalog-product-card:hover { transform: translateY(-3px); box-shadow: 0 16px 34px rgba(20, 35, 58, .1); }
+.marketplace-page .catalog-product-card[tabindex="0"] { cursor: pointer; }
+.marketplace-page .catalog-product-card[tabindex="0"]:focus-visible { outline: 3px solid var(--ms-primary); outline-offset: 3px; }
 .marketplace-page .product-media-box { height: 205px; cursor: pointer; }
 .marketplace-page .product-media-box:focus-visible { outline: 3px solid var(--ms-primary); outline-offset: -3px; }
 .marketplace-page .product-media-box img { transition: transform .35s ease; }

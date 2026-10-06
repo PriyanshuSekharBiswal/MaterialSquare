@@ -11,6 +11,7 @@ import useSmoothScroll from './hooks/useSmoothScroll';
 import { trackWebsiteEvent } from './analytics';
 import { SiteContentProvider, useSiteContent } from './site-content';
 import { whatsappLink } from './messages';
+import { prefetchPublicContent } from './public-content-cache';
 
 // Global Shell Components
 import Header from './components/Header';
@@ -63,6 +64,14 @@ function AppShell() {
   const [catalogueLoaded, setCatalogueLoaded] = useState(false);
   const [catalogueUnavailable, setCatalogueUnavailable] = useState(false);
   const [catalogueRetry, setCatalogueRetry] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      prefetchPublicContent("/blogs");
+      prefetchPublicContent("/experts");
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();

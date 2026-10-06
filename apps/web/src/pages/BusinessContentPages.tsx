@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { loadPublicContent, readPublicContent } from "../public-content-cache";
 
 type BlogPost = {
   id: string;
@@ -25,19 +26,22 @@ type Expert = {
 };
 
 function usePublicData<T>(url: string) {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<T | null>(() => readPublicContent<T>(url));
+  const [loading, setLoading] = useState(() => readPublicContent<T>(url) === null);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
   const retry = useCallback(() => setRevision(value => value + 1), []);
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true); setError(""); setData(null);
-    fetch(`${import.meta.env.VITE_API_URL || "/api"}${url}`, { headers: { Accept: "application/json" }, signal: controller.signal })
-      .then(async response => {
-        if (!response.ok) throw new Error(response.status === 404 ? "This content is not available." : "We could not load this content. Please try again.");
-        return response.json() as Promise<T>;
-      })
+    const cached = readPublicContent<T>(url);
+    if (cached !== null) {
+      setData(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    setError("");
+    loadPublicContent<T>(url, revision > 0)
       .then(result => { if (!controller.signal.aborted) setData(result); })
       .catch(cause => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "We could not load this content."); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });

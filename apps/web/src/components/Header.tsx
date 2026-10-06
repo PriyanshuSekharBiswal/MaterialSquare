@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import MaterialSquareLogo from "./icons/MaterialSquareLogo";
 import { useSiteContent } from "../site-content";
+import { prefetchRoute } from "../route-preload";
 
 export default function Header({
   bomCount,
@@ -84,6 +85,8 @@ export default function Header({
                   key={entry.id}
                   to={entry.path}
                   end={entry.path === "/"}
+                  onPointerEnter={() => prefetchRoute(entry.path)}
+                  onFocus={() => prefetchRoute(entry.path)}
                   className={({ isActive }) =>
                     `nav-link ${isActive ? "active" : ""}`
                   }
@@ -162,6 +165,8 @@ export default function Header({
                   to={entry.path}
                   end={entry.path === "/"}
                   onClick={closeMenu}
+                  onPointerEnter={() => prefetchRoute(entry.path)}
+                  onFocus={() => prefetchRoute(entry.path)}
                   className="mobile-nav-item"
                 >
                   {entry.label}

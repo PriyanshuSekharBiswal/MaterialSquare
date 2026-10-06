@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   MapPin,
   Navigation,
@@ -94,6 +95,11 @@ export default function DirectionGoogleMaps({ className = '' }) {
   const [activeRoute, setActiveRoute] = useState<(typeof ROAD_ROUTES)[number] | null>(null);
   const [isOfficeModalOpen, setIsOfficeModalOpen] = useState(false);
   const [mapTheme, setMapTheme] = useState<'clean' | 'dark' | 'satellite'>('clean'); // 'clean' | 'dark' | 'satellite'
+  const [mapZoom, setMapZoom] = useState(1);
+  const mapViewWidth = 1000 / mapZoom;
+  const mapViewHeight = 620 / mapZoom;
+  const mapViewX = Math.min(1000 - mapViewWidth, Math.max(0, OFFICE_HUB.svgPos.x - mapViewWidth / 2));
+  const mapViewY = Math.min(620 - mapViewHeight, Math.max(0, OFFICE_HUB.svgPos.y - mapViewHeight / 2));
   const officeAddress = siteContent['contact.officeAddress'].trim();
   const serviceArea = siteContent['contact.location'].trim();
   const officeDestination = officeAddress;
@@ -125,6 +131,20 @@ export default function DirectionGoogleMaps({ className = '' }) {
     observer.observe(section);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (!isOfficeModalOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOfficeModalOpen(false);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOfficeModalOpen]);
 
   // Open Google Maps only after the client has configured a destination.
   const handleOpenGoogleMaps = (cityName = '') => {
@@ -235,7 +255,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
             <svg
               ref={mapSvgRef}
               className="gmaps-vector-svg"
-              viewBox="0 0 1000 620"
+              viewBox={`${mapViewX} ${mapViewY} ${mapViewWidth} ${mapViewHeight}`}
               preserveAspectRatio="xMidYMid meet"
                 aria-label={officeAddress ? `Illustrated delivery routes around ${officeName}` : 'Illustrated delivery service area map'}
             >
@@ -699,12 +719,13 @@ export default function DirectionGoogleMaps({ className = '' }) {
             </div>
 
             {/* Floating Compass & Zoom Buttons */}
-            <div className="gmaps-overlay-controls" aria-hidden="true">
+            <div className="gmaps-overlay-controls">
               <button
                 type="button"
                 className="gmaps-ctrl-btn compass-btn"
-                title="Google Maps Compass"
-                onClick={() => handleOpenGoogleMaps()}
+                title="Reset map view"
+                aria-label="Reset map view"
+                onClick={() => { setMapZoom(1); setActiveRoute(null); }}
               >
                 <Compass size={18} color="#ea4335" />
               </button>
@@ -712,16 +733,20 @@ export default function DirectionGoogleMaps({ className = '' }) {
                 <button
                   type="button"
                   className="gmaps-ctrl-btn"
-                  title="Zoom into Office"
-                  onClick={() => handleOpenGoogleMaps()}
+                  title="Zoom into office"
+                  aria-label="Zoom into office"
+                  disabled={mapZoom >= 2.5}
+                  onClick={() => setMapZoom((zoom) => Math.min(2.5, zoom * 1.25))}
                 >
                   <Plus size={18} />
                 </button>
                 <button
                   type="button"
                   className="gmaps-ctrl-btn"
-                  title="Zoom Out"
-                  onClick={() => handleOpenGoogleMaps()}
+                  title="Zoom out"
+                  aria-label="Zoom out"
+                  disabled={mapZoom <= 1}
+                  onClick={() => setMapZoom((zoom) => Math.max(1, zoom / 1.25))}
                 >
                   <Minus size={18} />
                 </button>
@@ -763,7 +788,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
         </div>
 
         {/* Office Details Modal (When User Clicks the Pin or Office Details) */}
-        {isOfficeModalOpen && (
+        {isOfficeModalOpen && createPortal((
           <div className="office-modal-backdrop" onClick={() => setIsOfficeModalOpen(false)}>
             <div
               className="office-modal-card animate-scale-up"
@@ -836,7 +861,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
               </div>
             </div>
           </div>
-        )}
+        ), document.body)}
       </div>
     </section>
   );

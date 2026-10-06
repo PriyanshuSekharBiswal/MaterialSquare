@@ -508,7 +508,22 @@ export default function MarketplacePage({
                     ? 'OUT_OF_STOCK'
                     : 'CHECK_AVAILABILITY';
                 return (
-                    <article key={product.id} className="catalog-product-card">
+                    <article
+                      key={product.id}
+                      className="catalog-product-card"
+                      tabIndex={0}
+                      aria-label={`Open product details for ${product.name}`}
+                      onClick={(event) => {
+                        const target = event.target;
+                        if (target instanceof Element && target.closest('a, button, input, select, textarea, [role="button"]')) return;
+                        onOpenProduct(product, searchQuery);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
+                        event.preventDefault();
+                        onOpenProduct(product, searchQuery);
+                      }}
+                    >
                     {/* Top Image & Category Pill */}
                     <Link className="product-media-box" to={productHref} aria-label={`View ${product.name}`}>
                       <ProductImage src={cardImage} alt={product.name} />
