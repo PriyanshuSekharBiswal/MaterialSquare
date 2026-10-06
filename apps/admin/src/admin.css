@@ -1055,6 +1055,19 @@ button:disabled,
   margin-bottom: 16px;
 }
 
+.notification-readiness-notice {
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  margin: 16px 0;
+}
+
+.notification-readiness-notice p {
+  margin-top: 6px;
+}
+
 /* Tables */
 .table-scroll {
   overflow-x: auto;

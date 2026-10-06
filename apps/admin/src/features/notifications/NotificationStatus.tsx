@@ -8,12 +8,46 @@ type Entry = {
   skipReason: string | null;
 };
 type Page = { items: Entry[]; total: number; pageSize: number };
+type Readiness = {
+  ready: boolean;
+  missingRequired: string[];
+  webhookTokenConfigured: boolean;
+};
 export default function NotificationStatus({ token }: { token: string }) {
   const [filters, setFilters] = useState({ status: "", type: "" });
   const [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
   const [result, setResult] = useState<Page | null>(null);
   const [error, setError] = useState("");
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [readinessError, setReadinessError] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    async function loadReadiness() {
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL || "/api"}/admin/notifications/readiness`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          },
+        );
+        if (!response.ok)
+          throw new Error("Could not check notification setup.");
+        const data: Readiness = await response.json();
+        if (!controller.signal.aborted) setReadiness(data);
+      } catch (cause) {
+        if (!controller.signal.aborted)
+          setReadinessError(
+            cause instanceof Error
+              ? cause.message
+              : "Could not check notification setup.",
+          );
+      }
+    }
+    void loadReadiness();
+    return () => controller.abort();
+  }, [token]);
   useEffect(() => {
     const controller = new AbortController();
     setResult(null);
@@ -62,6 +96,21 @@ export default function NotificationStatus({ token }: { token: string }) {
         Queued jobs await the configured provider. Delivered means the provider
         accepted the request; recipient delivery is not confirmed here.
       </p>
+      {readinessError ? <p role="status">{readinessError}</p> : null}
+      {readiness && !readiness.ready ? (
+        <aside className="notification-readiness-notice" role="status">
+          <strong>Notification delivery is not configured.</strong>
+          <p>
+            Jobs stay pending until an administrator configures: {readiness.missingRequired.join(", ")}.
+            {readiness.webhookTokenConfigured
+              ? ""
+              : " The optional NOTIFICATION_WEBHOOK_TOKEN is also not set."}
+          </p>
+          <p>Secret values are never shown in this screen.</p>
+        </aside>
+      ) : readiness?.ready ? (
+        <p role="status">Notification worker configuration is present.</p>
+      ) : null}
       <form onSubmit={applyFilters} className="filter-bar">
         <label>
           Notification outcome

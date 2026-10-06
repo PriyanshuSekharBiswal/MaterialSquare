@@ -10,6 +10,20 @@ import { validate } from "../common/validation";
 export class NotificationStatusController {
   constructor(private readonly prisma: PrismaService) {}
 
+  @Get("readiness")
+  readiness() {
+    const missingRequired = ["REDIS_URL", "NOTIFICATION_WEBHOOK_URL"].filter(
+      (key) => !process.env[key]?.trim(),
+    );
+    return {
+      ready: missingRequired.length === 0,
+      missingRequired,
+      webhookTokenConfigured: Boolean(
+        process.env.NOTIFICATION_WEBHOOK_TOKEN?.trim(),
+      ),
+    };
+  }
+
   @Get()
   async list(@Query() query: unknown) {
     const { page, status, type } = validate(
