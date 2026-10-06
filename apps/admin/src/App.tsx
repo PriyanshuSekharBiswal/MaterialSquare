@@ -1,5 +1,12 @@
 import { StaffLoginSchema } from "@material-square/types";
-import { lazy, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  lazy,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import CustomerFollowupWorkspace from "./features/customers/CustomerFollowupWorkspace";
 import type {
   Customer,
@@ -11,10 +18,15 @@ import { blankFollowup } from "./features/customers/contracts";
 import AdminWorkspaceLayout, {
   type AdminStaff,
 } from "./components/AdminWorkspaceLayout";
+import type { AdminSearchRecord } from "./components/GlobalAdminSearch";
 import "./workspace.css";
 import FeatureBoundary from "./components/FeatureBoundary";
 import WorkspaceOverview from "./features/overview/WorkspaceOverview";
-import type { RecentChanges, Stats, WebsiteAnalytics } from "./features/overview/contracts";
+import type {
+  RecentChanges,
+  Stats,
+  WebsiteAnalytics,
+} from "./features/overview/contracts";
 import StaffLogin from "./features/auth/StaffLogin";
 
 const NotificationStatus = lazy(
@@ -160,6 +172,95 @@ export function App() {
     },
     [token, setToken],
   );
+  const searchAdminRecords = useCallback(
+    async (term: string): Promise<AdminSearchRecord[]> => {
+      const normalized = term.trim().toLocaleLowerCase();
+      if (normalized.length < 2 || !staff) return [];
+      const canSearchProducts = [
+        "SUPER_ADMIN",
+        "ADMIN",
+        "SALES_MANAGER",
+        "CATALOG_MANAGER",
+      ].includes(staff.role);
+      const canSearchCustomers = [
+        "SUPER_ADMIN",
+        "ADMIN",
+        "SALES_MANAGER",
+      ].includes(staff.role);
+      const terms = normalized.split(/\s+/).filter(Boolean);
+      const matches = (values: Array<string | null | undefined>) => {
+        const haystack = values.filter(Boolean).join(" ").toLocaleLowerCase();
+        return terms.every((part) => haystack.includes(part));
+      };
+      const requests: Promise<AdminSearchRecord[]>[] = [];
+      if (canSearchProducts) {
+        requests.push(
+          request<
+            Array<{
+              name: string;
+              brand?: string | null;
+              categoryLabel?: string | null;
+              code?: string | null;
+              isPublished?: boolean;
+            }>
+          >("/products/catalogue")
+            .then((products) =>
+              products
+                .filter((product) =>
+                  matches([
+                    product.name,
+                    product.brand,
+                    product.categoryLabel,
+                    product.code,
+                  ]),
+                )
+                .slice(0, 4)
+                .map((product) => ({
+                  kind: "product" as const,
+                  title: product.name,
+                  description: [
+                    product.brand,
+                    product.categoryLabel,
+                    product.code,
+                    product.isPublished ? "Published" : "Draft",
+                  ]
+                    .filter(Boolean)
+                    .join(" · "),
+                  query: product.name,
+                })),
+            )
+            .catch(() => []),
+        );
+      }
+      if (canSearchCustomers) {
+        const params = new URLSearchParams({
+          q: term.trim(),
+          page: "1",
+          status: "",
+        });
+        requests.push(
+          request<Page<Customer>>(`/workspace/customers?${params}`)
+            .then((result) =>
+              result.items.slice(0, 3).map((customer) => ({
+                kind: "customer" as const,
+                title: customer.name,
+                description: [
+                  customer.phone,
+                  customer.companyName,
+                  customer.city,
+                ]
+                  .filter(Boolean)
+                  .join(" · "),
+                query: customer.phone || customer.name,
+              })),
+            )
+            .catch(() => []),
+        );
+      }
+      return (await Promise.all(requests)).flat();
+    },
+    [request, staff],
+  );
   useEffect(() => {
     if (!token) return;
     let active = true;
@@ -183,14 +284,16 @@ export function App() {
         : Promise.resolve(null);
     const recentChangesRequest =
       tab === "overview"
-        ? request<RecentChanges>("/admin/audit/recent").then((changes) => {
-            if (active) setRecentChangesError("");
-            return changes;
-          }).catch(() => {
-            if (active)
-              setRecentChangesError("Recent changes could not be loaded.");
-            return null;
-          })
+        ? request<RecentChanges>("/admin/audit/recent")
+            .then((changes) => {
+              if (active) setRecentChangesError("");
+              return changes;
+            })
+            .catch(() => {
+              if (active)
+                setRecentChangesError("Recent changes could not be loaded.");
+              return null;
+            })
         : Promise.resolve(null);
     let staffRequest: Promise<AdminStaff>;
     if (staff) {
@@ -360,6 +463,7 @@ export function App() {
           setSearch(term || "");
         }
       }}
+      onSearchRecords={searchAdminRecords}
       onMobileNavChange={setMobileNavOpen}
       onRefresh={() => {
         setRevision((value) => value + 1);

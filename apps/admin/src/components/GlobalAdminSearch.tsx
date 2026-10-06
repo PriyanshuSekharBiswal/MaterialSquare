@@ -152,16 +152,29 @@ type Suggestion = Destination & {
   query?: string;
 };
 
+export type AdminSearchRecord = {
+  kind: "product" | "customer";
+  title: string;
+  description: string;
+  query: string;
+};
+
 export default function GlobalAdminSearch({
   role,
   onSelect,
+  searchRecords,
 }: {
   role: string;
   onSelect: (tab: WorkspaceTab, query?: string) => void;
+  searchRecords: (query: string) => Promise<AdminSearchRecord[]>;
 }) {
   const [value, setValue] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  const [recordSuggestions, setRecordSuggestions] = useState<
+    AdminSearchRecord[]
+  >([]);
+  const [recordsLoading, setRecordsLoading] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const normalized = value.trim().toLocaleLowerCase();
@@ -169,6 +182,31 @@ export default function GlobalAdminSearch({
     () => destinations.filter((item) => permitted(item.id, role)),
     [role],
   );
+  useEffect(() => {
+    if (!open || normalized.length < 2) {
+      setRecordSuggestions([]);
+      setRecordsLoading(false);
+      return;
+    }
+    let current = true;
+    const timeout = window.setTimeout(() => {
+      setRecordsLoading(true);
+      void searchRecords(value.trim())
+        .then((records) => {
+          if (current) setRecordSuggestions(records);
+        })
+        .catch(() => {
+          if (current) setRecordSuggestions([]);
+        })
+        .finally(() => {
+          if (current) setRecordsLoading(false);
+        });
+    }, 180);
+    return () => {
+      current = false;
+      window.clearTimeout(timeout);
+    };
+  }, [normalized, open, searchRecords, value]);
   const suggestions = useMemo<Suggestion[]>(() => {
     if (!normalized)
       return allowed
@@ -232,8 +270,17 @@ export default function GlobalAdminSearch({
             description: item.detail,
             query: value.trim(),
           }));
-    return [...ranked, ...queryDestinations].slice(0, 6);
-  }, [allowed, normalized, value]);
+    const records = recordSuggestions.map((record) => ({
+      ...(destinations.find(
+        (item) =>
+          item.id === (record.kind === "product" ? "catalogue" : "customers"),
+      ) as Destination),
+      title: record.title,
+      description: record.description,
+      query: record.query,
+    }));
+    return [...records, ...ranked, ...queryDestinations].slice(0, 7);
+  }, [allowed, normalized, recordSuggestions, value]);
 
   useEffect(() => {
     const onShortcut = (event: KeyboardEvent) => {
@@ -316,7 +363,7 @@ export default function GlobalAdminSearch({
           aria-label="Admin search suggestions"
         >
           <div className="admin-search-popover-heading">
-            {normalized ? "SUGGESTED DESTINATIONS" : "QUICK ACCESS"}
+            {normalized ? "MATCHING RECORDS & DESTINATIONS" : "QUICK ACCESS"}
           </div>
           {suggestions.length ? (
             suggestions.map((suggestion, index) => {
@@ -348,8 +395,15 @@ export default function GlobalAdminSearch({
             <div className="admin-search-empty">
               <Search size={17} />
               <span>
-                No matching section. Try a product, customer, quote or page.
+                {recordsLoading
+                  ? "Searching products and customers…"
+                  : "No matching records. Try a product, customer, quote or page."}
               </span>
+            </div>
+          )}
+          {recordsLoading && suggestions.length > 0 && (
+            <div className="admin-search-loading" role="status">
+              Searching records…
             </div>
           )}
           <div className="admin-search-footer">

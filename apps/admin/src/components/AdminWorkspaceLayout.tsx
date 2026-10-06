@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import type { WorkspaceTab } from "../features/customers/contracts";
 import MaterialSquareLogo from "./MaterialSquareLogo";
-import GlobalAdminSearch from "./GlobalAdminSearch";
+import GlobalAdminSearch, { type AdminSearchRecord } from "./GlobalAdminSearch";
 
 export type AdminStaff = {
   name: string;
@@ -140,6 +140,7 @@ type AdminWorkspaceLayoutProps = {
   children: ReactNode;
   onNavigate: (tab: WorkspaceTab) => void;
   onSearchNavigate: (tab: WorkspaceTab, query?: string) => void;
+  onSearchRecords: (query: string) => Promise<AdminSearchRecord[]>;
   onMobileNavChange: (open: boolean) => void;
   onRefresh: () => void;
   onSignOut: () => void;
@@ -159,6 +160,7 @@ export default function AdminWorkspaceLayout({
   children,
   onNavigate,
   onSearchNavigate,
+  onSearchRecords,
   onMobileNavChange,
   onRefresh,
   onSignOut,
@@ -171,11 +173,7 @@ export default function AdminWorkspaceLayout({
   return (
     <div className="admin-layout">
       <div className="mobile-top-bar">
-        <MaterialSquareLogo
-          size={32}
-          showText={true}
-          lightMode={false}
-        />
+        <MaterialSquareLogo size={32} showText={true} lightMode={false} />
         <button
           className="mobile-menu-btn"
           onClick={() => onMobileNavChange(!mobileNavOpen)}
@@ -284,12 +282,20 @@ export default function AdminWorkspaceLayout({
       <main className="admin-main">
         <header className="admin-header">
           <div className="header-left">
-            <div className="admin-breadcrumb"><span>Material Square</span><span aria-hidden="true">/</span><strong>Operations</strong></div>
+            <div className="admin-breadcrumb">
+              <span>Material Square</span>
+              <span aria-hidden="true">/</span>
+              <strong>Operations</strong>
+            </div>
             <h1>{pageTitle(tab)}</h1>
             <p className="admin-page-description">{pageDescription(tab)}</p>
           </div>
           <div className="admin-header-actions">
-            <GlobalAdminSearch role={staff.role} onSelect={onSearchNavigate} />
+            <GlobalAdminSearch
+              role={staff.role}
+              onSelect={onSearchNavigate}
+              searchRecords={onSearchRecords}
+            />
             <button
               className="btn-sm btn-secondary"
               disabled={loading || busy}
