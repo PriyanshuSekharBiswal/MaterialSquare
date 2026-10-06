@@ -22,9 +22,11 @@ const PREVIEW_MESSAGE = "material-square:site-content-preview";
 export default function WebsiteContentManager({
   token,
   onSignOut,
+  customerUrl,
 }: {
   token: string;
   onSignOut: () => void;
+  customerUrl: string;
 }) {
   const [content, setContent] = useState<SiteContent>({
     ...SITE_CONTENT_DEFAULTS,
@@ -94,9 +96,7 @@ export default function WebsiteContentManager({
     if (!preview || !previewContent) return;
     let targetOrigin: string;
     try {
-      const configuredUrl = new URL(
-        import.meta.env.VITE_CUSTOMER_APP_URL || "",
-      );
+      const configuredUrl = new URL(customerUrl);
       if (
         !["http:", "https:"].includes(configuredUrl.protocol) ||
         configuredUrl.username ||
@@ -121,7 +121,7 @@ export default function WebsiteContentManager({
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [preview, previewContent]);
+  }, [customerUrl, preview, previewContent]);
 
   async function save(publish = false) {
     setBusy(true);
@@ -150,11 +150,8 @@ export default function WebsiteContentManager({
   }
 
   async function previewDraft() {
-    const customerUrl = import.meta.env.VITE_CUSTOMER_APP_URL;
     if (!customerUrl) {
-      setError(
-        "Set VITE_CUSTOMER_APP_URL to the customer website before opening a full-site preview.",
-      );
+      setError("The customer website URL is not configured for preview.");
       return;
     }
     setBusy(true);
@@ -186,8 +183,8 @@ export default function WebsiteContentManager({
 
   let previewUrl = "";
   try {
-    if (import.meta.env.VITE_CUSTOMER_APP_URL) {
-      const url = new URL(import.meta.env.VITE_CUSTOMER_APP_URL);
+    if (customerUrl) {
+      const url = new URL(customerUrl);
       if (
         ["http:", "https:"].includes(url.protocol) &&
         !url.username &&
@@ -287,50 +284,77 @@ export default function WebsiteContentManager({
           {notice}
         </p>
       )}
-      <PolicyEditor
-        kind="privacy"
-        content={content}
-        disabled={contentDisabled}
-        onChange={setContent}
-      />
-      <PolicyEditor
-        kind="terms"
-        content={content}
-        disabled={contentDisabled}
-        onChange={setContent}
-      />
-      <FaqEditor
-        content={content}
-        disabled={contentDisabled}
-        onChange={setContent}
-      />
-      <NavigationControls
-        content={content}
-        disabled={contentDisabled}
-        onChange={setContent}
-      />
-      <WebsitePageBuilder content={content} disabled={busy || loading} onChange={setContent} />
-      <HomepageSectionControls
-        content={content}
-        disabled={contentDisabled}
-        onChange={setContent}
-      />
-      <HomepageContentBlocks
-        content={content}
-        disabled={contentDisabled}
-        onChange={setContent}
-      />
-      <GuideControls
-        content={content}
-        disabled={contentDisabled}
-        onChange={setContent}
-      />
-      <SocialLinksEditor
-        content={content}
-        disabled={contentDisabled}
-        onChange={setContent}
-      />
-      <MediaLibrary token={token} onSignOut={onSignOut} />
+      <nav className="website-content-jump-nav" aria-label="Website settings">
+        <a href="#content-pages">Pages & menus</a>
+        <a href="#content-homepage">Homepage</a>
+        <a href="#content-guides">Guides & FAQs</a>
+        <a href="#content-contact">Contact & office</a>
+        <a href="#content-images">Images</a>
+        <a href="#content-privacy">Privacy & terms</a>
+        <a href="#content-social">Social links</a>
+        <a href="#content-metadata">SEO</a>
+        <a href="#content-footer">Footer</a>
+      </nav>
+      <div id="content-privacy" className="website-content-anchor">
+        <PolicyEditor
+          kind="privacy"
+          content={content}
+          disabled={contentDisabled}
+          onChange={setContent}
+        />
+        <PolicyEditor
+          kind="terms"
+          content={content}
+          disabled={contentDisabled}
+          onChange={setContent}
+        />
+      </div>
+      <div id="content-guides" className="website-content-anchor">
+        <FaqEditor
+          content={content}
+          disabled={contentDisabled}
+          onChange={setContent}
+        />
+        <GuideControls
+          content={content}
+          disabled={contentDisabled}
+          onChange={setContent}
+        />
+      </div>
+      <div id="content-pages" className="website-content-anchor">
+        <NavigationControls
+          content={content}
+          disabled={contentDisabled}
+          onChange={setContent}
+        />
+        <WebsitePageBuilder
+          content={content}
+          disabled={busy || loading}
+          onChange={setContent}
+        />
+      </div>
+      <div id="content-homepage" className="website-content-anchor">
+        <HomepageSectionControls
+          content={content}
+          disabled={contentDisabled}
+          onChange={setContent}
+        />
+        <HomepageContentBlocks
+          content={content}
+          disabled={contentDisabled}
+          onChange={setContent}
+        />
+      </div>
+      <div id="content-social" className="website-content-anchor">
+        <SocialLinksEditor
+          content={content}
+          disabled={contentDisabled}
+          onChange={setContent}
+        />
+      </div>
+      <div id="content-images" className="website-content-anchor">
+        <MediaLibrary token={token} onSignOut={onSignOut} />
+      </div>
       {loading ? (
         <p role="status">Loading saved website copy…</p>
       ) : (
@@ -338,6 +362,17 @@ export default function WebsiteContentManager({
           <section
             className="panel-card panel-body website-content-group"
             key={group.label}
+            id={
+              group.label === "Homepage"
+                ? "content-homepage-copy"
+                : group.label === "Contact & business details"
+                  ? "content-contact"
+                  : group.label === "Page metadata"
+                    ? "content-metadata"
+                    : group.label === "Footer"
+                      ? "content-footer"
+                      : undefined
+            }
           >
             <h3>{group.label}</h3>
             <div className="website-content-fields">

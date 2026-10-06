@@ -43,7 +43,9 @@ const localMarketplaceUrl =
     ? `${window.location.protocol}//${window.location.hostname}:5173`
     : "";
 const marketplaceUrl =
-  import.meta.env.VITE_CUSTOMER_APP_URL || localMarketplaceUrl;
+  import.meta.env.VITE_CUSTOMER_APP_URL ||
+  localMarketplaceUrl ||
+  "https://material-square.vercel.app";
 
 function restoredToken() {
   try {
@@ -381,7 +383,11 @@ export function App() {
           />
         )}
         {tab === "content" && (
-          <WebsiteContentManager token={token} onSignOut={signOut} />
+          <WebsiteContentManager
+            token={token}
+            onSignOut={signOut}
+            customerUrl={marketplaceUrl}
+          />
         )}
         {tab === "team" && staff?.role === "SUPER_ADMIN" && (
           <StaffManagement

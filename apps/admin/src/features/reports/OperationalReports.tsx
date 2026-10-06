@@ -168,7 +168,13 @@ export default function OperationalReports({
   );
   const [range, setRange] = useState(initialRange);
   const [draftRange, setDraftRange] = useState(range);
-  const [data, setData] = useState<ReportData | null>(null);
+  const [loadedReport, setLoadedReport] = useState<{
+    type: ReportType;
+    data: ReportData;
+  } | null>(null);
+  // A tab switch renders once before effects run. Keep the previous response
+  // tagged with its report type so it is never rendered as a different shape.
+  const data = loadedReport?.type === reportType ? loadedReport.data : null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -182,7 +188,7 @@ export default function OperationalReports({
     const params = new URLSearchParams(range);
     setLoading(true);
     setError("");
-    setData(null);
+    setLoadedReport(null);
     fetch(
       `${import.meta.env.VITE_API_URL || "/api"}/reports/${reportType}?${params}`,
       {
@@ -202,7 +208,8 @@ export default function OperationalReports({
         return result as ReportData;
       })
       .then((result) => {
-        if (!controller.signal.aborted) setData(result);
+        if (!controller.signal.aborted)
+          setLoadedReport({ type: reportType, data: result });
       })
       .catch((cause) => {
         if (!controller.signal.aborted)
