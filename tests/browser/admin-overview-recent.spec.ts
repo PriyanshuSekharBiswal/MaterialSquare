@@ -132,4 +132,12 @@ test("overview recent changes link to the matching admin workspace", async ({
   await expect(page.getByRole("button", { name: "Open business management" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open website content" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open catalogue" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Recent activity" }).click();
+  await expect(page.getByRole("heading", { name: "Recent activity" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open staff & roles" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open sales workspace" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open business management" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open website content" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open catalogue" })).toBeVisible();
 });

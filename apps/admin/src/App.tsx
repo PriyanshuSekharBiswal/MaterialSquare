@@ -409,6 +409,8 @@ export function App() {
             onOpenCatalogue={() => navigate("catalogue")}
             onOpenContent={() => navigate("content")}
             onOpenSales={() => navigate("sales")}
+            onOpenBusiness={() => navigate("business")}
+            onOpenStaff={() => navigate("team")}
           />
         )}
         {tab === "audit" && <AuditLog token={token} />}

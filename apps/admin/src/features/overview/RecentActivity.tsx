@@ -2,12 +2,27 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Clock3, Package, Pencil, Plus, RefreshCw, Upload } from "lucide-react";
 import type { RecentChanges } from "./contracts";
 
+const BUSINESS_ENTITIES = [
+  "PROCUREMENT_REQUEST",
+  "PURCHASE_ORDER",
+  "SUPPLIER",
+  "SUPPLIER_PRODUCT",
+  "SUPPLIER_QUOTE",
+  "BUSINESS_RULES",
+  "DISCOUNT_RULE",
+  "COMMISSION",
+  "CUSTOMER_LOYALTY",
+  "LOYALTY_SETTINGS",
+];
+
 type Props = {
   token: string;
   role: string;
   onOpenCatalogue: () => void;
   onOpenContent: () => void;
   onOpenSales: () => void;
+  onOpenBusiness: () => void;
+  onOpenStaff: () => void;
 };
 
 function changeValue(field: string, value: unknown) {
@@ -33,6 +48,8 @@ export default function RecentActivity({
   onOpenCatalogue,
   onOpenContent,
   onOpenSales,
+  onOpenBusiness,
+  onOpenStaff,
 }: Props) {
   const [data, setData] = useState<RecentChanges | null>(null);
   const [category, setCategory] = useState("All activity");
@@ -102,12 +119,16 @@ export default function RecentActivity({
   const canOpenCatalogue = ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER", "CATALOG_MANAGER"].includes(role);
   const canOpenContent = ["SUPER_ADMIN", "ADMIN", "CONTENT_MANAGER"].includes(role);
   const canOpenSales = ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER", "PROCUREMENT_HEAD", "DISPATCH_OFFICER", "ACCOUNTS_MANAGER"].includes(role);
+  const canOpenBusiness = ["SUPER_ADMIN", "ADMIN", "PROCUREMENT_HEAD", "ACCOUNTS_MANAGER"].includes(role);
+  const canOpenStaff = role === "SUPER_ADMIN";
 
   const openDestination = useCallback((entityType: string) => {
     if (["CATALOG_PRODUCT", "PRODUCT_SKU"].includes(entityType) && canOpenCatalogue) onOpenCatalogue();
     else if (["MEDIA_ASSET", "WEBSITE_CONTENT", "WEBSITE_BRANDS", "BLOG_POST", "EXPERT_ADVISOR"].includes(entityType) && canOpenContent) onOpenContent();
     else if (["QUOTATION", "RFQ", "ORDER", "STAFF_ENQUIRY"].includes(entityType) && canOpenSales) onOpenSales();
-  }, [canOpenCatalogue, canOpenContent, canOpenSales, onOpenCatalogue, onOpenContent, onOpenSales]);
+    else if (BUSINESS_ENTITIES.includes(entityType) && canOpenBusiness) onOpenBusiness();
+    else if (entityType === "STAFF_USER" && canOpenStaff) onOpenStaff();
+  }, [canOpenBusiness, canOpenCatalogue, canOpenContent, canOpenSales, canOpenStaff, onOpenBusiness, onOpenCatalogue, onOpenContent, onOpenSales, onOpenStaff]);
 
   return (
     <section className="panel-card recent-changes-panel recent-activity-page" aria-labelledby="recent-activity-title">
@@ -148,7 +169,18 @@ export default function RecentActivity({
             const Icon = item.action.includes("UPLOADED") ? Upload : item.action.includes("CREATED") || item.action.includes("PUBLISHED") ? Plus : Pencil;
             const canOpen = (["CATALOG_PRODUCT", "PRODUCT_SKU"].includes(item.entityType) && canOpenCatalogue)
               || (["MEDIA_ASSET", "WEBSITE_CONTENT", "WEBSITE_BRANDS", "BLOG_POST", "EXPERT_ADVISOR"].includes(item.entityType) && canOpenContent)
-              || (["QUOTATION", "RFQ", "ORDER", "STAFF_ENQUIRY"].includes(item.entityType) && canOpenSales);
+              || (["QUOTATION", "RFQ", "ORDER", "STAFF_ENQUIRY"].includes(item.entityType) && canOpenSales)
+              || (BUSINESS_ENTITIES.includes(item.entityType) && canOpenBusiness)
+              || (item.entityType === "STAFF_USER" && canOpenStaff);
+            const destinationLabel = ["CATALOG_PRODUCT", "PRODUCT_SKU"].includes(item.entityType)
+              ? "Open catalogue"
+              : ["MEDIA_ASSET", "WEBSITE_CONTENT", "WEBSITE_BRANDS", "BLOG_POST", "EXPERT_ADVISOR"].includes(item.entityType)
+                ? "Open website content"
+                : ["QUOTATION", "RFQ", "ORDER", "STAFF_ENQUIRY"].includes(item.entityType)
+                  ? "Open sales workspace"
+                  : BUSINESS_ENTITIES.includes(item.entityType)
+                    ? "Open business management"
+                    : "Open staff & roles";
             return (
               <li className="recent-change-item" key={item.id}>
                 <span className="recent-change-icon"><Icon size={16} aria-hidden="true" /></span>
@@ -161,7 +193,7 @@ export default function RecentActivity({
                     </small>
                   )) : item.changedFields.length > 0 && <small>Changed: {item.changedFields.join(", ")}</small>}
                   <small>{item.staff?.name || "System"}{item.staff?.role ? ` · ${item.staff.role.replaceAll("_", " ").toLowerCase()}` : ""}</small>
-                  {canOpen && <button type="button" className="recent-change-open" onClick={() => openDestination(item.entityType)}>Open related workspace</button>}
+                  {canOpen && <button type="button" className="recent-change-open" onClick={() => openDestination(item.entityType)}>{destinationLabel}</button>}
                 </div>
                 <time className="recent-change-meta" dateTime={item.createdAt} title={new Date(item.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}>
                   {new Date(item.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
