@@ -2008,6 +2008,42 @@ textarea:focus {
 .sidebar-footer { background: rgba(5, 10, 20, .56); border-top-color: rgba(148, 163, 184, .14); }
 .sidebar-ext-link, .sidebar-signout-btn { min-height: 42px; border-radius: 10px; }
 
+/* Workspace-wide search with storefront brand accents. */
+.admin-header { overflow: visible; }
+.admin-header-actions { position: relative; z-index: 70; }
+.admin-global-search { position: relative; width: min(350px, 34vw); min-width: 230px; }
+.admin-global-search-field {
+  display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 11px 0 13px;
+  border: 1px solid #d7dfeb; border-radius: 11px; background: #fff; color: #718198;
+  box-shadow: 0 2px 7px rgba(15, 23, 42, .035); transition: border-color .16s ease, box-shadow .16s ease;
+}
+.admin-global-search-field:focus-within { border-color: #f97316; box-shadow: 0 0 0 3px rgba(249, 115, 22, .12), 0 4px 12px rgba(15, 23, 42, .05); }
+.admin-global-search-field input { width: 100%; min-width: 0; height: 100%; border: 0 !important; outline: 0; padding: 0 !important; color: #182338; background: transparent; box-shadow: none !important; font-size: .83rem; }
+.admin-global-search-field input::placeholder { color: #8794a7; opacity: 1; }
+.admin-global-search-field kbd { flex-shrink: 0; padding: 3px 6px; border: 1px solid #e2e8f0; border-radius: 6px; color: #768399; background: #f8fafc; font: 600 10px/1.2 var(--font-body); white-space: nowrap; }
+.admin-search-popover { position: absolute; top: calc(100% + 9px); right: 0; z-index: 120; width: min(440px, calc(100vw - 32px)); padding: 9px; border: 1px solid #e0e6ef; border-radius: 15px; background: #fff; box-shadow: 0 18px 48px rgba(15, 23, 42, .18), 0 3px 8px rgba(15, 23, 42, .06); }
+.admin-search-popover-heading { padding: 7px 9px 8px; color: #8793a5; font-size: .63rem; font-weight: 800; letter-spacing: .12em; }
+.admin-search-option { display: flex; width: 100%; align-items: center; gap: 11px; padding: 9px 10px; border: 0; border-radius: 10px; color: #1e293b; background: #fff; text-align: left; cursor: pointer; transition: background .14s ease, transform .14s ease; }
+.admin-search-option:hover, .admin-search-option.active { background: #fff7ed; }
+.admin-search-option.active { box-shadow: inset 2px 0 #f56612; }
+.admin-search-option-icon { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border: 1px solid #ffead6; border-radius: 10px; color: #e85d0e; background: #fffaf5; }
+.admin-search-option-copy { display: grid; min-width: 0; flex: 1; gap: 2px; }
+.admin-search-option-copy strong { overflow: hidden; color: #1d293d; font-size: .79rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.admin-search-option-copy small { overflow: hidden; color: #78869a; font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
+.admin-search-option-arrow { color: #9aa5b5; }
+.admin-search-empty { display: flex; align-items: center; gap: 10px; padding: 15px 11px; color: #78869a; font-size: .76rem; }
+.admin-search-footer { display: flex; flex-wrap: wrap; gap: 13px; padding: 9px 9px 4px; margin-top: 5px; border-top: 1px solid #edf0f4; color: #8a96a8; font-size: .63rem; }
+.admin-search-footer span { display: inline-flex; align-items: center; gap: 4px; }
+@media (max-width: 900px) { .admin-header-actions { width: 100%; justify-content: flex-end; } .admin-global-search { width: min(400px, calc(100vw - 190px)); } }
+@media (max-width: 640px) {
+  .admin-header-actions { align-self: stretch; justify-content: stretch; gap: 8px; }
+  .admin-global-search { width: auto; min-width: 0; flex: 1; }
+  .admin-global-search-field { height: 40px; gap: 7px; padding-inline: 10px; }
+  .admin-global-search-field input { font-size: .76rem; }
+  .admin-global-search-field kbd { display: none; }
+  .admin-header-actions > .btn-sm { flex-shrink: 0; }
+}
+
 .admin-main {
   padding: 30px clamp(22px, 3.15vw, 50px) 54px;
   background: transparent;

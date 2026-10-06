@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { WorkspaceTab } from "../features/customers/contracts";
 import MaterialSquareLogo from "./MaterialSquareLogo";
+import GlobalAdminSearch from "./GlobalAdminSearch";
 
 export type AdminStaff = {
   name: string;
@@ -138,6 +139,7 @@ type AdminWorkspaceLayoutProps = {
   marketplaceUrl: string;
   children: ReactNode;
   onNavigate: (tab: WorkspaceTab) => void;
+  onSearchNavigate: (tab: WorkspaceTab, query?: string) => void;
   onMobileNavChange: (open: boolean) => void;
   onRefresh: () => void;
   onSignOut: () => void;
@@ -156,6 +158,7 @@ export default function AdminWorkspaceLayout({
   marketplaceUrl,
   children,
   onNavigate,
+  onSearchNavigate,
   onMobileNavChange,
   onRefresh,
   onSignOut,
@@ -286,6 +289,7 @@ export default function AdminWorkspaceLayout({
             <p className="admin-page-description">{pageDescription(tab)}</p>
           </div>
           <div className="admin-header-actions">
+            <GlobalAdminSearch role={staff.role} onSelect={onSearchNavigate} />
             <button
               className="btn-sm btn-secondary"
               disabled={loading || busy}

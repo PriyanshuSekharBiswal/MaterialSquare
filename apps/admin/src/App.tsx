@@ -83,6 +83,7 @@ export function App() {
     [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [query, setQuery] = useState(""),
     [search, setSearch] = useState(""),
+    [catalogueInitialSearch, setCatalogueInitialSearch] = useState(""),
     [status, setStatus] = useState(""),
     [page, setPage] = useState(1),
     [revision, setRevision] = useState(0);
@@ -251,6 +252,7 @@ export function App() {
     setPage(1);
     setQuery("");
     setSearch("");
+    setCatalogueInitialSearch("");
     setStatus("");
     setSelected(null);
     setDraft(null);
@@ -350,6 +352,14 @@ export function App() {
       notice={notice}
       marketplaceUrl={marketplaceUrl}
       onNavigate={navigate}
+      onSearchNavigate={(next, term) => {
+        navigate(next);
+        if (next === "catalogue") setCatalogueInitialSearch(term || "");
+        if (next === "customers" || next === "followups") {
+          setQuery(term || "");
+          setSearch(term || "");
+        }
+      }}
       onMobileNavChange={setMobileNavOpen}
       onRefresh={() => {
         setRevision((value) => value + 1);
@@ -420,6 +430,7 @@ export function App() {
             token={token}
             role={staff?.role || ""}
             onSignOut={signOut}
+            initialSearch={catalogueInitialSearch}
           />
         )}
         {tab === "sales" && staff && (

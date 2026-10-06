@@ -135,17 +135,19 @@ export default function CatalogueManager({
   token,
   role,
   onSignOut,
+  initialSearch = "",
 }: {
   token: string;
   role: string;
   onSignOut: () => void;
+  initialSearch?: string;
 }) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [editing, setEditing] = useState<Listing | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [catalogueQuery, setCatalogueQuery] = useState("");
+  const [catalogueQuery, setCatalogueQuery] = useState(initialSearch);
   const [brandFilter, setBrandFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [publicationFilter, setPublicationFilter] = useState("all");
