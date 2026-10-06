@@ -1900,3 +1900,73 @@ textarea:focus {
   .admin-main { padding: 18px 13px 34px; }
   .admin-header { align-items: flex-start; padding: 17px 15px 18px 18px; border-radius: 14px; }
 }
+
+/* Branded operations console: keep the storefront wordmark and warm accent, with a calmer workspace shell. */
+.admin-sidebar {
+  width: 292px;
+  background: linear-gradient(180deg, #101a2d 0%, #0b1322 100%);
+  border-right-color: rgba(255, 255, 255, .08);
+}
+.admin-brand {
+  min-height: 112px;
+  padding: 18px 17px;
+  background: transparent;
+  border-bottom-color: rgba(255, 255, 255, .09);
+}
+.admin-brand-link {
+  display: flex;
+  width: 100%;
+  min-height: 74px;
+  padding: 12px 14px;
+  border: 1px solid #e5e9ef;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+}
+.admin-brand-link .ms-logo-wrapper { gap: 10px !important; }
+.admin-brand-link .ms-logo-svg { filter: none !important; }
+.admin-brand-link .ms-logo-brand-name { color: #101a2d !important; font-size: 1.05rem !important; letter-spacing: .08em !important; }
+.admin-brand-link .ms-logo-tagline { color: #65748b !important; font-size: .48rem !important; letter-spacing: .1em !important; }
+.sidebar-staff-card {
+  margin: 15px 14px 7px;
+  min-height: 68px;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 13px;
+  background: rgba(255,255,255,.055);
+}
+.staff-avatar-badge { width: 38px; height: 38px; border-radius: 11px; }
+.staff-role-chip { color: #aab6c8; text-transform: capitalize; }
+.sidebar-nav-scroll { padding: 12px 12px 14px; gap: 7px; }
+.nav-group-title { padding: 16px 11px 6px; color: #8593a9; letter-spacing: .11em; }
+.nav-item { min-height: 44px; padding-inline: 12px; border-radius: 10px; color: #c1cbda; }
+.nav-item:hover { color: #fff; background: rgba(255,255,255,.06); }
+.nav-item.active { color: #ff9a58; border-color: rgba(234,88,12,.26); background: linear-gradient(90deg, rgba(234,88,12,.19), rgba(234,88,12,.07)); }
+.sidebar-footer { padding: 14px; background: rgba(4,9,18,.46); }
+.admin-main { padding: 26px clamp(20px, 2.8vw, 42px) 48px; }
+.admin-header {
+  min-height: 118px;
+  margin-bottom: 24px;
+  padding: 20px 25px 20px 27px;
+  border-color: #e6eaf0;
+  border-radius: 16px;
+  background: linear-gradient(110deg, #fff 0%, #fff 64%, #fff8f2 100%);
+  box-shadow: 0 5px 18px rgba(17,32,54,.035);
+}
+.admin-breadcrumb { color: #748198; font-size: 11px; font-weight: 650; letter-spacing: .015em; }
+.admin-breadcrumb strong { color: #c2410c; }
+.admin-header h1 { color: #101a2d; font-size: clamp(1.55rem, 2vw, 1.9rem); letter-spacing: -.04em; }
+.admin-page-description { color: #65748b; font-size: .9rem; }
+.admin-header-actions .btn-sm { border-radius: 10px; }
+.admin-main .panel-card,
+.admin-main .workspace-record,
+.admin-main .kpi-card { border-radius: 14px; }
+@media (max-width: 900px) {
+  .admin-sidebar { width: 286px; }
+  .admin-header { min-height: 0; }
+}
+@media (max-width: 640px) {
+  .admin-brand-link { width: auto; }
+  .admin-main { padding: 17px 12px 30px; }
+  .admin-header { padding: 16px 14px 16px 19px; }
+}

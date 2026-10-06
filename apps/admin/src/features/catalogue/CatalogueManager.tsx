@@ -1224,16 +1224,20 @@ export default function CatalogueManager({
                 {(previewListing.offerLabel || previewListing.variants.find((variant) => variant.offerLabel)?.offerLabel) && <span className="store-preview-offer">{previewListing.offerLabel || previewListing.variants.find((variant) => variant.offerLabel)?.offerLabel}</span>}
               </div>
               <div className="store-preview-card-body">
-                <div className="store-preview-brand-line"><strong>{previewListing.brand || "Brand"}</strong>{previewListing.code && <span>{previewListing.code}</span>}</div>
+                <div className="store-preview-brand-line"><div className="store-preview-brand-title"><span className="store-preview-brand-mark" aria-hidden="true">{(previewListing.brand || "B").slice(0, 1).toUpperCase()}</span><strong>{previewListing.brand || "Brand"}</strong></div>{previewListing.code && <span>{previewListing.code}</span>}</div>
                 <h3>{previewListing.name || "Product name"}</h3>
                 {(previewListing.grade || previewListing.specifications.sizes) && <p className="store-preview-unit">{previewListing.grade || `Size guide: ${previewListing.specifications.sizes}`}</p>}
                 {(() => {
                   const colours = Array.from(new Set(previewListing.variants.flatMap((variant) => Object.entries(variant.attributes || {}).filter(([key]) => /colou?r|shade|finish/i.test(key)).map(([, value]) => value.trim()).filter(Boolean))));
                   return colours.length ? <div className="store-preview-colours"><span>Colours &amp; finishes</span><div>{colours.slice(0, 3).map((colour) => <small key={colour}>{colour}</small>)}{colours.length > 3 && <small>+{colours.length - 3}</small>}</div></div> : null;
                 })()}
-                {previewListing.features.length > 0 && <ul>{previewListing.features.slice(0, 2).map((feature, index) => <li key={`${feature}-${index}`}>{feature}</li>)}</ul>}
+                {previewListing.features.length > 0 && <ul>{previewListing.features.slice(0, 2).map((feature, index) => <li key={`${feature}-${index}`}><span className="store-preview-check">✓</span><span>{feature}</span></li>)}</ul>}
+                <div className="store-preview-product-specs">
+                  <div><span>Packaging</span><strong>{previewListing.packaging || previewListing.unit || "Add packaging"}</strong></div>
+                  {previewListing.specifications.standard && <div><span>IS Standard</span><strong>{previewListing.specifications.standard}</strong></div>}
+                </div>
                 <div className="store-preview-price-row"><div><span className="store-preview-price-caption">{previewCardIsReferencePrice ? "Online reference price" : !previewListing.price && pricedPreviewVariant ? "Starting from" : previewCardPrice ? "Price per unit" : "Wholesale pricing"}</span><div className="store-preview-price">{previewCardPrice ? <><strong>₹{Number(previewCardPrice).toLocaleString("en-IN")}</strong><span> / {previewListing.unit || "unit"}</span>{previewListing.compareAtPrice && <del>₹{Number(previewListing.compareAtPrice).toLocaleString("en-IN")}</del>}</> : <strong>Request a quote</strong>}</div>{(previewListing.price != null || pricedPreviewVariant) && <small>{previewCardPriceNote}</small>}</div><span className="store-preview-moq">MOQ: {previewListing.minOrderQty || "Confirm"}</span></div>
-                <div className="store-preview-actions"><button type="button" disabled><Info size={13} /> View details</button><button type="button" disabled><PackagePlus size={13} /> {previewListing.variants.length ? "Choose options" : "Add to quote list"}</button><button type="button" disabled aria-label="Ask on WhatsApp"><Phone size={14} /></button></div>
+                <div className="store-preview-actions"><button type="button" disabled><Info size={13} /> View details</button><button type="button" disabled><PackagePlus size={13} /> {previewListing.variants.length || previewListing.specifications.sizes ? "Choose options" : "Add to quote list"}</button><button type="button" disabled aria-label="Ask on WhatsApp"><Phone size={14} /></button></div>
               </div>
             </article>
             {previewGridNeighbors.map((listing) => <article className="store-preview-card store-preview-context-product" key={listing.id}>
@@ -1257,7 +1261,7 @@ export default function CatalogueManager({
               </div>
               <div className="store-preview-detail-copy">
                 <div className="store-preview-detail-kicker"><span>{previewListing.categoryLabel || "Category"}</span>{previewListing.code && <span>SKU · {previewListing.code}</span>}</div>
-                <div className="store-preview-brand-line"><strong>{previewListing.brand || "Brand"}</strong>{previewListing.brandTagline && <span>{previewListing.brandTagline}</span>}</div>
+                <div className="store-preview-brand-line"><div className="store-preview-brand-title"><span className="store-preview-brand-mark" aria-hidden="true">{(previewListing.brand || "B").slice(0, 1).toUpperCase()}</span><strong>{previewListing.brand || "Brand"}</strong></div>{previewListing.brandTagline && <span>{previewListing.brandTagline}</span>}</div>
                 <h2>{previewListing.name || "Product name"}</h2>
                 {previewListing.grade && <span className="store-preview-grade">{previewListing.grade}</span>}
                 {previewListing.priceNote && <p className="store-preview-note">{previewListing.priceNote}</p>}
