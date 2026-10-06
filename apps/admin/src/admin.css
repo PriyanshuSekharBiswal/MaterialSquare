@@ -1533,6 +1533,40 @@ textarea:focus {
 .admin-main button:not(:disabled):hover { transform: translateY(-1px); }
 .admin-main :focus-visible { outline-color: #ea580c; outline-offset: 2px; }
 
+/* Keep compact utility actions from falling back to browser-default buttons. */
+.admin-main .btn-sm:not(.btn-primary):not(.btn-secondary) {
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 1px solid #d7dfeb;
+  border-radius: 10px;
+  background: #fff;
+  color: #344256;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.admin-main .btn-sm:not(.btn-primary):not(.btn-secondary):hover:not(:disabled) {
+  border-color: #f1a47b;
+  background: #fffaf7;
+  color: #9a3412;
+  box-shadow: 0 3px 9px rgba(15, 23, 42, 0.08);
+}
+
+.admin-main button:not([class]):not(:disabled) {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid #d7dfeb;
+  border-radius: 9px;
+  background: #fff;
+  color: #344256;
+  font-weight: 600;
+}
+
+.admin-main button:not([class]):hover:not(:disabled) {
+  border-color: #f1a47b;
+  background: #fffaf7;
+  color: #9a3412;
+}
+
 @media (max-width: 900px) {
   .admin-brand { min-height: 0; }
   .admin-brand-link { width: auto; }
