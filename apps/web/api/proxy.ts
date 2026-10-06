@@ -7,7 +7,6 @@ const hopByHop = new Set([
 ]);
 const methods = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);
 const edgeCachedPublicPaths = new Set([
-  "products",
   "products/partner-brands",
   "site-content",
 ]);
