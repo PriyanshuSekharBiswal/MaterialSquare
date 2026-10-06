@@ -1,24 +1,32 @@
 import type { CatalogueProduct } from "../types";
 
 const cleanExample = (value: unknown) => {
-  const example = String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
-  if (example.length < 3 || example.length > 30 || /^[\d\s.,/-]+$/.test(example)) return "";
-  return example;
+  const rawExample = String(value || "").trim().replace(/\s+/g, " ");
+  if (rawExample.length < 3 || /^[\d\s.,/-]+$/.test(rawExample)) return "";
+  if (rawExample.length <= 48) return rawExample;
+  const shortExample = rawExample.slice(0, 45).replace(/\s+\S*$/, "").trim();
+  return shortExample.length >= 3 ? `${shortExample}…` : "";
 };
 
 /** Build varied rotating queries from fields the catalogue search actually indexes. */
-export function buildSearchExamples(products: CatalogueProduct[], limit = 24) {
-  const categories = [...new Set(products.map((product) => cleanExample(product.categoryLabel.split("&")[0])))];
+export function buildSearchExamples(products: CatalogueProduct[], limit = 60) {
+  const categories = [...new Set(products.map((product) => cleanExample(product.categoryLabel)))];
   const names = products.map((product) => cleanExample(product.name));
   const brands = products.map((product) => cleanExample(product.brand));
-  const details = products.flatMap((product) => [
-    ...product.features,
-    ...product.applications,
-    ...Object.entries(product.specs || {}).map(([key, value]) => `${key} ${value || ""}`),
+  const brandSpecifications = products.flatMap((product) => [product.grade, product.packaging]
+    .map((value) => cleanExample(value ? `${product.brand} ${value}` : "")));
+  const specifications = products.flatMap((product) => [
+    product.grade,
+    product.packaging,
+    ...Object.entries(product.specs || {}).flatMap(([key, value]) => [value, `${key} ${value || ""}`]),
     ...(product.variants || []).flatMap((variant) => [
       variant.label,
       ...Object.entries(variant.attributes || {}).map(([key, value]) => `${key} ${value}`),
     ]),
+  ].map(cleanExample));
+  const usesAndFeatures = products.flatMap((product) => [
+    ...product.features,
+    ...product.applications,
   ].map(cleanExample));
 
   const examples: string[] = [];
@@ -30,12 +38,17 @@ export function buildSearchExamples(products: CatalogueProduct[], limit = 24) {
     examples.push(example);
   };
 
-  const rounds = Math.max(categories.length, names.length, brands.length, details.length);
+  // Show the actual catalogue names and brands first, then broaden into categories,
+  // sizes, grades, finishes, applications and other indexed discovery terms.
+  for (const example of names) add(example || "");
+  for (const example of brands) add(example || "");
+
+  const rounds = Math.max(categories.length, brandSpecifications.length, specifications.length, usesAndFeatures.length);
   for (let index = 0; index < rounds && examples.length < limit; index += 1) {
     add(categories[index] || "");
-    add(names[index] || "");
-    add(brands[index] || "");
-    add(details[index] || "");
+    add(brandSpecifications[index] || "");
+    add(specifications[index] || "");
+    add(usesAndFeatures[index] || "");
   }
 
   return examples.slice(0, limit);
