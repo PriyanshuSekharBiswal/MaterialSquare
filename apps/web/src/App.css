@@ -724,6 +724,7 @@
 }
 
 .hero-search-form {
+  position: relative;
   display: flex;
   align-items: center;
   background-color: #ffffff;
@@ -743,6 +744,8 @@
 }
 
 .search-input {
+  position: relative;
+  z-index: 2;
   border: none;
   outline: none;
   font-size: 0.92rem;
@@ -754,7 +757,7 @@
 }
 
 .search-input::placeholder {
-  color: var(--ms-slate-400);
+  color: transparent;
 }
 
 .search-submit-btn {
@@ -2289,6 +2292,59 @@
   align-items: center;
 }
 
+.search-animated-hint {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  color: #64748b;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease;
+}
+
+.search-animated-hint.is-hidden {
+  opacity: 0;
+}
+
+.hero-search-form .search-animated-hint {
+  left: 2.55rem;
+  right: 8rem;
+  font-size: 0.92rem;
+}
+
+.search-field-wrap .search-animated-hint {
+  left: 2.75rem;
+  right: 2.5rem;
+  font-size: 0.92rem;
+}
+
+.search-animated-hint-window {
+  display: inline-block;
+  height: 1.25em;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+
+.search-animated-hint-word {
+  display: block;
+  animation: search-hint-roll-up 360ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+@keyframes search-hint-roll-up {
+  from {
+    opacity: 0.25;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .search-field-icon {
   position: absolute;
   left: 0.95rem;
@@ -2298,6 +2354,8 @@
 }
 
 .catalog-search-input {
+  position: relative;
+  z-index: 2;
   width: 100%;
   padding: 0.72rem 2.4rem 0.72rem 2.75rem;
   border: 1.5px solid #94a3b8;
@@ -2305,15 +2363,21 @@
   font-size: 0.92rem;
   font-weight: 500;
   color: #0f172a;
-  background-color: #ffffff;
+  background-color: transparent;
   outline: none;
   transition: all var(--transition-fast);
 }
 
 .catalog-search-input::placeholder {
-  color: #64748b;
+  color: transparent;
   font-weight: 450;
   opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-animated-hint-word {
+    animation: none;
+  }
 }
 
 .catalog-search-input:hover {

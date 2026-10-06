@@ -22,7 +22,7 @@ import { useSiteContent } from '../site-content';
 import { matchesCatalogueSearch, scoreCatalogueSearch } from '../search/catalogue-search';
 import { partnerBrandMatchesProduct, usePartnerBrands } from '../partner-brands';
 import { bestMatchingVariant } from '../search/variant-match';
-import { useRotatingSearchPlaceholder } from '../hooks/useRotatingSearchPlaceholder';
+import RotatingSearchPlaceholder from '../components/RotatingSearchPlaceholder';
 
 export default function MarketplacePage({
   bomList = [],
@@ -44,13 +44,14 @@ export default function MarketplacePage({
   const [activeCategory, setActiveCategory] = useState(initialCategory);
   const [selectedBrand, setSelectedBrand] = useState(initialBrand);
   const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchExamples = Array.from(
-    new Set(products.map((product) => product.categoryLabel)),
+    new Set(
+      products.map((product) =>
+        product.categoryLabel.split("&")[0].trim().toLocaleLowerCase(),
+      ),
+    ),
   ).slice(0, 4);
-  const searchPlaceholder = useRotatingSearchPlaceholder(
-    searchExamples,
-    !searchQuery,
-  );
   const [availability, setAvailability] = useState('all');
   const [variantFilters, setVariantFilters] = useState<Record<string, string>>({});
   const [sortBy, setSortBy] = useState('relevance');
@@ -267,13 +268,17 @@ export default function MarketplacePage({
                 <input
                   type="text"
                   aria-label="Search materials catalogue"
-                  placeholder={searchPlaceholder}
+                  placeholder=""
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
                     setIsSuggestionsOpen(true);
                   }}
-                  onFocus={() => setIsSuggestionsOpen(true)}
+                  onFocus={() => {
+                    setIsSearchFocused(true);
+                    setIsSuggestionsOpen(true);
+                  }}
+                  onBlur={() => setIsSearchFocused(false)}
                   onKeyDown={(e) => {
                     if (e.key === 'Escape') setIsSuggestionsOpen(false);
                     if (e.key === 'Enter') {
@@ -290,6 +295,10 @@ export default function MarketplacePage({
                   }}
                   className="catalog-search-input"
                   autoComplete="off"
+                />
+                <RotatingSearchPlaceholder
+                  examples={searchExamples}
+                  visible={!searchQuery && !isSearchFocused}
                 />
                 {searchQuery && (
                   <button

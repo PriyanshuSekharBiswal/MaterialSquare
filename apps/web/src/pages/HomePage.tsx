@@ -28,7 +28,7 @@ import { useSiteContent } from "../site-content";
 import { whatsappLink } from "../messages";
 import { usePartnerBrands } from "../partner-brands";
 import DeferredDirectionGoogleMaps from "../components/DeferredDirectionGoogleMaps";
-import { useRotatingSearchPlaceholder } from "../hooks/useRotatingSearchPlaceholder";
+import RotatingSearchPlaceholder from "../components/RotatingSearchPlaceholder";
 
 export default function HomePage({
   products,
@@ -49,6 +49,7 @@ export default function HomePage({
   const siteContent = useSiteContent();
   const partnerBrands = usePartnerBrands();
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isMobileView, setIsMobileView] = useState(() => {
     return typeof window !== "undefined" ? window.innerWidth < 992 : false;
   });
@@ -108,12 +109,12 @@ export default function HomePage({
     meta: getBrandMeta(brand.id),
   }));
   const searchExamples = Array.from(
-    new Set(products.map((product) => product.categoryLabel)),
+    new Set(
+      products.map((product) =>
+        product.categoryLabel.split("&")[0].trim().toLocaleLowerCase(),
+      ),
+    ),
   ).slice(0, 4);
-  const searchPlaceholder = useRotatingSearchPlaceholder(
-    searchExamples,
-    !searchQuery,
-  );
   const customContentBlocks = homeContentBlocks(
     siteContent["home.contentBlocks"],
   ).filter((block) => block.visible);
@@ -188,17 +189,25 @@ export default function HomePage({
                   type="text"
                   className="search-input"
                   aria-label="Search products and brands"
-                  placeholder={searchPlaceholder}
+                  placeholder=""
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
                     setIsSuggestionsOpen(true);
                   }}
-                  onFocus={() => setIsSuggestionsOpen(true)}
+                  onFocus={() => {
+                    setIsSearchFocused(true);
+                    setIsSuggestionsOpen(true);
+                  }}
+                  onBlur={() => setIsSearchFocused(false)}
                   onKeyDown={(e) => {
                     if (e.key === "Escape") setIsSuggestionsOpen(false);
                   }}
                   autoComplete="off"
+                />
+                <RotatingSearchPlaceholder
+                  examples={searchExamples}
+                  visible={!searchQuery && !isSearchFocused}
                 />
                 {searchQuery && (
                   <button
