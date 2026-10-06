@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -16,18 +17,8 @@ import { StaffGuard } from "./access.guard";
 import { validate } from "../common/validation";
 import { AuthService } from "./auth.service";
 
-const loginSchema = z
-  .object({
-    phone: z
-      .string()
-      .regex(/^[6-9]\d{9}$/)
-      .optional(),
-    email: z.string().trim().email().max(254).optional(),
-    password: z.string().min(8).max(256),
-  })
-  .refine((input) => Boolean(input.phone || input.email), {
-    message: "Enter your mobile number or email address",
-  });
+import { StaffLoginSchema } from "@material-square/types";
+
 const customerVerifySchema = z.object({
   phone: z.string().regex(/^[6-9]\d{9}$/),
   accessToken: z.string().min(20).max(4096),
@@ -60,7 +51,12 @@ export class AuthController {
   @Post("staff/login")
   @HttpCode(HttpStatus.OK)
   loginStaff(@Body() body: unknown) {
-    return this.authService.loginStaff(validate(loginSchema, body));
+    const parsed = StaffLoginSchema.safeParse(body);
+    if (!parsed.success)
+      throw new BadRequestException(
+        parsed.error.issues[0]?.message || "Check your sign-in details",
+      );
+    return this.authService.loginStaff(parsed.data);
   }
 
   @Get("staff/me")

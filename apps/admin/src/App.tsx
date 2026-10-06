@@ -1,3 +1,4 @@
+import { StaffLoginSchema } from "@material-square/types";
 import { lazy, useCallback, useEffect, useState, type FormEvent } from "react";
 import CustomerFollowupWorkspace from "./features/customers/CustomerFollowupWorkspace";
 import type {
@@ -122,8 +123,25 @@ export function App() {
           throw new Error(
             "The workspace is temporarily unavailable. Please try again shortly.",
           );
+        const fieldErrors = data?.issues?.fieldErrors;
+        const loginField =
+          path === "/auth/staff/login" && fieldErrors
+            ? ["phone", "email", "password"].find(
+                (field) => fieldErrors[field]?.length,
+              )
+            : undefined;
+        const validationMessage =
+          loginField === "phone"
+            ? "Enter a valid 10-digit Indian mobile number (with optional +91)."
+            : loginField === "email"
+              ? "Enter a valid email address."
+              : loginField === "password"
+                ? "Check your password: use at least 8 characters."
+                : undefined;
         throw new Error(
-          data?.message || "Unable to connect. Please try again.",
+          validationMessage ||
+            data?.message ||
+            "Unable to connect. Please try again.",
         );
       }
       if (!data || typeof data !== "object")
@@ -198,17 +216,22 @@ export function App() {
     setError("");
     const data = new FormData(e.currentTarget);
     try {
+      const parsed = StaffLoginSchema.safeParse({
+        ...(String(data.get("identifier") || "").includes("@")
+          ? { email: String(data.get("identifier")).trim().toLowerCase() }
+          : {
+              phone: String(data.get("identifier") || ""),
+            }),
+        password: data.get("password"),
+      });
+      if (!parsed.success)
+        throw new Error(
+          parsed.error.issues[0]?.message || "Check your sign-in details",
+        );
       const result = await request<{ accessToken: string }>(
         "/auth/staff/login",
         "POST",
-        {
-          ...(String(data.get("identifier") || "").includes("@")
-            ? { email: String(data.get("identifier")).trim().toLowerCase() }
-            : {
-                phone: String(data.get("identifier") || "").replace(/\D/g, ""),
-              }),
-          password: data.get("password"),
-        },
+        parsed.data,
       );
       setToken(result.accessToken);
     } catch (e) {
