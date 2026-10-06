@@ -29,6 +29,9 @@ type WorkspaceOverviewProps = {
   onViewAudit: () => void;
   onOpenCatalogue: () => void;
   onOpenContent: () => void;
+  onOpenSales: () => void;
+  onOpenBusiness: () => void;
+  onOpenStaff: () => void;
   onRecordEnquiry: () => void;
 };
 
@@ -42,6 +45,9 @@ export default function WorkspaceOverview({
   onViewAudit,
   onOpenCatalogue,
   onOpenContent,
+  onOpenSales,
+  onOpenBusiness,
+  onOpenStaff,
   onRecordEnquiry,
 }: WorkspaceOverviewProps) {
   const [recentCategory, setRecentCategory] = useState("All activity");
@@ -269,6 +275,46 @@ export default function WorkspaceOverview({
                 "ADMIN",
                 "CONTENT_MANAGER",
               ].includes(staffRole);
+              const canOpenSales = [
+                "SUPER_ADMIN",
+                "ADMIN",
+                "SALES_MANAGER",
+                "PROCUREMENT_HEAD",
+                "DISPATCH_OFFICER",
+                "ACCOUNTS_MANAGER",
+              ].includes(staffRole);
+              const canOpenBusiness = [
+                "SUPER_ADMIN",
+                "ADMIN",
+                "PROCUREMENT_HEAD",
+                "ACCOUNTS_MANAGER",
+              ].includes(staffRole);
+              const canOpenStaff = staffRole === "SUPER_ADMIN";
+              const contentChange = [
+                "MEDIA_ASSET",
+                "WEBSITE_CONTENT",
+                "WEBSITE_BRANDS",
+                "BLOG_POST",
+                "EXPERT_ADVISOR",
+              ].includes(change.entityType);
+              const salesChange = [
+                "QUOTATION",
+                "RFQ",
+                "ORDER",
+                "STAFF_ENQUIRY",
+              ].includes(change.entityType);
+              const businessChange = [
+                "PROCUREMENT_REQUEST",
+                "PURCHASE_ORDER",
+                "SUPPLIER",
+                "SUPPLIER_PRODUCT",
+                "SUPPLIER_QUOTE",
+                "BUSINESS_RULES",
+                "DISCOUNT_RULE",
+                "COMMISSION",
+                "CUSTOMER_LOYALTY",
+                "LOYALTY_SETTINGS",
+              ].includes(change.entityType);
               return (
                 <li className="recent-change-item" key={change.id}>
                   <span className="recent-change-icon">
@@ -282,21 +328,31 @@ export default function WorkspaceOverview({
                         ? ` · ${change.changedFields.length} ${change.changedFields.length === 1 ? "detail" : "details"} updated`
                         : ""}
                     </span>
-                    {change.changes.length > 0 ? change.changes.map((detail) => (
-                      <small key={`${detail.field}-${String(detail.before)}-${String(detail.after)}`}>
-                        {detail.field === "isActive" ? "Account status" : detail.field === "role" ? "Role" : detail.field.replace(/[._]/g, " ")}: {recentChangeValue(detail.field, detail.before)} → {recentChangeValue(detail.field, detail.after)}
-                      </small>
-                    )) : change.changedFields.length > 0 && (
-                      <small>
-                        {change.changedFields
-                          .slice(0, 4)
-                          .map((field) => field.replace(/[._]/g, " "))
-                          .join(" · ")}
-                        {change.changedFields.length > 4
-                          ? ` +${change.changedFields.length - 4}`
-                          : ""}
-                      </small>
-                    )}
+                    {change.changes.length > 0
+                      ? change.changes.map((detail) => (
+                          <small
+                            key={`${detail.field}-${String(detail.before)}-${String(detail.after)}`}
+                          >
+                            {detail.field === "isActive"
+                              ? "Account status"
+                              : detail.field === "role"
+                                ? "Role"
+                                : detail.field.replace(/[._]/g, " ")}
+                            : {recentChangeValue(detail.field, detail.before)} →{" "}
+                            {recentChangeValue(detail.field, detail.after)}
+                          </small>
+                        ))
+                      : change.changedFields.length > 0 && (
+                          <small>
+                            {change.changedFields
+                              .slice(0, 4)
+                              .map((field) => field.replace(/[._]/g, " "))
+                              .join(" · ")}
+                            {change.changedFields.length > 4
+                              ? ` +${change.changedFields.length - 4}`
+                              : ""}
+                          </small>
+                        )}
                   </div>
                   <div className="recent-change-meta">
                     <span>{change.staff?.name || "System"}</span>
@@ -315,12 +371,33 @@ export default function WorkspaceOverview({
                       >
                         Open catalogue
                       </button>
-                    ) : !catalogueChange && canOpenContent ? (
+                    ) : contentChange && canOpenContent ? (
                       <button
                         className="recent-change-open"
                         onClick={onOpenContent}
                       >
                         Open website content
+                      </button>
+                    ) : salesChange && canOpenSales ? (
+                      <button
+                        className="recent-change-open"
+                        onClick={onOpenSales}
+                      >
+                        Open sales workspace
+                      </button>
+                    ) : businessChange && canOpenBusiness ? (
+                      <button
+                        className="recent-change-open"
+                        onClick={onOpenBusiness}
+                      >
+                        Open business management
+                      </button>
+                    ) : change.entityType === "STAFF_USER" && canOpenStaff ? (
+                      <button
+                        className="recent-change-open"
+                        onClick={onOpenStaff}
+                      >
+                        Open staff &amp; roles
                       </button>
                     ) : null}
                   </div>

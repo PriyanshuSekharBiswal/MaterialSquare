@@ -368,6 +368,9 @@ export function App() {
           onViewAudit={() => navigate("audit")}
           onOpenCatalogue={() => navigate("catalogue")}
           onOpenContent={() => navigate("content")}
+          onOpenSales={() => navigate("sales")}
+          onOpenBusiness={() => navigate("business")}
+          onOpenStaff={() => navigate("team")}
           onRecordEnquiry={() => {
             navigate("followups");
             setDraft(blankFollowup());
