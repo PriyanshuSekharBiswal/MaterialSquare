@@ -165,6 +165,10 @@ export default function CatalogueManager({
   const canManage = ["SUPER_ADMIN", "ADMIN", "CATALOG_MANAGER"].includes(role);
 
   useEffect(() => {
+    setCatalogueQuery(initialSearch);
+  }, [initialSearch]);
+
+  useEffect(() => {
     if (!previewOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setPreviewOpen(false);

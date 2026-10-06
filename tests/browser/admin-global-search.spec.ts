@@ -74,4 +74,9 @@ test("admin search suggests a destination and carries product text into catalogu
     page.getByRole("heading", { name: "No catalogue products yet" }),
   ).toBeVisible();
   await expect(page.getByLabel("Search catalogue")).toHaveValue("cement");
+
+  await globalSearch.fill("UltraTech");
+  await globalSearch.press("ArrowDown");
+  await globalSearch.press("Enter");
+  await expect(page.getByLabel("Search catalogue")).toHaveValue("UltraTech");
 });
