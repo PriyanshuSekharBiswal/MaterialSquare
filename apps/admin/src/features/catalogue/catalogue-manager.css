@@ -1245,3 +1245,6 @@
   .catalogue-preview-overlay .catalogue-preview-close { width: 100%; }
   .catalogue-preview-overlay .catalogue-preview-stage { padding: 8px; }
 }
+
+/* The desktop device mockup must retain its full marketplace grid on narrow browser windows. */
+.catalogue-preview-overlay .preview-desktop .store-preview-marketplace-grid .store-preview-context-product { display: block; }

@@ -1347,6 +1347,10 @@ test("admin edits customer-facing catalogue price and offer details", async ({
     }],
     sortOrder: 0,
   };
+  const publishedNeighbors = [
+    { ...original, id: "published-cement", slug: "published-cement", code: "MS-CEM-01", name: "Published Cement", isPublished: true, variants: [] },
+    { ...original, id: "published-wire", slug: "published-wire", code: "MS-WIRE-01", name: "Published Wire", isPublished: true, variants: [] },
+  ];
   let saved: Record<string, unknown> = original;
   let updatedBody: Record<string, unknown> | undefined;
   let uploadedAuthorization = "";
@@ -1419,7 +1423,7 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   );
   await page.route("**/api/products/catalogue", (route) => {
     if (route.request().method() === "GET")
-      return route.fulfill({ json: [saved] });
+      return route.fulfill({ json: [saved, ...publishedNeighbors] });
     return route.fulfill({ status: 201, json: {} });
   });
   await page.route("**/api/products/catalogue/listing-1", (route) => {
@@ -1451,7 +1455,7 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await page.getByLabel("Password").fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page.getByRole("button", { name: "Products, prices & offers" }).click();
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
   await page.getByRole("button", { name: "Preview storefront" }).click();
   const storefrontPreview = page.getByRole("dialog", {
     name: "See how customers will see this product",
@@ -1461,6 +1465,13 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await expect(storefrontPreview.getByText("Online reference price", { exact: true })).toBeVisible();
   await expect(storefrontPreview.getByText("Online reference price; confirm local price.", { exact: true })).toBeVisible();
   await expect(storefrontPreview.getByText("Check availability", { exact: true })).toBeVisible();
+  await expect(storefrontPreview.locator(".store-preview-context-product")).toHaveCount(2);
+  await expect(storefrontPreview.getByRole("heading", { name: "Published Cement" })).toBeVisible();
+  await storefrontPreview.getByRole("button", { name: "Mobile" }).click();
+  await expect(storefrontPreview).toHaveClass(/preview-mobile/);
+  await storefrontPreview.getByRole("button", { name: "Desktop" }).click();
+  await expect(storefrontPreview).toHaveClass(/preview-desktop/);
+  await expect(storefrontPreview.locator(".store-preview-context-product")).toHaveCount(2);
   await storefrontPreview.getByRole("button", { name: "Product page" }).click();
   await expect(storefrontPreview.locator(".store-preview-detail-price")).toContainText("₹425");
   await expect(storefrontPreview.getByText("Online reference price; confirm local price.", { exact: true })).toBeVisible();
@@ -1477,8 +1488,8 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await expect(storefrontPreview.getByText("₹320", { exact: true })).toBeVisible();
   await expect(storefrontPreview.locator(".store-preview-topline")).toContainText("Serving Delhi NCR");
   await expect(storefrontPreview.getByText("BUILDING BETTER TOGETHER", { exact: true })).toBeVisible();
-  await expect(storefrontPreview.locator(".store-preview-actions")).toContainText("View details");
-  await expect(storefrontPreview.locator(".store-preview-moq")).toContainText("1 length");
+  await expect(storefrontPreview.locator(".store-preview-current-product .store-preview-actions")).toContainText("View details");
+  await expect(storefrontPreview.locator(".store-preview-current-product .store-preview-moq")).toContainText("1 length");
   expect(updatedBody).toBeUndefined();
   await storefrontPreview.getByRole("button", { name: "Back to editing" }).click();
   await expect(storefrontPreview).toBeHidden();
