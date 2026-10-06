@@ -171,7 +171,7 @@ export default function AdminWorkspaceLayout({
         <MaterialSquareLogo
           size={32}
           showText={true}
-          lightMode={true}
+          lightMode={false}
         />
         <button
           className="mobile-menu-btn"
@@ -200,7 +200,7 @@ export default function AdminWorkspaceLayout({
               <MaterialSquareLogo
                 size={44}
                 showText={true}
-                lightMode={true}
+                lightMode={false}
                 tagline="BUILDING BETTER TOGETHER"
               />
               <span className="admin-brand-context">OPERATIONS CONSOLE</span>

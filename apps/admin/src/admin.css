@@ -1849,6 +1849,71 @@ textarea:focus {
   .admin-header-actions { align-self: flex-end; }
 }
 
+/* Final storefront-aligned admin treatment. Keep the existing navy console,
+   but use the same dark wordmark and terracotta accents as the public header. */
+.admin-brand {
+  min-height: 116px;
+  padding: 17px 18px;
+  background: linear-gradient(135deg, rgba(255,255,255,.055), transparent 76%);
+}
+
+.admin-brand-link,
+.admin-brand-link:hover,
+.admin-brand-link:focus-visible {
+  min-height: 76px;
+  padding: 12px 13px;
+  border: 1px solid rgba(226,232,240,.9) !important;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #fff 0%, #fff 72%, #fff8f2 100%) !important;
+  box-shadow: 0 8px 20px rgba(2,9,20,.2), inset 0 1px #fff !important;
+}
+
+.admin-brand-link .ms-logo-wrapper { gap: 9px !important; }
+.admin-brand-link .ms-logo-svg { width: 43px; height: 43px; filter: none !important; }
+.admin-brand-link .ms-logo-brand-name { color: #111b31 !important; font-size: 1.04rem !important; letter-spacing: .075em !important; }
+.admin-brand-link .ms-logo-tagline { color: #68778e !important; font-size: .45rem !important; letter-spacing: .11em !important; }
+.admin-brand-context { margin-left: 52px; color: #c44c0b; }
+
+.sidebar-staff-card {
+  min-height: 72px;
+  margin: 15px 14px 9px;
+  padding: 12px 13px;
+  border-color: rgba(148,163,184,.19);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(255,255,255,.075), rgba(255,255,255,.025));
+}
+
+.nav-group-title { padding-top: 15px; letter-spacing: .14em; }
+.nav-item { min-height: 43px; border-radius: 11px; }
+.nav-item.active { box-shadow: inset 3px 0 #f56612, 0 5px 15px rgba(0,0,0,.08); }
+
+.admin-main {
+  background:
+    radial-gradient(ellipse at 92% -8%, rgba(234,88,12,.055), transparent 31rem),
+    #f4f6fa;
+}
+
+.admin-header {
+  border-color: #e3e8f0;
+  background: linear-gradient(112deg, #fff 0%, #fff 73%, #fff9f4 100%);
+  box-shadow: 0 8px 26px rgba(20,35,58,.045), 0 1px 2px rgba(20,35,58,.025);
+}
+
+.admin-header h1 { letter-spacing: -.045em; }
+.admin-page-description { line-height: 1.55; }
+.admin-main .panel-card,
+.admin-main .workspace-record,
+.admin-main .kpi-card { border-color: #e3e8f0; }
+.admin-main input:not([type="checkbox"]):not([type="radio"]),
+.admin-main select,
+.admin-main textarea { min-height: 42px; }
+.admin-main textarea { min-height: 108px; }
+
+@media (max-width: 900px) {
+  .admin-brand { min-height: 0; }
+  .admin-brand-link { width: 100%; }
+}
+
 /* Brand-led workspace shell */
 .admin-layout {
   background:
