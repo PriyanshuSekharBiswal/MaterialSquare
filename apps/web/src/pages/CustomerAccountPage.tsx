@@ -85,14 +85,23 @@ export default function CustomerAccountPage() {
 
   const refresh = useCallback(async () => {
     setChecking(true);
+    setError("");
     try {
-      const [me, data] = await Promise.all([
-        customerApi<Profile>("/customer/me"),
-        customerApi<Activity>("/customer/activity"),
-      ]);
+      // Only the session endpoint decides which account screen to show. Loading
+      // history in parallel used to keep the whole page on "Loading account…"
+      // when the activity endpoint was slow or unavailable.
+      const me = await customerApi<Profile>(
+        "/customer/me",
+        "GET",
+        undefined,
+        undefined,
+        12000,
+      );
       setProfile(me);
-      setActivity(data);
-      setError("");
+      setChecking(false);
+      void customerApi<Activity>("/customer/activity")
+        .then(setActivity)
+        .catch((e) => setError((e as Error).message));
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setProfile(null);
       else setError((e as Error).message);

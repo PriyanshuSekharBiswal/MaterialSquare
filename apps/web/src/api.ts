@@ -12,6 +12,7 @@ export async function customerApi<T>(
   method = "GET",
   body?: unknown,
   accountId?: string,
+  timeoutMs = 65000,
 ): Promise<T> {
   let response: Response;
   try {
@@ -26,8 +27,9 @@ export async function customerApi<T>(
         ...(accountId ? { "X-Material-Account": accountId } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
-      // Leave room for the Vercel proxy's 59-second wait on a sleeping staging API.
-      signal: AbortSignal.timeout(65000),
+      // Most account actions can wait for a sleeping staging API. Session
+      // bootstrap passes a shorter limit so a cold API cannot hide the sign-in UI.
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch {
     throw new ApiError(
