@@ -20,6 +20,17 @@ import {
 const PREVIEW_MESSAGE = "material-square:site-content-preview";
 const RECOVERY_KEY = "material-square-website-content-recovery-v1";
 const RECOVERY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const BUILT_IN_PREVIEW_PAGES = [
+  { path: "/marketplace", title: "Marketplace" },
+  { path: "/why-us", title: "Why Us" },
+  { path: "/guides", title: "Tools & Guides" },
+  { path: "/get-quote", title: "Get Quote" },
+  { path: "/contact", title: "Contact" },
+  { path: "/blogs", title: "Blogs" },
+  { path: "/experts", title: "Experts" },
+  { path: "/privacy", title: "Privacy" },
+  { path: "/terms", title: "Terms" },
+];
 
 type RecoveryPoint = {
   id: string;
@@ -428,6 +439,7 @@ export default function WebsiteContentManager({
           </div>
           <label>Preview page<select value={previewPath} onChange={event => setPreviewPath(event.target.value)}>
             <option value="/">Home</option>
+            {BUILT_IN_PREVIEW_PAGES.map(page => <option key={page.path} value={page.path}>{page.title}</option>)}
             {JSON.parse(previewContent?.["website.pages"] || "[]").map((page: { id: string; path: string; title: string }) => <option key={page.id} value={page.path}>{page.title}</option>)}
           </select></label>
           <iframe
