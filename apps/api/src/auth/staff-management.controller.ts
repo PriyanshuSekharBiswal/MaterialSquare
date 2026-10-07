@@ -2,6 +2,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
@@ -32,16 +33,33 @@ const createStaffSchema = z
       .regex(/^[6-9]\d{9}$/)
       .optional(),
     role: roleSchema,
-    password: z.string().min(12).max(256),
+    password: z
+      .string()
+      .min(6)
+      .max(256)
+      .regex(/^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{6,256}$/, {
+        message: "Use at least 6 characters, including an uppercase letter, a number and a special character",
+      }),
   })
   .refine((value) => Boolean(value.email || value.phone), {
     message: "Add an email address or mobile number for staff sign-in",
   });
 const updateStaffSchema = z.object({
+  name: z.string().trim().min(2).max(150).optional(),
+  email: z.string().trim().email().max(254).nullable().optional(),
+  phone: z.string().regex(/^[6-9]\d{9}$/).nullable().optional(),
   role: roleSchema.optional(),
   isActive: z.boolean().optional(),
 });
-const passwordSchema = z.object({ password: z.string().min(12).max(256) });
+const passwordSchema = z.object({
+  password: z
+    .string()
+    .min(6)
+    .max(256)
+    .regex(/^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{6,256}$/, {
+      message: "Use at least 6 characters, including an uppercase letter, a number and a special character",
+    }),
+});
 
 @Controller("admin/staff")
 @UseGuards(StaffGuard)
@@ -56,6 +74,7 @@ export class StaffManagementController {
   @Get()
   list() {
     return this.prisma.staffUser.findMany({
+      where: { deletedAt: null },
       select: {
         id: true,
         name: true,
@@ -122,24 +141,38 @@ export class StaffManagementController {
     @Req() req: StaffRequest,
     @Body() body: unknown,
   ) {
-    if (id === req.user.userId)
-      throw new ConflictException(
-        "Use a separate owner account to change or disable your own access",
-      );
     const data = validate(updateStaffSchema, body);
     const target = await this.prisma.staffUser.findFirst({
-      where: { id },
-      select: { id: true, role: true, isActive: true },
+      where: { id, deletedAt: null },
+      select: { id: true, name: true, email: true, phone: true, role: true, isActive: true },
     });
     if (!target) throw new NotFoundException("Staff account not found");
-    if (target.role === "SUPER_ADMIN")
+    if (
+      target.role === "SUPER_ADMIN" &&
+      (data.role !== undefined || data.isActive !== undefined)
+    )
       throw new ConflictException(
-        "The primary owner account cannot be changed here",
+        "The primary owner’s role and access status cannot be changed here",
       );
+    const nextEmail = data.email === undefined ? target.email : data.email;
+    const nextPhone = data.phone === undefined ? target.phone : data.phone;
+    if (!nextEmail && !nextPhone)
+      throw new ConflictException("Keep at least one sign-in method on the account");
+    const normalizedData = {
+      ...data,
+      ...(data.email !== undefined
+        ? { email: data.email?.toLowerCase() || null }
+        : {}),
+    };
     return this.prisma.$transaction(async (tx) => {
       const staff = await tx.staffUser.update({
         where: { id },
-        data: { ...data, authVersion: { increment: 1 } },
+        data: {
+          ...normalizedData,
+          ...(data.role !== undefined || data.isActive !== undefined
+            ? { authVersion: { increment: 1 } }
+            : {}),
+        },
         select: {
           id: true,
           name: true,
@@ -151,9 +184,13 @@ export class StaffManagementController {
           updatedAt: true,
         },
       });
-      const changes = Object.entries(data).map(([field, value]) => ({
+      const changes = Object.entries(normalizedData).map(([field, value]) => ({
         field,
-        before: field === "role" ? target.role : target.isActive,
+        before: field === "role"
+          ? target.role
+          : field === "isActive"
+            ? target.isActive
+            : target[field as "name" | "email" | "phone"],
         after: value,
       }));
       await tx.auditLog.create({
@@ -162,11 +199,59 @@ export class StaffManagementController {
           action: "STAFF_ACCESS_UPDATED",
           entityType: "STAFF_USER",
           entityId: id,
-          metadata: { changedFields: Object.keys(data), changes },
+          metadata: { changedFields: Object.keys(normalizedData), changes },
         },
       });
       return staff;
     });
+  }
+
+  @Delete(":id")
+  async delete(@Param("id") id: string, @Req() req: StaffRequest) {
+    if (id === req.user.userId)
+      throw new ConflictException("You cannot delete your own staff account");
+    const target = await this.prisma.staffUser.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, name: true, role: true, isActive: true },
+    });
+    if (!target) throw new NotFoundException("Staff account not found");
+    if (target.role === "SUPER_ADMIN")
+      throw new ConflictException("The primary owner account cannot be deleted");
+    const actor = await this.prisma.staffUser.findUnique({
+      where: { id: req.user.userId },
+      select: { name: true },
+    });
+    if (!actor) throw new NotFoundException("Staff account not found");
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.staffUser.update({
+        where: { id },
+        data: { deletedAt: now, isActive: false, authVersion: { increment: 1 } },
+      });
+      await tx.recentlyDeletedRecord.create({
+        data: {
+          entityType: "STAFF_USER",
+          entityId: id,
+          displayName: target.name,
+          deletedById: req.user.userId,
+          deletedByName: actor.name,
+          deletedAt: now,
+          expiresAt,
+          metadata: { wasActive: target.isActive, role: target.role },
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          staffId: req.user.userId,
+          action: "STAFF_ACCOUNT_DELETED",
+          entityType: "STAFF_USER",
+          entityId: id,
+          metadata: { name: target.name, role: target.role, expiresAt: expiresAt.toISOString() },
+        },
+      });
+    });
+    return { success: true, expiresAt };
   }
 
   @Post(":id/password")
@@ -181,7 +266,7 @@ export class StaffManagementController {
       );
     const { password } = validate(passwordSchema, body);
     const target = await this.prisma.staffUser.findFirst({
-      where: { id, role: { not: "SUPER_ADMIN" } },
+      where: { id, deletedAt: null },
       select: { id: true },
     });
     if (!target) throw new NotFoundException("Staff account not found");

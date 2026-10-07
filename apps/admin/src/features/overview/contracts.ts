@@ -21,7 +21,8 @@ export type WebsiteAnalytics = {
     requestHandoffs: number;
   }[];
   topPages: { page: string; views: number }[];
-  topProducts: { id: string; name: string; views: number }[];
+  topProducts: { id: string; name: string; views: number; addToList?: number }[];
+  topProductsByIntent?: { id: string; name: string; addToList: number }[];
   privacy: string;
 };
 

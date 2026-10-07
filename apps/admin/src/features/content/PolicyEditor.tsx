@@ -46,15 +46,24 @@ export default function PolicyEditor({
     onChange({ ...content, [`policy.${kind}`]: JSON.stringify(value) });
   }
   return (
-    <section className="panel-card panel-body">
-      <h2>{kind === "privacy" ? "Privacy notice" : "Website terms"}</h2>
-      <p>
-        Replace the draft with client-approved copy before publication. Use{" "}
-        {"{{contactEmail}}"} to include the published contact email.
-      </p>
-      <fieldset disabled={disabled}>
+    <section className="panel-card panel-body website-policy-editor">
+      <header className="website-policy-header">
+        <div>
+          <span className="eyebrow">POLICIES</span>
+          <h2>{kind === "privacy" ? "Privacy notice" : "Website terms"}</h2>
+          <p>
+            Edit the copy shown to visitors. Use {"{{contactEmail}}"} to insert
+            the published contact email.
+          </p>
+        </div>
+        <span className={`website-policy-status ${policy.published ? "is-published" : "is-draft"}`}>
+          {policy.published ? "Visible on website" : "Draft only"}
+        </span>
+      </header>
+      <fieldset className="website-policy-fields" disabled={disabled}>
+        <div className="website-policy-basics website-content-fields">
         <label>
-          {kind} page heading
+          Page title
           <input
             maxLength={200}
             value={policy.title}
@@ -62,7 +71,7 @@ export default function PolicyEditor({
           />
         </label>
         <label>
-          {kind} publication note
+          Introductory note
           <input
             maxLength={300}
             value={policy.notice}
@@ -71,10 +80,15 @@ export default function PolicyEditor({
             }
           />
         </label>
+        </div>
         {policy.sections.map((section, index) => (
-          <div className="website-content-fields" key={index}>
+          <section className="website-content-fields website-policy-section" key={index}>
+            <div className="website-policy-section-heading">
+              <h3>Section {index + 1}</h3>
+              <span>{section.heading.trim() || "Add a section title"}</span>
+            </div>
             <label>
-              {kind} section {index + 1} heading
+              Section title
               <input
                 maxLength={200}
                 value={section.heading}
@@ -91,7 +105,7 @@ export default function PolicyEditor({
               />
             </label>
             <label>
-              {kind} section {index + 1} text
+              Section content
               <textarea
                 rows={5}
                 maxLength={4000}
@@ -108,6 +122,7 @@ export default function PolicyEditor({
                 }
               />
             </label>
+            <div className="website-policy-actions">
             <button
               type="button"
               className="btn-sm btn-secondary"
@@ -121,7 +136,7 @@ export default function PolicyEditor({
                 save({ ...policy, sections });
               }}
             >
-              Move {kind} section {index + 1} up
+              Move section up
             </button>
             <button
               type="button"
@@ -136,9 +151,10 @@ export default function PolicyEditor({
                 })
               }
             >
-              Remove {kind} section {index + 1}
+              Remove section
             </button>
-          </div>
+            </div>
+          </section>
         ))}
         <button
           type="button"
@@ -151,10 +167,22 @@ export default function PolicyEditor({
             })
           }
         >
-          Add {kind} section
+          Add section
         </button>
-        <label>
-          {kind} review note
+        <div className="website-policy-publish">
+        <label className="website-policy-publish-toggle">
+          <input
+            type="checkbox"
+            checked={policy.published}
+            onChange={(event) =>
+              save({ ...policy, published: event.target.checked })
+            }
+          />
+          Show this {kind === "privacy" ? "privacy notice" : "website terms"} on the website
+        </label>
+        <small>Only publish copy approved by the client. Draft content stays private.</small>
+        <label className="website-policy-review-note">
+          Internal review note <span>Only visible to your team</span>
           <textarea
             maxLength={2000}
             value={policy.reviewNote}
@@ -163,17 +191,7 @@ export default function PolicyEditor({
             }
           />
         </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={policy.published}
-            onChange={(event) =>
-              save({ ...policy, published: event.target.checked })
-            }
-          />
-          Publish this {kind === "privacy" ? "privacy notice" : "website terms"} after client/legal approval
-        </label>
-        <small>Unpublished copy stays hidden from visitors. Review notes are for the admin team and are never shown publicly.</small>
+        </div>
       </fieldset>
     </section>
   );

@@ -236,6 +236,7 @@ function describeRecentAction(action: string) {
     WEBSITE_CONTENT_DRAFT_SAVED: "Draft saved",
     STAFF_ACCESS_UPDATED: "Access updated",
     STAFF_PASSWORD_RESET: "Password reset",
+    STAFF_PASSWORD_CHANGED: "Password changed",
     RFQ_STATUS_UPDATED: "Status updated",
     ORDER_DELIVERY_COMPLETED: "Delivery completed",
     ORDER_PARTIALLY_DELIVERED: "Partially delivered",

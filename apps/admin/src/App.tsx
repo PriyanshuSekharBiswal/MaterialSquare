@@ -38,6 +38,8 @@ const CatalogueManager = lazy(
   () => import("./features/catalogue/CatalogueManager"),
 );
 const StaffManagement = lazy(() => import("./features/staff/StaffManagement"));
+const StaffAccount = lazy(() => import("./features/staff/StaffAccount"));
+const RecentlyDeleted = lazy(() => import("./features/trash/RecentlyDeleted"));
 const BusinessConsole = lazy(
   () => import("./features/business/BusinessConsole"),
 );
@@ -65,15 +67,22 @@ const marketplaceUrl =
 
 function restoredToken() {
   try {
-    return sessionStorage.getItem("ms-staff-token") || "";
+    const token = localStorage.getItem("ms-staff-token") || sessionStorage.getItem("ms-staff-token") || "";
+    if (token) {
+      localStorage.setItem("ms-staff-token", token);
+      sessionStorage.removeItem("ms-staff-token");
+    }
+    return token;
   } catch {
     return "";
   }
 }
+
 export function App() {
   const [token, setTokenState] = useState(restoredToken),
     [staff, setStaff] = useState<AdminStaff | null>(null);
   const [tab, setTab] = useState<WorkspaceTab>("overview");
+  const tabScrollPositions = useRef<Partial<Record<WorkspaceTab, number>>>({});
   const [stats, setStats] = useState<Stats | null>(null),
     [websiteAnalytics, setWebsiteAnalytics] = useState<WebsiteAnalytics | null>(
       null,
@@ -111,8 +120,9 @@ export function App() {
   const setToken = useCallback((value: string) => {
     setTokenState(value);
     try {
-      if (value) sessionStorage.setItem("ms-staff-token", value);
-      else sessionStorage.removeItem("ms-staff-token");
+      if (value) localStorage.setItem("ms-staff-token", value);
+      else localStorage.removeItem("ms-staff-token");
+      sessionStorage.removeItem("ms-staff-token");
     } catch {}
   }, []);
   const signOut = useCallback(() => {
@@ -354,6 +364,7 @@ export function App() {
     };
   }, [token, tab, page, search, status, revision, request]);
   const navigate = (next: typeof tab) => {
+    tabScrollPositions.current[tab] = window.scrollY;
     setTab(next);
     setPage(1);
     setQuery("");
@@ -365,6 +376,19 @@ export function App() {
     setNotice("");
     setError("");
   };
+  useEffect(() => {
+    let firstFrame = 0;
+    let secondFrame = 0;
+    firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        window.scrollTo({ top: tabScrollPositions.current[tab] ?? 0, behavior: "instant" });
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+    };
+  }, [tab]);
   const login = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setBusy(true);
@@ -482,6 +506,10 @@ export function App() {
           recentChangesError={recentChangesError}
           staffRole={staff?.role || ""}
           onViewCustomers={() => navigate("customers")}
+          onViewFollowups={(filter) => {
+            navigate("followups");
+            setStatus(filter);
+          }}
           onViewAudit={() => navigate("audit")}
           onOpenCatalogue={() => navigate("catalogue")}
           onOpenContent={() => navigate("content")}
@@ -513,7 +541,7 @@ export function App() {
           openCustomer={openCustomer}
           draft={draft}
           setDraft={setDraft}
-          setTab={setTab}
+          setTab={navigate}
           setError={setError}
           save={save}
         />
@@ -531,6 +559,9 @@ export function App() {
           />
         )}
         {tab === "audit" && <AuditLog token={token} />}
+        {tab === "trash" && (
+          <RecentlyDeleted token={token} onSignOut={signOut} />
+        )}
         {tab === "notifications" && <NotificationStatus token={token} />}
         {tab === "catalogue" && (
           <CatalogueManager
@@ -572,13 +603,24 @@ export function App() {
             customerUrl={marketplaceUrl}
           />
         )}
-        {tab === "team" && staff?.role === "SUPER_ADMIN" && (
-          <StaffManagement
+        {tab === "account" && staff && (
+          <StaffAccount
             token={token}
-            onBack={() => navigate("overview")}
+            staff={staff}
+            onSaved={(updated) => setStaff(updated)}
+            onTokenChanged={setToken}
             onSignOut={signOut}
-            embedded={true}
           />
+        )}
+        {tab === "team" &&
+          (staff?.role === "SUPER_ADMIN" || staff?.role === "ADMIN") && (
+            <StaffManagement
+              token={token}
+              onBack={() => navigate("overview")}
+              onSignOut={signOut}
+              embedded={true}
+              currentStaffId={staff.id}
+            />
         )}
       </FeatureBoundary>
     </AdminWorkspaceLayout>

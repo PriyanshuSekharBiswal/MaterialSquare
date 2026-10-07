@@ -44,7 +44,7 @@ describe("supplier audit history", () => {
     const auditCreate = jest.fn();
     const tx = {
       supplier: {
-        findUnique: jest.fn().mockResolvedValue({ id: "supplier-1" }),
+        findFirst: jest.fn().mockResolvedValue({ id: "supplier-1", deletedAt: null }),
         update: jest.fn().mockResolvedValue(supplier),
       },
       auditLog: { create: auditCreate },

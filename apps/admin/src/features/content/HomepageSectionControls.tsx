@@ -71,18 +71,22 @@ export default function HomepageSectionControls({
                 <button
                   type="button"
                   className="btn-sm btn-secondary"
+                  aria-label={`Move ${section.label} up`}
+                  title={`Move ${section.label} up`}
                   disabled={disabled || index === 0}
                   onClick={() => moveSection(index, -1)}
                 >
-                  Move {section.label} up
+                  Move up
                 </button>
                 <button
                   type="button"
                   className="btn-sm btn-secondary"
+                  aria-label={`Move ${section.label} down`}
+                  title={`Move ${section.label} down`}
                   disabled={disabled || index === order.length - 1}
                   onClick={() => moveSection(index, 1)}
                 >
-                  Move {section.label} down
+                  Move down
                 </button>
               </div>
             </li>

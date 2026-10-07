@@ -6,9 +6,12 @@ import {
 } from "./staff-access";
 
 describe("predefined staff access", () => {
-  it("restricts staff administration to the main owner", () => {
+  it("allows administrators to manage staff while restricting the action from other roles", () => {
     expect(roleHasPermission("SUPER_ADMIN", "staff.manage")).toBe(true);
-    expect(roleHasPermission("ADMIN", "staff.manage")).toBe(false);
+    expect(roleHasPermission("ADMIN", "staff.manage")).toBe(true);
+    expect(() =>
+      assertStaffRoutePermission("POST", "/api/admin/staff", "ADMIN"),
+    ).not.toThrow();
     expect(() =>
       assertStaffRoutePermission("POST", "/api/admin/staff", "SALES_MANAGER"),
     ).toThrow(ForbiddenException);
@@ -251,7 +254,7 @@ describe("V1 staff action permission matrix", () => {
       action: "staff account administration",
       method: "POST",
       path: "/api/admin/staff",
-      allowed: ["SUPER_ADMIN"],
+      allowed: ["SUPER_ADMIN", "ADMIN"],
     },
     {
       action: "customer records and sales requests",
@@ -414,25 +417,25 @@ describe("V1 staff action permission matrix", () => {
       action: "staff role definitions",
       method: "GET",
       path: "/api/admin/staff/roles",
-      allowed: ["SUPER_ADMIN"],
+      allowed: ["SUPER_ADMIN", "ADMIN"],
     },
     {
       action: "staff account listing",
       method: "GET",
       path: "/api/admin/staff",
-      allowed: ["SUPER_ADMIN"],
+      allowed: ["SUPER_ADMIN", "ADMIN"],
     },
     {
       action: "staff access changes",
       method: "PATCH",
       path: "/api/admin/staff/staff-1",
-      allowed: ["SUPER_ADMIN"],
+      allowed: ["SUPER_ADMIN", "ADMIN"],
     },
     {
       action: "staff password resets",
       method: "POST",
       path: "/api/admin/staff/staff-1/password",
-      allowed: ["SUPER_ADMIN"],
+      allowed: ["SUPER_ADMIN", "ADMIN"],
     },
     {
       action: "customer follow-up review",

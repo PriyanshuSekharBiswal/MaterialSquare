@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
@@ -26,6 +27,7 @@ export class SuppliersController {
   list(@Query("q") q = "", @Query("status") status?: string) {
     return this.prisma.supplier.findMany({
       where: {
+        deletedAt: null,
         ...(status
           ? { status: status as "PENDING" | "ACTIVE" | "SUSPENDED" }
           : {}),
@@ -64,10 +66,13 @@ export class SuppliersController {
 
   @Get(":id")
   async detail(@Param("id") id: string) {
-    const supplier = await this.prisma.supplier.findUnique({
-      where: { id },
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { id, deletedAt: null },
       include: {
-        products: { orderBy: [{ category: "asc" }, { productName: "asc" }] },
+        products: {
+          where: { deletedAt: null },
+          orderBy: [{ category: "asc" }, { productName: "asc" }],
+        },
         ratings: { orderBy: { createdAt: "desc" }, take: 50 },
         quotes: { orderBy: { createdAt: "desc" }, take: 20 },
       },
@@ -97,7 +102,7 @@ export class SuppliersController {
   ) {
     const data = validate(supplierInput.partial(), body);
     return this.prisma.$transaction(async (db) => {
-      const exists = await db.supplier.findUnique({ where: { id } });
+      const exists = await db.supplier.findFirst({ where: { id, deletedAt: null } });
       if (!exists) throw new NotFoundException("Supplier not found");
       const supplier = await db.supplier.update({ where: { id }, data });
       await db.auditLog.create({
@@ -113,6 +118,51 @@ export class SuppliersController {
     });
   }
 
+  @Delete(":id")
+  async delete(@Param("id") id: string, @Req() req: StaffRequest) {
+    const target = await this.prisma.supplier.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, name: true, status: true, _count: { select: { products: true } } },
+    });
+    if (!target) throw new NotFoundException("Supplier not found");
+    const actor = await this.prisma.staffUser.findUnique({
+      where: { id: req.user.userId },
+      select: { name: true },
+    });
+    if (!actor) throw new NotFoundException("Staff account not found");
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    await this.prisma.$transaction(async (db) => {
+      const changed = await db.supplier.updateMany({
+        where: { id, deletedAt: null },
+        data: { deletedAt: now },
+      });
+      if (!changed.count) throw new NotFoundException("Supplier not found");
+      await db.recentlyDeletedRecord.create({
+        data: {
+          entityType: "SUPPLIER",
+          entityId: id,
+          displayName: target.name,
+          deletedById: req.user.userId,
+          deletedByName: actor.name,
+          deletedAt: now,
+          expiresAt,
+          metadata: { status: target.status, productCount: target._count.products },
+        },
+      });
+      await db.auditLog.create({
+        data: {
+          staffId: req.user.userId,
+          action: "SUPPLIER_DELETED",
+          entityType: "SUPPLIER",
+          entityId: id,
+          metadata: { name: target.name, expiresAt: expiresAt.toISOString() },
+        },
+      });
+    });
+    return { success: true, expiresAt };
+  }
+
   @Post(":id/products")
   async addProduct(
     @Param("id") id: string,
@@ -121,7 +171,7 @@ export class SuppliersController {
   ) {
     const data = validate(supplierProductInput, body);
     return this.prisma.$transaction(async (db) => {
-      const supplier = await db.supplier.count({ where: { id } });
+      const supplier = await db.supplier.count({ where: { id, deletedAt: null } });
       if (!supplier) throw new NotFoundException("Supplier not found");
       const product = await db.supplierProduct.create({
         data: { supplierId: id, ...data },
@@ -154,8 +204,12 @@ export class SuppliersController {
       body,
     );
     return this.prisma.$transaction(async (db) => {
+      const supplierExists = await db.supplier.count({
+        where: { id, deletedAt: null },
+      });
+      if (!supplierExists) throw new NotFoundException("Supplier not found");
       const changed = await db.supplierProduct.updateMany({
-        where: { id: productId, supplierId: id },
+        where: { id: productId, supplierId: id, deletedAt: null },
         data,
       });
       if (!changed.count)
@@ -176,6 +230,55 @@ export class SuppliersController {
     });
   }
 
+  @Delete(":id/products/:productId")
+  async deleteProduct(
+    @Param("id") id: string,
+    @Param("productId") productId: string,
+    @Req() req: StaffRequest,
+  ) {
+    const product = await this.prisma.supplierProduct.findFirst({
+      where: { id: productId, supplierId: id, deletedAt: null },
+      include: { supplier: { select: { name: true, deletedAt: true } } },
+    });
+    if (!product || product.supplier.deletedAt)
+      throw new NotFoundException("Supplier product not found");
+    const actor = await this.prisma.staffUser.findUnique({
+      where: { id: req.user.userId },
+      select: { name: true },
+    });
+    if (!actor) throw new NotFoundException("Staff account not found");
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    await this.prisma.$transaction(async (db) => {
+      await db.supplierProduct.update({
+        where: { id: productId },
+        data: { deletedAt: now, isActive: false },
+      });
+      await db.recentlyDeletedRecord.create({
+        data: {
+          entityType: "SUPPLIER_PRODUCT",
+          entityId: productId,
+          displayName: `${product.productName}${product.brand ? ` · ${product.brand}` : ""}`,
+          deletedById: req.user.userId,
+          deletedByName: actor.name,
+          deletedAt: now,
+          expiresAt,
+          metadata: { wasActive: product.isActive, supplierId: id, supplierName: product.supplier.name },
+        },
+      });
+      await db.auditLog.create({
+        data: {
+          staffId: req.user.userId,
+          action: "SUPPLIER_PRODUCT_DELETED",
+          entityType: "SUPPLIER_PRODUCT",
+          entityId: productId,
+          metadata: { name: product.productName, supplierName: product.supplier.name, expiresAt: expiresAt.toISOString() },
+        },
+      });
+    });
+    return { success: true, expiresAt };
+  }
+
   @Post(":id/ratings")
   async rate(
     @Param("id") id: string,
@@ -194,7 +297,7 @@ export class SuppliersController {
       body,
     );
     return this.prisma.$transaction(async (db) => {
-      if (!(await db.supplier.count({ where: { id } })))
+      if (!(await db.supplier.count({ where: { id, deletedAt: null } })))
         throw new NotFoundException("Supplier not found");
       const rating = await db.supplierRating.create({
         data: { supplierId: id, staffId: req.user.userId, ...data },

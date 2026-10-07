@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Clock3, FileText, Package, Pencil, Plus, Upload } from "lucide-react";
+import { ArrowRight, Clock3, FileText, Package, Pencil, Plus, Upload } from "lucide-react";
 import type { RecentChanges, Stats, WebsiteAnalytics } from "./contracts";
 
 function recentChangeValue(field: string, value: unknown) {
@@ -26,6 +26,7 @@ type WorkspaceOverviewProps = {
   recentChangesError: string;
   staffRole: string;
   onViewCustomers: () => void;
+  onViewFollowups: (status: "OPEN" | "CLOSED") => void;
   onViewAudit: () => void;
   onOpenCatalogue: () => void;
   onOpenContent: () => void;
@@ -42,6 +43,7 @@ export default function WorkspaceOverview({
   recentChangesError,
   staffRole,
   onViewCustomers,
+  onViewFollowups,
   onViewAudit,
   onOpenCatalogue,
   onOpenContent,
@@ -86,15 +88,16 @@ export default function WorkspaceOverview({
     <>
       <div className="kpi-grid">
         {[
-          ["Customer records", stats.customers],
-          ["New records · 30 days", stats.newCustomers30Days],
-          ["Open follow-ups", stats.openFollowups],
-          ["Closed follow-ups", stats.closedFollowups],
-        ].map(([label, value]) => (
-          <article className="kpi-card" key={label}>
+          { label: "Customer records", value: stats.customers, detail: "View all customers", onClick: onViewCustomers },
+          { label: "New records · 30 days", value: stats.newCustomers30Days, detail: "View recent customers", onClick: onViewCustomers },
+          { label: "Open follow-ups", value: stats.openFollowups, detail: "View open follow-ups", onClick: () => onViewFollowups("OPEN") },
+          { label: "Closed follow-ups", value: stats.closedFollowups, detail: "View closed follow-ups", onClick: () => onViewFollowups("CLOSED") },
+        ].map(({ label, value, detail, onClick }) => (
+          <button className="kpi-card kpi-card-action" key={label} type="button" onClick={onClick}>
             <h2>{label}</h2>
             <p className="kpi-value">{value}</p>
-          </article>
+            <span className="kpi-card-link">{detail}<ArrowRight size={14} aria-hidden="true" /></span>
+          </button>
         ))}
       </div>
       {websiteAnalytics && (

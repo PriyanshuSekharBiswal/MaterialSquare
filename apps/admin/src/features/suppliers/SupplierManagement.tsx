@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Trash2 } from "lucide-react";
+import { confirmAdminAction } from "../../components/confirmAdminAction";
 import type { FormSubmit, Mutate } from "../business/form-contracts";
 import SupplierProducts from "./SupplierProducts";
 
@@ -223,6 +225,21 @@ export default function SupplierManagement({
             onClick={() => setEditingSupplier(s)}
           >
             Edit supplier
+          </button>
+          <button
+            className="bc-button bc-danger"
+            disabled={busy}
+            onClick={async () => {
+              if (!(await confirmAdminAction({
+                title: "Move this supplier to Recently deleted?",
+                message: `“${s.name}” can be restored for 30 days.`,
+                confirmLabel: "Move to recently deleted",
+                tone: "danger",
+              }))) return;
+              void mutate(`/suppliers/${s.id}`, "DELETE", undefined);
+            }}
+          >
+            <Trash2 size={16} /> Delete supplier
           </button>
           <button
             className="bc-button"

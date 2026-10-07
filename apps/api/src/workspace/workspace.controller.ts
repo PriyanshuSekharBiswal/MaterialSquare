@@ -21,7 +21,7 @@ import type { StaffRequest } from "../auth/staff-request";
 const searchSchema = z.object({
   q: z.string().trim().max(100).default(""),
   page: z.coerce.number().int().min(1).max(100000).default(1),
-  status: z.enum(["", "NEW", "CONTACTED", "QUOTED", "CLOSED"]).default(""),
+  status: z.enum(["", "OPEN", "NEW", "CONTACTED", "QUOTED", "CLOSED"]).default(""),
 });
 const enquirySchema = z.object({
   customerName: z.string().trim().min(2).max(100),
@@ -138,7 +138,11 @@ export class WorkspaceController {
     res.setHeader("Cache-Control", "no-store");
     const { q, page, status } = validate(searchSchema, query);
     const where = {
-      ...(status ? { status } : {}),
+      ...(status === "OPEN"
+        ? { status: { not: "CLOSED" } }
+        : status
+          ? { status }
+          : {}),
       OR: [
         { customerName: { contains: q, mode: "insensitive" as const } },
         { phone: { contains: q } },

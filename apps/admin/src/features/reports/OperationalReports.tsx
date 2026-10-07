@@ -318,19 +318,12 @@ export default function OperationalReports({
   return (
     <section className="panel-card operational-reports">
       <div className="operational-reports-header">
-        <div>
-          <h2>Operational reports</h2>
-          <p>
-            Review recorded business activity by date and export the visible
-            rows.
-          </p>
-        </div>
         <button
           className="btn-sm btn-secondary"
           onClick={() => setRange({ ...range })}
           disabled={loading}
         >
-          <RefreshCw size={14} /> Refresh
+          <RefreshCw size={14} /> Refresh report
         </button>
       </div>
       <div className="report-tabs" role="tablist" aria-label="Report category">

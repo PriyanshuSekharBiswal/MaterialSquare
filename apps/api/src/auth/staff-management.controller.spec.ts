@@ -5,6 +5,9 @@ describe("staff access audit history", () => {
     const auditCreate = jest.fn().mockResolvedValue(undefined);
     const findFirst = jest.fn().mockResolvedValue({
       id: "qa-staff",
+      name: "QA staff",
+      email: null,
+      phone: "9876543210",
       role: "CONTENT_MANAGER",
       isActive: false,
     });

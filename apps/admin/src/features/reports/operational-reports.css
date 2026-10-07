@@ -1,7 +1,22 @@
 .operational-reports {
   display: grid;
   gap: 18px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding: clamp(18px, 2vw, 26px);
 }
+
+.operational-reports > *,
+.operational-reports .table-scroll {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.operational-reports .table-scroll { overflow-x: auto; }
 
 .operational-reports-header,
 .report-filters,
@@ -14,7 +29,7 @@
 }
 
 .operational-reports-header {
-  justify-content: space-between;
+  justify-content: flex-end;
 }
 
 .operational-reports-header h2,
@@ -72,7 +87,8 @@
 
 .report-summary-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  min-width: 0;
 }
 
 .report-summary-cards article {
@@ -125,3 +141,6 @@
     width: 100%;
   }
 }
+
+.operational-reports input,
+.operational-reports button { box-sizing: border-box; }

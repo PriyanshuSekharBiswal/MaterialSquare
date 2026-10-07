@@ -11,6 +11,7 @@ import { StaffManagementController } from "./staff-management.controller";
 import { CustomerController } from "./customer.controller";
 import { CustomerGuard } from "./customer.guard";
 import { Msg91WidgetService } from "./msg91-widget.service";
+import { RecentlyDeletedController } from "./recently-deleted.controller";
 
 @Global()
 @Module({
@@ -20,11 +21,13 @@ import { Msg91WidgetService } from "./msg91-widget.service";
     JwtModule.registerAsync({
       useFactory: () => ({
         secret: jwtSecret(),
-        signOptions: { expiresIn: "8h" },
+        // Admin sign-in is remembered by the admin app across browser restarts.
+        // Keep a finite server-side lifetime so abandoned devices still expire.
+        signOptions: { expiresIn: "30d" },
       }),
     }),
   ],
-  controllers: [AuthController, CustomerController, StaffManagementController],
+  controllers: [AuthController, CustomerController, StaffManagementController, RecentlyDeletedController],
   providers: [
     AuthService,
     JwtStrategy,

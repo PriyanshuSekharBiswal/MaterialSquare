@@ -45,9 +45,11 @@ export type WorkspaceTab =
   | "notifications"
   | "audit"
   | "team"
+  | "account"
   | "sales"
   | "business"
-  | "reports";
+  | "reports"
+  | "trash";
 
 export const followupStatuses: Record<string, string> = {
   NEW: "New",

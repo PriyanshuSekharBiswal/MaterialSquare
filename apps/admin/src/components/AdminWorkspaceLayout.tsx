@@ -11,7 +11,9 @@ import {
   RefreshCw,
   ShieldCheck,
   Tags,
+  Trash2,
   Users,
+  UserRound,
   X,
 } from "lucide-react";
 import type { WorkspaceTab } from "../features/customers/contracts";
@@ -19,6 +21,7 @@ import MaterialSquareLogo from "./MaterialSquareLogo";
 import GlobalAdminSearch, { type AdminSearchRecord } from "./GlobalAdminSearch";
 
 export type AdminStaff = {
+  id?: string;
   name: string;
   phone: string | null;
   email: string | null;
@@ -33,28 +36,30 @@ type NavigationItem = {
 
 const navigationSections: { group: string; items: NavigationItem[] }[] = [
   {
-    group: "Core Workspace",
+    group: "WORKSPACE",
     items: [
       { id: "overview", label: "Overview", icon: LayoutDashboard },
-      { id: "recent", label: "Recent activity", icon: Clock3 },
+      { id: "recent", label: "Recent changes", icon: Clock3 },
       { id: "customers", label: "Customers", icon: Users },
-      { id: "followups", label: "Follow-ups", icon: ClipboardList },
+      { id: "followups", label: "Enquiry follow-ups", icon: ClipboardList },
       { id: "sales", label: "Quotations & orders", icon: FileText },
       { id: "business", label: "Business management", icon: Tags },
+      { id: "trash", label: "Recently deleted", icon: Trash2 },
       { id: "reports", label: "Operational reports", icon: BarChart3 },
     ],
   },
   {
-    group: "Website Management",
+    group: "WEBSITE MANAGEMENT",
     items: [
-      { id: "catalogue", label: "Products, prices & offers", icon: Tags },
-      { id: "content", label: "Website pages & content", icon: FileText },
+      { id: "catalogue", label: "Products & pricing", icon: Tags },
+      { id: "content", label: "Website editor", icon: FileText },
     ],
   },
   {
-    group: "Security & Admin",
+    group: "TEAM & SECURITY",
     items: [
       { id: "team", label: "Staff & Roles", icon: ShieldCheck },
+      { id: "account", label: "My account", icon: UserRound },
       { id: "audit", label: "Audit log", icon: FileText },
       { id: "notifications", label: "Notifications", icon: FileText },
     ],
@@ -86,42 +91,53 @@ function isTabPermitted(id: WorkspaceTab, role?: string) {
     ].includes(role || "");
   if (id === "content")
     return ["SUPER_ADMIN", "ADMIN", "CONTENT_MANAGER"].includes(role || "");
-  if (id === "team") return role === "SUPER_ADMIN";
+  if (id === "team") return role === "SUPER_ADMIN" || role === "ADMIN";
+  if (id === "trash")
+    return [
+      "SUPER_ADMIN",
+      "ADMIN",
+      "CATALOG_MANAGER",
+      "PROCUREMENT_HEAD",
+    ].includes(role || "");
   return true;
 }
 
 function pageTitle(tab: WorkspaceTab) {
   const titles: Record<WorkspaceTab, string> = {
-    overview: "Executive Overview",
-    recent: "Recent Activity · 7 days",
-    customers: "Customer Records",
-    followups: "Enquiry Follow-ups",
-    catalogue: "Website Catalogue",
-    content: "Website Pages & Content",
+    overview: "Overview",
+    recent: "Recent changes · 7 days",
+    customers: "Customers",
+    followups: "Enquiry follow-ups",
+    catalogue: "Products & pricing",
+    content: "Website editor",
     sales: "Quotations & Orders",
     business: "Business Management",
     reports: "Operational Reports",
     audit: "Audit Log",
     notifications: "Notifications",
     team: "Staff & Role Permissions",
+    account: "My account",
+    trash: "Recently deleted",
   };
   return titles[tab];
 }
 
 function pageDescription(tab: WorkspaceTab) {
   const descriptions: Record<WorkspaceTab, string> = {
-    overview: "A clear view of enquiries, sales and website performance.",
-    recent: "Changes made across the workspace during the last 7 days.",
-    customers: "Customer details, conversations and recent activity.",
-    followups: "Keep every open enquiry moving toward a clear next step.",
-    catalogue: "Manage the products, prices and offers customers see online.",
-    content: "Prepare page updates, preview them and publish when ready.",
-    sales: "Review quotations and orders from enquiry through fulfilment.",
+    overview: "Your recent work, customer enquiries and website activity in one place.",
+    recent: "See what changed, who made the change and when. Activity is kept for 7 days.",
+    customers: "Find customer contact details, requests and conversation history.",
+    followups: "Track each customer enquiry and record the next step.",
+    catalogue: "Add products, update prices and choose what customers can see.",
+    content: "Update website pages, preview your changes and publish when they’re ready.",
+    sales: "Manage quotes and orders from the first request through delivery.",
     business: "Manage the teams, suppliers and services behind the storefront.",
     reports: "Track operating activity and business performance.",
     audit: "Review who changed records and when those changes happened.",
     notifications: "Messages and alerts that need your attention.",
     team: "Manage staff access and the work each role can perform.",
+    account: "Update your name and the contact details you use to sign in.",
+    trash: "Restore products, suppliers or staff accounts within 30 days of deletion.",
   };
   return descriptions[tab];
 }
@@ -169,6 +185,14 @@ export default function AdminWorkspaceLayout({
     onNavigate(next);
     onMobileNavChange(false);
   };
+  const showGlobalSearch = [
+    "overview",
+    "recent",
+    "catalogue",
+    "business",
+    "sales",
+    "reports",
+  ].includes(tab);
 
   return (
     <div className="admin-layout">
@@ -201,10 +225,10 @@ export default function AdminWorkspaceLayout({
               <MaterialSquareLogo
                 size={44}
                 showText={true}
-                lightMode={false}
+                lightMode={true}
                 tagline="BUILDING BETTER TOGETHER"
               />
-              <span className="admin-brand-context">OPERATIONS CONSOLE</span>
+              <span className="admin-brand-context">CLIENT ADMIN WORKSPACE</span>
             </span>
           </button>
           <button
@@ -291,11 +315,13 @@ export default function AdminWorkspaceLayout({
             <p className="admin-page-description">{pageDescription(tab)}</p>
           </div>
           <div className="admin-header-actions">
-            <GlobalAdminSearch
-              role={staff.role}
-              onSelect={onSearchNavigate}
-              searchRecords={onSearchRecords}
-            />
+            {showGlobalSearch && (
+              <GlobalAdminSearch
+                role={staff.role}
+                onSelect={onSearchNavigate}
+                searchRecords={onSearchRecords}
+              />
+            )}
             <button
               className="btn-sm btn-secondary"
               disabled={loading || busy}

@@ -176,7 +176,6 @@ export default function GlobalAdminSearch({
   >([]);
   const [recordsLoading, setRecordsLoading] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const normalized = value.trim().toLocaleLowerCase();
   const allowed = useMemo(
     () => destinations.filter((item) => permitted(item.id, role)),
@@ -283,25 +282,13 @@ export default function GlobalAdminSearch({
   }, [allowed, normalized, recordSuggestions, value]);
 
   useEffect(() => {
-    const onShortcut = (event: KeyboardEvent) => {
-      if (
-        (event.metaKey || event.ctrlKey) &&
-        event.key.toLocaleLowerCase() === "k"
-      ) {
-        event.preventDefault();
-        inputRef.current?.focus();
-        setOpen(true);
-      }
-    };
     const onPointerDown = (event: PointerEvent) => {
       if (open && !rootRef.current?.contains(event.target as Node))
         setOpen(false);
     };
     document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onShortcut);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onShortcut);
     };
   }, [open]);
 
@@ -317,7 +304,6 @@ export default function GlobalAdminSearch({
       <label className="admin-global-search-field">
         <Search size={18} aria-hidden="true" />
         <input
-          ref={inputRef}
           type="search"
           role="combobox"
           aria-label="Search the admin workspace"
@@ -353,7 +339,6 @@ export default function GlobalAdminSearch({
             } else if (event.key === "Escape") setOpen(false);
           }}
         />
-        <kbd aria-hidden="true">⌘ K</kbd>
       </label>
       {open && (
         <div

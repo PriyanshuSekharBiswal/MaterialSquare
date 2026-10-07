@@ -10,12 +10,14 @@ import {
   Save,
   Search,
   Tags,
+  Trash2,
   Upload,
   Users,
   X,
 } from "lucide-react";
 import CatalogueVariantsEditor, { type EditableVariant } from "./CatalogueVariantsEditor";
 import MaterialSquareLogo from "../../components/MaterialSquareLogo";
+import { confirmAdminAction } from "../../components/confirmAdminAction";
 import PartnerBrandsManager from "./PartnerBrandsManager";
 import "./catalogue-manager.css";
 
@@ -50,6 +52,7 @@ type Listing = {
   applications: string[];
   specifications: Record<string, string>;
   sortOrder: number;
+  createdAt?: string;
 };
 type Variant = EditableVariant;
 type ProductDraft = {
@@ -103,7 +106,7 @@ const blank: Listing = {
   specifications: {},
   sortOrder: 0,
 };
-const MAX_GALLERY_IMAGES = 4;
+const MAX_GALLERY_IMAGES = 3;
 const slugify = (value: string) =>
   value
     .toLowerCase()
@@ -165,6 +168,9 @@ export default function CatalogueManager({
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [publicationFilter, setPublicationFilter] = useState("all");
   const [availabilityFilter, setAvailabilityFilter] = useState("all");
+  const [catalogueSort, setCatalogueSort] = useState("recent");
+  const [cataloguePage, setCataloguePage] = useState(1);
+  const [productInterest, setProductInterest] = useState<Record<string, number>>({});
   const [managingBrands, setManagingBrands] = useState(false);
   const [partnerBrandOptions, setPartnerBrandOptions] = useState<string[]>([]);
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
@@ -178,8 +184,24 @@ export default function CatalogueManager({
   const canManage = ["SUPER_ADMIN", "ADMIN", "CATALOG_MANAGER"].includes(role);
 
   useEffect(() => {
+    if (!editing) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const frame = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      productForm.current?.scrollTo({ top: 0, behavior: "instant" });
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [editing]);
+
+  useEffect(() => {
     setCatalogueQuery(initialSearch);
   }, [initialSearch]);
+
+  useEffect(() => { setCataloguePage(1); }, [catalogueQuery, brandFilter, categoryFilter, publicationFilter, availabilityFilter, catalogueSort]);
 
   useEffect(() => {
     if (!previewOpen) return;
@@ -220,7 +242,7 @@ export default function CatalogueManager({
       .map((product) => [product.category, product.categoryLabel]),
   ).entries()].sort((a, b) => a[1].localeCompare(b[1]));
   const normalizedQuery = catalogueQuery.trim().toLocaleLowerCase();
-  const visibleListings = listings.filter((product) => {
+  const filteredListings = listings.filter((product) => {
     const searchable = [
       product.name,
       product.brand,
@@ -250,6 +272,21 @@ export default function CatalogueManager({
       availabilityFilter === "all" || availabilityStatuses.includes(availabilityFilter as Listing["availabilityStatus"]);
     return matchesQuery && matchesBrand && matchesCategory && matchesPublication && matchesAvailability;
   });
+  const visibleListings = [...filteredListings].sort((left, right) => {
+    if (catalogueSort === "interest") return (productInterest[right.id] || 0) - (productInterest[left.id] || 0) || left.name.localeCompare(right.name);
+    if (catalogueSort === "name") return left.name.localeCompare(right.name);
+    if (catalogueSort === "price-asc" || catalogueSort === "price-desc") {
+      const getPrice = (product: Listing) => Number(product.variants.find((variant) => variant.price != null && variant.price !== "")?.price ?? product.price ?? Number.MAX_SAFE_INTEGER);
+      return (catalogueSort === "price-asc" ? 1 : -1) * (getPrice(left) - getPrice(right));
+    }
+    const leftAdded = left.createdAt ? Date.parse(left.createdAt) : left.sortOrder;
+    const rightAdded = right.createdAt ? Date.parse(right.createdAt) : right.sortOrder;
+    return rightAdded - leftAdded || left.name.localeCompare(right.name);
+  });
+  const pageSize = 12;
+  const pageCount = Math.max(1, Math.ceil(visibleListings.length / pageSize));
+  const currentPage = Math.min(cataloguePage, pageCount);
+  const pageListings = visibleListings.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const pricedPreviewVariant = previewListing?.variants
     .filter((variant) => variant.price != null && variant.price !== "")
     .reduce<Variant | undefined>(
@@ -316,6 +353,16 @@ export default function CatalogueManager({
     },
     [token, onSignOut],
   );
+
+  useEffect(() => {
+    let active = true;
+    void request<{ topProductsByIntent?: { id: string; addToList: number }[] }>("/analytics/overview?days=30")
+      .then((analytics) => {
+        if (active) setProductInterest(Object.fromEntries((analytics.topProductsByIntent || []).map((product) => [product.id, product.addToList || 0])));
+      })
+      .catch(() => { if (active) setProductInterest({}); });
+    return () => { active = false; };
+  }, [request]);
 
   async function uploadImage(file: File, input: HTMLInputElement) {
     if (!new Set(["image/png", "image/jpeg", "image/webp"]).has(file.type)) {
@@ -427,7 +474,7 @@ export default function CatalogueManager({
     ) {
       setError(
         remaining < 1
-          ? "The gallery already has four images. Remove one before uploading another."
+          ? "You can add up to three optional product images. Remove an image before uploading another."
           : `Choose up to ${remaining} more PNG, JPEG, or WebP image${remaining === 1 ? "" : "s"}, each 5 MB or smaller.`,
       );
       input.value = "";
@@ -693,8 +740,8 @@ export default function CatalogueManager({
       })),
       sortOrder: Number(values.get("sortOrder") || 0),
     };
-    if (payload.galleryImages.length > MAX_GALLERY_IMAGES) {
-      setError("A product can have up to four additional gallery images.");
+    if (payload.galleryImages.length > MAX_GALLERY_IMAGES && payload.galleryImages.length > (editing?.galleryImages.length || 0)) {
+      setError("Add up to three optional product images. Existing listings with older galleries can still be saved as-is.");
       return;
     }
     if (rawCompare && rawPrice && Number(rawCompare) < Number(rawPrice)) {
@@ -742,13 +789,35 @@ export default function CatalogueManager({
     setError("");
     setNotice("");
     try {
-      await request(`/products/catalogue/${product.id}`, "DELETE");
+      await request(`/products/catalogue/${product.id}/unpublish`, "PATCH");
       setNotice(`${product.name} is unpublished.`);
       await refresh();
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Could not unpublish this product.",
       );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteProduct(product: Listing) {
+    const confirmed = await confirmAdminAction({
+      title: "Move this product to Recently deleted?",
+      message: `“${product.name}” can be restored for 30 days.`,
+      confirmLabel: "Move to recently deleted",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await request(`/products/catalogue/${product.id}`, "DELETE");
+      setNotice(`${product.name} moved to Recently deleted for 30 days.`);
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not delete this product.");
     } finally {
       setBusy(false);
     }
@@ -832,16 +901,20 @@ export default function CatalogueManager({
         </p>
       )}
       {canManage && formProduct && (
+        <div className="catalogue-editor-overlay">
         <form
           ref={productForm}
           className="panel-card catalogue-product-form"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="catalogue-editor-title"
           onSubmit={(event) => void save(event)}
           onChange={captureProductDraft}
         >
           <div className="catalogue-form-title">
             <div className="catalogue-form-title-copy">
               <span className="eyebrow">WEBSITE CATALOGUE</span>
-              <h3>{formProduct.id ? "Edit product" : "Add a product"}</h3>
+              <h3 id="catalogue-editor-title">{formProduct.id ? "Edit product" : "Add a product"}</h3>
               <p>Prepare the product details customers will see on Material Square.</p>
             </div>
             <span className={`catalogue-form-state ${(previewListing?.isPublished ?? formProduct.isPublished) ? "is-published" : "is-draft"}`}>
@@ -1036,23 +1109,21 @@ export default function CatalogueManager({
             </label>
             <div className="catalogue-form-section-heading catalogue-wide">
               <span className="catalogue-section-number">03</span>
-              <div><strong>Product images</strong><small>Check the image crop and gallery before previewing the listing.</small></div>
+              <div><strong>Product photos</strong><small>Add one main photo and up to three optional views. Preview them before publishing.</small></div>
             </div>
-            <label>
-              Primary product image (optional)
+            <label className="catalogue-primary-image-url">
+              Main photo · paste an image link
               <input
                 name="image"
+                type="url"
                 maxLength={1000}
-                placeholder="/images/products/example.png"
+                placeholder="https://example.com/product-photo.jpg"
                 value={formProduct.image || ""}
                 onChange={(event) =>
                   setEditing({ ...formProduct, image: event.target.value })
                 }
               />
-              <small>
-                Add a client-approved photo when available. Leave blank to use
-                the neutral product placeholder.
-              </small>
+              <small>Use a public image URL approved for this product. You can also upload a file in the panel beside this field.</small>
               {formProduct.image && (
                 <span className="catalogue-image-preview">
                   <img src={formProduct.image} alt="Primary product preview" />
@@ -1060,10 +1131,8 @@ export default function CatalogueManager({
                 </span>
               )}
             </label>
-            <label className="catalogue-image-upload">
-              <span>
-                <Upload size={14} /> Upload primary product image
-              </span>
+            <label className="catalogue-image-upload catalogue-primary-image-upload">
+              <span><Upload size={17} /> {formProduct.image ? "Replace main photo with a file" : "Or upload the main photo"}</span>
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
@@ -1075,83 +1144,52 @@ export default function CatalogueManager({
                 }}
               />
               <small>
-                Optional. PNG, JPEG or WebP, up to 5 MB. Uploading a new file
-                replaces the primary photo.
+                PNG, JPEG or WebP · Up to 5 MB. Uploading replaces the main photo.
               </small>
             </label>
-            <label>
-              Additional product images (optional, up to 4)
-              <textarea
-                name="galleryImages"
-                rows={3}
-                value={lines(formProduct.galleryImages || [])}
-                onChange={(event) => {
-                  setEditing({
-                    ...formProduct,
-                    galleryImages: fromLines(event.currentTarget.value),
-                  });
-                }}
-              />
-              <small>
-                One site path or HTTPS URL per line. These four extra views are
-                optional.
-              </small>
-              {formProduct.galleryImages.length > 0 && (
-                <span className="catalogue-gallery-previews">
-                  {formProduct.galleryImages.map((image, index) => (
-                    <span
-                      className="catalogue-image-preview"
-                      key={`${image}-${index}`}
-                    >
-                      <img
-                        src={image}
-                        alt={`Additional product view ${index + 1}`}
-                      />
-                      <button
-                        type="button"
-                        className="btn-sm btn-secondary"
-                        aria-label={`Remove additional image ${index + 1}`}
-                        onClick={() =>
-                          setEditing({
-                            ...formProduct,
-                            galleryImages: formProduct.galleryImages.filter(
-                              (_, imageIndex) => imageIndex !== index,
-                            ),
-                          })
-                        }
-                      >
-                        <X size={14} /> Remove
-                      </button>
-                    </span>
-                  ))}
-                </span>
-              )}
-            </label>
-            <label className="catalogue-image-upload">
-              <span>
-                <Upload size={14} /> Upload gallery images
-              </span>
+            <input type="hidden" name="galleryImages" value={lines(formProduct.galleryImages || [])} />
+            <div className="catalogue-gallery-url-options catalogue-wide">
+              <div className="catalogue-gallery-url-heading"><strong>Optional photo links</strong><span>{formProduct.galleryImages.length} of {MAX_GALLERY_IMAGES} added</span></div>
+              {Array.from({ length: Math.max(MAX_GALLERY_IMAGES, formProduct.galleryImages.length) }, (_, index) => (
+                <label key={`gallery-url-${index}`}>
+                  Photo {index + 1} · URL
+                  <input type="url" value={formProduct.galleryImages[index] || ""} placeholder="https://example.com/another-view.jpg" onChange={(event) => {
+                    const next = [...(formProduct.galleryImages || [])];
+                    next[index] = event.currentTarget.value.trim();
+                    setEditing({ ...formProduct, galleryImages: next.filter(Boolean) });
+                  }} />
+                </label>
+              ))}
+              <p>Three optional views are available for new listings. Existing listings may have one older extra photo; remove it if you want to replace it.</p>
+            </div>
+            <div className="catalogue-image-upload catalogue-gallery-upload catalogue-wide">
+              <label className="catalogue-gallery-upload-label" htmlFor="catalogue-gallery-upload-input">
+                <Upload size={17} /><strong>Or upload optional photos</strong><span>Choose up to {Math.max(0, MAX_GALLERY_IMAGES - formProduct.galleryImages.length)} more · PNG, JPEG or WebP · 5 MB each</span>
+              </label>
               <input
+                id="catalogue-gallery-upload-input"
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
                 multiple
-                disabled={
-                  busy || formProduct.galleryImages.length >= MAX_GALLERY_IMAGES
-                }
+                disabled={busy || formProduct.galleryImages.length >= MAX_GALLERY_IMAGES}
                 onChange={(event) => {
                   const input = event.currentTarget;
                   const files = input.files;
                   if (files?.length) void uploadGalleryImages(files, input);
                 }}
               />
-              <small>
-                {Math.max(
-                  0,
-                  MAX_GALLERY_IMAGES - formProduct.galleryImages.length,
-                )}{" "}
-                of 4 additional images available. PNG/JPEG/WebP, 5 MB each.
-              </small>
-            </label>
+            </div>
+            {formProduct.galleryImages.length > 0 && (
+              <div className="catalogue-gallery-previews catalogue-wide" aria-label="Optional product photo previews">
+                {formProduct.galleryImages.map((image, index) => (
+                  <span className="catalogue-image-preview" key={`${image}-${index}`}>
+                    <img src={image} alt={`Optional product photo ${index + 1}`} />
+                    <span>Photo {index + 1}</span>
+                    <button type="button" className="btn-sm btn-secondary" aria-label={`Remove optional photo ${index + 1}`} onClick={() => setEditing({ ...formProduct, galleryImages: formProduct.galleryImages.filter((_, imageIndex) => imageIndex !== index) })}><X size={14} /> Remove</button>
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="catalogue-form-section-heading catalogue-wide">
               <span className="catalogue-section-number">04</span>
               <div><strong>Customer-facing content</strong><small>Explain the product clearly and add useful specifications.</small></div>
@@ -1369,6 +1407,7 @@ export default function CatalogueManager({
             <footer className="catalogue-preview-footnote"><span className={previewListing.isPublished ? "preview-state-publish" : "preview-state-draft"}>{previewListing.isPublished ? "Published product · changes not saved" : "Draft · hidden from customers"}</span><span>Preview only · save this product to keep your changes</span></footer>
           </section></div>}
         </form>
+        </div>
       )}
       <section className="panel-card catalogue-filter-panel" aria-label="Filter catalogue">
         <label className="catalogue-search">
@@ -1423,10 +1462,20 @@ export default function CatalogueManager({
               <option key="CHECK_AVAILABILITY" value="CHECK_AVAILABILITY">Check availability</option>
             </select>
           </label>
+          <label>
+            Sort products
+            <select value={catalogueSort} onChange={(event) => setCatalogueSort(event.target.value)}>
+              <option value="recent">Recently added</option>
+              <option value="interest">Most added to list · 30 days</option>
+              <option value="name">Name A–Z</option>
+              <option value="price-asc">Price · low to high</option>
+              <option value="price-desc">Price · high to low</option>
+            </select>
+          </label>
         </div>
       </section>
       <div className="catalogue-listing-count" aria-live="polite">
-        Showing {visibleListings.length} of {listings.length} catalogue products ·{" "}
+        Showing {pageListings.length} of {visibleListings.length} matching products ·{" "}
         {listings.filter((p) => p.isPublished).length} published
       </div>
       {listings.length === 0 && !busy && (
@@ -1454,8 +1503,15 @@ export default function CatalogueManager({
           </button>
         </section>
       )}
+      {visibleListings.length > 0 && (
+        <nav className="catalogue-pagination" aria-label="Catalogue pages">
+          <button className="btn-sm btn-secondary" disabled={currentPage <= 1} onClick={() => setCataloguePage((page) => Math.max(1, page - 1))}>Previous</button>
+          <span>Page {currentPage} of {pageCount}</span>
+          <button className="btn-sm btn-secondary" disabled={currentPage >= pageCount} onClick={() => setCataloguePage((page) => Math.min(pageCount, page + 1))}>Next</button>
+        </nav>
+      )}
       <div className="catalogue-listings">
-        {visibleListings.map((product) => (
+        {pageListings.map((product) => (
           <article className="panel-card catalogue-listing" key={product.id}>
             <div className="catalogue-listing-image">
               {product.image || product.galleryImages?.[0] ? (
@@ -1572,11 +1628,26 @@ export default function CatalogueManager({
                     Unpublish
                   </button>
                 )}
+                <button
+                  className="btn-sm btn-secondary catalogue-delete-button"
+                  disabled={busy}
+                  onClick={() => void deleteProduct(product)}
+                >
+                  <Trash2 size={14} />
+                  Delete
+                </button>
               </div>
             )}
           </article>
         ))}
       </div>
+      {visibleListings.length > 0 && (
+        <nav className="catalogue-pagination catalogue-pagination-bottom" aria-label="Catalogue pages">
+          <button className="btn-sm btn-secondary" disabled={currentPage <= 1} onClick={() => setCataloguePage((page) => Math.max(1, page - 1))}>Previous</button>
+          <span>Page {currentPage} of {pageCount}</span>
+          <button className="btn-sm btn-secondary" disabled={currentPage >= pageCount} onClick={() => setCataloguePage((page) => Math.min(pageCount, page + 1))}>Next</button>
+        </nav>
+      )}
     </div>
   );
 }

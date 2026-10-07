@@ -6,13 +6,13 @@ describe("staff sign-in validation", () => {
   });
   it("returns a useful validation error without calling authentication", () => {
     const auth = { loginStaff: jest.fn() };
-    const controller = new AuthController(auth as any);
+    const controller = new AuthController(auth as any, {} as any);
     expect(() => controller.loginStaff({ phone: "123", password: "Valid-password-123" })).toThrow("Enter a valid 10-digit Indian mobile number");
     expect(auth.loginStaff).not.toHaveBeenCalled();
   });
   it("passes a canonical phone to authentication", () => {
     const auth = { loginStaff: jest.fn().mockReturnValue({ accessToken: "test" }) };
-    new AuthController(auth as any).loginStaff({ phone: "+91 9876543210", password: "Valid-password-123" });
+    new AuthController(auth as any, {} as any).loginStaff({ phone: "+91 9876543210", password: "Valid-password-123" });
     expect(auth.loginStaff).toHaveBeenCalledWith({ phone: "9876543210", password: "Valid-password-123" });
   });
 });

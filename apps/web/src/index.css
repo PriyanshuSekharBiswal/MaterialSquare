@@ -321,6 +321,13 @@ h1, h2, h3, h4, h5, h6 {
   border-color: #bbf7d0;
 }
 
+/* Keep native number controls visible without requiring hover. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+  cursor: pointer;
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 7px;

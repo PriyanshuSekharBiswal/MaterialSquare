@@ -51,10 +51,16 @@ export default function NavigationControls({
           : customEntry?.label;
         if (!label) return null;
         return (
-          <div key={id} className="website-content-fields">
+          <article key={id} className="website-navigation-item">
+            <header className="website-navigation-item-heading">
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <strong>{label}</strong>
+              <small>{hidden.includes(id) ? "Hidden from menu" : "Visible in menu"}</small>
+            </header>
+            <div className="website-content-fields website-navigation-item-fields">
             {builtin ? (
               <label>
-                Menu label for {id}
+                Menu label
                 <input
                   maxLength={40}
                   required
@@ -110,7 +116,7 @@ export default function NavigationControls({
                 </label>
               </>
             )}
-            <label>
+            <label className="website-navigation-visibility">
               <input
                 type="checkbox"
                 disabled={disabled}
@@ -125,8 +131,10 @@ export default function NavigationControls({
                   })
                 }
               />
-              Show {label} menu link
+              Show this link in the website menu
             </label>
+            </div>
+            <div className="website-navigation-item-actions">
             <button
               type="button"
               className="btn-sm btn-secondary"
@@ -137,7 +145,7 @@ export default function NavigationControls({
                 onChange({ ...content, "navigation.order": next.join(",") });
               }}
             >
-              Move {label} menu link up
+              Move up
             </button>
             {customEntry && (
               <button
@@ -159,10 +167,11 @@ export default function NavigationControls({
                   });
                 }}
               >
-                Remove {label} link
+                Remove link
               </button>
             )}
-          </div>
+            </div>
+          </article>
         );
       })}
       <button

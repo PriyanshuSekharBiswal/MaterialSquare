@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../prisma/prisma.service";
-import { verifyPassword } from "./password";
+import { hashPassword, verifyPassword } from "./password";
 import { createHash, randomBytes } from "node:crypto";
 import { Msg91WidgetService } from "./msg91-widget.service";
 
@@ -49,8 +49,48 @@ export class AuthService {
   findStaff(id: string) {
     return this.prisma.staffUser.findUniqueOrThrow({
       where: { id },
-      select: { name: true, phone: true, email: true, role: true },
+      select: { id: true, name: true, phone: true, email: true, role: true },
     });
+  }
+
+  async changeStaffPassword(
+    staffId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const staff = await this.prisma.staffUser.findFirst({
+      where: { id: staffId, deletedAt: null, isActive: true },
+      select: { passwordHash: true, authVersion: true },
+    });
+    if (!staff || !verifyPassword(currentPassword, staff.passwordHash)) {
+      throw new UnauthorizedException("Current password is incorrect");
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const account = await tx.staffUser.update({
+        where: { id: staffId, deletedAt: null },
+        data: { passwordHash: hashPassword(newPassword), authVersion: { increment: 1 } },
+        select: { authVersion: true },
+      });
+      await tx.auditLog.create({
+        data: {
+          staffId,
+          action: "STAFF_PASSWORD_CHANGED",
+          entityType: "STAFF_USER",
+          entityId: staffId,
+          metadata: { otherSessionsRevoked: true },
+        },
+      });
+      return account;
+    });
+
+    return {
+      accessToken: this.jwtService.sign({
+        sub: staffId,
+        type: "STAFF",
+        ver: updated.authVersion,
+      }),
+    };
   }
 
   async verifyCustomerMsg91AccessToken(input: {

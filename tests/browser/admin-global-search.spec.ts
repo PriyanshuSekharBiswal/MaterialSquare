@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("admin search suggests a destination and carries product text into catalogue search", async ({
+test("admin search opens quick access on focus and carries product text into catalogue search", async ({
   page,
 }) => {
   const product = {
@@ -109,7 +109,7 @@ test("admin search suggests a destination and carries product text into catalogu
     name: "Search the admin workspace",
   });
   await expect(globalSearch).toBeVisible();
-  await page.keyboard.press(process.platform === "darwin" ? "Meta+k" : "Control+k");
+  await globalSearch.focus();
   await expect(page.getByText("QUICK ACCESS")).toBeVisible();
   await globalSearch.fill("cement");
   const productSuggestion = page.getByRole("option", {
@@ -121,6 +121,10 @@ test("admin search suggests a destination and carries product text into catalogu
     "QA cement pack preview",
   );
   await expect(page.getByRole("heading", { name: product.name })).toBeVisible();
+  await expect(globalSearch).toBeVisible();
+
+  await page.getByRole("button", { name: "Overview", exact: true }).click();
+  await expect(globalSearch).toBeVisible();
 
   await globalSearch.fill("919999000000");
   const customerSuggestion = page.getByRole("option", {

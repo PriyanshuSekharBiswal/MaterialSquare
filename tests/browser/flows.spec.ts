@@ -933,29 +933,31 @@ test("staff website content edits publish to the public homepage", async ({
   await page.getByLabel("Mobile number or email").fill("owner@example.com");
   await page.getByLabel("Password").fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
-  await page.getByRole("button", { name: "Website pages & content" }).click();
+  await page.getByRole("button", { name: "Website editor" }).click();
   await expect(page.getByLabel("Main heading")).toHaveValue(
     "Staff-updated headline\nUpdated second line",
   );
   await page.getByLabel("Main heading").fill("Published by admin\nSecond line");
-  await page
-    .getByRole("textbox", { name: "privacy page heading", exact: true })
+  const privacyEditor = page
+    .locator(".website-policy-editor")
+    .filter({ has: page.getByRole("heading", { name: "Privacy notice" }) });
+  await privacyEditor
+    .getByRole("textbox", { name: "Page title", exact: true })
     .fill("Client privacy information");
-  await page
-    .getByRole("button", { name: "Add privacy section", exact: true })
+  await privacyEditor
+    .getByRole("button", { name: "Add section", exact: true })
     .click();
-  await page
-    .getByRole("textbox", { name: "privacy section 6 heading", exact: true })
+  const sixthPolicySection = page.locator(".website-policy-section").nth(5);
+  await sixthPolicySection
+    .getByRole("textbox", { name: "Section title", exact: true })
     .fill("Client contact process");
-  await page
-    .getByRole("textbox", { name: "privacy section 6 text", exact: true })
+  await sixthPolicySection
+    .getByRole("textbox", { name: "Section content", exact: true })
     .fill("Contact the team for account information requests.");
-  await page
-    .getByLabel("Publish this privacy notice after client/legal approval")
+  await privacyEditor
+    .getByRole("checkbox", { name: "Show this privacy notice on the website" })
     .check();
-  await page
-    .getByRole("button", { name: "Move privacy section 6 up", exact: true })
-    .click();
+  await sixthPolicySection.getByRole("button", { name: "Move section up", exact: true }).click();
   await page.getByRole("button", { name: "Add FAQ", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Question 1", exact: true })
@@ -976,9 +978,15 @@ test("staff website content edits publish to the public homepage", async ({
     .getByLabel("Homepage callout button site path", { exact: true })
     .fill("/contact");
   await page
-    .getByLabel("Menu label for marketplace", { exact: true })
+    .locator(".website-navigation-item")
+    .filter({ has: page.getByText("Marketplace", { exact: true }) })
+    .getByRole("textbox", { name: "Menu label", exact: true })
     .fill("Browse materials");
-  await page.getByLabel("Show Blogs menu link", { exact: true }).uncheck();
+  await page
+    .locator(".website-navigation-item")
+    .filter({ has: page.getByText("Blogs", { exact: true }) })
+    .getByRole("checkbox", { name: "Show this link in the website menu" })
+    .uncheck();
   await page
     .getByRole("button", { name: "Add social link", exact: true })
     .click();
@@ -1020,7 +1028,10 @@ test("staff website content edits publish to the public homepage", async ({
   await page
     .getByRole("button", { name: "Move Contact callout up", exact: true })
     .click();
-  await page.getByRole("button", { name: "Add section", exact: true }).click();
+  await page
+    .locator("#content-homepage")
+    .getByRole("button", { name: "Add section", exact: true })
+    .click();
   const customBlock = page.locator(".homepage-content-block").first();
   await customBlock.getByRole("textbox").nth(0).fill("Site updates");
   await customBlock
@@ -1190,7 +1201,7 @@ test("content staff preview a saved draft on the customer website without publis
     return route.fulfill({ status: 204, body: "" });
   });
   await signIntoBusiness(page, "CONTENT_MANAGER");
-  await page.getByRole("button", { name: "Website pages & content" }).click();
+  await page.getByRole("button", { name: "Website editor" }).click();
   await page.getByLabel("Main heading").fill("Private preview headline");
   await page
     .getByRole("button", { name: "Preview draft", exact: true })
@@ -1232,14 +1243,21 @@ test("content staff upload and publish a homepage hero image", async ({
     return route.fulfill({ json: publishedContent });
   });
   await signIntoBusiness(page, "CONTENT_MANAGER");
-  await page.getByRole("button", { name: "Website pages & content" }).click();
-  await page.getByLabel("Upload homepage hero banner image").setInputFiles({
+  await page.getByRole("button", { name: "Website editor" }).click();
+  await page
+    .locator(".content-image-field")
+    .filter({ hasText: "Homepage hero banner image" })
+    .locator('input[type="file"]')
+    .setInputFiles({
     name: "home-hero.webp",
     mimeType: "image/webp",
     buffer: Buffer.from("mock image bytes"),
   });
   await expect(
-    page.getByLabel("Homepage hero banner image", { exact: true }),
+    page
+      .locator(".content-image-field")
+      .filter({ hasText: "Homepage hero banner image" })
+      .locator('input[type="url"]'),
   ).toHaveValue("https://cdn.example.test/images/home-hero.webp");
   await page.getByRole("button", { name: "Preview draft", exact: true }).click();
   await expect(
@@ -1296,7 +1314,7 @@ test("catalogue manager gets a first-product action when the catalogue is empty"
   await page.getByLabel("Mobile number or email").fill("catalog@example.test");
   await page.getByLabel("Password").fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
-  await page.getByRole("button", { name: "Products, prices & offers" }).click();
+  await page.getByRole("button", { name: "Products & pricing" }).click();
   await expect(page.getByRole("heading", { name: "No catalogue products yet" })).toBeVisible();
   await expect(page.getByText(/No sample products are being shown/)).toHaveCount(0);
   await page.getByRole("button", { name: "Add first product" }).click();
@@ -1461,10 +1479,14 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await page.getByLabel("Mobile number or email").fill("owner@example.com");
   await page.getByLabel("Password").fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
-  await page.getByRole("button", { name: "Products, prices & offers" }).click();
-  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+  await page.getByRole("button", { name: "Products & pricing" }).click();
+  await page
+    .locator(".catalogue-listing")
+    .filter({ hasText: "Starter CPVC Pipe" })
+    .getByRole("button", { name: "Edit", exact: true })
+    .click();
   await page.getByRole("button", { name: "Preview storefront" }).first().click();
-  const storefrontPreview = page.getByRole("dialog");
+  const storefrontPreview = page.locator("#catalogue-live-preview");
   await expect(storefrontPreview).toBeVisible();
   await expect(storefrontPreview.getByText("₹425", { exact: true })).toBeVisible();
   await expect(storefrontPreview.getByText(/reference|observed|confirm local price/i)).toHaveCount(0);
@@ -1526,9 +1548,7 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await page.getByPlaceholder("Find a colour, pack, code or option").fill("");
   await expect(page.locator(".catalogue-variant-card")).toHaveCount(10);
   await page
-    .locator(".catalogue-image-upload")
-    .filter({ hasText: "Upload primary product image" })
-    .locator('input[type="file"]')
+    .locator(".catalogue-primary-image-upload input[type=\"file\"]")
     .setInputFiles({
       name: "product.png",
       mimeType: "image/png",
@@ -1563,7 +1583,7 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await page.keyboard.press("Escape");
   await expect(storefrontPreview).toBeHidden();
   await page.getByRole("button", { name: "Save product" }).click();
-  await expect(page.getByRole("status")).toContainText(
+  await expect(page.locator(".saved-notice")).toContainText(
     "Product saved and published",
   );
   expect(updatedBody).toMatchObject({
@@ -2811,7 +2831,7 @@ test("operational sales report filters by date and exports sanitized CSV", async
     .getByRole("button", { name: "Operational reports", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Operational reports", exact: true }),
+    page.getByRole("heading", { name: "Operational Reports", exact: true }),
   ).toBeVisible();
   await page.getByLabel("From", { exact: true }).fill("2026-10-01");
   await page.getByLabel("To", { exact: true }).fill("2026-10-03");
@@ -3193,7 +3213,11 @@ test("content staff upload and preview a blog image before saving a draft", asyn
   await page
     .getByLabel("Article content")
     .fill("Discuss your site requirements with a qualified professional.");
-  await page.getByLabel(/Upload featured image url/i).setInputFiles({
+  await page
+    .locator(".content-image-field")
+    .filter({ hasText: "Featured image" })
+    .locator('input[type="file"]')
+    .setInputFiles({
     name: "approved.png",
     mimeType: "image/png",
     buffer: Buffer.from(
@@ -3202,7 +3226,10 @@ test("content staff upload and preview a blog image before saving a draft", asyn
     ),
   });
   await expect(
-    page.getByLabel("Featured image URL", { exact: true }),
+    page
+      .locator(".content-image-field")
+      .filter({ hasText: "Featured image" })
+      .locator('input[type="url"]'),
   ).toHaveValue(imageUrl);
   await page.getByRole("button", { name: "Preview article" }).click();
   await expect(
@@ -3216,7 +3243,10 @@ test("content staff upload and preview a blog image before saving a draft", asyn
   expect(blog?.featuredImageUrl).toBe(imageUrl);
   expect(blog?.status).toBe("DRAFT");
   await expect(
-    page.getByLabel("Featured image URL", { exact: true }),
+    page
+      .locator(".content-image-field")
+      .filter({ hasText: "Featured image" })
+      .locator('input[type="url"]'),
   ).toHaveValue("");
 });
 
@@ -3260,7 +3290,7 @@ test("content staff can see where a media-library image is used", async ({
     }),
   );
   await signIntoBusiness(page, "CONTENT_MANAGER");
-  await page.getByRole("button", { name: "Website pages & content" }).click();
+  await page.getByRole("button", { name: "Website editor" }).click();
   await expect(
     page.getByRole("heading", { name: "Media library" }),
   ).toBeVisible();
@@ -3687,7 +3717,7 @@ test("admin keeps navigation available when a feature download fails", async ({
     route.abort("failed"),
   );
   await page.goto("http://127.0.0.1:4174");
-  await page.getByRole("button", { name: "Products, prices & offers" }).click();
+  await page.getByRole("button", { name: "Products & pricing" }).click();
   await expect(page.getByRole("alert")).toContainText(
     "This screen could not load",
   );
@@ -3697,7 +3727,7 @@ test("admin keeps navigation available when a feature download fails", async ({
   await page.getByRole("button", { name: "Overview", exact: true }).click();
   await expect(page.getByText("This screen could not load")).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Products, prices & offers" }),
+    page.getByRole("button", { name: "Products & pricing" }),
   ).toBeVisible();
 });
 
@@ -3822,8 +3852,8 @@ test("staff can search seven-day activity and return to its related workspace", 
     ],
   } }));
   await page.goto("http://127.0.0.1:4174");
-  await page.getByRole("button", { name: "Recent activity", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Recent activity" })).toBeVisible();
+  await page.getByRole("button", { name: "Recent changes", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Recent changes" })).toBeVisible();
   await expect(page.getByText("site-banner.webp")).toBeVisible();
   await expect(page.getByText("Changed: mimeType, byteSize")).toBeVisible();
   await expect(page.getByText("Kept here for 7 days")).toBeVisible();
@@ -4271,7 +4301,7 @@ test("sales staff review pack prices with read-only catalogue access", async ({
   );
   await page.goto("http://127.0.0.1:4174");
   await page
-    .getByRole("button", { name: "Products, prices & offers", exact: true })
+    .getByRole("button", { name: "Products & pricing", exact: true })
     .click();
   await expect(page.getByText(/Read-only catalogue access/)).toBeVisible();
   await page

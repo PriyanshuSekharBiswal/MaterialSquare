@@ -226,6 +226,7 @@ export class ProductsService {
 
   findCatalogue() {
     return this.prisma.catalogListing.findMany({
+      where: { deletedAt: null },
       include: { variants: { orderBy: { sortOrder: "asc" } } },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
@@ -408,6 +409,48 @@ export class ProductsService {
         },
       });
       return { success: true };
+    });
+  }
+
+  async deleteToTrash(id: string, staffId: string) {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    return this.prisma.$transaction(async (db) => {
+      const previous = await db.catalogListing.findFirst({
+        where: { id, deletedAt: null },
+      });
+      if (!previous) throw new NotFoundException("Catalogue product not found");
+      const actor = await db.staffUser.findUnique({
+        where: { id: staffId },
+        select: { name: true },
+      });
+      if (!actor) throw new NotFoundException("Staff account not found");
+      await db.catalogListing.update({
+        where: { id },
+        data: { deletedAt: now, isPublished: false },
+      });
+      await db.recentlyDeletedRecord.create({
+        data: {
+          entityType: "CATALOG_PRODUCT",
+          entityId: id,
+          displayName: previous.name,
+          deletedById: staffId,
+          deletedByName: actor.name,
+          deletedAt: now,
+          expiresAt,
+          metadata: { wasPublished: previous.isPublished },
+        },
+      });
+      await db.auditLog.create({
+        data: {
+          staffId,
+          action: "CATALOG_PRODUCT_DELETED",
+          entityType: "CATALOG_PRODUCT",
+          entityId: id,
+          metadata: { productName: previous.name, expiresAt: expiresAt.toISOString() },
+        },
+      });
+      return { success: true, expiresAt };
     });
   }
 

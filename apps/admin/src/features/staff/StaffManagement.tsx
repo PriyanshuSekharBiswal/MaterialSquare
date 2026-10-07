@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { RefreshCw, UserPlus, ShieldCheck } from "lucide-react";
+import { RefreshCw, UserPlus, ShieldCheck, Trash2 } from "lucide-react";
+import { confirmAdminAction } from "../../components/confirmAdminAction";
 import "./staff-management.css";
 
 type Role = {
@@ -19,7 +20,7 @@ type StaffRecord = {
 };
 const permissionLabels: Record<string, string> = {
   "staff.profile": "View own staff profile",
-  "staff.manage": "Create staff accounts and assign roles",
+  "staff.manage": "Manage staff accounts, access and roles",
   "dashboard.view": "View dashboard and analytics",
   "customers.read": "View customer contact records",
   "followups.manage": "Manage customer follow-ups",
@@ -44,11 +45,13 @@ export default function StaffManagement({
   onBack,
   onSignOut,
   embedded = false,
+  currentStaffId,
 }: {
   token: string;
   onBack: () => void;
   onSignOut: () => void;
   embedded?: boolean;
+  currentStaffId?: string;
 }) {
   const [roles, setRoles] = useState<Role[]>([]);
   const [staff, setStaff] = useState<StaffRecord[]>([]);
@@ -56,6 +59,7 @@ export default function StaffManagement({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [resetFor, setResetFor] = useState("");
+  const [editingDetailsFor, setEditingDetailsFor] = useState("");
 
   const request = useCallback(
     async <T,>(path: string, method = "GET", body?: unknown): Promise<T> => {
@@ -141,33 +145,72 @@ export default function StaffManagement({
 
   async function updateStaff(
     id: string,
-    data: { role?: string; isActive?: boolean },
-  ) {
+    data: {
+      name?: string;
+      email?: string | null;
+      phone?: string | null;
+      role?: string;
+      isActive?: boolean;
+    },
+  ): Promise<boolean> {
     setBusy(true);
     setError("");
     setNotice("");
     try {
       await request(`/admin/staff/${id}`, "PATCH", data);
-      setNotice("Staff access updated.");
+      setNotice(
+        data.name !== undefined || data.email !== undefined || data.phone !== undefined
+          ? "Staff account details saved."
+          : "Staff access updated.",
+      );
       await refresh();
+      return true;
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Could not update staff access.",
       );
+      return false;
     } finally {
       setBusy(false);
     }
   }
 
-  async function resetPassword(event: FormEvent<HTMLFormElement>, id: string) {
+  async function deleteStaff(record: StaffRecord) {
+    if (!(await confirmAdminAction({
+      title: "Move this staff account to Recently deleted?",
+      message: `${record.name} will lose access immediately. An admin can restore the account for 30 days.`,
+      confirmLabel: "Move to recently deleted",
+      tone: "danger",
+    }))) return;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await request(`/admin/staff/${record.id}`, "DELETE");
+      setNotice(`${record.name} was moved to Recently deleted.`);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not delete the staff account.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resetPassword(event: FormEvent<HTMLFormElement>, record: StaffRecord) {
     event.preventDefault();
+    if (!(await confirmAdminAction({
+      title: `Reset ${record.name}’s password?`,
+      message: "Their existing password will stop working, and their other active sessions will be signed out.",
+      confirmLabel: "Reset password",
+      tone: "danger",
+    }))) return;
     const form = event.currentTarget;
     const password = new FormData(form).get("password");
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      await request(`/admin/staff/${id}/password`, "POST", { password });
+      await request(`/admin/staff/${record.id}/password`, "POST", { password });
       form.reset();
       setResetFor("");
       setNotice(
@@ -198,12 +241,9 @@ export default function StaffManagement({
               ← Back to dashboard
             </button>
           )}
-          <span className="eyebrow">OWNER ACCESS & SECURITY</span>
+          <span className="eyebrow">TEAM ACCESS & SECURITY</span>
           <h1>Staff & roles</h1>
-          <p>
-            Create staff accounts and control which work areas each role can
-            use.
-          </p>
+          <p>Manage team profiles, access, passwords and role permissions.</p>
         </div>
         <button
           className="btn-sm btn-secondary"
@@ -275,12 +315,13 @@ export default function StaffManagement({
               name="password"
               type="password"
               required
-              minLength={12}
+              minLength={6}
+              pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{6,256}"
               maxLength={256}
               autoComplete="new-password"
             />
             <small>
-              At least 12 characters. Give it to the staff member privately.
+              At least 6 characters, including an uppercase letter, a number and a special character. Share it privately.
             </small>
           </label>
           <button className="btn-sm btn-primary" disabled={busy}>
@@ -334,6 +375,57 @@ export default function StaffManagement({
                     <small>
                       {record.phone && record.email ? record.email : ""}
                     </small>
+                    {editingDetailsFor === record.id && (
+                      <form
+                        className="staff-inline-edit"
+                        onSubmit={async (event) => {
+                          event.preventDefault();
+                          const form = new FormData(event.currentTarget);
+                          const saved = await updateStaff(record.id, {
+                            name: String(form.get("name") || "").trim(),
+                            email: String(form.get("email") || "").trim() || null,
+                            phone: String(form.get("phone") || "").trim() || null,
+                          });
+                          if (saved) setEditingDetailsFor("");
+                        }}
+                      >
+                        <input
+                          name="name"
+                          aria-label={`Name for ${record.name}`}
+                          required
+                          minLength={2}
+                          maxLength={150}
+                          defaultValue={record.name}
+                        />
+                        <input
+                          name="email"
+                          aria-label={`Email for ${record.name}`}
+                          type="email"
+                          maxLength={254}
+                          defaultValue={record.email || ""}
+                          placeholder="Email"
+                        />
+                        <input
+                          name="phone"
+                          aria-label={`Mobile number for ${record.name}`}
+                          inputMode="numeric"
+                          pattern="[6-9][0-9]{9}"
+                          maxLength={10}
+                          defaultValue={record.phone || ""}
+                          placeholder="Mobile"
+                        />
+                        <small>Keep at least one sign-in method.</small>
+                        <div>
+                          <button className="btn-sm btn-primary" disabled={busy}>Save details</button>
+                          <button
+                            type="button"
+                            className="btn-sm btn-secondary"
+                            disabled={busy}
+                            onClick={() => setEditingDetailsFor("")}
+                          >Cancel</button>
+                        </div>
+                      </form>
+                    )}
                   </td>
                   <td>
                     {record.role === "SUPER_ADMIN" ? (
@@ -372,6 +464,18 @@ export default function StaffManagement({
                     <button
                       type="button"
                       className="btn-sm btn-secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        setEditingDetailsFor(
+                          editingDetailsFor === record.id ? "" : record.id,
+                        )
+                      }
+                    >
+                      Edit account
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-sm btn-secondary"
                       disabled={busy || record.role === "SUPER_ADMIN"}
                       onClick={() =>
                         void updateStaff(record.id, {
@@ -384,29 +488,41 @@ export default function StaffManagement({
                     <button
                       type="button"
                       className="btn-sm btn-secondary"
-                      disabled={busy || record.role === "SUPER_ADMIN"}
+                      disabled={busy || record.id === currentStaffId}
                       onClick={() =>
                         setResetFor(resetFor === record.id ? "" : record.id)
                       }
                     >
                       Reset password
                     </button>
+                    {record.role !== "SUPER_ADMIN" && record.id !== currentStaffId && (
+                      <button
+                        type="button"
+                        className="btn-sm btn-secondary"
+                        disabled={busy}
+                        onClick={() => void deleteStaff(record)}
+                      >
+                        <Trash2 size={15} /> Delete
+                      </button>
+                    )}
                     {resetFor === record.id && (
                       <form
                         className="staff-reset-form"
                         onSubmit={(event) =>
-                          void resetPassword(event, record.id)
+                          void resetPassword(event, record)
                         }
                       >
                         <input
                           aria-label={`New password for ${record.name}`}
                           name="password"
                           type="password"
-                          minLength={12}
+                          minLength={6}
+                          pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{6,256}"
                           maxLength={256}
                           required
-                          placeholder="New password (12+ chars)"
+                          placeholder="New password (6+ characters)"
                         />
+                        <small>Include an uppercase letter, a number and a special character.</small>
                         <button className="btn-sm btn-primary" disabled={busy}>
                           Save
                         </button>

@@ -70,6 +70,7 @@ export default function WebsiteContentManager({
   const [recoveryPoints, setRecoveryPoints] = useState<RecoveryPoint[]>([]);
   const [restoringId, setRestoringId] = useState("");
   const [browserRecovery, setBrowserRecovery] = useState<SiteContent | null>(null);
+  const [activeContentSection, setActiveContentSection] = useState("content-pages");
   const previewFrame = useRef<HTMLIFrameElement>(null);
   const hydrated = useRef(false);
   const lastSavedContent = useRef("");
@@ -77,6 +78,29 @@ export default function WebsiteContentManager({
   currentContent.current = content;
   const previewedContent = useRef("");
   const autosaveQueue = useRef(Promise.resolve());
+
+  useEffect(() => {
+    const sectionIds = ["content-pages", "content-homepage", "content-guides", "content-contact", "content-images", "content-privacy", "content-social", "content-metadata", "content-footer"];
+    const sections = sectionIds.map((id) => document.getElementById(id)).filter((node): node is HTMLElement => Boolean(node));
+    if (!sections.length || !("IntersectionObserver" in window)) return;
+    const observer = new IntersectionObserver(() => {
+      const marker = 180;
+      const positioned = sections.map((section) => ({
+        id: section.id,
+        rect: section.getBoundingClientRect(),
+      }));
+      const current = positioned
+        .filter(({ rect }) => rect.top <= marker && rect.bottom > marker)
+        .sort((a, b) => b.rect.top - a.rect.top)[0];
+      const next = positioned
+        .filter(({ rect }) => rect.top > marker)
+        .sort((a, b) => a.rect.top - b.rect.top)[0];
+      const active = current || next;
+      if (active?.id) setActiveContentSection(active.id);
+    }, { rootMargin: "-180px 0px -55% 0px", threshold: 0 });
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, [loading]);
 
   const request = useCallback(
     async (
@@ -368,9 +392,8 @@ export default function WebsiteContentManager({
           <span className="eyebrow">PUBLIC WEBSITE</span>
           <h2>Pages & business details</h2>
           <p>
-            Edit the approved page copy and contact details shown on the
-            customer website. Product information is managed under Products,
-            prices & offers.
+            Edit approved page copy and contact details shown on your website.
+            Manage product details and prices under Products & pricing.
           </p>
         </div>
         <div className="website-content-actions">
@@ -462,15 +485,14 @@ export default function WebsiteContentManager({
         </p>
       )}
       <nav className="website-content-jump-nav" aria-label="Website settings">
-        <a href="#content-pages">Pages & menus</a>
-        <a href="#content-homepage">Homepage</a>
-        <a href="#content-guides">Guides & FAQs</a>
-        <a href="#content-contact">Contact & office</a>
-        <a href="#content-images">Images</a>
-        <a href="#content-privacy">Privacy & terms</a>
-        <a href="#content-social">Social links</a>
-        <a href="#content-metadata">SEO</a>
-        <a href="#content-footer">Footer</a>
+        <span className="website-content-jump-current">Viewing <strong>{({ "content-pages": "Pages & menus", "content-homepage": "Homepage", "content-guides": "Guides & FAQs", "content-contact": "Contact & office", "content-images": "Images", "content-privacy": "Privacy & terms", "content-social": "Social links", "content-metadata": "Search & SEO", "content-footer": "Footer" } as Record<string, string>)[activeContentSection] || "Pages & menus"}</strong></span>
+        <div className="website-content-jump-links">
+          {[
+            ["content-pages", "Pages & menus"], ["content-homepage", "Homepage"], ["content-guides", "Guides & FAQs"],
+            ["content-contact", "Contact & office"], ["content-images", "Images"], ["content-privacy", "Privacy & terms"],
+            ["content-social", "Social links"], ["content-metadata", "Search & SEO"], ["content-footer", "Footer"],
+          ].map(([id, label]) => <a key={id} href={`#${id}`} onClick={() => setActiveContentSection(id)} aria-current={activeContentSection === id ? "location" : undefined}>{label}</a>)}
+        </div>
       </nav>
       <div id="content-privacy" className="website-content-anchor">
         <PolicyEditor

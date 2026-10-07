@@ -53,6 +53,7 @@ export class AnalyticsService {
     const daily = new Map<string, typeof totals>();
     const pages = new Map<string, number>();
     const products = new Map<string, number>();
+    const productAdditions = new Map<string, number>();
     for (const counter of counters) {
       const date = counter.day.toISOString().slice(0, 10);
       const row = daily.get(date) || { pageViews: 0, productViews: 0, addToList: 0, requestHandoffs: 0 };
@@ -64,19 +65,23 @@ export class AnalyticsService {
         products.set(counter.targetKey, (products.get(counter.targetKey) || 0) + counter.count);
       } else if (counter.eventType === "add_to_list") {
         totals.addToList += counter.count; row.addToList += counter.count;
+        productAdditions.set(counter.targetKey, (productAdditions.get(counter.targetKey) || 0) + counter.count);
       } else if (counter.eventType === "request_handoff") {
         totals.requestHandoffs += counter.count; row.requestHandoffs += counter.count;
       }
       daily.set(date, row);
     }
     const topProductIds = [...products.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
-    const catalogue = topProductIds.length
+    const topProductsByIntent = [...productAdditions.entries()].sort((a, b) => b[1] - a[1]).slice(0, 100);
+    const catalogueKeys = [...new Set([...topProductIds, ...topProductsByIntent].flatMap(([id]) => [id]))];
+    const catalogue = catalogueKeys.length
       ? await this.prisma.catalogListing.findMany({
-          where: { OR: topProductIds.flatMap(([id]) => [{ id }, { slug: id }]) },
+          where: { OR: catalogueKeys.flatMap((id) => [{ id }, { slug: id }]) },
           select: { id: true, slug: true, name: true },
         })
       : [];
     const catalogueByKey = new Map(catalogue.flatMap((product) => [[product.id, product.name] as const, [product.slug, product.name] as const]));
+    const catalogueIdByKey = new Map(catalogue.flatMap((product) => [[product.id, product.id] as const, [product.slug, product.id] as const]));
     const dailyRows = Array.from({ length: days }, (_, index) => {
       const date = new Date(start);
       date.setUTCDate(date.getUTCDate() + index);
@@ -88,7 +93,8 @@ export class AnalyticsService {
       totals,
       daily: dailyRows,
       topPages: [...pages.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([page, views]) => ({ page, views })),
-      topProducts: topProductIds.map(([id, views]) => ({ id, name: catalogueByKey.get(id) || "Unpublished product", views })),
+      topProducts: topProductIds.map(([id, views]) => ({ id, name: catalogueByKey.get(id) || "Unpublished product", views, addToList: productAdditions.get(id) || productAdditions.get(catalogue.find((product) => product.id === id)?.slug || "") || 0 })),
+      topProductsByIntent: topProductsByIntent.map(([id, addToList]) => ({ id: catalogueIdByKey.get(id) || id, name: catalogueByKey.get(id) || "Unpublished product", addToList })),
       privacy: "Aggregate event counts only; no visitor IDs, search terms, addresses, or contact details are stored.",
     };
   }

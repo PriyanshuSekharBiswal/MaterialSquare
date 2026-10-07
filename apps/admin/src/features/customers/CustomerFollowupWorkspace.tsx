@@ -1,5 +1,5 @@
 import type { Dispatch, FormEvent, SetStateAction } from "react";
-import { ArrowLeft, Plus, Search } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Search } from "lucide-react";
 import {
   blankFollowup,
   followupStatuses,
@@ -62,7 +62,7 @@ export default function CustomerFollowupWorkspace({
       {!selected && !draft && (
         <>
           <form
-            className="workspace-toolbar"
+            className="workspace-toolbar customer-followup-toolbar"
             onSubmit={(e) => {
               e.preventDefault();
               setPage(1);
@@ -79,7 +79,10 @@ export default function CustomerFollowupWorkspace({
                 onChange={(e) => setQuery(e.target.value)}
               />
             </label>
-            <button className="btn-sm btn-secondary">Search</button>
+            <button type="submit" className="btn-sm btn-primary customer-search-submit">
+              <Search size={16} aria-hidden="true" />
+              <span>Search</span>
+            </button>
             {tab === "followups" && (
               <>
                 <select
@@ -91,6 +94,7 @@ export default function CustomerFollowupWorkspace({
                   }}
                 >
                   <option value="">All statuses</option>
+                  <option value="OPEN">Open follow-ups</option>
                   {Object.entries(followupStatuses).map(([key, label]) => (
                     <option key={key} value={key}>
                       {label}
@@ -137,11 +141,12 @@ export default function CustomerFollowupWorkspace({
                       </small>
                     </div>
                     <button
-                      className="btn-sm btn-secondary"
+                      className="btn-sm btn-primary customer-view-contact"
                       disabled={busy}
                       onClick={() => void openCustomer(c.id)}
                     >
-                      View contact
+                      <span>View contact</span>
+                      <ArrowRight size={15} aria-hidden="true" />
                     </button>
                   </article>
                 ))

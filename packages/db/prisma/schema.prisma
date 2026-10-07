@@ -102,6 +102,7 @@ model StaffUser {
   authVersion                Int                  @default(0)
   phone                      String?              @unique
   isActive                   Boolean              @default(true)
+  deletedAt                  DateTime?
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
   auditLogs                  AuditLog[]
@@ -276,6 +277,7 @@ model CatalogListing {
   isInStock      Boolean                 @default(false)
   availabilityStatus CatalogAvailabilityStatus @default(CHECK_AVAILABILITY)
   isPublished    Boolean                 @default(false)
+  deletedAt      DateTime?
   features       String[]                @default([])
   applications   String[]                @default([])
   specifications Json                    @default("{}")
@@ -525,6 +527,7 @@ model Supplier {
   servicePincodes String[]          @default([])
   status          SupplierStatus    @default(PENDING)
   notes           String?
+  deletedAt       DateTime?
   products        SupplierProduct[]
   quotes          SupplierQuote[]
   ratings         SupplierRating[]
@@ -548,6 +551,7 @@ model SupplierProduct {
   minimumOrderQty Decimal? @db.Decimal(12, 3)
   lastQuotedPrice Decimal? @db.Decimal(12, 2)
   isActive        Boolean  @default(true)
+  deletedAt       DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -846,6 +850,26 @@ model AuditLog {
   @@index([entityId, createdAt, id])
   @@index([action, createdAt, id])
   @@map("audit_logs")
+}
+
+model RecentlyDeletedRecord {
+  id             String    @id @default(uuid())
+  entityType     String
+  entityId       String
+  displayName    String
+  deletedById    String
+  deletedByName  String
+  deletedAt      DateTime  @default(now())
+  expiresAt      DateTime
+  restoredAt     DateTime?
+  restoredById   String?
+  restoredByName String?
+  metadata       Json?
+
+  @@index([expiresAt])
+  @@index([entityType, restoredAt, deletedAt])
+  @@index([entityId, deletedAt])
+  @@map("recently_deleted_records")
 }
 
 model Rfq {

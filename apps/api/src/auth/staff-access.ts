@@ -82,11 +82,12 @@ export const STAFF_ROLE_DEFINITIONS: {
     role: "ADMIN",
     label: "Administrator",
     description:
-      "Manages customers, quotations, orders, procurement, logistics, content, and rewards. Staff account administration stays with the owner.",
+      "Manages workspace operations and staff accounts, including role and access changes.",
     permissions: [
       "audit.read",
       "staff.profile",
       "dashboard.view",
+      "staff.manage",
       "customers.read",
       "followups.manage",
       "catalog.view",
@@ -218,7 +219,12 @@ function routePermission(method: string, path: string): StaffPermission {
     return "audit.read";
   if (route === "/admin/audit/recent" && verb === "GET") return "dashboard.view";
   if (route === "/admin/audit" && verb === "GET") return "audit.read";
-  if (route === "/auth/staff/me") return "staff.profile";
+  if (route === "/admin/recently-deleted" && verb === "GET")
+    return "dashboard.view";
+  if (/^\/admin\/recently-deleted\/[^/]+\/restore$/.test(route) && verb === "POST")
+    return "dashboard.view";
+  if (route === "/auth/staff/me" || route === "/auth/staff/me/password")
+    return "staff.profile";
   if (route.startsWith("/admin/staff")) return "staff.manage";
   if (
     route === "/analytics/dashboard" ||

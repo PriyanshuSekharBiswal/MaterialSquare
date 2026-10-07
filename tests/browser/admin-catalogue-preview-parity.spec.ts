@@ -80,7 +80,7 @@ test("catalogue preview uses the same displayed pack label as the storefront", a
   await page.getByLabel("Mobile number or email").fill("owner@example.test");
   await page.getByLabel("Password").fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
-  await page.getByRole("button", { name: "Products, prices & offers" }).click();
+  await page.getByRole("button", { name: "Products & pricing" }).click();
   await page.getByRole("button", { name: "Edit", exact: true }).first().click();
   await page.getByRole("button", { name: "Preview storefront" }).first().click();
 

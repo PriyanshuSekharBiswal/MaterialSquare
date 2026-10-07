@@ -57,7 +57,7 @@ describe("first-party website analytics", () => {
       { date: "2026-10-03", pageViews: 0, productViews: 2, addToList: 1, requestHandoffs: 1 },
     ]);
     expect(overview.topPages).toEqual([{ page: "home", views: 3 }]);
-    expect(overview.topProducts).toEqual([{ id: "pipe-a", name: "Astral CPVC Pipe", views: 2 }]);
+    expect(overview.topProducts).toEqual([{ id: "pipe-a", name: "Astral CPVC Pipe", views: 2, addToList: 1 }]);
     expect(overview.privacy).toContain("no visitor IDs");
   });
 

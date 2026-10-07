@@ -24,7 +24,7 @@ export default function StaffLogin({
             lightMode={false}
             tagline="BUILDING BETTER TOGETHER"
           />
-          <span className="login-badge-sub">EXECUTIVE COMMAND CENTER</span>
+          <span className="login-badge-sub">CLIENT ADMIN WORKSPACE</span>
         </div>
         <label>
           Mobile number or email
@@ -48,6 +48,11 @@ export default function StaffLogin({
             required
           />
         </label>
+        <p className="login-session-note">
+          Stay signed in on this browser when you close or refresh it. Sign out
+          from the workspace when you’re finished. For security, remembered
+          sessions expire after 30 days.
+        </p>
         {error && (
           <p role="alert" className="admin-error">
             {error}

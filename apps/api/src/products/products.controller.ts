@@ -242,10 +242,16 @@ export class ProductsController {
     );
   }
 
-  @Delete("catalogue/:id")
+  @Patch("catalogue/:id/unpublish")
   @UseGuards(StaffGuard)
   archiveCatalogueProduct(@Req() req: StaffRequest, @Param("id") id: string) {
     return this.productsService.archive(id, req.user.userId);
+  }
+
+  @Delete("catalogue/:id")
+  @UseGuards(StaffGuard)
+  deleteCatalogueProduct(@Req() req: StaffRequest, @Param("id") id: string) {
+    return this.productsService.deleteToTrash(id, req.user.userId);
   }
 
   @Patch(":id/price")

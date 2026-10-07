@@ -17,10 +17,10 @@ test("overview recent changes link to the matching admin workspace", async ({
   await page.route("**/api/workspace/overview", (route) =>
     route.fulfill({
       json: {
-        customers: 0,
-        newCustomers30Days: 0,
-        openFollowups: 0,
-        closedFollowups: 0,
+        customers: 3,
+        newCustomers30Days: 2,
+        openFollowups: 1,
+        closedFollowups: 4,
         demo: true,
       },
     }),
@@ -121,6 +121,12 @@ test("overview recent changes link to the matching admin workspace", async ({
       },
     }),
   );
+  await page.route("**/api/workspace/customers?**", (route) =>
+    route.fulfill({ json: { items: [], total: 0, page: 1 } }),
+  );
+  await page.route("**/api/workspace/followups?**", (route) =>
+    route.fulfill({ json: { items: [], total: 0, page: 1 } }),
+  );
 
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("owner@example.com");
@@ -133,8 +139,19 @@ test("overview recent changes link to the matching admin workspace", async ({
   await expect(page.getByRole("button", { name: "Open website content" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open catalogue" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Recent activity" }).click();
-  await expect(page.getByRole("heading", { name: "Recent activity" })).toBeVisible();
+  await page.getByRole("button", { name: /Customer records/ }).click();
+  await expect(page.getByText("0 customer records")).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Search the admin workspace" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Overview", exact: true }).click();
+  await page.getByRole("button", { name: /Open follow-ups/ }).click();
+  await expect(page.getByRole("heading", { name: "Enquiry follow-ups" })).toBeVisible();
+  await expect(page.getByLabel("Filter status")).toHaveValue("OPEN");
+  await page.getByRole("button", { name: "Overview", exact: true }).click();
+  await page.getByRole("button", { name: /Closed follow-ups/ }).click();
+  await expect(page.getByLabel("Filter status")).toHaveValue("CLOSED");
+
+  await page.getByRole("button", { name: "Recent changes" }).click();
+  await expect(page.getByRole("heading", { name: "Recent changes" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open staff & roles" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open sales workspace" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open business management" })).toBeVisible();

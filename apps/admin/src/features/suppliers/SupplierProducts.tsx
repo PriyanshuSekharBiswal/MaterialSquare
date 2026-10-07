@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { Trash2 } from "lucide-react";
+import { confirmAdminAction } from "../../components/confirmAdminAction";
 
 type Product = {
   id: string;
@@ -142,6 +144,36 @@ export default function SupplierProducts({
                 onClick={() => setEditing(product)}
               >
                 Edit supplied product
+              </button>
+              <button
+                type="button"
+                className="bc-button bc-danger"
+                disabled={busy}
+                onClick={async () => {
+                  if (!(await confirmAdminAction({
+                    title: "Move this supplier product to Recently deleted?",
+                    message: `“${product.productName}” can be restored for 30 days.`,
+                    confirmLabel: "Move to recently deleted",
+                    tone: "danger",
+                  }))) return;
+                  setBusy(true);
+                  setError("");
+                  setNotice("");
+                  try {
+                    await request(
+                      `/suppliers/${supplierId}/products/${product.id}`,
+                      "DELETE",
+                    );
+                    setNotice("Supplier product moved to Recently deleted.");
+                    await refresh();
+                  } catch (cause) {
+                    setError((cause as Error).message);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                <Trash2 size={16} /> Delete product
               </button>
             </article>
           ))}
