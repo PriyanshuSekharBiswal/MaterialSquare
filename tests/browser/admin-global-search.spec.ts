@@ -108,7 +108,8 @@ test("admin search suggests a destination and carries product text into catalogu
   const globalSearch = page.getByRole("combobox", {
     name: "Search the admin workspace",
   });
-  await page.keyboard.press("Control+k");
+  await expect(globalSearch).toBeVisible();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+k" : "Control+k");
   await expect(page.getByText("QUICK ACCESS")).toBeVisible();
   await globalSearch.fill("cement");
   const productSuggestion = page.getByRole("option", {

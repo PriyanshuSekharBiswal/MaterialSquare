@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, Search, Trash2, Upload } from "lucide-react";
 
+const customerPriceNote = (note: string | null | undefined) => {
+  const value = String(note || "").trim();
+  return !value || /reference|observed|confirm local price|seller listing|local price and taxes may differ/i.test(value) ? "" : value;
+};
+
 export type EditableVariant = {
   id?: string;
   code?: string | null;
@@ -255,7 +260,7 @@ export default function CatalogueVariantsEditor({
             <label>Offer label<input value={variant.offerLabel || ""} maxLength={120} placeholder="Optional" onChange={(event) => update(index, { offerLabel: event.target.value || null })} /></label>
             <label>Offer starts<input type="date" value={(variant.offerStartsAt || "").slice(0, 10)} onChange={(event) => update(index, { offerStartsAt: event.target.value || null })} /></label>
             <label>Offer ends<input type="date" value={(variant.offerEndsAt || "").slice(0, 10)} onChange={(event) => update(index, { offerEndsAt: event.target.value || null })} /></label>
-            <label>Price note<input value={variant.priceNote || ""} maxLength={120} placeholder="Optional" onChange={(event) => update(index, { priceNote: event.target.value || null })} /></label>
+            <label>Price / tax note (optional)<input value={customerPriceNote(variant.priceNote)} maxLength={120} placeholder="e.g. GST included" onChange={(event) => update(index, { priceNote: event.target.value || null })} /></label>
             <label className="catalogue-variant-breaks">Quantity breaks (minimum quantity = unit price)<input value={toBreaksText(variant.quantityBreaks)} placeholder="10 = 415; 30 = 405" onChange={(event) => update(index, { quantityBreaks: fromBreaksText(event.target.value) })} /></label>
             <label className="catalogue-variant-availability">Availability<select value={variant.availabilityStatus || (variant.inStock ? "IN_STOCK" : "CHECK_AVAILABILITY")} onChange={(event) => update(index, { availabilityStatus: event.target.value as EditableVariant["availabilityStatus"], inStock: event.target.value === "IN_STOCK" })}><option key="IN_STOCK" value="IN_STOCK">In stock</option><option key="OUT_OF_STOCK" value="OUT_OF_STOCK">Out of stock</option><option key="CHECK_AVAILABILITY" value="CHECK_AVAILABILITY">Check availability</option></select></label>
           </div>

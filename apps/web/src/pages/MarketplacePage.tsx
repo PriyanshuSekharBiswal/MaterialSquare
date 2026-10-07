@@ -24,6 +24,9 @@ import { partnerBrandMatchesProduct, usePartnerBrands } from '../partner-brands'
 import { bestMatchingVariant } from '../search/variant-match';
 import RotatingSearchPlaceholder from '../components/RotatingSearchPlaceholder';
 import { buildSearchExamples } from '../search/search-examples';
+import { customerPriceNote } from '../catalogue/customer-display';
+
+const CATALOGUE_PAGE_SIZE = 16;
 
 export default function MarketplacePage({
   bomList = [],
@@ -52,6 +55,8 @@ export default function MarketplacePage({
   const [sortBy, setSortBy] = useState('relevance');
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [isStickyDismissed, setIsStickyDismissed] = useState(false);
+  const [visibleProductCount, setVisibleProductCount] = useState(CATALOGUE_PAGE_SIZE);
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const prevBomCountRef = useRef(bomList.length);
   const searchRef = useRef<HTMLDivElement>(null);
   const catalogueBrands = useMemo(() => partnerBrands.map((brand) => ({ name: brand.name, category: brand.category, meta: getBrandMeta(brand.id) })), [partnerBrands]);
@@ -185,6 +190,29 @@ export default function MarketplacePage({
       return 0;
     });
   }, [products, activeCategory, selectedBrand, availability, searchQuery, sortBy, variantFilters]);
+
+  const visibleProducts = useMemo(
+    () => filteredProducts.slice(0, visibleProductCount),
+    [filteredProducts, visibleProductCount],
+  );
+
+  useEffect(() => {
+    setVisibleProductCount(CATALOGUE_PAGE_SIZE);
+  }, [activeCategory, selectedBrand, availability, searchQuery, sortBy, variantFilters]);
+
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel || visibleProductCount >= filteredProducts.length || !('IntersectionObserver' in window)) return;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setVisibleProductCount((count) => Math.min(count + CATALOGUE_PAGE_SIZE, filteredProducts.length));
+      }
+    }, { rootMargin: '720px 0px', threshold: 0 });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [visibleProductCount, filteredProducts.length]);
 
   const relatedProducts = useMemo(() => {
     if (filteredProducts.length) return [];
@@ -471,7 +499,8 @@ export default function MarketplacePage({
           {/* Results Summary Bar */}
           <div className="results-summary-row reveal-text">
             <span className="results-count-text">
-              Showing <strong>{filteredProducts.length}</strong> products in this catalogue
+              Showing <strong>{visibleProducts.length}</strong> of <strong>{filteredProducts.length}</strong> products
+              {filteredProducts.length !== products.length && ' matching your filters'}
               {activeCategoryLabel && ` in ${activeCategoryLabel}`}
               {selectedBrand && ` by ${selectedBrand}`}
             </span>
@@ -488,16 +517,15 @@ export default function MarketplacePage({
 
           {/* Products Grid */}
           {filteredProducts.length > 0 ? (
-            <div className={`products-directory-grid reveal-stagger${searchQuery.trim() ? ' is-search-results-list' : ''}`}>
-              {filteredProducts.map((product) => {
+            <div className={`products-directory-grid${searchQuery.trim() ? ' is-search-results-list' : ''}`}>
+              {visibleProducts.map((product) => {
                 const queryVariant = bestMatchingVariant(product, searchQuery);
                 const productHref = `/product/${encodeURIComponent(product.id)}${searchQuery.trim() ? `?q=${encodeURIComponent(searchQuery.trim())}` : ""}`;
                 const cardImage = queryVariant?.image || product.image;
                 const inBOM = isItemInBOM(product.id);
                 const brandMeta = getBrandMeta(product.brand);
                 const productOffer = queryVariant?.offerLabel || product.offerLabel || product.variants?.find((variant) => variant.offerLabel)?.offerLabel;
-                const referencePriceNote = queryVariant?.priceNote || product.priceNote || product.variants?.find(variant => variant.price != null)?.priceNote || "Final availability, GST and delivery charges confirmed by staff.";
-                const isReferencePrice = /reference/i.test(product.priceNote || "") || /reference/i.test(referencePriceNote);
+                const priceNote = customerPriceNote(queryVariant?.priceNote || product.priceNote || product.variants?.find(variant => variant.price != null)?.priceNote);
                 const itemAvailability = product.availabilityStatus || (product.inStock ? 'IN_STOCK' : 'CHECK_AVAILABILITY');
                 const variantStatuses = (product.variants || []).map((variant) => variant.availabilityStatus || (variant.inStock ? 'IN_STOCK' : 'CHECK_AVAILABILITY'));
                 const effectiveAvailability = queryVariant
@@ -596,14 +624,11 @@ export default function MarketplacePage({
                       {/* Pricing & Min Order */}
                       <div className="pricing-row">
                         <div>
-                          <span className="rate-caption">{isReferencePrice ? 'Online reference price' : product.price == null && product.variants?.some(variant => variant.price != null) ? 'Starting from' : product.price == null ? 'Wholesale pricing' : 'Price per unit'}</span>
+                          <span className="rate-caption">{queryVariant?.price != null || product.price != null ? 'Price per unit' : product.variants?.some(variant => variant.price != null) ? 'Starting from' : 'Pricing'}</span>
                           <span className="rate-amount">
                             {queryVariant?.price != null ? `₹${Number(queryVariant.price).toLocaleString('en-IN')}` : product.price == null ? product.variants?.some(variant => variant.price != null) ? `₹${Math.min(...product.variants.filter(variant => variant.price != null).map(variant => Number(variant.price))).toLocaleString('en-IN')}` : 'Request a quote' : `₹${Number(product.price).toLocaleString('en-IN')}`}
                           </span>
-                          {product.compareAtPrice != null && product.price != null && Number(product.compareAtPrice) > Number(product.price) && (
-                            <span className="catalogue-list-price"><del>₹{Number(product.compareAtPrice).toLocaleString('en-IN')}</del>{productOffer && <strong>{productOffer}</strong>}</span>
-                          )}
-                          {(product.price != null || product.variants?.some(variant => variant.price != null)) && <small className="catalogue-price-caveat">{referencePriceNote}</small>}
+                          {priceNote && <small className="catalogue-price-caveat">{priceNote}</small>}
                         </div>
                         <div className="min-order-pill">
                           <Package size={12} />
@@ -685,6 +710,25 @@ export default function MarketplacePage({
                 </>
               )}
             </div>
+          )}
+          {visibleProducts.length < filteredProducts.length && (
+            <div className="catalogue-load-more" ref={loadMoreSentinelRef}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setVisibleProductCount((count) => Math.min(count + CATALOGUE_PAGE_SIZE, filteredProducts.length))}
+              >
+                Load more products <span>({filteredProducts.length - visibleProducts.length} remaining)</span>
+              </button>
+              <span className="catalogue-load-more-hint" aria-live="polite">
+                Showing {visibleProducts.length} of {filteredProducts.length}
+              </span>
+            </div>
+          )}
+          {filteredProducts.length > 0 && visibleProducts.length === filteredProducts.length && (
+            <p className="catalogue-end-message" role="status">
+              You’ve reached the end — all {filteredProducts.length} products are loaded.
+            </p>
           )}
           {!filteredProducts.length && relatedProducts.length > 0 && <section className="catalogue-related-section" aria-label="Other catalogue items">
             <div><h3>Other items to explore</h3><p>These are listed in a related materials category. Confirm the exact brand and specification with the team.</p></div>

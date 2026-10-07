@@ -21,9 +21,13 @@ export default function NotificationStatus({ token }: { token: string }) {
   const [error, setError] = useState("");
   const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [readinessError, setReadinessError] = useState("");
+  const [readinessRevision, setReadinessRevision] = useState(0);
+  const [checkingReadiness, setCheckingReadiness] = useState(true);
   useEffect(() => {
     const controller = new AbortController();
     async function loadReadiness() {
+      setCheckingReadiness(true);
+      setReadinessError("");
       try {
         const response = await fetch(
           `${import.meta.env.VITE_API_URL || "/api"}/admin/notifications/readiness`,
@@ -32,22 +36,35 @@ export default function NotificationStatus({ token }: { token: string }) {
             signal: controller.signal,
           },
         );
-        if (!response.ok)
-          throw new Error("Could not check notification setup.");
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error(
+              "The API does not recognize the notification setup check (404). The API service may need its latest deployment.",
+            );
+          }
+          throw new Error(
+            `Could not check notification setup (HTTP ${response.status}).`,
+          );
+        }
         const data: Readiness = await response.json();
         if (!controller.signal.aborted) setReadiness(data);
       } catch (cause) {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
           setReadinessError(
-            cause instanceof Error
-              ? cause.message
-              : "Could not check notification setup.",
+            cause instanceof TypeError
+              ? "Could not reach the API to check notification setup. Check the API service and try again."
+              : cause instanceof Error
+                ? cause.message
+                : "Could not check notification setup.",
           );
+        }
+      } finally {
+        if (!controller.signal.aborted) setCheckingReadiness(false);
       }
     }
     void loadReadiness();
     return () => controller.abort();
-  }, [token]);
+  }, [token, readinessRevision]);
   useEffect(() => {
     const controller = new AbortController();
     setResult(null);
@@ -64,17 +81,28 @@ export default function NotificationStatus({ token }: { token: string }) {
             signal: controller.signal,
           },
         );
-        if (!response.ok)
-          throw new Error("Could not load notification status.");
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error(
+              "The API does not recognize the notification status endpoint (404). The API service may need its latest deployment.",
+            );
+          }
+          throw new Error(
+            `Could not load notification status (HTTP ${response.status}).`,
+          );
+        }
         const data: Page = await response.json();
         if (!controller.signal.aborted) setResult(data);
       } catch (cause) {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
           setError(
-            cause instanceof Error
-              ? cause.message
-              : "Could not load notification status.",
+            cause instanceof TypeError
+              ? "Could not reach the API to load notification status. Check the API service and try again."
+              : cause instanceof Error
+                ? cause.message
+                : "Could not load notification status.",
           );
+        }
       }
     }
     void load();
@@ -96,12 +124,24 @@ export default function NotificationStatus({ token }: { token: string }) {
         Queued jobs await the configured provider. Delivered means the provider
         accepted the request; recipient delivery is not confirmed here.
       </p>
-      {readinessError ? <p role="status">{readinessError}</p> : null}
+      {readinessError ? (
+        <div>
+          <p role="status">{readinessError}</p>
+          <button
+            className="btn-sm"
+            disabled={checkingReadiness}
+            onClick={() => setReadinessRevision((value) => value + 1)}
+          >
+            {checkingReadiness ? "Checking setup…" : "Retry setup check"}
+          </button>
+        </div>
+      ) : null}
       {readiness && !readiness.ready ? (
         <aside className="notification-readiness-notice" role="status">
           <strong>Notification delivery is not configured.</strong>
           <p>
-            Jobs stay pending until an administrator configures: {readiness.missingRequired.join(", ")}.
+            Jobs stay pending until an administrator configures:{" "}
+            {readiness.missingRequired.join(", ")}.
             {readiness.webhookTokenConfigured
               ? ""
               : " The optional NOTIFICATION_WEBHOOK_TOKEN is also not set."}

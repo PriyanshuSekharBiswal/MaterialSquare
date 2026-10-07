@@ -11,6 +11,7 @@ import ProductImage from "../components/ProductImage";
 import { BrandLogo, getBrandMeta } from "../components/icons/BrandBadges";
 import WhatsAppIcon from "../components/icons/WhatsAppIcon";
 import { bestMatchingVariant } from "../search/variant-match";
+import { customerPriceNote, customerProductDescription, customerSpecifications } from "../catalogue/customer-display";
 
 export default function ProductDetailPage({ products, loading = false, catalogueUnavailable = false, onRetryCatalogue }: { products: CatalogueProduct[]; loading?: boolean; catalogueUnavailable?: boolean; onRetryCatalogue?: () => void }) {
   const { productId } = useParams();
@@ -62,10 +63,10 @@ export default function ProductDetailPage({ products, loading = false, catalogue
     }
     return Array.from(values.entries()).map(([key, group]) => ({ key, ...group }));
   }, [variants]);
-  const technicalSpecs = useMemo(() => Object.entries({
+  const technicalSpecs = useMemo(() => customerSpecifications({
     ...(product?.specs || {}),
     ...(selectedVariant?.attributes || {}),
-  }).filter(([, value]) => String(value ?? "").trim()), [product, selectedVariant]);
+  }), [product, selectedVariant]);
 
   if (!product && loading) return <p className="page-loading-state container" role="status">Loading product details…</p>;
   if (!product && catalogueUnavailable) return (
@@ -95,9 +96,8 @@ export default function ProductDetailPage({ products, loading = false, catalogue
   const matchedBreak = quantityBreaks.filter((row) => Number(quantity) >= Number(row.minimumQuantity)).at(-1);
   const price = matchedBreak?.unitPrice ?? selectedVariant?.price ?? product.price;
   const unit = selectedVariant?.unit || product.unit;
-  const compareAtPrice = selectedVariant?.compareAtPrice ?? product.compareAtPrice;
-  const priceDisclosure = selectedVariant?.priceNote || product.priceNote || "";
-  const isReferencePrice = /reference/i.test(product.priceNote || "") || /reference/i.test(priceDisclosure);
+  const priceDisclosure = customerPriceNote(selectedVariant?.priceNote || product.priceNote);
+  const description = customerProductDescription(product.description);
   const availability = selectedVariant?.availabilityStatus || product.availabilityStatus || ((selectedVariant?.inStock ?? product.inStock) ? "IN_STOCK" : "CHECK_AVAILABILITY");
   const minimumOrder = Number(selectedVariant?.minOrderQuantity || product.minOrderQty?.match(/[\d.]+/)?.[0] || 0) || 0;
   const relatedProducts = products.filter((item) => item.id !== product.id && item.category === product.category).slice(0, 8);
@@ -179,7 +179,6 @@ export default function ProductDetailPage({ products, loading = false, catalogue
           <div className="product-detail-image">
             {selectedLabel && <span className="selected-size-badge">Selected: {selectedLabel}</span>}
             <ProductImage src={activeImage} alt={product.name} loading="eager" />
-            <span className="product-detail-brand-mark"><BrandLogo id={brandMeta?.id || product.brand} /> {product.brand}</span>
           </div>
           {gallery.length > 1 && <div className="catalogue-gallery-thumbnails" aria-label="Product images">
             {gallery.map((image, index) => <button type="button" key={`${image}-${index}`} className={image === activeImage ? "is-active" : ""} onClick={() => setSelectedImage(image)} aria-label={`View product image ${index + 1}`}><ProductImage src={image} alt="" /></button>)}
@@ -194,9 +193,9 @@ export default function ProductDetailPage({ products, loading = false, catalogue
 
         <div className="product-detail-information">
           <div className="product-detail-kicker"><span>{product.categoryLabel}</span>{product.code && <span>SKU · {product.code}</span>}</div>
-          <div className="product-detail-brand-line"><BrandLogo id={brandMeta?.id || product.brand} /><div><strong>{product.brand}</strong>{product.brandTagline && <small>{product.brandTagline}</small>}</div></div>
+          <div className="product-detail-brand-line"><BrandLogo id={brandMeta?.id || product.brand} className="mini" /><div><strong>{product.brand}</strong>{product.brandTagline && <small>{product.brandTagline}</small>}</div></div>
           <h1>{product.name}</h1>
-          {product.description && <p className="product-detail-description">{product.description}</p>}
+          {description && <p className="product-detail-description">{description}</p>}
           {quantityBreaks.length > 0 && <section className="product-detail-spec-block"><h2>Quantity prices</h2>{quantityBreaks.map((row) => <div className="product-detail-spec-row" key={`${row.minimumQuantity}-${row.unitPrice}`}><span>{Number(row.minimumQuantity).toLocaleString("en-IN")}+ {unit}</span><strong>₹{Number(row.unitPrice).toLocaleString("en-IN")} / {unit}</strong></div>)}</section>}
           {technicalSpecs.length > 0 && <section className="product-detail-spec-block"><h2>Specifications</h2>{technicalSpecs.map(([key, value]) => <div className="product-detail-spec-row" key={key}><span>{key}</span><strong>{String(value)}</strong></div>)}</section>}
           {product.features.length > 0 && <section className="product-detail-spec-block"><h2>Product features</h2><ul className="product-detail-list">{product.features.map((feature) => <li key={feature}><Check size={15} />{feature}</li>)}</ul></section>}
@@ -207,9 +206,9 @@ export default function ProductDetailPage({ products, loading = false, catalogue
         <form className="product-detail-buy-box" onSubmit={addSelection}>
             <div className="product-detail-buy-heading"><span>Configure your selection</span><strong>{selectedVariant?.label || selectedLabel || "Choose a product option"}</strong><small>Options and pricing reflect the selected product combination.</small></div>
             <div className="product-detail-offer-row">
-              <div><span className="rate-k">{isReferencePrice ? "Online reference price" : price == null ? "Pricing" : `Price per ${unit}`}</span><strong className="product-detail-price">{price == null ? "Request a quotation" : `₹${Number(price).toLocaleString("en-IN")}`}{price != null && compareAtPrice != null && Number(compareAtPrice) > Number(price) && <del>₹{Number(compareAtPrice).toLocaleString("en-IN")}</del>}</strong>
+              <div><span className="rate-k">{price == null ? "Pricing" : `Price per ${unit}`}</span><strong className="product-detail-price">{price == null ? "Request a quotation" : `₹${Number(price).toLocaleString("en-IN")}`}</strong>
                 {(selectedVariant?.offerLabel || product.offerLabel) && <span className="catalogue-offer-badge">{selectedVariant?.offerLabel || product.offerLabel}</span>}
-                {(selectedVariant?.priceNote || product.priceNote) && <small className="catalogue-price-caveat">{selectedVariant?.priceNote || product.priceNote}</small>}
+                {priceDisclosure && <small className="catalogue-price-caveat">{priceDisclosure}</small>}
               </div>
               <span className={`product-detail-stock status-${availability.toLowerCase().replaceAll("_", "-")}`}>{availability === "IN_STOCK" ? (selectedVariant?.stockQuantity != null ? `In stock · ${selectedVariant.stockQuantity} available` : "In stock") : availability === "OUT_OF_STOCK" ? "Out of stock" : "Check availability"}</span>
             </div>
@@ -236,14 +235,14 @@ export default function ProductDetailPage({ products, loading = false, catalogue
 
       {relatedProducts.length > 0 && <section className="product-page-related" aria-label="Similar products">
         <div className="product-related-heading"><div><span>Continue browsing</span><h2>Similar {product.categoryLabel.toLowerCase()} products</h2></div><Link to={`/marketplace?category=${encodeURIComponent(product.category)}`}>View all <ArrowRight size={14} /></Link></div>
-        <div className="product-related-grid">{relatedProducts.map((item) => <Link className="product-related-card" key={item.id} to={`/product/${encodeURIComponent(item.id)}`}><ProductImage src={item.image || "/images/materials-editorial.png"} alt={`${item.name} — illustrative material image`} /><span className="product-related-brand">{item.brand}</span><strong>{item.name}</strong><small>{item.price != null ? `${/reference/i.test(item.priceNote || "") ? "Online reference · " : ""}₹${Number(item.price).toLocaleString("en-IN")} / ${item.unit}` : "Request a quotation"}</small></Link>)}</div>
-        <small className="project-related-disclosure">Illustrative generated image; exact product packaging may differ. Reference prices and stock are subject to confirmation.</small>
+        <div className="product-related-grid">{relatedProducts.map((item) => <Link className="product-related-card" key={item.id} to={`/product/${encodeURIComponent(item.id)}`}><ProductImage src={item.image || "/images/materials-editorial.png"} alt={`${item.name} — illustrative material image`} /><span className="product-related-brand">{item.brand}</span><strong>{item.name}</strong><small>{item.price != null ? `₹${Number(item.price).toLocaleString("en-IN")} / ${item.unit}` : "Request a quotation"}</small></Link>)}</div>
+        <small className="project-related-disclosure">Illustrative generated image; exact product packaging may differ. Confirm availability with the team.</small>
       </section>}
       {complementaryProducts.length > 0 && <section className="product-page-related product-project-related" aria-label="Products to complete your project">
         <div className="product-related-heading"><div><span>Plan the next step</span><h2>Complete your project</h2></div><Link to="/marketplace">Browse all materials <ArrowRight size={14} /></Link></div>
         <p className="project-related-note">Useful materials from other catalogue categories. Add only what your project needs; pricing and availability are confirmed with the team.</p>
-        <div className="product-related-grid">{complementaryProducts.map((item) => <Link className="product-related-card" key={item.id} to={`/product/${encodeURIComponent(item.id)}`}><ProductImage src={item.image || "/images/materials-editorial.png"} alt={`${item.name} — illustrative material image`} /><span className="product-related-brand">{item.categoryLabel} · {item.brand}</span><strong>{item.name}</strong><small>{item.price != null ? `${/reference/i.test(item.priceNote || "") ? "Online reference · " : ""}₹${Number(item.price).toLocaleString("en-IN")} / ${item.unit}` : "Request a quotation"}</small></Link>)}</div>
-        <small className="project-related-disclosure">Generated editorial material image; exact product packaging may differ. Reference prices and stock are subject to confirmation.</small>
+        <div className="product-related-grid">{complementaryProducts.map((item) => <Link className="product-related-card" key={item.id} to={`/product/${encodeURIComponent(item.id)}`}><ProductImage src={item.image || "/images/materials-editorial.png"} alt={`${item.name} — illustrative material image`} /><span className="product-related-brand">{item.categoryLabel} · {item.brand}</span><strong>{item.name}</strong><small>{item.price != null ? `₹${Number(item.price).toLocaleString("en-IN")} / ${item.unit}` : "Request a quotation"}</small></Link>)}</div>
+        <small className="project-related-disclosure">Generated editorial material image; exact product packaging may differ. Confirm availability with the team.</small>
       </section>}
     </section>
   );

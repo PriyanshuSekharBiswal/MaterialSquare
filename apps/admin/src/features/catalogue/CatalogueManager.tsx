@@ -115,8 +115,21 @@ const fromLines = (value: FormDataEntryValue | null) =>
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
+const privateSpecKey = /(?:^|\s)(?:image source|price source|reference(?: note| price source| source updated| mrp)?|price observed)$/i;
+const visibleSpecs = (specifications: Record<string, string> | null | undefined) =>
+  Object.fromEntries(Object.entries(specifications || {}).filter(([key, value]) =>
+    !privateSpecKey.test(key.trim()) && String(value || "").trim() && !/^https?:\/\//i.test(String(value).trim()),
+  ));
+const customerPriceNote = (note: string | null | undefined) => {
+  const value = String(note || "").trim();
+  return !value || /reference|observed|confirm local price|seller listing|local price and taxes may differ/i.test(value) ? "" : value;
+};
+const customerProductDescription = (description: string | null | undefined) => {
+  const value = String(description || "").trim();
+  return !value || /online reference|reference listing|confirm the exact grade|current client price|reference price/i.test(value) ? "" : value;
+};
 const specsFromLines = (value: FormDataEntryValue | null) =>
-  Object.fromEntries(
+  visibleSpecs(Object.fromEntries(
     String(value || "")
       .split("\n")
       .map((line) => line.trim())
@@ -128,7 +141,7 @@ const specsFromLines = (value: FormDataEntryValue | null) =>
           : [line.slice(0, separator).trim(), line.slice(separator + 1).trim()];
       })
       .filter(([key]) => key),
-  );
+  ));
 const lines = (values: string[]) => values.join("\n");
 const dateField = (value: string | null) => (value ? value.slice(0, 10) : "");
 export default function CatalogueManager({
@@ -219,7 +232,7 @@ export default function CatalogueManager({
       product.description,
       ...product.variants.flatMap((variant) => [variant.label, variant.code, variant.unit, ...Object.entries(variant.attributes || {}).flatMap(([key, value]) => [key, value])]),
       ...product.features,
-      ...Object.values(product.specifications),
+      ...Object.values(visibleSpecs(product.specifications)),
     ]
       .filter(Boolean)
       .join(" ")
@@ -251,11 +264,10 @@ export default function CatalogueManager({
         .slice(0, 3)
     : [];
   const previewCardPrice = previewListing?.price != null && previewListing.price !== "" ? previewListing.price : pricedPreviewVariant?.price ?? null;
-  const previewCardPriceNote = previewListing?.priceNote || pricedPreviewVariant?.priceNote || "Final availability, GST and delivery charges confirmed by staff.";
-  const previewCardIsReferencePrice = /reference/i.test(previewListing?.priceNote || "") || /reference/i.test(previewCardPriceNote);
+  const previewCardPriceNote = customerPriceNote(previewListing?.priceNote || pricedPreviewVariant?.priceNote);
   const previewDetailPrice = detailPreviewVariant?.price ?? previewListing?.price ?? null;
-  const previewDetailPriceNote = detailPreviewVariant?.priceNote || previewListing?.priceNote || "";
-  const previewDetailIsReferencePrice = /reference/i.test(previewListing?.priceNote || "") || /reference/i.test(previewDetailPriceNote);
+  const previewDetailPriceNote = customerPriceNote(detailPreviewVariant?.priceNote || previewListing?.priceNote);
+  const previewDescription = customerProductDescription(previewListing?.description);
   const previewCardAvailability = previewListing?.availabilityStatus === "IN_STOCK" || previewListing?.variants.some((variant) => variant.availabilityStatus === "IN_STOCK" || (variant.availabilityStatus == null && variant.inStock))
     ? "IN_STOCK"
     : previewListing?.availabilityStatus === "OUT_OF_STOCK" || (previewListing?.variants.length && previewListing.variants.every((variant) => variant.availabilityStatus === "OUT_OF_STOCK"))
@@ -279,12 +291,27 @@ export default function CatalogueManager({
       );
       const result = await response.json().catch(() => null);
       if (response.status === 401) onSignOut();
-      if (!response.ok)
+      if (!response.ok) {
+        const fieldErrors = result?.issues?.fieldErrors;
+        const detailMessages = fieldErrors && typeof fieldErrors === "object"
+          ? Object.entries(fieldErrors).flatMap(([field, messages]) =>
+              Array.isArray(messages)
+                ? messages.filter((message): message is string => typeof message === "string").map((message) => `${field}: ${message}`)
+                : [],
+            )
+          : [];
+        const formErrors = Array.isArray(result?.issues?.formErrors)
+          ? result.issues.formErrors.filter((message: unknown): message is string => typeof message === "string")
+          : [];
+        const details = [...detailMessages, ...formErrors];
         throw new Error(
-          typeof result?.message === "string"
-            ? result.message
-            : "Could not save catalogue changes.",
+          details.length
+            ? `${typeof result?.message === "string" ? result.message : "Could not save catalogue changes."}: ${details.join("; ")}`
+            : typeof result?.message === "string"
+              ? result.message
+              : "Could not save catalogue changes.",
         );
+      }
       return result as T;
     },
     [token, onSignOut],
@@ -516,8 +543,12 @@ export default function CatalogueManager({
       const control = productForm.current.elements.namedItem(name);
       if (control instanceof HTMLInputElement && control.type === "checkbox")
         control.checked = Boolean(value);
-      else if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement || control instanceof HTMLSelectElement)
-        control.value = String(value);
+      else if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement || control instanceof HTMLSelectElement) {
+        if (name === "specifications")
+          control.value = Object.entries(specsFromLines(String(value))).map(([key, item]) => `${key}: ${item}`).join("\n");
+        else if (name === "priceNote") control.value = customerPriceNote(String(value));
+        else control.value = String(value);
+      }
     }
     setDraftSavedAt(recoveredDraft.savedAt);
     setNotice("Recovered this product’s unsaved changes. They remain private until you save the product.");
@@ -569,7 +600,7 @@ export default function CatalogueManager({
       image: String(formValues.get("image") || "").trim() || null,
       price: String(formValues.get("price") || "").trim() || null,
       compareAtPrice: String(formValues.get("compareAtPrice") || "").trim() || null,
-      priceNote: String(formValues.get("priceNote") || "").trim() || null,
+      priceNote: customerPriceNote(String(formValues.get("priceNote") || "")) || null,
       offerLabel: String(formValues.get("offerLabel") || "").trim() || null,
       minOrderQty: String(formValues.get("minOrderQty") || "").trim() || null,
       dispatchTime: String(formValues.get("dispatchTime") || "").trim() || null,
@@ -638,7 +669,7 @@ export default function CatalogueManager({
       dispatchTime: String(values.get("dispatchTime") || "").trim() || null,
       price: rawPrice ? Number(rawPrice) : null,
       compareAtPrice: rawCompare ? Number(rawCompare) : null,
-      priceNote: String(values.get("priceNote") || "").trim() || null,
+      priceNote: customerPriceNote(String(values.get("priceNote") || "")) || null,
       offerLabel: String(values.get("offerLabel") || "").trim() || null,
       offerStartsAt: String(values.get("offerStartsAt") || "") || null,
       offerEndsAt: String(values.get("offerEndsAt") || "") || null,
@@ -652,10 +683,11 @@ export default function CatalogueManager({
         ...variant,
         isInStock: variant.availabilityStatus === "IN_STOCK",
         code: variant.code || null,
-        price: variant.price === "" ? null : variant.price,
-        compareAtPrice: variant.compareAtPrice === "" ? null : variant.compareAtPrice,
-        stockQuantity: variant.stockQuantity === "" ? null : variant.stockQuantity,
-        minOrderQuantity: variant.minOrderQuantity === "" ? null : variant.minOrderQuantity,
+        price: variant.price == null || variant.price === "" ? null : Number(variant.price),
+        compareAtPrice: variant.compareAtPrice == null || variant.compareAtPrice === "" ? null : Number(variant.compareAtPrice),
+        priceNote: customerPriceNote(variant.priceNote) || null,
+        stockQuantity: variant.stockQuantity == null || variant.stockQuantity === "" ? null : Number(variant.stockQuantity),
+        minOrderQuantity: variant.minOrderQuantity == null || variant.minOrderQuantity === "" ? null : Number(variant.minOrderQuantity),
         quantityBreaks: variant.quantityBreaks || [],
         sortOrder,
       })),
@@ -950,12 +982,12 @@ export default function CatalogueManager({
               />
             </label>
             <label>
-              Price note
+              Price / tax note (optional)
               <input
                 name="priceNote"
                 maxLength={120}
                 placeholder="e.g. per bag, GST included"
-                defaultValue={formProduct.priceNote || ""}
+                defaultValue={customerPriceNote(formProduct.priceNote)}
               />
             </label>
             <label>
@@ -1160,11 +1192,11 @@ export default function CatalogueManager({
               />
             </label>
             <label className="catalogue-wide">
-              Specifications (one “name: value” per line)
+              Customer specifications (one “name: value” per line)
               <textarea
                 name="specifications"
                 rows={5}
-                defaultValue={Object.entries(formProduct.specifications || {})
+                defaultValue={Object.entries(visibleSpecs(formProduct.specifications))
                   .map(([key, value]) => `${key}: ${value}`)
                   .join("\n")}
               />
@@ -1276,7 +1308,7 @@ export default function CatalogueManager({
                   <div><span>Packaging</span><strong>{previewListing.unit || "Add packaging"}</strong></div>
                   {previewListing.specifications.standard && <div><span>IS Standard</span><strong>{previewListing.specifications.standard}</strong></div>}
                 </div>
-                <div className="store-preview-price-row"><div><span className="store-preview-price-caption">{previewCardIsReferencePrice ? "Online reference price" : !previewListing.price && pricedPreviewVariant ? "Starting from" : previewCardPrice ? "Price per unit" : "Wholesale pricing"}</span><div className="store-preview-price">{previewCardPrice ? <><strong>₹{Number(previewCardPrice).toLocaleString("en-IN")}</strong><span> / {previewListing.unit || "unit"}</span>{previewListing.compareAtPrice && <del>₹{Number(previewListing.compareAtPrice).toLocaleString("en-IN")}</del>}</> : <strong>Request a quote</strong>}</div>{(previewListing.price != null || pricedPreviewVariant) && <small>{previewCardPriceNote}</small>}</div><span className="store-preview-moq">MOQ: {previewListing.minOrderQty || "Confirm"}</span></div>
+                <div className="store-preview-price-row"><div><span className="store-preview-price-caption">{!previewListing.price && pricedPreviewVariant ? "Starting from" : previewCardPrice ? "Price per unit" : "Pricing"}</span><div className="store-preview-price">{previewCardPrice ? <><strong>₹{Number(previewCardPrice).toLocaleString("en-IN")}</strong><span> / {previewListing.unit || "unit"}</span></> : <strong>Request a quote</strong>}</div>{previewCardPriceNote && <small>{previewCardPriceNote}</small>}</div><span className="store-preview-moq">MOQ: {previewListing.minOrderQty || "Confirm"}</span></div>
                 <div className="store-preview-actions"><button type="button" disabled><Info size={13} /> View details</button><button type="button" disabled><PackagePlus size={13} /> {previewListing.variants.length || previewListing.specifications.sizes ? "Choose options" : "Add to quote list"}</button><button type="button" disabled aria-label="Ask on WhatsApp"><Phone size={14} /></button></div>
               </div>
             </article>
@@ -1297,7 +1329,7 @@ export default function CatalogueManager({
                 {(listing.grade || listing.specifications.sizes) && <p className="store-preview-unit">{listing.grade || `Size guide: ${listing.specifications.sizes}`}</p>}
                 {listingFeatures.length > 0 && <ul>{listingFeatures.slice(0, 2).map((feature, index) => <li key={`${feature}-${index}`}><span className="store-preview-check">✓</span><span>{feature}</span></li>)}</ul>}
                 <div className="store-preview-product-specs"><div><span>Packaging</span><strong>{listing.unit || "Add packaging"}</strong></div>{listing.specifications.standard && <div><span>IS Standard</span><strong>{listing.specifications.standard}</strong></div>}</div>
-                <div className="store-preview-price-row"><div><span className="store-preview-price-caption">{listing.priceNote && /reference/i.test(listing.priceNote) ? "Online reference price" : listingPrice ? "Price per unit" : "Wholesale pricing"}</span><div className="store-preview-price">{listingPrice ? <><strong>₹{Number(listingPrice).toLocaleString("en-IN")}</strong><span> / {listing.unit || "unit"}</span></> : <strong>Request a quote</strong>}</div>{listingPrice && <small>{listing.priceNote || "Final availability, GST and delivery charges confirmed by staff."}</small>}</div><span className="store-preview-moq">MOQ: {listing.minOrderQty || "Confirm"}</span></div>
+                <div className="store-preview-price-row"><div><span className="store-preview-price-caption">{listingPrice ? "Price per unit" : "Pricing"}</span><div className="store-preview-price">{listingPrice ? <><strong>₹{Number(listingPrice).toLocaleString("en-IN")}</strong><span> / {listing.unit || "unit"}</span></> : <strong>Request a quote</strong>}</div>{customerPriceNote(listing.priceNote) && <small>{customerPriceNote(listing.priceNote)}</small>}</div><span className="store-preview-moq">MOQ: {listing.minOrderQty || "Confirm"}</span></div>
                 <div className="store-preview-actions"><button type="button" disabled><Info size={13} /> View details</button><button type="button" disabled><PackagePlus size={13} /> {listing.variants.length || listing.specifications.sizes ? "Choose options" : "Add to quote list"}</button><button type="button" disabled aria-label="Ask on WhatsApp"><Phone size={14} /></button></div>
               </div>
             </article>;
@@ -1314,16 +1346,16 @@ export default function CatalogueManager({
                 <div className="store-preview-brand-line"><div className="store-preview-brand-title"><span className="store-preview-brand-mark" aria-hidden="true">{(previewListing.brand || "B").slice(0, 1).toUpperCase()}</span><strong>{previewListing.brand || "Brand"}</strong></div>{previewListing.brandTagline && <span>{previewListing.brandTagline}</span>}</div>
                 <h2>{previewListing.name || "Product name"}</h2>
                 {previewListing.grade && <span className="store-preview-grade">{previewListing.grade}</span>}
-                {previewListing.priceNote && <p className="store-preview-note">{previewListing.priceNote}</p>}
-                <p>{previewListing.description || "A product description will appear here when you add one."}</p>
-                {Object.keys(previewListing.specifications).length > 0 && <div className="store-preview-specs"><h3>Specifications</h3>{Object.entries(previewListing.specifications).map(([key, value]) => <div key={key}><span>{key}</span><strong>{value}</strong></div>)}</div>}
+                {customerPriceNote(previewListing.priceNote) && <p className="store-preview-note">{customerPriceNote(previewListing.priceNote)}</p>}
+                {previewDescription ? <p>{previewDescription}</p> : !previewListing.description && <p>A product description will appear here when you add one.</p>}
+                {Object.keys(visibleSpecs(previewListing.specifications)).length > 0 && <div className="store-preview-specs"><h3>Specifications</h3>{Object.entries(visibleSpecs(previewListing.specifications)).map(([key, value]) => <div key={key}><span>{key}</span><strong>{value}</strong></div>)}</div>}
                 {previewListing.features.length > 0 && <div className="store-preview-list"><h3>Key features</h3><ul>{previewListing.features.map((feature, index) => <li key={`${feature}-${index}`}>{feature}</li>)}</ul></div>}
                 {previewListing.applications.length > 0 && <div className="store-preview-list"><h3>Applications</h3><ul>{previewListing.applications.map((application, index) => <li key={`${application}-${index}`}>{application}</li>)}</ul></div>}
               </div>
               <aside className="store-preview-detail-order">
                 <div className="store-preview-buy-heading"><span>Configure your selection</span><strong>Choose a product option</strong><small>Options and pricing reflect the selected product combination.</small></div>
-                <span className="store-preview-price-caption">{previewDetailIsReferencePrice ? "Online reference price" : previewDetailPrice ? `Price per ${detailPreviewVariant?.unit || previewListing.unit || "unit"}` : "Pricing"}</span>
-                <div className="store-preview-detail-price">{previewDetailPrice ? <><strong>₹{Number(previewDetailPrice).toLocaleString("en-IN")}</strong>{(detailPreviewVariant?.compareAtPrice ?? previewListing.compareAtPrice) && <del>₹{Number(detailPreviewVariant?.compareAtPrice ?? previewListing.compareAtPrice).toLocaleString("en-IN")}</del>}</> : <strong>Request a quotation</strong>}</div>
+                <span className="store-preview-price-caption">{previewDetailPrice ? `Price per ${detailPreviewVariant?.unit || previewListing.unit || "unit"}` : "Pricing"}</span>
+                <div className="store-preview-detail-price">{previewDetailPrice ? <strong>₹{Number(previewDetailPrice).toLocaleString("en-IN")}</strong> : <strong>Request a quotation</strong>}</div>
                 {(detailPreviewVariant?.offerLabel || previewListing.offerLabel) && <span className="store-preview-detail-offer">{detailPreviewVariant?.offerLabel || previewListing.offerLabel}</span>}
                 {previewDetailPriceNote && <small className="store-preview-order-note">{previewDetailPriceNote}</small>}
                 <span className={`store-preview-detail-stock ${previewDetailAvailability === "IN_STOCK" ? "available" : ""}`}>{previewDetailAvailability === "IN_STOCK" ? "In stock" : previewDetailAvailability === "OUT_OF_STOCK" ? "Out of stock" : "Check availability"}</span>
@@ -1463,12 +1495,7 @@ export default function CatalogueManager({
                     {product.unit}
                   </strong>
                 )}
-                {product.compareAtPrice != null && (
-                  <del>
-                    ₹{Number(product.compareAtPrice).toLocaleString("en-IN")}
-                  </del>
-                )}
-                {product.priceNote && <span>{product.priceNote}</span>}
+                {customerPriceNote(product.priceNote) && <span>{customerPriceNote(product.priceNote)}</span>}
                 {product.offerLabel && (
                   <span className="catalogue-offer">{product.offerLabel}</span>
                 )}
@@ -1494,7 +1521,7 @@ export default function CatalogueManager({
                               {variant.price == null
                                 ? "Price not set"
                                 : `₹${Number(variant.price).toLocaleString("en-IN")} / ${variant.unit}`}
-                              <small>{variant.priceNote}</small>
+                              {customerPriceNote(variant.priceNote) && <small>{customerPriceNote(variant.priceNote)}</small>}
                               {variant.quantityBreaks?.map(
                                 (tier, tierIndex) => (
                                   <small key={tierIndex}>

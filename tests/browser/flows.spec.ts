@@ -1319,7 +1319,7 @@ test("admin edits customer-facing catalogue price and offer details", async ({
     packaging: "Single length",
     image: "/images/products/cpvc-pipe-illustration.png",
     grade: "CPVC",
-    description: "Product description",
+    description: "Online reference example for product discovery. Confirm the exact grade, current client price, tax basis, stock and delivery before ordering.",
     minOrderQty: "1 length",
     dispatchTime: "Confirm",
     price: null,
@@ -1333,7 +1333,14 @@ test("admin edits customer-facing catalogue price and offer details", async ({
     isPublished: true,
     features: ["Feature"],
     applications: ["Application"],
-    specifications: { size: "25 mm" },
+    specifications: {
+      size: "25 mm",
+      "Reference note": "Bangalore seller listing; local price and taxes may differ.",
+      "Reference price source": "https://prices.example.test/product",
+      "Reference source updated": "8 May 2026",
+      "Price source": "https://prices.example.test/product",
+      "Image source": "https://images.example.test/product.png",
+    },
     variants: [{
       id: "starter-cpvc-variant",
       label: "25 mm · 3 m",
@@ -1456,15 +1463,14 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page.getByRole("button", { name: "Products, prices & offers" }).click();
   await page.getByRole("button", { name: "Edit", exact: true }).first().click();
-  await page.getByRole("button", { name: "Preview storefront" }).click();
-  const storefrontPreview = page.getByRole("dialog", {
-    name: "See how customers will see this product",
-  });
+  await page.getByRole("button", { name: "Preview storefront" }).first().click();
+  const storefrontPreview = page.getByRole("dialog");
   await expect(storefrontPreview).toBeVisible();
   await expect(storefrontPreview.getByText("₹425", { exact: true })).toBeVisible();
-  await expect(storefrontPreview.getByText("Online reference price", { exact: true })).toBeVisible();
-  await expect(storefrontPreview.getByText("Online reference price; confirm local price.", { exact: true })).toBeVisible();
-  await expect(storefrontPreview.getByText("Check availability", { exact: true })).toBeVisible();
+  await expect(storefrontPreview.getByText(/reference|observed|confirm local price/i)).toHaveCount(0);
+  await expect(storefrontPreview.getByText(/prices\.example\.test|images\.example\.test|Bangalore seller listing|8 May 2026/i)).toHaveCount(0);
+  await expect(storefrontPreview.getByText(/online reference example|current client price/i)).toHaveCount(0);
+  await expect(storefrontPreview.locator(".store-preview-current-product").getByText("Check availability", { exact: true })).toBeVisible();
   await expect(storefrontPreview.locator(".store-preview-context-product")).toHaveCount(2);
   await expect(storefrontPreview.getByRole("heading", { name: "Published Cement" })).toBeVisible();
   await storefrontPreview.getByRole("button", { name: "Mobile" }).click();
@@ -1474,7 +1480,9 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await expect(storefrontPreview.locator(".store-preview-context-product")).toHaveCount(2);
   await storefrontPreview.getByRole("button", { name: "Product page" }).click();
   await expect(storefrontPreview.locator(".store-preview-detail-price")).toContainText("₹425");
-  await expect(storefrontPreview.getByText("Online reference price; confirm local price.", { exact: true })).toBeVisible();
+  await expect(storefrontPreview.getByText(/reference|observed|confirm local price/i)).toHaveCount(0);
+  await expect(storefrontPreview.getByText(/prices\.example\.test|images\.example\.test|Bangalore seller listing|8 May 2026/i)).toHaveCount(0);
+  await expect(storefrontPreview.getByText(/online reference example|current client price/i)).toHaveCount(0);
   await expect(storefrontPreview.locator(".store-preview-detail-stock")).toHaveText("Check availability");
   await storefrontPreview.getByRole("button", { name: "Marketplace card" }).click();
   expect(updatedBody).toBeUndefined();
@@ -1483,7 +1491,7 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await page.getByLabel("Price (₹ per unit)").fill("320");
   await page.getByLabel("Compare-at price / MRP (₹, optional)").fill("350");
   await page.getByPlaceholder("e.g. per bag, GST included").fill("per length, GST extra");
-  await page.getByRole("button", { name: "Preview storefront" }).click();
+  await page.getByRole("button", { name: "Preview storefront" }).first().click();
   await expect(storefrontPreview).toBeVisible();
   await expect(storefrontPreview.getByText("₹320", { exact: true })).toBeVisible();
   await expect(storefrontPreview.locator(".store-preview-topline")).toContainText("Serving Delhi NCR");
@@ -1529,7 +1537,8 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await expect(page.locator('input[name="image"]')).toHaveValue(
     "https://assets.example.test/images/test.png",
   );
-  await page.getByRole("button", { name: "Preview storefront" }).click();
+  await expect(page.getByLabel("Customer specifications (one “name: value” per line)")).toHaveValue("size: 25 mm");
+  await page.getByRole("button", { name: "Preview storefront" }).first().click();
   await expect(storefrontPreview).toBeVisible();
   await expect(storefrontPreview.getByRole("heading", { name: "Starter CPVC Pipe" })).toBeVisible();
   await expect(storefrontPreview.getByText("October offer", { exact: true })).toBeVisible();
@@ -1540,6 +1549,10 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await storefrontPreview.getByRole("button", { name: "Product page" }).click();
   await storefrontPreview.getByRole("button", { name: "Mobile" }).click();
   await expect(page.locator(".preview-mobile .catalogue-preview-device-frame")).toBeVisible();
+  const mobileDetailWidth = await storefrontPreview
+    .locator(".store-preview-detail")
+    .evaluate((element) => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }));
+  expect(mobileDetailWidth.scrollWidth).toBeLessThanOrEqual(mobileDetailWidth.clientWidth);
   await expect(storefrontPreview.getByRole("heading", { name: "Starter CPVC Pipe" })).toBeVisible();
   await expect(storefrontPreview.getByText("Specifications", { exact: true })).toBeVisible();
   await expect(storefrontPreview.getByText("Applications", { exact: true })).toBeVisible();
@@ -1562,6 +1575,7 @@ test("admin edits customer-facing catalogue price and offer details", async ({
     image: "https://assets.example.test/images/test.png",
     availabilityStatus: "OUT_OF_STOCK",
     isInStock: false,
+    specifications: { size: "25 mm" },
   });
   expect(updatedBody?.variants).toHaveLength(12);
   expect(updatedBody?.variants).toEqual(expect.arrayContaining([
@@ -1741,6 +1755,39 @@ test("marketplace renders on a mobile viewport without horizontal overflow", asy
   ).toBe(true);
 });
 
+test("marketplace progressively loads a large catalogue and exposes its end", async ({
+  page,
+}) => {
+  const products = Array.from({ length: 40 }, (_, index) => ({
+    id: `scroll-product-${index + 1}`,
+    code: `SCROLL-${index + 1}`,
+    name: `Scroll Test Product ${index + 1}`,
+    brand: "UltraTech Cement",
+    category: "cement",
+    categoryLabel: "Cement & Aggregates",
+    unit: "50 kg bag",
+    features: [],
+    applications: [],
+    inStock: true,
+    specs: {},
+    variants: [],
+  }));
+  await page.route("**/api/products", (route) => route.fulfill({ json: products }));
+  await page.goto("/marketplace");
+
+  const cards = page.locator(".catalog-product-card");
+  await expect(cards).toHaveCount(16);
+  for (const count of [32, 40]) {
+    await page.locator(".catalogue-load-more").scrollIntoViewIfNeeded();
+    await expect(cards).toHaveCount(count);
+  }
+  await expect(page.getByRole("status")).toContainText(
+    "You’ve reached the end — all 40 products are loaded.",
+  );
+  await page.locator("footer").scrollIntoViewIfNeeded();
+  await expect(page.locator("footer")).toBeInViewport();
+});
+
 test("marketplace keeps floating actions clear of product controls", async ({
   page,
 }) => {
@@ -1784,10 +1831,8 @@ test("marketplace displays published API product prices and offer labels", async
     page.getByRole("heading", { name: "API Listed CPVC Pipe" }),
   ).toBeVisible();
   await expect(page.locator(".rate-amount")).toHaveText("₹320");
-  await expect(page.locator(".catalogue-list-price")).toContainText("₹400");
-  await expect(page.locator(".catalogue-list-price")).toContainText(
-    "Launch offer",
-  );
+  await expect(page.getByText("₹400", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".catalog-card-offer")).toHaveText("Launch offer");
   await expect(page.locator(".catalogue-price-caveat")).toHaveText(
     "per length, GST extra",
   );
@@ -2770,7 +2815,13 @@ test("operational sales report filters by date and exports sanitized CSV", async
   ).toBeVisible();
   await page.getByLabel("From", { exact: true }).fill("2026-10-01");
   await page.getByLabel("To", { exact: true }).fill("2026-10-03");
+  const filteredReportRequest = page.waitForRequest((request) => {
+    if (!request.url().includes("/api/reports/sales?")) return false;
+    const url = new URL(request.url());
+    return url.searchParams.get("from") === "2026-10-01" && url.searchParams.get("to") === "2026-10-03";
+  });
   await page.getByRole("button", { name: "Apply dates" }).click();
+  await filteredReportRequest;
   await expect(page.getByText("=2+2", { exact: true })).toBeVisible();
   expect(requestedRange?.searchParams.get("from")).toBe("2026-10-01");
   expect(requestedRange?.searchParams.get("to")).toBe("2026-10-03");
@@ -3779,8 +3830,8 @@ test("staff can search seven-day activity and return to its related workspace", 
   await page.getByLabel("Search recent changes").fill("Catalogue Staff");
   await expect(page.getByText("QA test product")).toBeVisible();
   await expect(page.getByText("site-banner.webp")).toHaveCount(0);
-  await page.getByRole("button", { name: "Open related workspace" }).click();
-  await expect(page.getByRole("heading", { name: "Website Catalogue" })).toBeVisible();
+  await page.getByRole("button", { name: "Open catalogue" }).click();
+  await expect(page.getByRole("heading", { name: "Products, pricing & offers" })).toBeVisible();
 });
 
 test("sales staff schedule and cancel a quotation reminder", async ({
@@ -4075,6 +4126,79 @@ test("owner reviews skipped notification jobs", async ({ page }) => {
   await page.getByLabel("Notification outcome").selectOption("SKIPPED");
   await page.getByRole("button", { name: "Filter notifications" }).click();
   await expect.poll(() => requestedOutcome).toBe("SKIPPED");
+});
+
+test("notification setup explains an outdated API and can be retried", async ({
+  page,
+}) => {
+  await page.route("**/api/admin/notifications?**", (route) =>
+    route.fulfill({ json: { items: [], total: 0, pageSize: 25 } }),
+  );
+  let readinessChecks = 0;
+  let readinessAvailable = false;
+  await page.route("**/api/admin/notifications/readiness", (route) => {
+    readinessChecks += 1;
+    return !readinessAvailable
+      ? route.fulfill({ status: 404, body: "Not Found" })
+      : route.fulfill({
+          json: {
+            ready: false,
+            missingRequired: ["REDIS_URL", "NOTIFICATION_WEBHOOK_URL"],
+            webhookTokenConfigured: false,
+          },
+        });
+  });
+
+  await signIntoBusiness(page, "SUPER_ADMIN");
+  await page.getByRole("button", { name: "Notifications", exact: true }).click();
+  await expect(
+    page.getByText(/API does not recognize the notification setup check \(404\)/),
+  ).toBeVisible();
+  const checksBeforeRetry = readinessChecks;
+  readinessAvailable = true;
+  await page.getByRole("button", { name: "Retry setup check" }).click();
+  await expect(
+    page.getByText("Notification delivery is not configured."),
+  ).toBeVisible();
+  await expect(page.getByText(/REDIS_URL, NOTIFICATION_WEBHOOK_URL/)).toBeVisible();
+  expect(readinessChecks).toBeGreaterThan(checksBeforeRetry);
+});
+
+test("notification list explains an outdated API and refresh retries it", async ({
+  page,
+}) => {
+  await page.route("**/api/admin/notifications/readiness", (route) =>
+    route.fulfill({
+      json: {
+        ready: true,
+        missingRequired: [],
+        webhookTokenConfigured: true,
+      },
+    }),
+  );
+  let listChecks = 0;
+  let listAvailable = false;
+  await page.route("**/api/admin/notifications?**", (route) => {
+    listChecks += 1;
+    return !listAvailable
+      ? route.fulfill({ status: 404, body: "Not Found" })
+      : route.fulfill({ json: { items: [], total: 0, page: 1, pageSize: 25 } });
+  });
+
+  await signIntoBusiness(page, "SUPER_ADMIN");
+  await page
+    .getByRole("button", { name: "Notifications", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      /API does not recognize the notification status endpoint \(404\)/,
+    ),
+  ).toBeVisible();
+  const checksBeforeRetry = listChecks;
+  listAvailable = true;
+  await page.getByRole("button", { name: "Refresh notifications" }).click();
+  await expect(page.getByText("0 notification jobs")).toBeVisible();
+  expect(listChecks).toBeGreaterThan(checksBeforeRetry);
 });
 
 test("sales staff review pack prices with read-only catalogue access", async ({

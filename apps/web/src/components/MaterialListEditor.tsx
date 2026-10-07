@@ -3,6 +3,7 @@ import type { CatalogueProduct, CatalogueVariant } from "../types";
 import React, { useState } from "react";
 import { useCustomer } from "../customer";
 import ProductImage from "./ProductImage";
+import { customerPriceNote } from "../catalogue/customer-display";
 export default function MaterialListEditor({ products = [] }: { products?: CatalogueProduct[] }) {
   const { items, updateItems, canEdit } = useCustomer();
   const [custom, setCustom] = useState("");
@@ -53,8 +54,7 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
           </span>
           {item.price != null && <p className="catalogue-price-caveat">
             Indicative estimate: ₹{Number(item.price).toLocaleString("en-IN")} / {item.unit}
-            {item.compareAtPrice != null && Number(item.compareAtPrice) > Number(item.price) ? ` (reference ₹${Number(item.compareAtPrice).toLocaleString("en-IN")})` : ""}
-            {item.priceNote ? ` · ${item.priceNote}` : " · Confirm current price with staff"}
+            {customerPriceNote(item.priceNote) ? ` · ${customerPriceNote(item.priceNote)}` : " · Confirm current price with staff"}
           </p>}
           <div className="material-fields">
             <label>

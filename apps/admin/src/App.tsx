@@ -53,7 +53,10 @@ const localMarketplaceUrl =
   typeof window !== "undefined" &&
   (window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1")
-    ? `${window.location.protocol}//${window.location.hostname}:5173`
+    // The storefront's port-5173 dev server redirects localhost to this
+    // CAPTCHA-compatible hostname. Point previews there directly so the
+    // draft postMessage origin matches the iframe after navigation.
+    ? `${window.location.protocol}//material-square.localtest.me:5173`
     : "";
 const marketplaceUrl =
   import.meta.env.VITE_CUSTOMER_APP_URL ||

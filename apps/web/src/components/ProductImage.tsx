@@ -27,5 +27,5 @@ export default function ProductImage({
     );
   }
 
-  return <img className={className} src={src} alt={alt} loading={loading} />;
+  return <img className={className} src={src} alt={alt} loading={loading} decoding="async" />;
 }
