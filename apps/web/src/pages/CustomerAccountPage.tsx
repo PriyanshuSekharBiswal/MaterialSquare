@@ -329,12 +329,12 @@ export default function CustomerAccountPage() {
                 </label>
               ) : (
                 <label>
-                  Six-digit verification code
+                  Four-digit verification code
                   <input
                     autoComplete="one-time-code"
                     inputMode="numeric"
-                    pattern="[0-9]{6}"
-                    maxLength={6}
+                    pattern="[0-9]{4}"
+                    maxLength={4}
                     required
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}

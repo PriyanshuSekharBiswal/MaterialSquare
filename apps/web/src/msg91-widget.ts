@@ -194,7 +194,7 @@ function safeFailureDetails(error: unknown): string {
               .join(" ")
           : "";
   return value
-    .replace(/\b\d{6}\b/g, "[code]")
+    .replace(/\b\d{4,6}\b/g, "[code]")
     .replace(/\b(?:91)?[6-9]\d{9}\b/g, "[number]")
     .replace(/\beyJ[A-Za-z0-9._-]+/g, "[token]")
     .slice(0, 120);

@@ -109,7 +109,7 @@ test("customers can browse and build a guest quote list before phone verificatio
   await expect(
     page.getByRole("button", { name: "Verify phone & request quotation" }),
   ).not.toBeVisible();
-  await expect(page.getByLabel("Six-digit OTP")).not.toBeVisible();
+  await expect(page.getByLabel("Four-digit OTP")).not.toBeVisible();
 });
 
 test("customer account explains when its API deployment is missing the account route", async ({
@@ -449,7 +449,7 @@ test("quotation submission verifies the customer and saves a request to the acco
     .click();
   await page.getByLabel("Mobile number").fill("9876543210");
   await page.getByRole("button", { name: "Continue with OTP" }).click();
-  await page.getByLabel("Six-digit verification code").fill("123456");
+  await page.getByLabel("Four-digit verification code").fill("1234");
   await page.getByRole("button", { name: "Verify and continue" }).click();
   await expect(
     page.getByRole("heading", {
@@ -527,7 +527,7 @@ test("customer OTP waits for widget settings and requires CAPTCHA before sending
     .getByRole("button", { name: "Mark test CAPTCHA verified" })
     .click();
   await page.getByRole("button", { name: "Continue with OTP" }).click();
-  await expect(page.getByLabel("Six-digit verification code")).toBeVisible();
+  await expect(page.getByLabel("Four-digit verification code")).toBeVisible();
   await expect(page.getByLabel("Mock send count")).toHaveText("1");
 });
 
@@ -575,7 +575,7 @@ test("customer OTP reports a provider rate limit and releases the pending button
     page.getByRole("button", { name: "Continue with OTP" }),
   ).toBeEnabled();
   await expect(
-    page.getByLabel("Six-digit verification code"),
+    page.getByLabel("Four-digit verification code"),
   ).not.toBeVisible();
 });
 
@@ -724,8 +724,8 @@ test("customer OTP opens separate quotation and order account pages", async ({
   await page.goto("/account");
   await page.getByLabel("Mobile number").fill("9876543210");
   await page.getByRole("button", { name: "Continue with OTP" }).click();
-  await expect(page.getByLabel("Six-digit verification code")).toBeVisible();
-  await page.getByLabel("Six-digit verification code").fill("123456");
+  await expect(page.getByLabel("Four-digit verification code")).toBeVisible();
+  await page.getByLabel("Four-digit verification code").fill("1234");
   const profileRequestsBeforeVerify = profileRequests;
   await page.getByRole("button", { name: "Verify and continue" }).click();
   await expect(
