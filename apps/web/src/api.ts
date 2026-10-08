@@ -15,6 +15,7 @@ export async function customerApi<T>(
   timeoutMs = 65000,
 ): Promise<T> {
   let response: Response;
+  const isFormData = body instanceof FormData;
   try {
     response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}${path}`, {
       method,
@@ -22,11 +23,16 @@ export async function customerApi<T>(
       cache: "no-store",
       headers: {
         Accept: "application/json",
-        "Content-Type": "application/json",
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
         "X-Material-Square": "customer",
         ...(accountId ? { "X-Material-Account": accountId } : {}),
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body:
+        body === undefined
+          ? undefined
+          : isFormData
+            ? body
+            : JSON.stringify(body),
       // Most account actions can wait for a sleeping staging API. Session
       // bootstrap passes a shorter limit so a cold API cannot hide the sign-in UI.
       signal: AbortSignal.timeout(timeoutMs),

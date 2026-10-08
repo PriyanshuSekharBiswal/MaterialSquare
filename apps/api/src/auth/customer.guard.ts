@@ -7,8 +7,12 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { createHash } from "node:crypto";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 import { PrismaService } from "../prisma/prisma.service";
+import {
+  CUSTOMER_SESSION_RENEW_WINDOW_MS,
+  CUSTOMER_SESSION_TTL_MS,
+} from "./customer-session";
 
 export const CUSTOMER_COOKIE = "ms_customer_session";
 
@@ -31,10 +35,15 @@ export class CustomerGuard implements CanActivate {
     const req = context
       .switchToHttp()
       .getRequest<Request & { customerId?: string }>();
+    const res = context.switchToHttp().getResponse<Response>();
     if (!req.method || !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+      const multipartRfq =
+        req.method === "POST" &&
+        req.path.endsWith("/rfqs") &&
+        req.is("multipart/form-data");
       if (
         req.get("X-Material-Square") !== "customer" ||
-        !req.is("application/json")
+        (!req.is("application/json") && !multipartRfq)
       )
         throw new ForbiddenException("Invalid customer request");
       const origin = req.get("origin");
@@ -48,7 +57,7 @@ export class CustomerGuard implements CanActivate {
     const session = sessionId
       ? await this.prisma.customerSession.findUnique({
           where: { id: sessionId },
-          select: { customerId: true, expiresAt: true },
+          select: { id: true, customerId: true, expiresAt: true },
         })
       : null;
     if (!session || session.expiresAt <= new Date())
@@ -58,6 +67,29 @@ export class CustomerGuard implements CanActivate {
       throw new ConflictException(
         "The signed-in account changed. Reload this page.",
       );
+    if (
+      session.expiresAt.getTime() - Date.now() <=
+      CUSTOMER_SESSION_RENEW_WINDOW_MS
+    ) {
+      const expiresAt = new Date(Date.now() + CUSTOMER_SESSION_TTL_MS);
+      await this.prisma.customerSession.update({
+        where: { id: session.id },
+        data: { expiresAt },
+      });
+      const cookie = req.headers.cookie
+        ?.split(";")
+        .map((value) => value.trim())
+        .find((value) => value.startsWith(`${CUSTOMER_COOKIE}=`))
+        ?.slice(CUSTOMER_COOKIE.length + 1);
+      if (cookie)
+        res.cookie(CUSTOMER_COOKIE, cookie, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/api",
+          maxAge: CUSTOMER_SESSION_TTL_MS,
+        });
+    }
     req.customerId = session.customerId;
     return true;
   }

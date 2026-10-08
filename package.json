@@ -8,8 +8,8 @@
   ],
   "scripts": {
     "dev": "npm run dev:customer",
-    "dev:customer": "concurrently \"npm run dev:web\" \"npm run dev:api\"",
-    "dev:all": "concurrently \"npm run dev:web\" \"npm run dev:admin\" \"npm run dev:api\"",
+    "dev:customer": "node scripts/dev-all.cjs customer",
+    "dev:all": "node scripts/dev-all.cjs all",
     "dev:web": "npm run dev --workspace=@material-square/web",
     "dev:admin": "npm run dev --workspace=@material-square/admin",
     "dev:api": "npm run start:dev --workspace=@material-square/api",

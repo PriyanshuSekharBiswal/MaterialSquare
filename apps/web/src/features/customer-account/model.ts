@@ -21,6 +21,7 @@ export type PendingRfq = {
   deliveryTiming: string;
   projectStage: string;
   notes: string;
+  attachments?: File[];
   items: {
     catalogueId?: string;
     variantId?: string;
@@ -53,6 +54,7 @@ export type Line = {
 
 export type Quote = {
   id: string;
+  requestId?: string | null;
   quoteNumber: string;
   status: string;
   subtotal: string | number;
@@ -101,6 +103,13 @@ export type Activity = {
       quantity: number;
       unit: string;
       specification?: string;
+    }[];
+    attachments: {
+      id: string;
+      fileName: string;
+      mimeType: string;
+      byteSize: number;
+      createdAt: string;
     }[];
     createdAt: string;
   }[];

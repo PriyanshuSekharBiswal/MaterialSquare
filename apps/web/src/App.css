@@ -6480,6 +6480,38 @@
     flex-shrink: 0;
   }
 
+  .nav-action-buttons .nav-bom-trigger {
+    display: none;
+  }
+
+  /* The mobile drawer exposes the material list. Keep the header row for the
+     brand, account, quote, and menu actions. */
+  .nav-bom-trigger {
+    display: none;
+  }
+
+  .nav-account-trigger {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    padding: 0;
+  }
+
+  .nav-account-trigger span {
+    display: none;
+  }
+
+  .nav-quote-btn {
+    padding: 0.45rem 0.7rem;
+    font-size: 0.76rem;
+  }
+
+  /* Floating actions obscure page controls on small screens. Their destinations
+     remain available from the mobile menu, contact page, and footer. */
+  .floating-action-dock {
+    display: none;
+  }
+
   .nav-wa-btn span {
     display: none;
   }
@@ -7609,6 +7641,10 @@
   .nav-action-buttons {
     gap: 0.35rem;
   }
+  .nav-quote-btn {
+    padding: 0.42rem 0.58rem;
+    font-size: 0.72rem;
+  }
   .nav-wa-btn,
   .nav-bom-trigger,
   .mobile-nav-toggle {
@@ -7635,6 +7671,13 @@
     width: 100%;
     justify-content: center;
     padding: 0.65rem 1rem;
+  }
+}
+
+@media (max-width: 360px) {
+  /* The drawer already includes the customer account action. */
+  .nav-account-trigger {
+    display: none;
   }
 }
 

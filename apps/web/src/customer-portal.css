@@ -115,6 +115,8 @@
 .account-side-link.is-active {
   background: #26344a;
   color: #fff;
+  box-shadow: inset 3px 0 0 #ff7a3e;
+  font-weight: 700;
 }
 .account-side-link.is-active svg {
   color: #ff7a3e;
@@ -182,6 +184,25 @@
   line-height: 1.6;
   max-width: 680px;
 }
+.account-reference-number {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+  margin-top: 12px;
+  max-width: 100%;
+  font-size: 13px;
+}
+.account-reference-number span {
+  color: var(--ca-muted);
+  font-weight: 600;
+}
+.account-reference-number strong {
+  min-width: 0;
+  color: #354258;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
 .account-stat-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -236,6 +257,101 @@
   font-size: 16px;
   letter-spacing: -0.015em;
   margin: 0 0 15px;
+}
+.account-quotation-response {
+  display: grid;
+  align-items: start;
+  gap: 14px;
+}
+.account-quotation-response h2 {
+  margin-bottom: 0;
+}
+.account-quotation-response__field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+  color: #253247;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+.account-quotation-response__field select,
+.account-quotation-response__notes {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 11px 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--ca-ink);
+  font: inherit;
+}
+.account-quotation-response__notes {
+  min-height: 116px;
+  resize: vertical;
+}
+.account-quotation-response__field select:focus-visible,
+.account-quotation-response__notes:focus-visible {
+  outline: 2px solid #f26722;
+  outline-offset: 2px;
+}
+.account-quotation-response__actions,
+.account-quotation-response__confirmation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.account-quotation-response__confirmation {
+  display: grid;
+  justify-items: start;
+}
+.account-quotation-response__confirmation p {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--ca-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.account-quotation-response__actions button:not(.account-primary-button),
+.account-quotation-response__confirmation button:not(.account-primary-button) {
+  min-height: 43px;
+  padding: 0 15px;
+  border: 1px solid var(--ca-line);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--ca-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.account-quotation-response__actions button:not(.account-primary-button):hover,
+.account-quotation-response__confirmation button:not(.account-primary-button):hover {
+  background: var(--ca-soft);
+}
+.account-quotation-response__actions .account-secondary-button--danger {
+  border-color: #f0c5c5 !important;
+  color: #a33b3b !important;
+}
+.account-quotation-response button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.account-quotation-response [role="alert"] {
+  margin: 0;
+  color: #b42318;
+  font-size: 13px;
+}
+.account-quotation-response [role="status"] {
+  margin: 0;
+  color: var(--ca-muted);
+  line-height: 1.6;
 }
 .account-panel-title {
   display: flex;
@@ -322,6 +438,7 @@
   white-space: nowrap;
 }
 .status-quote-sent,
+.status-quoted,
 .status-accepted,
 .status-delivered,
 .status-out-for-delivery {
@@ -329,6 +446,7 @@
   background: #e8f6ee;
 }
 .status-pending-review,
+.status-contacted,
 .status-processing-at-yard,
 .status-loaded-on-truck,
 .status-in-transit,
@@ -609,6 +727,10 @@
   color: #d85820;
   text-decoration: none;
 }
+.account-breadcrumb > span:last-child {
+  color: #596579;
+  font-weight: 600;
+}
 .account-tracking-panel > div:first-child {
   display: flex;
   align-items: flex-start;
@@ -867,9 +989,135 @@
   gap: 12px;
   margin: 20px 0;
 }
+.account-quote-list {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0 28px;
+}
+.account-quote-list-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 2px;
+}
+.account-quote-list-heading h2 {
+  margin: 4px 0 0;
+  font-size: 17px;
+}
+.account-quote-count {
+  color: var(--ca-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
 .account-request-list > h2 {
   margin: 0;
   font-size: 16px;
+}
+.account-quote-card {
+  margin: 0;
+}
+.account-quote-card h3 {
+  margin: 5px 0 0;
+  font-size: 14px;
+}
+.account-quote-meta,
+.account-quote-source,
+.account-quote-request-link {
+  color: var(--ca-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.account-quote-meta {
+  margin: 12px 0;
+}
+.account-quote-items {
+  display: grid;
+  gap: 9px;
+  padding: 12px 0;
+  margin: 0;
+  list-style: none;
+  border-top: 1px solid #edf0f4;
+  border-bottom: 1px solid #edf0f4;
+}
+.account-quote-items li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  font-size: 13px;
+}
+.account-quote-items small {
+  color: var(--ca-muted);
+  text-align: right;
+}
+.account-quote-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+}
+.account-quote-card-footer > div {
+  display: grid;
+  gap: 4px;
+}
+.account-quote-card-footer > div span {
+  color: var(--ca-muted);
+  font-size: 11px;
+}
+.account-quote-card-footer > div strong {
+  font-size: 19px;
+}
+.account-open-quote-button {
+  min-height: 42px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 999px;
+  background: var(--ca-accent);
+  color: white;
+  font-size: 13px;
+  font-weight: 750;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.account-open-quote-button:hover {
+  filter: brightness(0.94);
+}
+.account-quote-request-link {
+  padding-top: 10px;
+  margin: 12px 0 0;
+  border-top: 1px solid #edf0f4;
+}
+.account-quote-request-link a,
+.account-quote-source a {
+  color: #d85820;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.account-no-quote-yet {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid #f1d7b9;
+  border-radius: 14px;
+  background: #fffaf4;
+  color: #77502f;
+}
+.account-no-quote-yet > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #d85820;
+}
+.account-no-quote-yet p {
+  margin: 5px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
 }
 .account-request-card {
   padding: 18px 20px;
@@ -890,6 +1138,124 @@
   margin: 14px 0 0;
   color: var(--ca-muted);
   font-size: 13px;
+}
+.account-request-details {
+  margin-top: 12px;
+  border-top: 1px solid #edf0f4;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.account-request-attachments {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.account-request-attachments > strong {
+  color: var(--ms-slate-800);
+  font-size: 0.9rem;
+}
+
+.account-request-attachments .account-request-attachment-download {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ms-primary);
+  font: inherit;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account-request-attachments .account-request-attachment-download:hover {
+  text-decoration: underline;
+}
+.account-request-attachments
+  .account-request-attachment-download:focus-visible {
+  outline: 2px solid var(--ms-primary);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+.account-request-attachments .account-request-attachment-download:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+.account-attachment-error {
+  margin: 0;
+  color: #b42318;
+  font-size: 0.88rem;
+}
+
+.account-request-attachments small {
+  color: var(--ms-slate-500);
+  font-weight: 500;
+}
+.account-request-details summary {
+  padding: 12px 0;
+  color: #d85820;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 750;
+}
+.account-request-details ul {
+  gap: 12px;
+  margin: 0 0 12px;
+  padding-left: 18px;
+}
+.account-request-details li span {
+  display: block;
+  margin-top: 3px;
+}
+.account-request-extra {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.account-request-extra p {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.32fr) 1fr;
+  gap: 12px;
+  margin: 0;
+  color: var(--ca-muted);
+  font-size: 12px;
+}
+.account-request-extra b {
+  color: var(--ca-ink);
+}
+.account-request-response {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 13px;
+  border-radius: 10px;
+  background: #eff9f2;
+  color: #16744a;
+  font-size: 13px;
+}
+.account-request-response a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #126442;
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.account-request-awaiting {
+  margin: 12px 0 0;
+  color: var(--ca-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.account-quote-source {
+  margin: 12px 0 0;
 }
 .account-auth-wrap {
   min-height: 590px;

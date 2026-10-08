@@ -1,6 +1,7 @@
 import { z } from "zod";
 export * from "./catalog-data";
 export * from "./site-content";
+export * from "./rfq-upload";
 
 // ==========================================
 // USER & AUTH TYPES
@@ -152,6 +153,7 @@ const QuoteProductSelectionSchema = z
   });
 
 export const CreateQuoteSchema = z.object({
+  requestId: z.string().uuid().optional(),
   customerName: z.string().min(2, "Name is required"),
   customerPhone: z
     .string()

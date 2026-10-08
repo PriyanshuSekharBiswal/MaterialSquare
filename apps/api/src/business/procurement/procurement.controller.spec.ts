@@ -132,7 +132,7 @@ describe("procurement audit history", () => {
 });
 
 describe("supplier matching priority", () => {
-  it("ranks exact PIN coverage before the delivery city, then other suppliers", async () => {
+  it("ranks exact PIN, service coverage, city, then supplier rating", async () => {
     const item = {
       productName: "Cement",
       brand: "BuildCo",
@@ -154,7 +154,16 @@ describe("supplier matching priority", () => {
       pincode,
       servicePincodes,
       status: "ACTIVE",
-      products: [{ productName: "Cement", brand: "BuildCo", isActive: true }],
+      products: [{
+        productName: "Cement",
+        brand: "BuildCo",
+        category: "Cement",
+        unit: "bag",
+        availableQuantity: "25",
+        availabilityCheckedAt: new Date("2026-10-07T10:00:00.000Z"),
+        lastQuotedPrice: "300",
+        isActive: true,
+      }],
       ratings: [
         {
           priceScore: score,
@@ -168,7 +177,8 @@ describe("supplier matching priority", () => {
     const suppliers = [
       supplier("other-city-high-score", "Delhi", "110001", [], 5),
       supplier("same-city", "Noida", "201310", [], 1),
-      supplier("pin-covered", "Ghaziabad", "201301", [], 1),
+      supplier("pin-covered", "Ghaziabad", "201310", ["201301"], 1),
+      supplier("exact-pin", "Faridabad", "201301", [], 1),
     ];
     const prisma = {
       procurementRequest: {
@@ -188,14 +198,141 @@ describe("supplier matching priority", () => {
 
     expect(result).toMatchObject({ deliveryPincode: "201301" });
     expect(result.candidates.map((candidate) => candidate.id)).toEqual([
+      "exact-pin",
       "pin-covered",
       "same-city",
       "other-city-high-score",
     ]);
     expect(result.candidates.map((candidate) => candidate.cityMatch)).toEqual([
       false,
+      false,
       true,
       false,
     ]);
+    expect(
+      result.candidates.map((candidate) => [
+        candidate.deliveryPincodeMatch,
+        candidate.serviceCoverageMatch,
+      ]),
+    ).toEqual([
+      [true, false],
+      [false, true],
+      [false, false],
+      [false, false],
+    ]);
+  });
+
+  it("prefers a linked client catalogue pack and returns the supplier stock snapshot", async () => {
+    const variantId = "6c6a3d40-cfb1-42d1-a460-79493a8b904c";
+    const product = (catalogVariantId: string | null) => ({
+      productName: "UltraTech Cement 50 kg bag",
+      brand: "UltraTech Cement",
+      category: "Cement & Aggregates",
+      unit: "bag",
+      catalogVariantId,
+      availableQuantity: "300",
+      availabilityCheckedAt: new Date("2026-10-07T10:00:00.000Z"),
+      lastQuotedPrice: "350",
+      isActive: true,
+    });
+    const suppliers = [
+      {
+        id: "wrong-pack",
+        name: "Wrong pack",
+        phone: "9876543210",
+        city: "Noida",
+        pincode: "201301",
+        servicePincodes: ["201301"],
+        products: [product("5c6a3d40-cfb1-42d1-a460-79493a8b904c")],
+        ratings: [],
+      },
+      {
+        id: "linked-pack",
+        name: "Linked pack",
+        phone: "9876543210",
+        city: "Noida",
+        pincode: "201301",
+        servicePincodes: ["201301"],
+        products: [product(variantId)],
+        ratings: [],
+      },
+    ];
+    const prisma = {
+      procurementRequest: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "request-1",
+          deliveryPincode: "201301",
+          deliveryCity: "Noida",
+          items: [
+            {
+              catalogVariantId: variantId,
+              productName: "UltraTech Cement 50 kg bag",
+              brand: "UltraTech Cement",
+              category: "cement",
+              quantity: 300,
+              requiredQuantity: 600,
+              clientStockQuantity: 300,
+              unit: "bag",
+            },
+          ],
+        }),
+      },
+      supplier: { findMany: jest.fn().mockResolvedValue(suppliers) },
+    } as never;
+
+    const result = await new ProcurementController(prisma).candidates("request-1");
+
+    expect(result.candidates.map((candidate) => candidate.id)).toEqual([
+      "linked-pack",
+    ]);
+    expect(result.candidates[0].matchedProducts[0]).toMatchObject({
+      availableQuantity: "300",
+      requestedQuantity: 300,
+      lastQuotedPrice: "350",
+    });
+  });
+
+  it("excludes recoverably deleted suppliers and supplier products from matching", async () => {
+    const item = {
+      productName: "Cement",
+      brand: "BuildCo",
+      category: "Cement",
+      quantity: 20,
+      unit: "bag",
+    };
+    const supplier = {
+      id: "active-supplier",
+      name: "Active supplier",
+      phone: "9876543210",
+      city: "Noida",
+      pincode: "201301",
+      servicePincodes: [],
+      status: "ACTIVE",
+      deletedAt: null,
+      products: [],
+      ratings: [],
+    };
+    const supplierFindMany = jest.fn().mockResolvedValue([supplier]);
+    const prisma = {
+      procurementRequest: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "request-1",
+          deliveryPincode: "201301",
+          deliveryCity: "Noida",
+          items: [item],
+        }),
+      },
+      supplier: { findMany: supplierFindMany },
+    } as never;
+
+    await new ProcurementController(prisma).candidates("request-1");
+
+    expect(supplierFindMany).toHaveBeenCalledWith({
+      where: { status: "ACTIVE", deletedAt: null },
+      include: {
+        products: { where: { isActive: true, deletedAt: null } },
+        ratings: true,
+      },
+    });
   });
 });

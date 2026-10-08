@@ -4,6 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { hashPassword, verifyPassword } from "./password";
 import { createHash, randomBytes } from "node:crypto";
 import { Msg91WidgetService } from "./msg91-widget.service";
+import { CUSTOMER_SESSION_TTL_MS } from "./customer-session";
 
 type StaffLoginInput = {
   phone?: string;
@@ -113,7 +114,7 @@ export class AuthService {
         data: {
           id: createHash("sha256").update(sessionToken).digest("hex"),
           customerId: account.id,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          expiresAt: new Date(Date.now() + CUSTOMER_SESSION_TTL_MS),
         },
       });
       return account;

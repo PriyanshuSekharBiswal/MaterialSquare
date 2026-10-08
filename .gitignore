@@ -36,5 +36,6 @@ dist-cjs/
 
 .local/
 .env.demo
+apps/web/.local-certs/
 
 demo-test-results/

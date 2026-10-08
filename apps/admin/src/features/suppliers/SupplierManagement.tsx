@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Trash2 } from "lucide-react";
 import { confirmAdminAction } from "../../components/confirmAdminAction";
 import type { FormSubmit, Mutate } from "../business/form-contracts";
@@ -19,6 +19,20 @@ export type SupplierRecord = {
   servicePincodes: string[];
   notes?: string | null;
   _count?: { products: number };
+  products?: {
+    id: string;
+    catalogVariant?: {
+      label: string;
+      listing: { name: string };
+    } | null;
+    productName: string;
+    brand: string;
+    category: string;
+    unit: string;
+    availableQuantity: string | number | null;
+    availabilityCheckedAt: string | null;
+    isActive: boolean;
+  }[];
 };
 
 type Request = <T>(url: string, method?: string, body?: unknown) => Promise<T>;
@@ -32,6 +46,14 @@ type Props = {
 
 const field = (data: FormData, key: string) =>
   String(data.get(key) || "").trim();
+type CatalogueVariantOption = {
+  id: string;
+  label: string;
+  unit: string;
+  productName: string;
+  brand: string;
+  category: string;
+};
 
 export default function SupplierManagement({
   records,
@@ -41,6 +63,33 @@ export default function SupplierManagement({
   submitForm,
 }: Props) {
   const [supplierDetailId, setSupplierDetailId] = useState("");
+  const [directoryQuery, setDirectoryQuery] = useState("");
+  const [directoryResults, setDirectoryResults] = useState<SupplierRecord[] | null>(null);
+  const [directoryBusy, setDirectoryBusy] = useState(false);
+  const [directoryError, setDirectoryError] = useState("");
+  const [catalogueVariants, setCatalogueVariants] = useState<CatalogueVariantOption[]>([]);
+
+  useEffect(() => {
+    void request<{
+      name: string;
+      brand: string;
+      category: string;
+      variants: { id: string; label: string; unit: string }[];
+    }[]>("/products/catalogue")
+      .then((listings) =>
+        setCatalogueVariants(
+          listings.flatMap((listing) =>
+            listing.variants.map((variant) => ({
+              ...variant,
+              productName: listing.name,
+              brand: listing.brand,
+              category: listing.category,
+            })),
+          ),
+        ),
+      )
+      .catch(() => setCatalogueVariants([]));
+  }, [request]);
   const [editingSupplier, setEditingSupplier] = useState<SupplierRecord | null>(
     null,
   );
@@ -210,7 +259,49 @@ export default function SupplierManagement({
         />
       )}
       <h2>Registered suppliers</h2>
-      {records.map((s) => (
+      <form
+        className="bc-inline-form"
+        onSubmit={async (event: FormEvent<HTMLFormElement>) => {
+          event.preventDefault();
+          setDirectoryBusy(true);
+          setDirectoryError("");
+          try {
+            const query = directoryQuery.trim();
+            const result = await request<SupplierRecord[]>(
+              `/suppliers${query ? `?q=${encodeURIComponent(query)}` : ""}`,
+            );
+            setDirectoryResults(result);
+          } catch (cause) {
+            setDirectoryError(cause instanceof Error ? cause.message : "Supplier search failed.");
+          } finally {
+            setDirectoryBusy(false);
+          }
+        }}
+      >
+        <input
+          aria-label="Search suppliers and products"
+          placeholder="Search product, brand, category, supplier or location"
+          value={directoryQuery}
+          onChange={(event) => setDirectoryQuery(event.currentTarget.value)}
+        />
+        <button className="bc-button" disabled={directoryBusy}>
+          {directoryBusy ? "Searching…" : "Search suppliers"}
+        </button>
+        {directoryResults && (
+          <button
+            type="button"
+            className="bc-button"
+            onClick={() => {
+              setDirectoryQuery("");
+              setDirectoryResults(null);
+            }}
+          >
+            Clear search
+          </button>
+        )}
+      </form>
+      {directoryError && <p role="alert" className="bc-error">{directoryError}</p>}
+      {(directoryResults ?? records).map((s) => (
         <article className="business-record bc-record-block" key={s.id}>
           <div>
             <strong>{s.name}</strong>
@@ -218,6 +309,21 @@ export default function SupplierManagement({
               {s.city} · {s.pincode} · {s._count?.products ?? 0} listed products
             </p>
             <small>{s.status}</small>
+            {!!s.products?.length && (
+              <ul>
+                {s.products.slice(0, 5).map((product) => (
+                  <li key={product.id}>
+                    {product.productName} · {product.brand || "Brand unspecified"} · {product.category} · {product.unit} · Available: {product.availableQuantity ?? "Not checked"}
+                    {product.availabilityCheckedAt
+                      ? ` · checked ${new Date(product.availabilityCheckedAt).toLocaleDateString("en-IN")}`
+                      : ""}
+                    {product.catalogVariant
+                      ? ` · linked to ${product.catalogVariant.listing.name} / ${product.catalogVariant.label}`
+                      : ""}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <button
             className="bc-button"
@@ -266,6 +372,7 @@ export default function SupplierManagement({
               submitForm(
                 e,
                 (f) => ({
+                  catalogVariantId: field(f, "catalogVariantId") || null,
                   productName: field(f, "product"),
                   brand: field(f, "brand"),
                   category: field(f, "category"),
@@ -276,11 +383,42 @@ export default function SupplierManagement({
                   lastQuotedPrice: f.get("price")
                     ? Number(f.get("price"))
                     : undefined,
+                  availableQuantity: f.get("availableQuantity")
+                    ? Number(f.get("availableQuantity"))
+                    : f.get("availableQuantity") === "0"
+                      ? 0
+                      : null,
                 }),
                 `/suppliers/${s.id}/products`,
               )
             }
           >
+            <select
+              name="catalogVariantId"
+              defaultValue=""
+              onChange={(event) => {
+                const selected = catalogueVariants.find(
+                  (variant) => variant.id === event.currentTarget.value,
+                );
+                const form = event.currentTarget.form;
+                if (!selected || !form) return;
+                const setField = (name: string, value: string) => {
+                  const field = form.elements.namedItem(name);
+                  if (field instanceof HTMLInputElement) field.value = value;
+                };
+                setField("product", selected.productName);
+                setField("brand", selected.brand);
+                setField("category", selected.category);
+                setField("unit", selected.unit);
+              }}
+            >
+              <option value="">Link to client catalogue pack (optional)</option>
+              {catalogueVariants.map((variant) => (
+                <option value={variant.id} key={variant.id}>
+                  {variant.productName} · {variant.brand} · {variant.label}
+                </option>
+              ))}
+            </select>
             <input name="product" placeholder="Product supplied" required />
             <input name="brand" placeholder="Brand" />
             <input name="category" placeholder="Category" required />
@@ -303,6 +441,14 @@ export default function SupplierManagement({
               min="0"
               step="0.01"
               placeholder="Last quote ₹"
+            />
+            <input
+              name="availableQuantity"
+              type="number"
+              min="0"
+              step="0.001"
+              placeholder="Available quantity"
+              aria-label={`Available quantity from ${s.name}`}
             />
             <button className="bc-button">Add product</button>
           </form>

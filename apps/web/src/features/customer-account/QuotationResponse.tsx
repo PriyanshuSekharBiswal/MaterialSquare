@@ -5,7 +5,6 @@ import { money } from "./model";
 
 export default function QuotationResponse({ quote }: { quote: Quote }) {
   const [selections, setSelections] = useState<Record<string, string>>({});
-  const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [decision, setDecision] = useState("");
@@ -13,7 +12,7 @@ export default function QuotationResponse({ quote }: { quote: Quote }) {
   if (quote.status !== "QUOTE_SENT" || new Date(quote.validUntil) <= new Date())
     return null;
 
-  async function respond(action: "ACCEPT" | "REJECT" | "REQUEST_CHANGES") {
+  async function respond(action: "ACCEPT" | "REJECT") {
     setBusy(true);
     setError("");
     try {
@@ -22,7 +21,6 @@ export default function QuotationResponse({ quote }: { quote: Quote }) {
         "POST",
         {
           decision: action,
-          notes,
           selections: Object.entries(selections)
             .filter(([, optionId]) => optionId)
             .map(([itemId, optionId]) => ({ itemId, optionId })),
@@ -31,9 +29,7 @@ export default function QuotationResponse({ quote }: { quote: Quote }) {
       setDecision(
         action === "ACCEPT"
           ? `Quotation accepted. Order ${result.orderNumber} created.`
-          : action === "REJECT"
-            ? "Quotation declined."
-            : "Your changes were sent to the team. A revised quotation will follow.",
+          : "Quotation declined.",
       );
     } catch (cause) {
       setError((cause as Error).message);
@@ -42,7 +38,10 @@ export default function QuotationResponse({ quote }: { quote: Quote }) {
     }
   }
   return (
-    <section className="account-panel" aria-label="Respond to quotation">
+    <section
+      className="account-panel account-quotation-response"
+      aria-label="Respond to quotation"
+    >
       <h2>Respond to this quotation</h2>
       {decision ? (
         <>
@@ -54,7 +53,7 @@ export default function QuotationResponse({ quote }: { quote: Quote }) {
           {quote.items
             .filter((item) => item.options?.length)
             .map((item) => (
-              <label key={item.id}>
+              <label className="account-quotation-response__field" key={item.id}>
                 Choose brand for {item.productName}
                 <select
                   value={selections[item.id] || ""}
@@ -78,48 +77,49 @@ export default function QuotationResponse({ quote }: { quote: Quote }) {
                 </select>
               </label>
             ))}
-          <label>
-            Notes or requested changes
-            <textarea
-              value={notes}
-              maxLength={2000}
-              disabled={busy}
-              rows={3}
-              onChange={(event) => setNotes(event.target.value)}
-            />
-          </label>
           {error && <p role="alert">{error}</p>}
           {confirming ? (
-            <div>
+            <div className="account-quotation-response__confirmation">
               <p>
                 Confirm your selected brands and quantities before accepting.
                 Acceptance creates an order for the team to fulfil. Payment is
                 arranged directly with the business. Alternative brands may
-                change the order total.
+                change the order total. To discuss a different requirement,
+                contact the team directly.
               </p>
-              <button disabled={busy} onClick={() => void respond("ACCEPT")}>
+              <button
+                className="account-primary-button"
+                type="button"
+                disabled={busy}
+                onClick={() => void respond("ACCEPT")}
+              >
                 Confirm acceptance
               </button>
-              <button disabled={busy} onClick={() => setConfirming(false)}>
+              <button
+                className="account-secondary-button"
+                type="button"
+                disabled={busy}
+                onClick={() => setConfirming(false)}
+              >
                 Go back
               </button>
             </div>
           ) : (
-            <div>
+            <div className="account-quotation-response__actions">
               <button
                 className="account-primary-button"
+                type="button"
                 disabled={busy}
                 onClick={() => setConfirming(true)}
               >
                 Accept quotation
               </button>
               <button
-                disabled={busy || !notes.trim()}
-                onClick={() => void respond("REQUEST_CHANGES")}
+                className="account-secondary-button account-secondary-button--danger"
+                type="button"
+                disabled={busy}
+                onClick={() => void respond("REJECT")}
               >
-                Request changes
-              </button>
-              <button disabled={busy} onClick={() => void respond("REJECT")}>
                 Decline quotation
               </button>
             </div>

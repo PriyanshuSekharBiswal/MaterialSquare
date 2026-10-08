@@ -34,6 +34,7 @@ describe("blog management audit history", () => {
       slug: "material-notes",
       summary: "Notes about choosing building materials.",
       body: "Long internal editorial copy about materials and applications.",
+      featuredImageUrl: null,
     });
     await controller.update(request, "blog-1", {
       status: "PUBLISHED",
@@ -42,6 +43,14 @@ describe("blog management audit history", () => {
     await controller.archive(request, "blog-1");
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(3);
+    expect(blogPost.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        title: "Material notes",
+        featuredImageUrl: null,
+        status: "DRAFT",
+        publishedAt: null,
+      }),
+    });
     expect(auditLog.create.mock.calls.map(([call]) => call.data)).toEqual([
       expect.objectContaining({
         staffId: "staff-1",

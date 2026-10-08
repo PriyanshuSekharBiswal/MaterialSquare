@@ -5,7 +5,10 @@ export const supplierInput = z.object({
   legalName: z.string().trim().max(200).optional(),
   phone: z.string().regex(/^[6-9]\d{9}$/),
   email: z.union([z.string().email().max(254), z.literal("")]).optional(),
-  gstin: z.union([z.string().trim().max(15), z.literal("")]).optional(),
+  gstin: z
+    .union([z.string().trim().max(15), z.literal("")])
+    .transform((value) => value || null)
+    .optional(),
   address: z.string().trim().min(2).max(500),
   city: z.string().trim().min(2).max(100),
   state: z.string().trim().max(100).default("Uttar Pradesh"),
@@ -18,20 +21,25 @@ export const supplierInput = z.object({
   notes: z.string().max(5000).optional(),
 });
 export const supplierProductInput = z.object({
+  catalogVariantId: z.string().trim().min(1).max(120).nullable().optional(),
   productName: z.string().trim().min(1).max(200),
   brand: z.string().max(100).default(""),
   category: z.string().trim().min(1).max(100),
   supplierSku: z.string().max(100).optional(),
   unit: z.string().trim().min(1).max(50),
   minimumOrderQty: z.number().positive().optional(),
+  availableQuantity: z.number().nonnegative().nullable().optional(),
   lastQuotedPrice: z.number().nonnegative().optional(),
   isActive: z.boolean().default(true),
 });
 export const procurementItem = z.object({
+  catalogVariantId: z.string().trim().min(1).max(120).optional(),
   productName: z.string().trim().min(1).max(200),
   brand: z.string().max(100).default(""),
   category: z.string().max(100),
   quantity: z.number().finite().positive(),
+  requiredQuantity: z.number().finite().positive().optional(),
+  clientStockQuantity: z.number().finite().nonnegative().optional(),
   unit: z.string().trim().min(1).max(50),
   notes: z.string().max(500).optional(),
 });

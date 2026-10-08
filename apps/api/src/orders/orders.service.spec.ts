@@ -139,4 +139,118 @@ describe("order dispatch workflow", () => {
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
+
+  it("records offline payment once and audits the received amount and method", async () => {
+    const updatedAt = new Date("2026-10-08T00:00:00.000Z");
+    const order = {
+      id: "qa-order",
+      orderNumber: "MS-ORD-QA-1",
+      grandTotal: "15250.00",
+      updatedAt,
+      manualPaymentStatus: "UNPAID",
+    };
+    const paidOrder = {
+      ...order,
+      manualPaymentStatus: "PAID",
+      manualPaymentMethod: "UPI",
+      manualPaymentReference: "QA-UPI-ONLY",
+      manualPaymentRecordedBy: { name: "QA Accounts" },
+    };
+    const tx = {
+      order: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(paidOrder),
+      },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const prisma = {
+      order: { findFirst: jest.fn().mockResolvedValue(order) },
+      $transaction: jest.fn(async (work: (db: unknown) => Promise<unknown>) =>
+        work(tx),
+      ),
+    };
+    const service = new OrdersService(prisma as never, {} as never);
+
+    await expect(
+      service.recordManualPayment(
+        "qa-order",
+        { method: "UPI", reference: "QA-UPI-ONLY" },
+        "staff-accounts",
+      ),
+    ).resolves.toEqual(paidOrder);
+    expect(tx.order.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "qa-order",
+        manualPaymentStatus: "UNPAID",
+        updatedAt,
+      },
+      data: {
+        manualPaymentStatus: "PAID",
+        manualPaymentMethod: "UPI",
+        manualPaymentReference: "QA-UPI-ONLY",
+        manualPaymentRecordedAt: expect.any(Date),
+        manualPaymentRecordedById: "staff-accounts",
+      },
+    });
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        staffId: "staff-accounts",
+        action: "ORDER_OFFLINE_PAYMENT_RECORDED",
+        entityType: "ORDER",
+        entityId: "qa-order",
+        metadata: {
+          method: "UPI",
+          reference: "QA-UPI-ONLY",
+          amountInr: 15250,
+        },
+      },
+    });
+  });
+
+  it("prevents recording an already paid order twice", async () => {
+    const prisma = {
+      order: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: "qa-order",
+          manualPaymentStatus: "PAID",
+        }),
+      },
+      $transaction: jest.fn(),
+    };
+    const service = new OrdersService(prisma as never, {} as never);
+
+    await expect(
+      service.recordManualPayment("qa-order", { method: "CASH" }, "staff"),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("does not audit payment when the order changes before the write", async () => {
+    const tx = {
+      order: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findUniqueOrThrow: jest.fn(),
+      },
+      auditLog: { create: jest.fn() },
+    };
+    const prisma = {
+      order: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: "qa-order",
+          updatedAt: new Date("2026-10-08T00:00:00.000Z"),
+          manualPaymentStatus: "UNPAID",
+        }),
+      },
+      $transaction: jest.fn(async (work: (db: unknown) => Promise<unknown>) =>
+        work(tx),
+      ),
+    };
+    const service = new OrdersService(prisma as never, {} as never);
+
+    await expect(
+      service.recordManualPayment("qa-order", { method: "CASH" }, "staff"),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.auditLog.create).not.toHaveBeenCalled();
+    expect(tx.order.findUniqueOrThrow).not.toHaveBeenCalled();
+  });
 });

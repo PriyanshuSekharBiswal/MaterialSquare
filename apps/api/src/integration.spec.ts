@@ -1,5 +1,9 @@
 import { SITE_CONTENT_DEFAULTS } from "@material-square/types";
+import { RFQ_ATTACHMENT_MAX_FILE_BYTES } from "@material-square/types";
 import { randomUUID } from "node:crypto";
+import { open, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { publicRateLimit } from "./common/rate-limit";
 import { Test } from "@nestjs/testing";
@@ -108,10 +112,74 @@ integration("API with isolated PostgreSQL", () => {
     expect(account.body.phone).toBe("9876543210");
     const cookie = account.headers["set-cookie"]?.[0]?.split(";")[0];
     expect(cookie).toMatch(/^ms_customer_session=/);
+    expect(account.headers["set-cookie"]?.[0]).toContain("Max-Age=31536000");
     await request(app.getHttpServer())
       .get("/api/customer/me")
       .set("Cookie", cookie)
       .expect(200);
+    const tooManyAttachments = request(app.getHttpServer())
+      .post("/api/customer/rfqs")
+      .set("Cookie", cookie)
+      .set("X-Material-Square", "customer")
+      .set("X-Material-Account", account.body.id)
+      .field(
+        "payload",
+        JSON.stringify({
+          customerName: "Verified Customer",
+          siteLocation: "Plot 42, Sector 10",
+          city: "Noida",
+          pincode: "201301",
+          items: [],
+        }),
+      );
+    for (let index = 0; index < 11; index++)
+      tooManyAttachments.attach(
+        "attachments",
+        Buffer.from("%PDF-1.7 synthetic QA attachment"),
+        { filename: `plan-${index + 1}.pdf`, contentType: "application/pdf" },
+      );
+    await tooManyAttachments.expect(400);
+    const uploadFixtureDirectory = await mkdtemp(
+      join(tmpdir(), "rfq-upload-limit-test-"),
+    );
+    const oversizedAttachmentPath = join(
+      uploadFixtureDirectory,
+      "oversized-plan.pdf",
+    );
+    const oversizedAttachment = await open(oversizedAttachmentPath, "w");
+    await oversizedAttachment.truncate(RFQ_ATTACHMENT_MAX_FILE_BYTES + 1);
+    await oversizedAttachment.close();
+    try {
+      await request(app.getHttpServer())
+        .post("/api/customer/rfqs")
+        .set("Cookie", cookie)
+        .set("X-Material-Square", "customer")
+        .set("X-Material-Account", account.body.id)
+        .field(
+          "payload",
+          JSON.stringify({
+            customerName: "Verified Customer",
+            siteLocation: "Plot 42, Sector 10",
+            city: "Noida",
+            pincode: "201301",
+            items: [],
+          }),
+        )
+        .attach("attachments", oversizedAttachmentPath, {
+          filename: "oversized-plan.pdf",
+          contentType: "application/pdf",
+        })
+        .expect(413);
+    } finally {
+      await rm(uploadFixtureDirectory, { recursive: true, force: true });
+    }
+    await request(app.getHttpServer())
+      .post("/api/customer/quotations/not-a-quote/response")
+      .set("Cookie", cookie)
+      .set("X-Material-Square", "customer")
+      .set("X-Material-Account", account.body.id)
+      .send({ decision: "REQUEST_CHANGES", notes: "Change the quote" })
+      .expect(400);
     await request(app.getHttpServer())
       .get("/api/customer/activity")
       .expect(401);
@@ -239,6 +307,44 @@ integration("API with isolated PostgreSQL", () => {
         source: "client_catalogue",
       },
     ]);
+    const assignees = await request(app.getHttpServer())
+      .get("/api/rfqs/assignees")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    expect(assignees.body).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: expect.any(String), name: expect.any(String) })]),
+    );
+    const assignedStaffId = assignees.body[0].id as string;
+    await request(app.getHttpServer())
+      .patch(`/api/rfqs/${submitted.body.id}/status`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        assignedStaffId,
+        staffNotes: "Internal QA note — not customer-visible",
+      })
+      .expect(200);
+    const staffReview = await request(app.getHttpServer())
+      .get("/api/rfqs")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    expect(staffReview.body.find((row: { id: string }) => row.id === submitted.body.id)).toMatchObject({
+      assignedStaffId,
+      assignedStaff: { id: assignedStaffId },
+      staffNotes: "Internal QA note — not customer-visible",
+    });
+    const customerActivity = await request(app.getHttpServer())
+      .get("/api/customer/activity")
+      .set("Cookie", cookie)
+      .set("X-Material-Square", "customer")
+      .set("X-Material-Account", account.body.id)
+      .expect(200);
+    const customerRequest = customerActivity.body.requests.find(
+      (row: { id: string }) => row.id === submitted.body.id,
+    );
+    expect(customerRequest).toBeTruthy();
+    expect(customerRequest).not.toHaveProperty("staffNotes");
+    expect(customerRequest).not.toHaveProperty("assignedStaffId");
+    expect(customerRequest).not.toHaveProperty("assignedStaff");
     await request(app.getHttpServer())
       .post("/api/customer/rfqs")
       .set("Cookie", cookie)
@@ -249,13 +355,15 @@ integration("API with isolated PostgreSQL", () => {
         siteLocation: "Plot 42, Sector 10",
         city: "Noida",
         pincode: "201301",
-        items: [{
-          catalogueId: listing.id,
-          variantId: listing.variants[0].id,
-          name: listing.name,
-          unit: "bag",
-          quantity: 50,
-        }],
+        items: [
+          {
+            catalogueId: listing.id,
+            variantId: listing.variants[0].id,
+            name: listing.name,
+            unit: "bag",
+            quantity: 50,
+          },
+        ],
       })
       .expect(400);
     await request(app.getHttpServer())
@@ -391,7 +499,13 @@ integration("API with isolated PostgreSQL", () => {
         },
         {
           path: "/api/products/catalogue",
-          allowed: ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER", "CATALOG_MANAGER"],
+          allowed: [
+            "SUPER_ADMIN",
+            "ADMIN",
+            "SALES_MANAGER",
+            "CATALOG_MANAGER",
+            "PROCUREMENT_HEAD",
+          ],
         },
         {
           path: "/api/storage/media",
@@ -466,6 +580,7 @@ integration("API with isolated PostgreSQL", () => {
         diameterMm: 12,
         weightPerMeterKg: 0.888,
         basePricePerMt: 50000,
+        availableStockMt: 0,
       },
     });
     const quote = await request(app.getHttpServer())
@@ -491,11 +606,40 @@ integration("API with isolated PostgreSQL", () => {
     expect(pdf.body.slice(0, 4).toString()).toBe("%PDF");
     await request(app.getHttpServer())
       .get(`/api/customer/quotes/${quote.body.id}/pdf`)
-      .expect(404);
+      .expect(401);
     await request(app.getHttpServer())
       .post(`/api/quotes/${quote.body.id}/publish`)
       .set("Authorization", `Bearer ${token}`)
       .expect(201);
+    const verifyCustomer = jest
+      .spyOn(app.get(Msg91WidgetService), "verifyAccessToken")
+      .mockImplementation(async (accessToken) =>
+        accessToken.startsWith("owner-") ? "9876543210" : "9876543211",
+      );
+    const ownerLogin = await request(app.getHttpServer())
+      .post("/api/auth/customer/otp/verify-msg91")
+      .send({ phone: "9876543210", accessToken: "owner-integration-token" })
+      .expect(200);
+    const ownerCookie = ownerLogin.headers["set-cookie"][0].split(";")[0];
+    const customerPdf = await request(app.getHttpServer())
+      .get(`/api/customer/quotes/${quote.body.id}/pdf`)
+      .set("Cookie", ownerCookie)
+      .expect(200)
+      .expect("Content-Type", /pdf/);
+    expect(customerPdf.headers["content-disposition"]).toContain(
+      `Quotation-${quote.body.quoteNumber}.pdf`,
+    );
+    expect(customerPdf.body.slice(0, 4).toString()).toBe("%PDF");
+    const otherLogin = await request(app.getHttpServer())
+      .post("/api/auth/customer/otp/verify-msg91")
+      .send({ phone: "9876543211", accessToken: "other-integration-token" })
+      .expect(200);
+    const otherCookie = otherLogin.headers["set-cookie"][0].split(";")[0];
+    await request(app.getHttpServer())
+      .get(`/api/customer/quotes/${quote.body.id}/pdf`)
+      .set("Cookie", otherCookie)
+      .expect(404);
+    verifyCustomer.mockRestore();
     await request(app.getHttpServer())
       .post(`/api/quotes/${quote.body.id}/publish`)
       .set("Authorization", `Bearer ${token}`)
@@ -518,6 +662,23 @@ integration("API with isolated PostgreSQL", () => {
         taxPct: 18,
       })
       .expect(201);
+    const customerActivity = await request(app.getHttpServer())
+      .get("/api/customer/activity")
+      .set("Cookie", ownerCookie)
+      .set("X-Material-Square", "customer")
+      .set("X-Material-Account", ownerLogin.body.id)
+      .expect(200);
+    expect(
+      customerActivity.body.quotations.some(
+        (customerQuote: { id: string }) => customerQuote.id === quote.body.id,
+      ),
+    ).toBe(true);
+    expect(
+      customerActivity.body.quotations.some(
+        (customerQuote: { id: string }) =>
+          customerQuote.id === pendingRevision.body.id,
+      ),
+    ).toBe(false);
     const accepted = await request(app.getHttpServer())
       .post(`/api/quotes/${quote.body.id}/acceptance`)
       .set("Authorization", `Bearer ${token}`)
@@ -526,6 +687,44 @@ integration("API with isolated PostgreSQL", () => {
     const deliveryOrder = await db.order.findUniqueOrThrow({
       where: { orderNumber: accepted.body.orderNumber },
     });
+    const payment = await request(app.getHttpServer())
+      .patch(`/api/orders/${deliveryOrder.id}/manual-payment`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ method: "UPI", reference: "QA-INTEGRATION-ONLY" })
+      .expect(200);
+    expect(payment.body).toMatchObject({
+      manualPaymentStatus: "PAID",
+      manualPaymentMethod: "UPI",
+      manualPaymentReference: "QA-INTEGRATION-ONLY",
+      manualPaymentRecordedBy: { name: "Integration" },
+    });
+    expect(payment.body.manualPaymentRecordedAt).toBeTruthy();
+    const persistedPayment = await db.order.findUniqueOrThrow({
+      where: { id: deliveryOrder.id },
+    });
+    expect(persistedPayment).toMatchObject({
+      manualPaymentStatus: "PAID",
+      manualPaymentMethod: "UPI",
+      manualPaymentReference: "QA-INTEGRATION-ONLY",
+      manualPaymentRecordedById: expect.any(String),
+    });
+    const paymentAudit = await db.auditLog.findFirstOrThrow({
+      where: {
+        entityId: deliveryOrder.id,
+        action: "ORDER_OFFLINE_PAYMENT_RECORDED",
+      },
+    });
+    expect(paymentAudit.staffId).toBeTruthy();
+    expect(paymentAudit.metadata).toMatchObject({
+      method: "UPI",
+      reference: "QA-INTEGRATION-ONLY",
+      amountInr: Number(deliveryOrder.grandTotal),
+    });
+    await request(app.getHttpServer())
+      .patch(`/api/orders/${deliveryOrder.id}/manual-payment`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ method: "CASH" })
+      .expect(409);
     const acceptedAudit = await db.auditLog.findFirstOrThrow({
       where: {
         entityId: deliveryOrder.id,
@@ -669,6 +868,7 @@ integration("API with isolated PostgreSQL", () => {
     });
     expect(transportAudit.map((entry) => entry.action)).toEqual([
       "STAFF_QUOTATION_ACCEPTED_EXTERNALLY",
+      "ORDER_OFFLINE_PAYMENT_RECORDED",
       "TRANSPORTATION_PLAN_CREATED",
       ...Array(4).fill("TRANSPORTATION_STATUS_CHANGED"),
       "ORDER_PARTIALLY_DELIVERED",
@@ -766,6 +966,58 @@ integration("API with isolated PostgreSQL", () => {
       quoteNumber: externallyAcceptedQuote.body.quoteNumber,
       orderNumber: recordedAcceptance.body.orderNumber,
     });
+    const challan = await request(app.getHttpServer())
+      .post(`/api/orders/${externalOrder.id}/dispatch-challan`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        truckNumber: "QA-TRUCK-01",
+        driverName: "Integration Driver",
+        driverPhone: "9876543210",
+        weighbridgeGrossKg: 12500,
+        weighbridgeTareKg: 6200,
+        estimatedArrival: "2026-10-10T10:00:00.000Z",
+      })
+      .expect(201);
+    expect(challan.body).toMatchObject({
+      orderId: externalOrder.id,
+      truckNumber: "QA-TRUCK-01",
+      driverName: "Integration Driver",
+      netWeightKg: "6300",
+    });
+    const persistedChallan = await db.dispatchChallan.findUniqueOrThrow({
+      where: { orderId: externalOrder.id },
+    });
+    expect(persistedChallan.challanNumber).toMatch(/^MS-DC-/);
+    expect(
+      (await db.order.findUniqueOrThrow({ where: { id: externalOrder.id } }))
+        .status,
+    ).toBe("LOADED_ON_TRUCK");
+    const challanPdf = await request(app.getHttpServer())
+      .get(`/api/orders/${externalOrder.id}/challan/pdf`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200)
+      .expect("Content-Type", /pdf/);
+    expect(challanPdf.body.slice(0, 4).toString()).toBe("%PDF");
+    for (let step = 1; step <= 5; step++) {
+      await request(app.getHttpServer())
+        .patch(`/api/orders/${externalOrder.id}/advance-dispatch`)
+        .set("Authorization", `Bearer ${token}`)
+        .expect(200);
+    }
+    expect(
+      (await db.order.findUniqueOrThrow({ where: { id: externalOrder.id } }))
+        .status,
+    ).toBe("DELIVERED");
+    expect(
+      await db.orderDelivery.count({ where: { orderId: externalOrder.id } }),
+    ).toBe(1);
+    const challanAudit = await db.auditLog.findFirstOrThrow({
+      where: {
+        entityId: externalOrder.id,
+        action: "DISPATCH_CHALLAN_CREATED",
+      },
+    });
+    expect(challanAudit.staffId).toBeTruthy();
     await request(app.getHttpServer())
       .post(`/api/quotes/${externallyAcceptedQuote.body.id}/acceptance`)
       .set("Authorization", `Bearer ${token}`)
@@ -948,11 +1200,13 @@ integration("API with isolated PostgreSQL", () => {
     expect(event.staff?.name).toBe("Integration");
     expect(event.metadata).toEqual({
       changedFields: ["home.title"],
-      changes: [{
-        field: "home.title",
-        before: SITE_CONTENT_DEFAULTS["home.title"],
-        after: "Integration audit headline",
-      }],
+      changes: [
+        {
+          field: "home.title",
+          before: SITE_CONTENT_DEFAULTS["home.title"],
+          after: "Integration audit headline",
+        },
+      ],
     });
     await request(app.getHttpServer())
       .post("/api/admin/site-content/publish")
@@ -1141,7 +1395,7 @@ integration("API with isolated PostgreSQL", () => {
     ).toBe("QUOTE_SENT");
     await request(app.getHttpServer())
       .get(`/api/customer/quotes/${revision.body.id}/pdf`)
-      .expect(404);
+      .expect(401);
     await request(app.getHttpServer())
       .post(`/api/quotes/${revision.body.id}/publish`)
       .set("Authorization", `Bearer ${token}`)
@@ -1177,10 +1431,13 @@ integration("API with isolated PostgreSQL", () => {
     });
     expect(procurement.items).toEqual([
       {
+        catalogVariantId: listing.variants[0].id,
         productName: "Changed name",
         brand: "Changed brand",
         category: "pipes",
         quantity: 30,
+        requiredQuantity: 30,
+        clientStockQuantity: 0,
         unit: "Changed unit",
         notes: "Changed size · Hot water",
       },
@@ -1466,6 +1723,22 @@ integration("API with isolated PostgreSQL", () => {
     });
   });
   it("lets catalogue staff add, archive and publish partner brands used by customer search", async () => {
+    const stored = await request(app.getHttpServer())
+      .get("/api/products/catalogue/partner-brands")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    // Integration DBs are persistent between local test runs. Remove this test's
+    // previously-added row and restore the seeded baseline before asserting it.
+    const baseline = stored.body
+      .filter(
+        (brand: { id: string }) => brand.id !== "integration-future-brand",
+      )
+      .map((brand: { isActive: boolean }) => ({ ...brand, isActive: true }));
+    await request(app.getHttpServer())
+      .put("/api/products/catalogue/partner-brands")
+      .set("Authorization", `Bearer ${token}`)
+      .send(baseline)
+      .expect(200);
     const initial = await request(app.getHttpServer())
       .get("/api/products/catalogue/partner-brands")
       .set("Authorization", `Bearer ${token}`)
@@ -1488,27 +1761,35 @@ integration("API with isolated PostgreSQL", () => {
       isActive: true,
       sortOrder: next.length,
     });
-    await request(app.getHttpServer())
-      .put("/api/products/catalogue/partner-brands")
-      .set("Authorization", `Bearer ${token}`)
-      .send(next)
-      .expect(200);
-    const publicBrands = await request(app.getHttpServer())
-      .get("/api/products/partner-brands")
-      .expect(200);
-    expect(publicBrands.body).toHaveLength(17);
-    expect(
-      publicBrands.body.map((brand: { name: string }) => brand.name),
-    ).not.toContain("UltraTech Cement");
-    expect(
-      publicBrands.body.map((brand: { name: string }) => brand.name),
-    ).toContain("Integration Future Brand");
-    const adminBrands = await request(app.getHttpServer())
-      .get("/api/products/catalogue/partner-brands")
-      .set("Authorization", `Bearer ${token}`)
-      .expect(200);
-    expect(adminBrands.body).toHaveLength(18);
-    expect(adminBrands.body[0].isActive).toBe(false);
+    try {
+      await request(app.getHttpServer())
+        .put("/api/products/catalogue/partner-brands")
+        .set("Authorization", `Bearer ${token}`)
+        .send(next)
+        .expect(200);
+      const publicBrands = await request(app.getHttpServer())
+        .get("/api/products/partner-brands")
+        .expect(200);
+      expect(publicBrands.body).toHaveLength(17);
+      expect(
+        publicBrands.body.map((brand: { name: string }) => brand.name),
+      ).not.toContain("UltraTech Cement");
+      expect(
+        publicBrands.body.map((brand: { name: string }) => brand.name),
+      ).toContain("Integration Future Brand");
+      const adminBrands = await request(app.getHttpServer())
+        .get("/api/products/catalogue/partner-brands")
+        .set("Authorization", `Bearer ${token}`)
+        .expect(200);
+      expect(adminBrands.body).toHaveLength(18);
+      expect(adminBrands.body[0].isActive).toBe(false);
+    } finally {
+      await request(app.getHttpServer())
+        .put("/api/products/catalogue/partner-brands")
+        .set("Authorization", `Bearer ${token}`)
+        .send(baseline)
+        .expect(200);
+    }
   });
 
   it("lets staff publish, price, edit and unpublish public catalogue products", async () => {
@@ -1558,6 +1839,9 @@ integration("API with isolated PostgreSQL", () => {
       ],
       sortOrder: 999,
     };
+    await db.catalogListing.deleteMany({
+      where: { slug: payload.slug, name: payload.name },
+    });
     const created = await request(app.getHttpServer())
       .post("/api/products/catalogue")
       .set("Authorization", `Bearer ${token}`)
@@ -1597,6 +1881,51 @@ integration("API with isolated PostgreSQL", () => {
         }),
       ]),
     );
+
+    const internalSupplier = await db.supplier.create({
+      data: {
+        name: `Private Supplier ${randomUUID()}`,
+        phone: "9898989898",
+        address: "Internal sourcing address",
+        city: "Noida",
+        pincode: "201301",
+        status: "ACTIVE",
+      },
+    });
+    try {
+      const publicVariant = await db.catalogListingVariant.findFirstOrThrow({
+        where: { listingId: created.body.id },
+      });
+      await db.supplierProduct.create({
+        data: {
+          supplierId: internalSupplier.id,
+          catalogVariantId: publicVariant.id,
+          productName: payload.name,
+          brand: payload.brand,
+          category: payload.category,
+          unit: payload.unit,
+          availableQuantity: 321,
+          lastQuotedPrice: 987654321,
+        },
+      });
+      const publicCatalogueWithSupplier = await request(app.getHttpServer())
+        .get("/api/products")
+        .expect(200);
+      const publicListing = publicCatalogueWithSupplier.body.find(
+        (item: { id: string }) => item.id === created.body.id,
+      );
+      expect(publicListing).toBeTruthy();
+      expect(publicListing).not.toHaveProperty("supplierProducts");
+      expect(publicListing).not.toHaveProperty("suppliers");
+      expect(JSON.stringify(publicListing)).not.toContain(internalSupplier.name);
+      expect(JSON.stringify(publicListing)).not.toContain(internalSupplier.phone);
+      expect(JSON.stringify(publicListing)).not.toContain("987654321");
+    } finally {
+      await db.supplierProduct.deleteMany({
+        where: { supplierId: internalSupplier.id },
+      });
+      await db.supplier.delete({ where: { id: internalSupplier.id } });
+    }
 
     await request(app.getHttpServer())
       .post("/api/products/catalogue")
@@ -1715,17 +2044,37 @@ integration("API with isolated PostgreSQL", () => {
         .post(`/api/suppliers/${supplier.body.id}/products`)
         .auth(token, { type: "bearer" })
         .send({
-          productName: "Pipe",
-          category: "Pipes",
-          unit: "Pieces",
+          productName: "UltraTech Cement",
+          brand: "UltraTech",
+          category: "Cement",
+          unit: "bag",
           minimumOrderQty: 10,
+          availableQuantity: 300,
           lastQuotedPrice: 200,
         })
         .expect(201);
+      const search = await request(app.getHttpServer())
+        .get("/api/suppliers?q=UltraTech")
+        .auth(token, { type: "bearer" })
+        .expect(200);
+      expect(search.body[0]).toMatchObject({
+        id: supplier.body.id,
+        products: [
+          expect.objectContaining({
+            productName: "UltraTech Cement",
+            brand: "UltraTech",
+            availableQuantity: "300",
+          }),
+        ],
+      });
       await request(app.getHttpServer())
         .patch(`/api/suppliers/${supplier.body.id}/products/${product.body.id}`)
         .auth(token, { type: "bearer" })
-        .send({ isActive: false, lastQuotedPrice: null })
+        .send({
+          isActive: false,
+          lastQuotedPrice: null,
+          availableQuantity: 280,
+        })
         .expect(200);
       await request(app.getHttpServer())
         .patch(`/api/suppliers/${randomUUID()}/products/${product.body.id}`)
@@ -1739,7 +2088,8 @@ integration("API with isolated PostgreSQL", () => {
       expect(detail.body.products[0]).toMatchObject({
         isActive: false,
         lastQuotedPrice: null,
-        unit: "Pieces",
+        unit: "bag",
+        availableQuantity: "280",
       });
       await request(app.getHttpServer())
         .patch(`/api/suppliers/${supplier.body.id}`)

@@ -30,6 +30,15 @@ const publishedPipe = {
 };
 test.beforeEach(async ({ page }) => {
   // Avoid coupling offline browser tests to whichever local API happens to be running.
+  // The workspace now asks staff to review consequential changes before saving.
+  // These browser flows intentionally exercise the confirmed path; keep the
+  // confirmation scoped so unrelated preview/choice dialogs remain testable.
+  page.addLocatorHandler(
+    page.locator("dialog.admin-confirm-dialog"),
+    async (dialog) => {
+      await dialog.locator(".admin-confirm-submit").click();
+    },
+  );
   await page.route("**/api/**", (route) =>
     route.fulfill({ status: 503, json: { message: "Offline test fixture" } }),
   );
@@ -103,83 +112,248 @@ test("customers can browse and build a guest quote list before phone verificatio
   await expect(page.getByLabel("Six-digit OTP")).not.toBeVisible();
 });
 
-test(
-  "customer account explains when its API deployment is missing the account route",
-  async ({ page }) => {
-    await page.route("**/api/customer/me", (route) =>
-      route.fulfill({
-        status: 404,
-        contentType: "text/plain",
-        body: "Cannot GET /api/customer/me",
-      }),
-    );
-    await page.goto("/account");
-    await expect(page.getByRole("alert")).toContainText(
-      "The account service is out of date. Restart or redeploy the Material Square API",
-    );
-    await expect(page.getByRole("alert")).not.toContainText("Cannot GET");
-  },
-);
+test("customer account explains when its API deployment is missing the account route", async ({
+  page,
+}) => {
+  await page.route("**/api/customer/me", (route) =>
+    route.fulfill({
+      status: 404,
+      contentType: "text/plain",
+      body: "Cannot GET /api/customer/me",
+    }),
+  );
+  await page.goto("/account");
+  await expect(page.getByRole("alert")).toContainText(
+    "The account service is out of date. Restart or redeploy the Material Square API",
+  );
+  await expect(page.getByRole("alert")).not.toContainText("Cannot GET");
+});
 
-test("empty client catalogue invites material requests without suggesting sample products", async ({ page }) => {
+test("empty client catalogue invites material requests without suggesting sample products", async ({
+  page,
+}) => {
   await page.route("**/api/products", (route) => route.fulfill({ json: [] }));
   await page.goto("/marketplace");
-  await expect(page.getByRole("heading", { name: "Material listings are being prepared" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Request a material" })).toHaveAttribute("href", "/contact");
+  await expect(
+    page.getByRole("heading", { name: "Material listings are being prepared" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Request a material" }),
+  ).toHaveAttribute("href", "/contact");
   await expect(page.getByText(/no sample products/i)).toHaveCount(0);
+  await expect(page.locator(".brand-partner-card")).toHaveCount(0);
   await page.getByRole("link", { name: "Request a material" }).click();
   await expect(page).toHaveURL(/\/contact$/);
   await page.goto("/marketplace?category=paints");
   await expect(page.locator(".results-count-text")).toContainText("in Paints");
-  await expect(page.locator(".results-count-text")).not.toContainText("undefined");
+  await expect(page.locator(".results-count-text")).not.toContainText(
+    "undefined",
+  );
+  await page.goto("/");
+  await expect(page.locator(".home-brands-strip")).toHaveCount(0);
 });
 
-test("search phrase preselects the matching sellable variant and its image", async ({ page }) => {
+test("exact catalogue filters do not show contradictory related products", async ({
+  page,
+}) => {
   const product = {
-    id: "paint-variant-test", code: "AP-SC-DP", name: "SmartCare Damp Proof Waterproofing Paint",
-    brand: "Asian Paints", category: "paints", categoryLabel: "Paints & Waterproofing", unit: "tin",
-    image: "/images/products/neutral-placeholder.svg", galleryImages: [], features: [], applications: [],
-    inStock: false, availabilityStatus: "CHECK_AVAILABILITY", specs: {},
+    id: "ultratech-filter-test",
+    code: "UTC-FILTER-01",
+    name: "UltraTech Filter Test Cement",
+    brand: "UltraTech Cement",
+    category: "cement",
+    categoryLabel: "Cement & Aggregates",
+    unit: "bag",
+    packaging: "50 kg bag",
+    features: [],
+    applications: [],
+    specs: {},
+    inStock: true,
+    availabilityStatus: "IN_STOCK",
+    variants: [],
+  };
+  const relatedProduct = {
+    ...product,
+    id: "ambuja-filter-test",
+    code: "AMB-FILTER-01",
+    name: "Ambuja Filter Test Cement",
+    brand: "Ambuja Cement",
+  };
+  await page.route("**/api/products", (route) =>
+    route.fulfill({ json: [product, relatedProduct] }),
+  );
+  await page.goto("/marketplace");
+  await page
+    .getByLabel("Filter by Manufacturer Brand")
+    .selectOption("UltraTech Cement");
+  await page.getByLabel("Availability").selectOption("OUT_OF_STOCK");
+  await expect(
+    page.getByRole("heading", { name: "No products match your search" }),
+  ).toBeVisible();
+  await expect(page.locator(".product-card")).toHaveCount(0);
+  await expect(page.locator(".catalogue-related-section")).toHaveCount(0);
+
+  await page.getByLabel("Availability").selectOption("all");
+  await expect(page.getByRole("heading", { name: product.name })).toBeVisible();
+  await page
+    .getByLabel("Filter by Manufacturer Brand")
+    .selectOption("Ambuja Cement");
+  await expect(
+    page.getByRole("heading", { name: relatedProduct.name }),
+  ).toBeVisible();
+  await expect(page.locator(".catalogue-related-section")).toHaveCount(0);
+});
+
+test("search phrase preselects the matching sellable variant and its image", async ({
+  page,
+}) => {
+  const product = {
+    id: "paint-variant-test",
+    code: "AP-SC-DP",
+    name: "SmartCare Damp Proof Waterproofing Paint",
+    brand: "Asian Paints",
+    category: "paints",
+    categoryLabel: "Paints & Waterproofing",
+    unit: "tin",
+    image: "/images/products/neutral-placeholder.svg",
+    galleryImages: [],
+    features: [],
+    applications: [],
+    inStock: false,
+    availabilityStatus: "CHECK_AVAILABILITY",
+    specs: {},
     variants: [
-      { id: "paint-white-10l", label: "10 L", unit: "tin", attributes: { Colour: "White", Pack: "10 L" }, image: "/client/white-10l.jpg", galleryImages: [], inStock: true, availabilityStatus: "IN_STOCK", sortOrder: 0, price: 900 },
-      { id: "paint-black-20l", label: "20 L", unit: "tin", attributes: { Colour: "Black", Pack: "20 L" }, image: "/client/black-20l.jpg", galleryImages: [], inStock: true, availabilityStatus: "IN_STOCK", sortOrder: 1, price: 1600 },
+      {
+        id: "paint-white-10l",
+        label: "10 L",
+        unit: "tin",
+        attributes: { Colour: "White", Pack: "10 L" },
+        image: "/client/white-10l.jpg",
+        galleryImages: [],
+        inStock: true,
+        availabilityStatus: "IN_STOCK",
+        sortOrder: 0,
+        price: 900,
+      },
+      {
+        id: "paint-black-20l",
+        label: "20 L",
+        unit: "tin",
+        attributes: { Colour: "Black", Pack: "20 L" },
+        image: "/client/black-20l.jpg",
+        galleryImages: [],
+        inStock: true,
+        availabilityStatus: "IN_STOCK",
+        sortOrder: 1,
+        price: 1600,
+      },
     ],
   };
-  await page.route("**/api/products", (route) => route.fulfill({ json: [product] }));
-  await page.goto("/product/paint-variant-test?q=Asian%20Paints%20SmartCare%20Black%2020L");
+  await page.route("**/api/products", (route) =>
+    route.fulfill({ json: [product] }),
+  );
+  await page.goto(
+    "/product/paint-variant-test?q=Asian%20Paints%20SmartCare%20Black%2020L",
+  );
   await expect(page.getByRole("heading", { name: product.name })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Black.*₹1,600/ })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Black.*₹1,600/ }),
+  ).toBeVisible();
   await expect(page.getByText("Authorised partner brand")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Black" })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: "20 L" })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".product-detail-image > img")).toHaveAttribute("src", "/client/black-20l.jpg");
+  await expect(page.getByRole("button", { name: "Black" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByRole("button", { name: "20 L" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.locator(".product-detail-image > img")).toHaveAttribute(
+    "src",
+    "/client/black-20l.jpg",
+  );
   await expect(page.getByText("₹1,600", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /Add to Material List/ }).click();
   await page.goto("/material-list");
-  await expect(page.getByLabel("Selected product option")).toHaveValue(/Colour: Black/);
-  await expect(page.locator(".material-thumb")).toHaveAttribute("src", "/client/black-20l.jpg");
+  await expect(page.getByLabel("Selected product option")).toHaveValue(
+    /Colour: Black/,
+  );
+  await expect(page.locator(".material-thumb")).toHaveAttribute(
+    "src",
+    "/client/black-20l.jpg",
+  );
 });
 
-test("selecting an autocomplete product opens its matching product option", async ({ page }) => {
+test("selecting an autocomplete product opens its matching product option", async ({
+  page,
+}) => {
   const product = {
-    id: "autocomplete-paint-test", code: "AP-SC-DP", name: "SmartCare Damp Proof Waterproofing Paint",
-    brand: "Asian Paints", category: "paints", categoryLabel: "Paints & Waterproofing", unit: "tin",
-    image: "/images/products/neutral-placeholder.svg", galleryImages: [], features: [], applications: [],
-    inStock: false, availabilityStatus: "CHECK_AVAILABILITY", specs: {},
+    id: "autocomplete-paint-test",
+    code: "AP-SC-DP",
+    name: "SmartCare Damp Proof Waterproofing Paint",
+    brand: "Asian Paints",
+    category: "paints",
+    categoryLabel: "Paints & Waterproofing",
+    unit: "tin",
+    image: "/images/products/neutral-placeholder.svg",
+    galleryImages: [],
+    features: [],
+    applications: [],
+    inStock: false,
+    availabilityStatus: "CHECK_AVAILABILITY",
+    specs: {},
     variants: [
-      { id: "paint-white-10l", label: "10 L", unit: "tin", attributes: { Colour: "White", Pack: "10 L" }, image: "/client/white-10l.jpg", galleryImages: [], inStock: true, availabilityStatus: "IN_STOCK", sortOrder: 0, price: 900 },
-      { id: "paint-black-20l", label: "20 L", unit: "tin", attributes: { Colour: "Black", Pack: "20 L" }, image: "/client/black-20l.jpg", galleryImages: [], inStock: true, availabilityStatus: "IN_STOCK", sortOrder: 1, price: 1600 },
+      {
+        id: "paint-white-10l",
+        label: "10 L",
+        unit: "tin",
+        attributes: { Colour: "White", Pack: "10 L" },
+        image: "/client/white-10l.jpg",
+        galleryImages: [],
+        inStock: true,
+        availabilityStatus: "IN_STOCK",
+        sortOrder: 0,
+        price: 900,
+      },
+      {
+        id: "paint-black-20l",
+        label: "20 L",
+        unit: "tin",
+        attributes: { Colour: "Black", Pack: "20 L" },
+        image: "/client/black-20l.jpg",
+        galleryImages: [],
+        inStock: true,
+        availabilityStatus: "IN_STOCK",
+        sortOrder: 1,
+        price: 1600,
+      },
     ],
   };
-  await page.route("**/api/products", (route) => route.fulfill({ json: [product] }));
+  await page.route("**/api/products", (route) =>
+    route.fulfill({ json: [product] }),
+  );
   await page.goto("/marketplace");
-  await page.getByLabel("Search materials catalogue").fill("Asian Paints SmartCare Black 20L");
-  await page.locator(".product-suggestion-item").getByText(product.name).click();
+  await page
+    .getByLabel("Search materials catalogue")
+    .fill("Asian Paints SmartCare Black 20L");
+  await page
+    .locator(".product-suggestion-item")
+    .getByText(product.name)
+    .click();
 
   await expect(page).toHaveURL(/\/product\/autocomplete-paint-test\?q=/);
-  await expect(page.getByRole("button", { name: "Black" })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: "20 L" })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".product-detail-image > img")).toHaveAttribute("src", "/client/black-20l.jpg");
+  await expect(page.getByRole("button", { name: "Black" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByRole("button", { name: "20 L" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.locator(".product-detail-image > img")).toHaveAttribute(
+    "src",
+    "/client/black-20l.jpg",
+  );
 });
 
 test("quotation submission verifies the customer and saves a request to the account and staff queue", async ({
@@ -211,6 +385,17 @@ test("quotation submission verifies the customer and saves a request to the acco
         orders: [],
         loyalty: null,
       },
+    }),
+  );
+  await page.route("**/api/customer/quotes/quote-1/pdf", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/pdf",
+      headers: {
+        "Content-Disposition":
+          'attachment; filename="Quotation-MS-QT-2026-0001.pdf"',
+      },
+      body: Buffer.from("%PDF-1.4 browser fixture"),
     }),
   );
   await page.route("**/api/customer/rfqs", async (route) => {
@@ -267,10 +452,17 @@ test("quotation submission verifies the customer and saves a request to the acco
   await page.getByLabel("Six-digit verification code").fill("123456");
   await page.getByRole("button", { name: "Verify and continue" }).click();
   await expect(
-    page.getByRole("heading", { name: "Requests awaiting a quotation" }),
+    page.getByRole("heading", {
+      name: "Your requests and quotations",
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(
-    page.getByText("CPVC pipe · To be confirmed — 20 Pieces · 3/4 inch"),
+    page.getByRole("heading", { name: "Your material requests" }),
+  ).toBeVisible();
+  await page.getByText("View request details · 1 material").click();
+  await expect(
+    page.getByText(/CPVC pipe · To be confirmed.*20 Pieces · 3\/4 inch/),
   ).toBeVisible();
   expect(requestBody).toMatchObject({
     customerName: "Test Customer",
@@ -322,6 +514,9 @@ test("customer OTP waits for widget settings and requires CAPTCHA before sending
   await expect(
     page.getByRole("button", { name: "Loading SMS security check…" }),
   ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Mark test CAPTCHA verified" }),
+  ).toBeVisible();
   await page.getByLabel("Mobile number").fill("9876543210");
   await page.getByRole("button", { name: "Continue with OTP" }).click();
   await expect(page.getByRole("alert")).toHaveText(
@@ -336,7 +531,27 @@ test("customer OTP waits for widget settings and requires CAPTCHA before sending
   await expect(page.getByLabel("Mock send count")).toHaveText("1");
 });
 
-test("customer OTP reports a provider rate limit and releases the pending button", async ({ page }) => {
+test("customer OTP explains the local HTTPS requirement when Web Crypto is unavailable", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "isSecureContext", { value: false });
+  });
+  await page.route("**/api/customer/me", (route) =>
+    route.fulfill({ status: 401, json: { message: "Please sign in" } }),
+  );
+  await page.goto("/account");
+  await expect(page.getByRole("alert")).toHaveText(
+    "MSG91 phone sign-in needs a secure browser context. This local site is using HTTP, which blocks the cryptography the verification widget needs. Set up trusted local HTTPS for material-square.localtest.me, then reopen this page.",
+  );
+  await expect(
+    page.getByRole("button", { name: "Loading SMS security check…" }),
+  ).toBeDisabled();
+});
+
+test("customer OTP reports a provider rate limit and releases the pending button", async ({
+  page,
+}) => {
   await page.route("**/api/customer/me", (route) =>
     route.fulfill({ status: 401, json: { message: "Please sign in" } }),
   );
@@ -356,8 +571,12 @@ test("customer OTP reports a provider rate limit and releases the pending button
   await expect(page.getByRole("alert")).toHaveText(
     "MSG91 has temporarily limited attempts from this network. Please try again later.",
   );
-  await expect(page.getByRole("button", { name: "Continue with OTP" })).toBeEnabled();
-  await expect(page.getByLabel("Six-digit verification code")).not.toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Continue with OTP" }),
+  ).toBeEnabled();
+  await expect(
+    page.getByLabel("Six-digit verification code"),
+  ).not.toBeVisible();
 });
 
 test("customer OTP opens separate quotation and order account pages", async ({
@@ -365,6 +584,8 @@ test("customer OTP opens separate quotation and order account pages", async ({
 }) => {
   let authenticated = false;
   let profileRequests = 0;
+  let attachmentCookie = "";
+  let attachmentCustomerMarker = "";
   const testQuote = {
     id: "quote-1",
     quoteNumber: "MS-QT-2026-0001",
@@ -432,7 +653,13 @@ test("customer OTP opens separate quotation and order account pages", async ({
   );
   await page.route("**/api/auth/customer/otp/verify-msg91", (route) => {
     authenticated = true;
-    return route.fulfill({ json: customer });
+    return route.fulfill({
+      json: customer,
+      headers: {
+        "Set-Cookie":
+          "ms_customer_session=browser-test-session; Path=/; SameSite=Lax",
+      },
+    });
   });
   await page.route("**/api/customer/me", (route) => {
     profileRequests += 1;
@@ -443,12 +670,56 @@ test("customer OTP opens separate quotation and order account pages", async ({
   await page.route("**/api/customer/activity", (route) =>
     route.fulfill({
       json: {
-        requests: [],
+        requests: [
+          {
+            id: "request-with-plan",
+            status: "NEW",
+            siteLocation: "Sector 10, Noida",
+            projectStage: null,
+            deliveryTiming: null,
+            notes: null,
+            items: [],
+            attachments: [
+              {
+                id: "plan-attachment",
+                fileName: "customer-plan.pdf",
+                mimeType: "application/pdf",
+                byteSize: 128,
+                createdAt: "2026-10-08T00:00:00.000Z",
+              },
+            ],
+            createdAt: "2026-10-08T00:00:00.000Z",
+          },
+        ],
         quotations: [testQuote],
         orders: [testOrder],
         loyalty: { pointsBalance: 120, transactions: [] },
       },
     }),
+  );
+  await page.route("**/api/customer/quotes/quote-1/pdf", (route) =>
+    route.fulfill({
+      status: 200,
+      body: "%PDF-browser-test",
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition":
+          'attachment; filename="Quotation-MS-QT-2026-0001.pdf"',
+      },
+    }),
+  );
+  await page.route(
+    "**/api/customer/rfqs/request-with-plan/attachments/plan-attachment",
+    (route) => {
+      const headers = route.request().headers();
+      attachmentCookie = headers.cookie || "";
+      attachmentCustomerMarker = headers["x-material-square"] || "";
+      return route.fulfill({
+        status: 200,
+        contentType: "application/pdf",
+        body: Buffer.from("%PDF-1.4 customer plan fixture"),
+      });
+    },
   );
   await page.goto("/account");
   await page.getByLabel("Mobile number").fill("9876543210");
@@ -463,22 +734,58 @@ test("customer OTP opens separate quotation and order account pages", async ({
   expect(profileRequests).toBe(profileRequestsBeforeVerify);
   await page.getByRole("link", { name: "Quotations" }).last().click();
   await expect(
-    page.getByRole("heading", { name: "Quotations", exact: true }),
+    page.getByRole("heading", {
+      name: "Your requests and quotations",
+      exact: true,
+    }),
   ).toBeVisible();
-  await page.getByRole("link", { name: "View quote" }).click();
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await page.getByText("View request details · 0 materials").click();
   await expect(
-    page.getByRole("heading", { name: "MS-QT-2026-0001" }),
+    page.getByRole("button", { name: "Download customer-plan.pdf" }),
+  ).toBeVisible();
+  const planDownloadPromise = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download customer-plan.pdf" })
+    .click();
+  const planDownload = await planDownloadPromise;
+  expect(planDownload.suggestedFilename()).toBe("customer-plan.pdf");
+  expect(attachmentCookie).toContain(
+    "ms_customer_session=browser-test-session",
+  );
+  expect(attachmentCustomerMarker).toBe("customer");
+  await page.getByRole("link", { name: "Open quotation" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Quotation details" }),
   ).toBeVisible();
   await expect(
-    page.locator(".account-alternatives").getByText("Ambuja · Ambuja PPC Cement · ₹245.00 / bag"),
+    page.locator('.account-side-link[aria-current="page"]'),
+  ).toHaveText("Quotations");
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(
+    page.getByText("MS-QT-2026-0001", { exact: true }),
   ).toBeVisible();
+  await expect(
+    page
+      .locator(".account-alternatives")
+      .getByText("Ambuja · Ambuja PPC Cement · ₹245.00 / bag"),
+  ).toBeVisible();
+  const quotationDownloadPromise = page.waitForEvent("download");
+  await page.getByRole("link", { name: "Download quotation PDF" }).click();
+  const quotationDownload = await quotationDownloadPromise;
+  expect(quotationDownload.suggestedFilename()).toBe(
+    "Quotation-MS-QT-2026-0001.pdf",
+  );
   await page.getByRole("link", { name: "Orders & tracking" }).click();
   await expect(
     page.getByRole("heading", { name: "Orders & tracking" }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Track order" }).click();
   await expect(
-    page.getByRole("heading", { name: "MS-ORD-2026-0001" }),
+    page.getByRole("heading", { name: "Order tracking" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("MS-ORD-2026-0001", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText("Step 3 of 5 · Noida depot")).toBeVisible();
 });
@@ -500,11 +807,27 @@ test("unconfigured client contact details stay hidden while quotation requests r
     }),
   );
   await page.goto("/");
+  await expect(page.locator(".top-bar-left .location-tag")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(
+    /Serving Delhi NCR|Noida, Greater Noida, Delhi, Gurugram, Ghaziabad & Faridabad/,
+  );
   const deferredMap = page.locator(".deferred-direction-map");
   await expect(deferredMap).toBeVisible();
   await expect(page.locator("#transportation-map")).toHaveCount(0);
   await deferredMap.scrollIntoViewIfNeeded();
   await expect(page.locator("#transportation-map")).toBeVisible();
+  await expect(
+    page.locator("#transportation-map .regions-unconfigured-copy"),
+  ).toContainText("Service areas have not been configured");
+  await expect(
+    page.locator("#transportation-map .gmaps-quick-regions-bar button"),
+  ).toHaveCount(0);
+  await expect(
+    page.locator("#transportation-map .gmap-active-routes path"),
+  ).toHaveCount(0);
+  await expect(
+    page.locator("#transportation-map .origin-city-markers [role='button']"),
+  ).toHaveCount(0);
   await expect(
     page.locator("#transportation-map .office-dest-pin-group"),
   ).not.toHaveAttribute("role", "button");
@@ -552,12 +875,22 @@ test("configured service map uses the client office and contact details", async 
     }),
   );
   await page.goto("/contact");
+  await expect(page.locator(".top-bar-left")).toContainText(
+    "Delhi NCR service area",
+  );
   await expect(
     page.locator("#transportation-map .gmaps-search-box"),
   ).toContainText("Client Central Depot");
   await expect(
     page.locator("#transportation-map .gmaps-search-box"),
   ).toContainText("Plot 9, Sector 18, Noida, UP 201301");
+  await expect(
+    page.locator("#transportation-map .gmaps-quick-regions-bar"),
+  ).toContainText("All 6 Regions");
+  await page.getByRole("button", { name: "Noida", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Noida", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
   await page
     .getByRole("button", { name: "Office Details", exact: true })
     .click();
@@ -568,6 +901,38 @@ test("configured service map uses the client office and contact details", async 
   await expect(
     page.getByRole("link", { name: "Call: +91 98765 43210" }),
   ).toHaveAttribute("href", "tel:9876543210");
+});
+
+test("service map limits route destinations to configured regions", async ({
+  page,
+}) => {
+  await page.route("**/api/site-content", (route) =>
+    route.fulfill({
+      json: {
+        ...SITE_CONTENT_DEFAULTS,
+        "contact.location": "Noida, Greater Noida",
+        "contact.officeAddress": "Plot 9, Sector 18, Noida, UP 201301",
+      },
+    }),
+  );
+  await page.goto("/contact");
+  const map = page.locator("#transportation-map");
+  await expect(map).toBeVisible();
+  await expect(map.locator(".gmaps-quick-regions-bar")).toContainText(
+    "All 2 Regions",
+  );
+  await expect(
+    map.getByRole("button", { name: "Noida", exact: true }),
+  ).toBeVisible();
+  await expect(
+    map.getByRole("button", { name: "Greater Noida", exact: true }),
+  ).toBeVisible();
+  await expect(
+    map.getByRole("button", { name: "Delhi", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    map.getByRole("button", { name: "Select Delhi Route" }),
+  ).toHaveCount(0);
 });
 
 test("public pages expose canonical share metadata and account entry stays available", async ({
@@ -957,7 +1322,9 @@ test("staff website content edits publish to the public homepage", async ({
   await privacyEditor
     .getByRole("checkbox", { name: "Show this privacy notice on the website" })
     .check();
-  await sixthPolicySection.getByRole("button", { name: "Move section up", exact: true }).click();
+  await sixthPolicySection
+    .getByRole("button", { name: "Move section up", exact: true })
+    .click();
   await page.getByRole("button", { name: "Add FAQ", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Question 1", exact: true })
@@ -1053,9 +1420,12 @@ test("staff website content edits publish to the public homepage", async ({
     .uncheck();
   await duplicateBlock.getByRole("button", { name: "Delete" }).click();
   await expect(page.locator(".homepage-content-block")).toHaveCount(1);
-  await page.getByRole("button", { name: "Preview draft", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Preview draft", exact: true })
+    .click();
   await expect(
-    page.frameLocator('iframe[title="Customer website draft preview"]')
+    page
+      .frameLocator('iframe[title="Customer website draft preview"]')
       .locator(".draft-preview-banner"),
   ).toContainText("Unpublished draft preview");
   await page.getByRole("button", { name: "Publish", exact: true }).click();
@@ -1249,19 +1619,22 @@ test("content staff upload and publish a homepage hero image", async ({
     .filter({ hasText: "Homepage hero banner image" })
     .locator('input[type="file"]')
     .setInputFiles({
-    name: "home-hero.webp",
-    mimeType: "image/webp",
-    buffer: Buffer.from("mock image bytes"),
-  });
+      name: "home-hero.webp",
+      mimeType: "image/webp",
+      buffer: Buffer.from("mock image bytes"),
+    });
   await expect(
     page
       .locator(".content-image-field")
       .filter({ hasText: "Homepage hero banner image" })
       .locator('input[type="url"]'),
   ).toHaveValue("https://cdn.example.test/images/home-hero.webp");
-  await page.getByRole("button", { name: "Preview draft", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Preview draft", exact: true })
+    .click();
   await expect(
-    page.frameLocator('iframe[title="Customer website draft preview"]')
+    page
+      .frameLocator('iframe[title="Customer website draft preview"]')
       .locator(".draft-preview-banner"),
   ).toContainText("Unpublished draft preview");
   await page.getByRole("button", { name: "Publish", exact: true }).click();
@@ -1302,23 +1675,69 @@ test("admin requires sign-in and displays login failures", async ({ page }) => {
   await expect(page.getByRole("navigation")).not.toBeVisible();
 });
 
-test("catalogue manager gets a first-product action when the catalogue is empty", async ({ page }) => {
-  await page.route("**/api/auth/mode", (route) => route.fulfill({ json: { demo: true } }));
-  await page.route("**/api/auth/staff/login", (route) => route.fulfill({ json: { accessToken: "catalogue-empty-token" } }));
-  await page.route("**/api/auth/staff/me", (route) => route.fulfill({ json: { name: "Catalog Manager", role: "CATALOG_MANAGER", isDemo: true } }));
-  await page.route("**/api/workspace/overview", (route) => route.fulfill({ json: { customers: 0, newCustomers30Days: 0, openFollowups: 0, closedFollowups: 0, demo: true } }));
-  await page.route("**/api/analytics/overview**", (route) => route.fulfill({ json: { days: 30, totals: { pageViews: 0, productViews: 0, addToList: 0, requestHandoffs: 0 }, daily: [], topPages: [], topProducts: [], privacy: "Aggregate counts only." } }));
-  await page.route("**/api/products/catalogue", (route) => route.fulfill({ json: [] }));
-  await page.route("**/api/products/catalogue/partner-brands", (route) => route.fulfill({ json: [] }));
+test("catalogue manager gets a first-product action when the catalogue is empty", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/mode", (route) =>
+    route.fulfill({ json: { demo: true } }),
+  );
+  await page.route("**/api/auth/staff/login", (route) =>
+    route.fulfill({ json: { accessToken: "catalogue-empty-token" } }),
+  );
+  await page.route("**/api/auth/staff/me", (route) =>
+    route.fulfill({
+      json: { name: "Catalog Manager", role: "CATALOG_MANAGER", isDemo: true },
+    }),
+  );
+  await page.route("**/api/workspace/overview", (route) =>
+    route.fulfill({
+      json: {
+        customers: 0,
+        newCustomers30Days: 0,
+        openFollowups: 0,
+        closedFollowups: 0,
+        demo: true,
+      },
+    }),
+  );
+  await page.route("**/api/analytics/overview**", (route) =>
+    route.fulfill({
+      json: {
+        days: 30,
+        totals: {
+          pageViews: 0,
+          productViews: 0,
+          addToList: 0,
+          requestHandoffs: 0,
+        },
+        daily: [],
+        topPages: [],
+        topProducts: [],
+        privacy: "Aggregate counts only.",
+      },
+    }),
+  );
+  await page.route("**/api/products/catalogue", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.route("**/api/products/catalogue/partner-brands", (route) =>
+    route.fulfill({ json: [] }),
+  );
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("catalog@example.test");
   await page.getByLabel("Password").fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page.getByRole("button", { name: "Products & pricing" }).click();
-  await expect(page.getByRole("heading", { name: "No catalogue products yet" })).toBeVisible();
-  await expect(page.getByText(/No sample products are being shown/)).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "No catalogue products yet" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/No sample products are being shown/),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Add first product" }).click();
-  await expect(page.getByRole("heading", { name: "Add a product" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Add a product" }),
+  ).toBeVisible();
 });
 
 test("admin edits customer-facing catalogue price and offer details", async ({
@@ -1335,9 +1754,10 @@ test("admin edits customer-facing catalogue price and offer details", async ({
     categoryLabel: "Pipes & Fittings",
     unit: "3 m length",
     packaging: "Single length",
-    image: "/images/products/cpvc-pipe-illustration.png",
+    image: "https://assets.example.test/images/test.png",
     grade: "CPVC",
-    description: "Online reference example for product discovery. Confirm the exact grade, current client price, tax basis, stock and delivery before ordering.",
+    description:
+      "Online reference example for product discovery. Confirm the exact grade, current client price, tax basis, stock and delivery before ordering.",
     minOrderQty: "1 length",
     dispatchTime: "Confirm",
     price: null,
@@ -1353,28 +1773,47 @@ test("admin edits customer-facing catalogue price and offer details", async ({
     applications: ["Application"],
     specifications: {
       size: "25 mm",
-      "Reference note": "Bangalore seller listing; local price and taxes may differ.",
+      "Reference note":
+        "Bangalore seller listing; local price and taxes may differ.",
       "Reference price source": "https://prices.example.test/product",
       "Reference source updated": "8 May 2026",
       "Price source": "https://prices.example.test/product",
       "Image source": "https://images.example.test/product.png",
     },
-    variants: [{
-      id: "starter-cpvc-variant",
-      label: "25 mm · 3 m",
-      attributes: { Size: "25 mm" },
-      unit: "3 m length",
-      price: 425,
-      priceNote: "Online reference price; confirm local price.",
-      inStock: false,
-      availabilityStatus: "CHECK_AVAILABILITY",
-      sortOrder: 0,
-    }],
+    variants: [
+      {
+        id: "starter-cpvc-variant",
+        label: "25 mm · 3 m",
+        attributes: { Size: "25 mm" },
+        unit: "3 m length",
+        price: 425,
+        priceNote: "Online reference price; confirm local price.",
+        inStock: false,
+        availabilityStatus: "CHECK_AVAILABILITY",
+        sortOrder: 0,
+      },
+    ],
     sortOrder: 0,
   };
   const publishedNeighbors = [
-    { ...original, id: "published-cement", slug: "published-cement", code: "MS-CEM-01", name: "Published Cement", isPublished: true, variants: [] },
-    { ...original, id: "published-wire", slug: "published-wire", code: "MS-WIRE-01", name: "Published Wire", isPublished: true, variants: [] },
+    {
+      ...original,
+      id: "published-cement",
+      slug: "published-cement",
+      code: "MS-CEM-01",
+      name: "Published Cement",
+      isPublished: true,
+      variants: [],
+    },
+    {
+      ...original,
+      id: "published-wire",
+      slug: "published-wire",
+      code: "MS-WIRE-01",
+      name: "Published Wire",
+      isPublished: true,
+      variants: [],
+    },
   ];
   let saved: Record<string, unknown> = original;
   let updatedBody: Record<string, unknown> | undefined;
@@ -1475,6 +1914,16 @@ test("admin edits customer-facing catalogue price and offer details", async ({
       },
     });
   });
+  await page.route("**/api/site-content", (route) =>
+    route.fulfill({
+      json: {
+        ...SITE_CONTENT_DEFAULTS,
+        "contact.location": "QA service area · Sector 10, Noida",
+        "contact.phone": "9876543210",
+        "contact.phoneDisplay": "+91 98765 43210",
+      },
+    }),
+  );
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("owner@example.com");
   await page.getByLabel("Password").fill("long-test-password");
@@ -1485,70 +1934,160 @@ test("admin edits customer-facing catalogue price and offer details", async ({
     .filter({ hasText: "Starter CPVC Pipe" })
     .getByRole("button", { name: "Edit", exact: true })
     .click();
-  await page.getByRole("button", { name: "Preview storefront" }).first().click();
+  await page
+    .getByRole("button", { name: "Preview storefront" })
+    .first()
+    .click();
   const storefrontPreview = page.locator("#catalogue-live-preview");
   await expect(storefrontPreview).toBeVisible();
-  await expect(storefrontPreview.getByText("₹425", { exact: true })).toBeVisible();
-  await expect(storefrontPreview.getByText(/reference|observed|confirm local price/i)).toHaveCount(0);
-  await expect(storefrontPreview.getByText(/prices\.example\.test|images\.example\.test|Bangalore seller listing|8 May 2026/i)).toHaveCount(0);
-  await expect(storefrontPreview.getByText(/online reference example|current client price/i)).toHaveCount(0);
-  await expect(storefrontPreview.locator(".store-preview-current-product").getByText("Check availability", { exact: true })).toBeVisible();
-  await expect(storefrontPreview.locator(".store-preview-context-product")).toHaveCount(2);
-  await expect(storefrontPreview.getByRole("heading", { name: "Published Cement" })).toBeVisible();
+  await expect(
+    storefrontPreview.getByText("₹425", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    storefrontPreview.getByText(/reference|observed|confirm local price/i),
+  ).toHaveCount(0);
+  await expect(
+    storefrontPreview.getByText(
+      /prices\.example\.test|images\.example\.test|Bangalore seller listing|8 May 2026/i,
+    ),
+  ).toHaveCount(0);
+  await expect(
+    storefrontPreview.getByText(
+      /online reference example|current client price/i,
+    ),
+  ).toHaveCount(0);
+  await expect(
+    storefrontPreview
+      .locator(".store-preview-current-product")
+      .getByText("Check availability", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    storefrontPreview.locator(".store-preview-context-product"),
+  ).toHaveCount(2);
+  await expect(
+    storefrontPreview.getByRole("heading", { name: "Published Cement" }),
+  ).toBeVisible();
   await storefrontPreview.getByRole("button", { name: "Mobile" }).click();
   await expect(storefrontPreview).toHaveClass(/preview-mobile/);
   await storefrontPreview.getByRole("button", { name: "Desktop" }).click();
   await expect(storefrontPreview).toHaveClass(/preview-desktop/);
-  await expect(storefrontPreview.locator(".store-preview-context-product")).toHaveCount(2);
+  await expect(
+    storefrontPreview.locator(".store-preview-context-product"),
+  ).toHaveCount(2);
   await storefrontPreview.getByRole("button", { name: "Product page" }).click();
-  await expect(storefrontPreview.locator(".store-preview-detail-price")).toContainText("₹425");
-  await expect(storefrontPreview.getByText(/reference|observed|confirm local price/i)).toHaveCount(0);
-  await expect(storefrontPreview.getByText(/prices\.example\.test|images\.example\.test|Bangalore seller listing|8 May 2026/i)).toHaveCount(0);
-  await expect(storefrontPreview.getByText(/online reference example|current client price/i)).toHaveCount(0);
-  await expect(storefrontPreview.locator(".store-preview-detail-stock")).toHaveText("Check availability");
-  await storefrontPreview.getByRole("button", { name: "Marketplace card" }).click();
+  await expect(
+    storefrontPreview.locator(".store-preview-detail-price"),
+  ).toContainText("₹425");
+  await expect(
+    storefrontPreview.getByText(/reference|observed|confirm local price/i),
+  ).toHaveCount(0);
+  await expect(
+    storefrontPreview.getByText(
+      /prices\.example\.test|images\.example\.test|Bangalore seller listing|8 May 2026/i,
+    ),
+  ).toHaveCount(0);
+  await expect(
+    storefrontPreview.getByText(
+      /online reference example|current client price/i,
+    ),
+  ).toHaveCount(0);
+  await expect(
+    storefrontPreview.locator(".store-preview-detail-stock"),
+  ).toHaveText("Check availability");
+  await storefrontPreview
+    .getByRole("button", { name: "Marketplace card" })
+    .click();
   expect(updatedBody).toBeUndefined();
-  await storefrontPreview.getByRole("button", { name: "Back to editing" }).click();
+  await storefrontPreview
+    .getByRole("button", { name: "Back to editing" })
+    .click();
   await expect(storefrontPreview).toBeHidden();
   await page.getByLabel("Price (₹ per unit)").fill("320");
   await page.getByLabel("Compare-at price / MRP (₹, optional)").fill("350");
-  await page.getByPlaceholder("e.g. per bag, GST included").fill("per length, GST extra");
-  await page.getByRole("button", { name: "Preview storefront" }).first().click();
+  await page
+    .getByPlaceholder("e.g. per bag, GST included")
+    .fill("per length, GST extra");
+  await page
+    .getByRole("button", { name: "Preview storefront" })
+    .first()
+    .click();
   await expect(storefrontPreview).toBeVisible();
-  await expect(storefrontPreview.getByText("₹320", { exact: true })).toBeVisible();
-  await expect(storefrontPreview.locator(".store-preview-topline")).toContainText("Serving Delhi NCR");
-  await expect(storefrontPreview.getByText("BUILDING BETTER TOGETHER", { exact: true })).toBeVisible();
-  await expect(storefrontPreview.locator(".store-preview-current-product .store-preview-actions")).toContainText("View details");
-  await expect(storefrontPreview.locator(".store-preview-current-product .store-preview-moq")).toContainText("1 length");
+  await expect(
+    storefrontPreview.getByText("₹320", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    storefrontPreview.locator(".store-preview-topline"),
+  ).toContainText("QA service area · Sector 10, Noida");
+  await expect(
+    storefrontPreview.locator(".store-preview-topline"),
+  ).toContainText("+91 98765 43210");
+  await expect(
+    storefrontPreview.getByText("BUILDING BETTER TOGETHER", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    storefrontPreview.locator(
+      ".store-preview-current-product .store-preview-actions",
+    ),
+  ).toContainText("View details");
+  await expect(
+    storefrontPreview.locator(
+      ".store-preview-current-product .store-preview-moq",
+    ),
+  ).toContainText("1 length");
   expect(updatedBody).toBeUndefined();
-  await storefrontPreview.getByRole("button", { name: "Back to editing" }).click();
+  await storefrontPreview
+    .getByRole("button", { name: "Back to editing" })
+    .click();
   await expect(storefrontPreview).toBeHidden();
   await page.getByLabel("Compare-at price / MRP (₹, optional)").fill("400");
-  await page.getByPlaceholder("e.g. per bag, GST included").fill("per length, GST extra");
-  await page.getByLabel("Offer label (optional)", { exact: true }).fill("October offer");
+  await page
+    .getByPlaceholder("e.g. per bag, GST included")
+    .fill("per length, GST extra");
+  await page
+    .getByLabel("Offer label (optional)", { exact: true })
+    .fill("October offer");
   await page
     .locator('select[name="availabilityStatus"]')
     .selectOption("OUT_OF_STOCK");
-  await page.getByLabel("Offer starts (optional)", { exact: true }).fill("2026-10-05");
-  await page.getByLabel("Offer ends (optional)", { exact: true }).fill("2026-10-31");
-  await page.getByRole("button", { name: "Remove option 1", exact: true }).click();
-  await page.locator(".catalogue-combination-axis input").nth(0).fill("Pack size");
-  await page.locator(".catalogue-combination-axis input").nth(1).fill("1 L, 4 L, 10 L");
+  await page
+    .getByLabel("Offer starts (optional)", { exact: true })
+    .fill("2026-10-05");
+  await page
+    .getByLabel("Offer ends (optional)", { exact: true })
+    .fill("2026-10-31");
+  await page
+    .getByRole("button", { name: "Remove option 1", exact: true })
+    .click();
+  await page
+    .locator(".catalogue-combination-axis input")
+    .nth(0)
+    .fill("Pack size");
+  await page
+    .locator(".catalogue-combination-axis input")
+    .nth(1)
+    .fill("1 L, 4 L, 10 L");
   await page.getByRole("button", { name: "Add option group" }).click();
   await page.locator(".catalogue-combination-axis input").nth(2).fill("Colour");
-  await page.locator(".catalogue-combination-axis input").nth(3).fill("White, Black, Red, Yellow");
+  await page
+    .locator(".catalogue-combination-axis input")
+    .nth(3)
+    .fill("White, Black, Red, Yellow");
   await page.getByRole("button", { name: "Create combinations" }).click();
-  await expect(page.getByText("12 / 1000 options", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("12 / 1000 options", { exact: true }),
+  ).toBeVisible();
   await expect(page.locator(".catalogue-variant-card")).toHaveCount(10);
   await page.getByRole("button", { name: "Next options page" }).click();
   await expect(page.locator(".catalogue-variant-card")).toHaveCount(2);
   await page.getByRole("button", { name: "Previous options page" }).click();
-  await page.getByPlaceholder("Find a colour, pack, code or option").fill("Yellow");
+  await page
+    .getByPlaceholder("Find a colour, pack, code or option")
+    .fill("Yellow");
   await expect(page.locator(".catalogue-variant-card")).toHaveCount(3);
   await page.getByPlaceholder("Find a colour, pack, code or option").fill("");
   await expect(page.locator(".catalogue-variant-card")).toHaveCount(10);
   await page
-    .locator(".catalogue-primary-image-upload input[type=\"file\"]")
+    .locator('.catalogue-primary-image-upload input[type="file"]')
     .setInputFiles({
       name: "product.png",
       mimeType: "image/png",
@@ -1557,28 +2096,62 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await expect(page.locator('input[name="image"]')).toHaveValue(
     "https://assets.example.test/images/test.png",
   );
-  await expect(page.getByLabel("Customer specifications (one “name: value” per line)")).toHaveValue("size: 25 mm");
-  await page.getByRole("button", { name: "Preview storefront" }).first().click();
+  await expect(
+    page.getByLabel("Customer specifications (one “name: value” per line)"),
+  ).toHaveValue("size: 25 mm");
+  await page
+    .getByRole("button", { name: "Preview storefront" })
+    .first()
+    .click();
   await expect(storefrontPreview).toBeVisible();
-  await expect(storefrontPreview.getByRole("heading", { name: "Starter CPVC Pipe" })).toBeVisible();
-  await expect(storefrontPreview.getByText("October offer", { exact: true })).toBeVisible();
-  await expect(storefrontPreview.getByText("Out of stock", { exact: true })).toBeVisible();
-  await expect(storefrontPreview.getByText("₹320", { exact: true })).toBeVisible();
-  await expect(storefrontPreview.getByText("per length, GST extra", { exact: true })).toBeVisible();
+  await expect(
+    storefrontPreview.getByRole("heading", { name: "Starter CPVC Pipe" }),
+  ).toBeVisible();
+  await expect(
+    storefrontPreview.getByText("October offer", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    storefrontPreview.getByText("Out of stock", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    storefrontPreview.getByText("₹320", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    storefrontPreview.getByText("per length, GST extra", { exact: true }),
+  ).toBeVisible();
   expect(updatedBody).toBeUndefined();
   await storefrontPreview.getByRole("button", { name: "Product page" }).click();
   await storefrontPreview.getByRole("button", { name: "Mobile" }).click();
-  await expect(page.locator(".preview-mobile .catalogue-preview-device-frame")).toBeVisible();
+  await expect(
+    page.locator(".preview-mobile .catalogue-preview-device-frame"),
+  ).toBeVisible();
   const mobileDetailWidth = await storefrontPreview
     .locator(".store-preview-detail")
-    .evaluate((element) => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }));
-  expect(mobileDetailWidth.scrollWidth).toBeLessThanOrEqual(mobileDetailWidth.clientWidth);
-  await expect(storefrontPreview.getByRole("heading", { name: "Starter CPVC Pipe" })).toBeVisible();
-  await expect(storefrontPreview.getByText("Specifications", { exact: true })).toBeVisible();
-  await expect(storefrontPreview.getByText("Applications", { exact: true })).toBeVisible();
-  await expect(storefrontPreview.locator(".store-preview-detail-order")).toBeVisible();
-  await expect(storefrontPreview.getByRole("button", { name: /Add to Material List/ })).toBeDisabled();
-  await expect(storefrontPreview.getByText("1 L · White", { exact: true })).toBeVisible();
+    .evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    }));
+  expect(mobileDetailWidth.scrollWidth).toBeLessThanOrEqual(
+    mobileDetailWidth.clientWidth,
+  );
+  await expect(
+    storefrontPreview.getByRole("heading", { name: "Starter CPVC Pipe" }),
+  ).toBeVisible();
+  await expect(
+    storefrontPreview.getByText("Specifications", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    storefrontPreview.getByText("Applications", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    storefrontPreview.locator(".store-preview-detail-order"),
+  ).toBeVisible();
+  await expect(
+    storefrontPreview.getByRole("button", { name: /Add to Material List/ }),
+  ).toBeDisabled();
+  await expect(
+    storefrontPreview.getByText("1 L · White", { exact: true }),
+  ).toBeVisible();
   expect(updatedBody).toBeUndefined();
   await page.keyboard.press("Escape");
   await expect(storefrontPreview).toBeHidden();
@@ -1598,10 +2171,22 @@ test("admin edits customer-facing catalogue price and offer details", async ({
     specifications: { size: "25 mm" },
   });
   expect(updatedBody?.variants).toHaveLength(12);
-  expect(updatedBody?.variants).toEqual(expect.arrayContaining([
-    expect.objectContaining({ label: "1 L · White", unit: "3 m length", attributes: { "Pack size": "1 L", Colour: "White" }, price: null }),
-    expect.objectContaining({ label: "10 L · Yellow", unit: "3 m length", attributes: { "Pack size": "10 L", Colour: "Yellow" }, price: null }),
-  ]));
+  expect(updatedBody?.variants).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        label: "1 L · White",
+        unit: "3 m length",
+        attributes: { "Pack size": "1 L", Colour: "White" },
+        price: null,
+      }),
+      expect.objectContaining({
+        label: "10 L · Yellow",
+        unit: "3 m length",
+        attributes: { "Pack size": "10 L", Colour: "Yellow" },
+        price: null,
+      }),
+    ]),
+  );
   expect(uploadedAuthorization).toBe("Bearer test-staff-token");
   await page.getByRole("button", { name: "Partner brands" }).click();
   await expect(page.getByText("17 brands", { exact: true })).toBeVisible();
@@ -1733,7 +2318,7 @@ test("owner creates staff accounts, assigns roles, disables access, and resets p
   await page
     .getByRole("combobox", { name: "Role", exact: true })
     .selectOption("CATALOG_MANAGER");
-  await page.getByLabel("Temporary password").fill("temporary-staff-password");
+  await page.getByLabel("Temporary password").fill("TemporaryStaff1!");
   await page.getByRole("button", { name: "Create staff account" }).click();
   await expect(page.getByRole("status")).toContainText("Staff account created");
   await expect(page.getByText("Asha Manager")).toBeVisible();
@@ -1746,7 +2331,7 @@ test("owner creates staff accounts, assigns roles, disables access, and resets p
   await staffRow.getByRole("button", { name: "Reset password" }).click();
   await page
     .getByLabel("New password for Asha Manager")
-    .fill("replacement-staff-password");
+    .fill("ReplacementStaff1!");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Password reset");
   expect(createdPayload).toMatchObject({
@@ -1757,7 +2342,7 @@ test("owner creates staff accounts, assigns roles, disables access, and resets p
   });
   expect(roleUpdate).toEqual({ role: "SALES_MANAGER" });
   expect(disabledUpdate).toEqual({ isActive: false });
-  expect(resetPayload).toEqual({ password: "replacement-staff-password" });
+  expect(resetPayload).toEqual({ password: "ReplacementStaff1!" });
 });
 
 test("marketplace renders on a mobile viewport without horizontal overflow", async ({
@@ -1792,7 +2377,9 @@ test("marketplace progressively loads a large catalogue and exposes its end", as
     specs: {},
     variants: [],
   }));
-  await page.route("**/api/products", (route) => route.fulfill({ json: products }));
+  await page.route("**/api/products", (route) =>
+    route.fulfill({ json: products }),
+  );
   await page.goto("/marketplace");
 
   const cards = page.locator(".catalog-product-card");
@@ -1814,7 +2401,10 @@ test("marketplace keeps floating actions clear of product controls", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/marketplace");
   await expect(page.locator(".floating-action-dock")).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Material List" })).toBeVisible();
+  await page.getByRole("button", { name: "Toggle navigation menu" }).click();
+  await expect(
+    page.getByRole("link", { name: "View Material List (0)" }),
+  ).toBeVisible();
 });
 
 test("marketplace displays published API product prices and offer labels", async ({
@@ -2008,11 +2598,15 @@ test("catalogue autocomplete and submitted search both match product specs and v
   ).toBeVisible();
 
   await search.fill("Black");
-  await expect(page.locator(".product-suggestion-item")).toContainText("Out of stock");
+  await expect(page.locator(".product-suggestion-item")).toContainText(
+    "Out of stock",
+  );
   await search.press("Enter");
   await expect(page).toHaveURL(/marketplace\?q=Black/);
   await expect(page.locator(".stock-status-tag")).toContainText("Out of stock");
-  await page.getByRole("link", { name: "Exterior Weather Coat", exact: true }).click();
+  await page
+    .getByRole("link", { name: "Exterior Weather Coat", exact: true })
+    .click();
   await expect(page.locator(".selected-size-badge")).toContainText("Black");
 
   await page.goto("/marketplace");
@@ -2022,7 +2616,7 @@ test("catalogue autocomplete and submitted search both match product specs and v
   );
 });
 
-test("partner brand search keeps all seventeen brands discoverable and lets customers browse related catalogue items", async ({
+test("partner brand search uses the client-configured directory and browses related catalogue items", async ({
   page,
 }) => {
   const catalogue = [
@@ -2062,8 +2656,16 @@ test("partner brand search keeps all seventeen brands discoverable and lets cust
   await page.route("**/api/products", (route) =>
     route.fulfill({ json: catalogue }),
   );
+  await page.route("**/api/products/partner-brands", (route) =>
+    route.fulfill({
+      json: [
+        { id: "ultratech", name: "UltraTech Cement", category: "Cement", tagline: "", isActive: true, sortOrder: 0 },
+        { id: "ambuja", name: "Ambuja Cement", category: "Cement", tagline: "", isActive: true, sortOrder: 1 },
+      ],
+    }),
+  );
   await page.goto("/marketplace");
-  await expect(page.locator(".brand-partner-card")).toHaveCount(17);
+  await expect(page.locator(".brand-partner-card")).toHaveCount(2);
   const search = page.getByLabel("Search materials catalogue");
   await search.fill("UltraTech Cement");
   await expect(page.locator(".product-suggestion-item")).toContainText(
@@ -2082,7 +2684,9 @@ test("partner brand search keeps all seventeen brands discoverable and lets cust
   await page
     .getByRole("link", { name: "UltraTech PPC Cement", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/product\/ultratech-ppc\?q=UltraTech%20Cement$/);
+  await expect(page).toHaveURL(
+    /\/product\/ultratech-ppc\?q=UltraTech%20Cement$/,
+  );
   await expect(
     page.getByRole("heading", { name: "Similar cement & aggregates products" }),
   ).toBeVisible();
@@ -2184,71 +2788,156 @@ test("different pipe sizes remain separate after refresh and in request preview"
   expect(message).toContain("10");
 });
 
-test("material list keeps selected product variants, units, prices and minimum quantities aligned", async ({ page }) => {
+test("material list keeps selected product variants, units, prices and minimum quantities aligned", async ({
+  page,
+}) => {
   await page.goto("/");
   await page.evaluate(() => localStorage.removeItem("material-square-bom"));
-  await page.route("**/api/products", (route) => route.fulfill({ json: [{
-    id: "asian-paints-damp-proof",
-    code: "AP-DP-01",
-    name: "Asian Paints SmartCare Damp Proof",
-    brand: "Asian Paints",
-    category: "paints",
-    categoryLabel: "Paints & Waterproofing",
-    unit: "can",
-    packaging: "Waterproofing coating",
-    features: [],
-    applications: [],
-    specs: {},
-    inStock: false,
-    availabilityStatus: "OUT_OF_STOCK",
-    variants: [
-      { id: "damp-white-1l", label: "1 L", attributes: { "Pack size": "1 L", Colour: "White" }, unit: "can", price: 500, inStock: true, availabilityStatus: "IN_STOCK", minOrderQuantity: 2, sortOrder: 0 },
-      { id: "damp-black-4l", label: "4 L", attributes: { "Pack size": "4 L", Colour: "Black" }, unit: "can", price: 1800, inStock: true, availabilityStatus: "IN_STOCK", minOrderQuantity: 1, sortOrder: 1 },
-    ],
-  }] }));
+  await page.route("**/api/products", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: "asian-paints-damp-proof",
+          code: "AP-DP-01",
+          name: "Asian Paints SmartCare Damp Proof",
+          brand: "Asian Paints",
+          category: "paints",
+          categoryLabel: "Paints & Waterproofing",
+          unit: "can",
+          packaging: "Waterproofing coating",
+          features: [],
+          applications: [],
+          specs: {},
+          inStock: false,
+          availabilityStatus: "OUT_OF_STOCK",
+          variants: [
+            {
+              id: "damp-white-1l",
+              label: "1 L",
+              attributes: { "Pack size": "1 L", Colour: "White" },
+              unit: "can",
+              price: 500,
+              inStock: true,
+              availabilityStatus: "IN_STOCK",
+              minOrderQuantity: 2,
+              sortOrder: 0,
+            },
+            {
+              id: "damp-black-4l",
+              label: "4 L",
+              attributes: { "Pack size": "4 L", Colour: "Black" },
+              unit: "can",
+              price: 1800,
+              inStock: true,
+              availabilityStatus: "IN_STOCK",
+              minOrderQuantity: 1,
+              sortOrder: 1,
+            },
+          ],
+        },
+      ],
+    }),
+  );
   await page.goto("/marketplace");
-  const card = page.locator(".catalog-product-card").filter({ hasText: "Asian Paints SmartCare Damp Proof" });
+  const card = page
+    .locator(".catalog-product-card")
+    .filter({ hasText: "Asian Paints SmartCare Damp Proof" });
   await card.getByRole("button", { name: "Choose options" }).click();
   await expect(page).toHaveURL(/\/product\/asian-paints-damp-proof/);
   await expect(page.getByLabel("Quantity (can)")).toHaveValue("2");
   await page.getByRole("button", { name: /Add to Material List/ }).click();
-  await page.locator(".product-option-group").filter({ hasText: "Colour" }).getByRole("button", { name: "Black" }).click();
+  await page
+    .locator(".product-option-group")
+    .filter({ hasText: "Colour" })
+    .getByRole("button", { name: "Black" })
+    .click();
   await expect(page.locator(".selected-size-badge")).toContainText("Black");
   await page.getByLabel("Quantity (can)").fill("1");
   await page.getByRole("button", { name: /Add to Material List/ }).click();
   await page.getByRole("link", { name: /Review list/ }).click();
   await expect(page.locator(".material-editor")).toHaveCount(2);
-  await expect(page.getByLabel("Product option for Asian Paints SmartCare Damp Proof").first()).toHaveValue("damp-white-1l");
-  await expect(page.getByLabel("Product option for Asian Paints SmartCare Damp Proof").nth(1)).toHaveValue("damp-black-4l");
-  await expect(page.getByLabel("Unit for Asian Paints SmartCare Damp Proof").first()).toBeDisabled();
-  await expect(page.getByLabel("Selected product option").first()).toHaveAttribute("readonly", "");
-  await expect(page.locator(".material-editor").first()).toContainText("₹500 / can");
-  await expect(page.locator(".material-editor").nth(1)).toContainText("₹1,800 / can");
-  await expect(page.locator(".material-editor").first()).toContainText("Minimum order for this option: 2 can");
-  await expect(page.getByLabel("Quantity for Asian Paints SmartCare Damp Proof").first()).toHaveAttribute("min", "2");
+  await expect(
+    page
+      .getByLabel("Product option for Asian Paints SmartCare Damp Proof")
+      .first(),
+  ).toHaveValue("damp-white-1l");
+  await expect(
+    page
+      .getByLabel("Product option for Asian Paints SmartCare Damp Proof")
+      .nth(1),
+  ).toHaveValue("damp-black-4l");
+  await expect(
+    page.getByLabel("Unit for Asian Paints SmartCare Damp Proof").first(),
+  ).toBeDisabled();
+  await expect(
+    page.getByLabel("Selected product option").first(),
+  ).toHaveAttribute("readonly", "");
+  await expect(page.locator(".material-editor").first()).toContainText(
+    "₹500 / can",
+  );
+  await expect(page.locator(".material-editor").nth(1)).toContainText(
+    "₹1,800 / can",
+  );
+  await expect(page.locator(".material-editor").first()).toContainText(
+    "Minimum order for this option: 2 can",
+  );
+  await expect(
+    page.getByLabel("Quantity for Asian Paints SmartCare Damp Proof").first(),
+  ).toHaveAttribute("min", "2");
   let submittedRfq: Record<string, any> | undefined;
   await page.route("**/api/customer/rfqs", async (route) => {
     submittedRfq = route.request().postDataJSON();
-    await route.fulfill({ status: 401, json: { message: "Sign in to continue." } });
+    await route.fulfill({
+      status: 401,
+      json: { message: "Sign in to continue." },
+    });
   });
   await page.goto("/get-quote");
-  await page.getByLabel("Quantity for Asian Paints SmartCare Damp Proof").first().fill("1");
+  await page
+    .getByLabel("Quantity for Asian Paints SmartCare Damp Proof")
+    .first()
+    .fill("1");
   await page.getByLabel("Full name").fill("Test Customer");
-  await page.getByLabel("Site / delivery address — building, street and locality").fill("Plot 42, Sector 10");
+  await page
+    .getByLabel("Site / delivery address — building, street and locality")
+    .fill("Plot 42, Sector 10");
   await page.getByLabel("City").fill("Noida");
   await page.getByLabel("PIN code").fill("201301");
   await page.getByRole("button", { name: "Preview request" }).click();
-  await page.getByRole("button", { name: "Verify phone & request quotation" }).click();
-  await expect(page.getByRole("alert")).toContainText("requires a minimum of 2 can");
+  await page
+    .getByRole("button", { name: "Verify phone & request quotation" })
+    .click();
+  await expect(page.getByRole("alert")).toContainText(
+    "requires a minimum of 2 can",
+  );
   expect(submittedRfq).toBeUndefined();
-  await page.getByLabel("Quantity for Asian Paints SmartCare Damp Proof").first().fill("2");
+  await page
+    .getByLabel("Quantity for Asian Paints SmartCare Damp Proof")
+    .first()
+    .fill("2");
   await page.getByRole("button", { name: "Preview request" }).click();
-  await page.getByRole("button", { name: "Verify phone & request quotation" }).click();
+  await page
+    .getByRole("button", { name: "Verify phone & request quotation" })
+    .click();
   await expect(page).toHaveURL(/\/account$/);
-  expect(submittedRfq?.items).toEqual(expect.arrayContaining([
-    expect.objectContaining({ catalogueId: "asian-paints-damp-proof", variantId: "damp-white-1l", quantity: 2, unit: "can", specification: expect.stringContaining("1 L") }),
-    expect.objectContaining({ catalogueId: "asian-paints-damp-proof", variantId: "damp-black-4l", quantity: 1, unit: "can", specification: expect.stringContaining("Black") }),
-  ]));
+  expect(submittedRfq?.items).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        catalogueId: "asian-paints-damp-proof",
+        variantId: "damp-white-1l",
+        quantity: 2,
+        unit: "can",
+        specification: expect.stringContaining("1 L"),
+      }),
+      expect.objectContaining({
+        catalogueId: "asian-paints-damp-proof",
+        variantId: "damp-black-4l",
+        quantity: 1,
+        unit: "can",
+        specification: expect.stringContaining("Black"),
+      }),
+    ]),
+  );
 });
 
 test("catalogue API outage leaves the guest request form usable", async ({
@@ -2269,14 +2958,30 @@ test("catalogue API outage leaves the guest request form usable", async ({
     page.getByRole("heading", { name: "Sign in with your mobile" }),
   ).not.toBeVisible();
   await page.goto("/marketplace");
-  await expect(page.getByRole("heading", { name: "Published inventory is temporarily unavailable" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "No products match your search" })).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", {
+      name: "Published inventory is temporarily unavailable",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "No products match your search" }),
+  ).toHaveCount(0);
   const requestsBeforeRetry = catalogueRequests;
   await page.getByRole("button", { name: "Retry inventory" }).click();
-  await expect.poll(() => catalogueRequests).toBeGreaterThan(requestsBeforeRetry);
-  await expect(page.getByRole("heading", { name: "Published inventory is temporarily unavailable" })).toBeVisible();
+  await expect
+    .poll(() => catalogueRequests)
+    .toBeGreaterThan(requestsBeforeRetry);
+  await expect(
+    page.getByRole("heading", {
+      name: "Published inventory is temporarily unavailable",
+    }),
+  ).toBeVisible();
   await page.goto("/product/not-currently-loaded");
-  await expect(page.getByRole("heading", { name: "We couldn’t load the published inventory." })).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "We couldn’t load the published inventory.",
+    }),
+  ).toBeVisible();
 });
 test("unpublished privacy and terms drafts stay hidden from visitors", async ({
   page,
@@ -2286,15 +2991,25 @@ test("unpublished privacy and terms drafts stay hidden from visitors", async ({
     page.getByRole("heading", { name: "Privacy information" }),
   ).toBeVisible();
   await expect(
-    page.getByText("This information is being reviewed and is not published yet."),
+    page.getByText(
+      "This information is being reviewed and is not published yet.",
+    ),
   ).toBeVisible();
-  await expect(page.locator("footer").getByRole("link", { name: "Privacy" })).toHaveCount(0);
+  await expect(
+    page.locator("footer").getByRole("link", { name: "Privacy" }),
+  ).toHaveCount(0);
   await page.goto("/terms");
   await expect(
     page.getByRole("heading", { name: "Website terms" }),
   ).toBeVisible();
-  await expect(page.getByText("This information is being reviewed and is not published yet.")).toBeVisible();
-  await expect(page.locator("footer").getByRole("link", { name: "Website terms" })).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "This information is being reviewed and is not published yet.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.locator("footer").getByRole("link", { name: "Website terms" }),
+  ).toHaveCount(0);
 });
 
 test("technical guides disclose review limits and contact page avoids unsupported delivery claims", async ({
@@ -2328,6 +3043,7 @@ test("sales staff can update a website request status in the RFQ inbox", async (
   page,
 }) => {
   let status = "NEW";
+  let attachmentAuthorization = "";
   await page.route("**/api/auth/mode", (route) =>
     route.fulfill({ json: { demo: true } }),
   );
@@ -2394,9 +3110,32 @@ test("sales staff can update a website request status in the RFQ inbox", async (
               specification: "3/4 inch",
             },
           ],
+          attachments: [
+            {
+              id: "attachment-test",
+              fileName: "plan.pdf",
+              mimeType: "application/pdf",
+              byteSize: 128,
+              createdAt: "2026-10-08T00:00:00.000Z",
+            },
+          ],
         },
       ],
     }),
+  );
+  await page.route("**/api/rfqs/assignees", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.route(
+    "**/api/rfqs/rfq-test/attachments/attachment-test",
+    (route) => {
+      attachmentAuthorization = route.request().headers().authorization || "";
+      return route.fulfill({
+        status: 200,
+        contentType: "application/pdf",
+        body: Buffer.from("%PDF-1.4\nLocal RFQ attachment test\n"),
+      });
+    },
   );
   await page.route("**/api/rfqs/rfq-test/status", (route) => {
     status = route.request().postDataJSON().status;
@@ -2413,6 +3152,11 @@ test("sales staff can update a website request status in the RFQ inbox", async (
   await expect(
     page.getByText("Pipe · Astral — 20 Pieces · 3/4 inch"),
   ).toBeVisible();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download plan.pdf" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("plan.pdf");
+  expect(attachmentAuthorization).toBe("Bearer sales-token");
   await page.getByLabel("Request status").selectOption("CONTACTED");
   await expect(page.getByLabel("Request status")).toHaveValue("CONTACTED");
   expect(status).toBe("CONTACTED");
@@ -2704,12 +3448,16 @@ test("procurement staff create an internal purchase request", async ({
   await page.getByLabel("Product", { exact: true }).fill("CPVC pipe");
   await page.getByLabel("Brand (optional)").fill("Astral");
   await page.getByLabel("Category", { exact: true }).fill("Pipes");
-  await page.getByLabel("Quantity", { exact: true }).fill("20");
+  await page.getByLabel("Customer/order requirement").fill("20");
+  await page.getByLabel("Available in client inventory").fill("7");
+  await expect(
+    page.getByText("Quantity to source from suppliers: 13", { exact: true }),
+  ).toBeVisible();
   await page.getByLabel("Unit", { exact: true }).fill("lengths");
   await page
     .getByRole("button", { name: "Create purchase request", exact: true })
     .click();
-  await expect(page.getByRole("status")).toContainText("Saved.");
+  await expect(page.getByText("Saved.", { exact: true })).toBeVisible();
   expect(created).toMatchObject({
     deliveryAddress: "Plot 14, Sector 10",
     deliveryCity: "Noida",
@@ -2719,10 +3467,114 @@ test("procurement staff create an internal purchase request", async ({
         productName: "CPVC pipe",
         brand: "Astral",
         category: "Pipes",
-        quantity: 20,
+        quantity: 13,
+        requiredQuantity: 20,
+        clientStockQuantity: 7,
         unit: "lengths",
       },
     ],
+  });
+});
+
+test("procurement staff search linked supplier inventory and calculate only the shortage", async ({
+  page,
+}) => {
+  const variantId = "6c6a3d40-cfb1-42d1-a460-79493a8b904c";
+  let created: any;
+  const supplier = {
+    id: "supplier-1",
+    name: "QA LOCAL ONLY UltraTech Supplier",
+    phone: "9990000101",
+    city: "Noida",
+    pincode: "201301",
+    servicePincodes: ["201301"],
+    status: "ACTIVE",
+    _count: { products: 1 },
+    products: [
+      {
+        id: "supplier-product-1",
+        productName: "UltraTech Cement 50 kg bag",
+        brand: "UltraTech Cement",
+        category: "Cement & Aggregates",
+        unit: "bag",
+        availableQuantity: "300",
+        availabilityCheckedAt: "2026-10-07T10:00:00.000Z",
+        isActive: true,
+        catalogVariant: {
+          id: variantId,
+          label: "50 kg bag",
+          listing: { name: "UltraTech Cement 50 kg bag" },
+        },
+      },
+    ],
+  };
+  await page.route("**/api/suppliers**", (route) =>
+    route.fulfill({ json: [supplier] }),
+  );
+  await page.route("**/api/products/catalogue", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: "catalog-1",
+          name: "UltraTech Cement 50 kg bag",
+          brand: "UltraTech Cement",
+          category: "cement",
+          categoryLabel: "Cement & Aggregates",
+          variants: [
+            {
+              id: variantId,
+              label: "50 kg bag",
+              unit: "bag",
+              stockQuantity: "300",
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  await page.route("**/api/procurement", (route) => {
+    if (route.request().method() === "POST") {
+      created = route.request().postDataJSON();
+      return route.fulfill({ json: { id: "request-new" } });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await signIntoBusiness(page, "PROCUREMENT_HEAD");
+  await page
+    .getByLabel("Search suppliers and products")
+    .fill("UltraTech Cement");
+  await page
+    .getByRole("button", { name: "Search suppliers", exact: true })
+    .click();
+  await expect(
+    page.getByText("Noida · 201301 · 1 listed products"),
+  ).toBeVisible();
+  await expect(page.getByText(/Available: 300.*checked/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Procurement", exact: true }).click();
+  await page.getByLabel("Delivery address").fill("QA site, Sector 10");
+  await page.getByLabel("City", { exact: true }).fill("Noida");
+  await page.getByLabel("PIN code").fill("201301");
+  await expect(
+    page.locator(
+      `select[name="catalogVariantId"] option[value="${variantId}"]`,
+    ),
+  ).toBeAttached();
+  await page.locator('select[name="catalogVariantId"]').selectOption(variantId);
+  await page.getByLabel("Customer/order requirement").fill("600");
+  await expect(
+    page.getByText("Quantity to source from suppliers: 300", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Create purchase request", exact: true })
+    .click();
+  await expect(page.getByText("Saved.", { exact: true })).toBeVisible();
+  expect(created.items[0]).toMatchObject({
+    catalogVariantId: variantId,
+    quantity: 300,
+    requiredQuantity: 600,
+    clientStockQuantity: 300,
+    unit: "bag",
   });
 });
 
@@ -2838,7 +3690,10 @@ test("operational sales report filters by date and exports sanitized CSV", async
   const filteredReportRequest = page.waitForRequest((request) => {
     if (!request.url().includes("/api/reports/sales?")) return false;
     const url = new URL(request.url());
-    return url.searchParams.get("from") === "2026-10-01" && url.searchParams.get("to") === "2026-10-03";
+    return (
+      url.searchParams.get("from") === "2026-10-01" &&
+      url.searchParams.get("to") === "2026-10-03"
+    );
   });
   await page.getByRole("button", { name: "Apply dates" }).click();
   await filteredReportRequest;
@@ -2945,6 +3800,7 @@ test("sales staff record external quotation acceptance and comparison choice", a
   await page
     .getByRole("button", { name: "Record customer acceptance", exact: true })
     .click();
+  await expect(page.locator("dialog.admin-confirm-dialog")).toHaveCount(0);
 
   await expect
     .poll(() => recorded)
@@ -2990,6 +3846,7 @@ test("sales staff can update centralized quotation validity and notification rul
     .getByLabel("Queue a customer notification when a quotation is published")
     .uncheck();
   await page.getByRole("button", { name: "Save quotation rules" }).click();
+  await expect(page.locator("dialog.admin-confirm-dialog")).toHaveCount(0);
   await expect.poll(() => saved?.quotationValidityHours).toBe(72);
   expect(saved).toEqual({
     quotationValidityHours: 72,
@@ -3218,13 +4075,13 @@ test("content staff upload and preview a blog image before saving a draft", asyn
     .filter({ hasText: "Featured image" })
     .locator('input[type="file"]')
     .setInputFiles({
-    name: "approved.png",
-    mimeType: "image/png",
-    buffer: Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jf1sAAAAASUVORK5CYII=",
-      "base64",
-    ),
-  });
+      name: "approved.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jf1sAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    });
   await expect(
     page
       .locator(".content-image-field")
@@ -3248,6 +4105,52 @@ test("content staff upload and preview a blog image before saving a draft", asyn
       .filter({ hasText: "Featured image" })
       .locator('input[type="url"]'),
   ).toHaveValue("");
+});
+
+test("content staff preview relative blog images from the customer site", async ({
+  page,
+}) => {
+  await page.route("**/api/admin/blogs", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: "blog-relative-image",
+          title: "Construction material guide",
+          slug: "construction-material-guide",
+          authorName: "Editorial Desk",
+          featuredImageUrl: "/images/materials-editorial.png",
+          status: "PUBLISHED",
+          summary: "A guide to planning construction materials.",
+          body: "Review project requirements and material specifications.",
+        },
+      ],
+    }),
+  );
+  await page.route("**/images/materials-editorial.png", (route) =>
+    route.fulfill({
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jf1sAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    }),
+  );
+
+  await signIntoBusiness(page, "CONTENT_MANAGER");
+  await page.getByRole("button", { name: "Blogs", exact: true }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+
+  const preview = page.locator(".content-image-preview");
+  await expect(preview).toHaveAttribute(
+    "src",
+    "http://127.0.0.1:4173/images/materials-editorial.png",
+  );
+  await expect
+    .poll(() =>
+      preview.evaluate((image: HTMLImageElement) => image.naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  await page.getByRole("button", { name: "Cancel edit" }).click();
 });
 
 test("content staff can see where a media-library image is used", async ({
@@ -3433,6 +4336,10 @@ test("procurement staff save item-level supplier price and availability", async 
             id: "supplier-1",
             name: "Supplier One",
             phone: "9876543210",
+            city: "Noida",
+            state: "Uttar Pradesh",
+            pincode: "201310",
+            servicePincodes: ["201301", "201302"],
             matchedItems: ["Cement"],
             serviceAreaMatch: false,
             cityMatch: true,
@@ -3451,10 +4358,16 @@ test("procurement staff save item-level supplier price and availability", async 
   await page.getByRole("button", { name: "Match suppliers" }).click();
   await expect(page.getByText("Same city · Noida")).toBeVisible();
   await page.getByText("Supplier One").click();
+  await expect(
+    page.getByText(
+      "Supplier location: Noida, Uttar Pradesh · PIN 201310 · Serves PINs 201301, 201302",
+    ),
+  ).toBeVisible();
   await page.getByLabel("Quantity offered (bag)").fill("12");
   await page.getByLabel("Unit price (₹/bag)").fill("100");
   await page.getByLabel("Lead time (days)").fill("3");
   await page.getByRole("button", { name: "Save supplier quote" }).click();
+  await expect(page.locator("dialog.admin-confirm-dialog")).toHaveCount(0);
   await expect
     .poll(() => saved)
     .toMatchObject({
@@ -3812,7 +4725,9 @@ test("owner reviews audit records and applies entity filters", async ({
     page.getByRole("cell", { name: "QUOTATION_PUBLISHED", exact: true }),
   ).toBeVisible();
   const rootRequestsAfterAuditOpened = { staffIdentityCalls, overviewCalls };
-  await page.getByRole("button", { name: "Notifications", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Notifications", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Notification status", exact: true }),
   ).toBeVisible();
@@ -3820,7 +4735,9 @@ test("owner reviews audit records and applies entity filters", async ({
   await expect(
     page.getByRole("cell", { name: "QUOTATION_PUBLISHED", exact: true }),
   ).toBeVisible();
-  expect(staffIdentityCalls).toBe(rootRequestsAfterAuditOpened.staffIdentityCalls);
+  expect(staffIdentityCalls).toBe(
+    rootRequestsAfterAuditOpened.staffIdentityCalls,
+  );
   expect(overviewCalls).toBe(rootRequestsAfterAuditOpened.overviewCalls);
   await page.getByLabel("Entity reference").fill("q1");
   await page.getByLabel("From date (IST)").fill("2026-10-04");
@@ -3835,25 +4752,93 @@ test("owner reviews audit records and applies entity filters", async ({
   ).toBeDisabled();
 });
 
-test("staff can search seven-day activity and return to its related workspace", async ({ page }) => {
-  await page.addInitScript(() => sessionStorage.setItem("ms-staff-token", "feature-load-test"));
-  await page.route("**/api/auth/mode", (route) => route.fulfill({ json: { demo: true } }));
-  await page.route("**/api/auth/staff/me", (route) => route.fulfill({ json: { name: "Owner", role: "SUPER_ADMIN", isDemo: true } }));
-  await page.route("**/api/workspace/overview", (route) => route.fulfill({ json: { customers: 0, newCustomers30Days: 0, openFollowups: 0, closedFollowups: 0, demo: true } }));
-  await page.route("**/api/analytics/overview**", (route) => route.fulfill({ json: { days: 30, totals: { pageViews: 0, productViews: 0, addToList: 0, requestHandoffs: 0 }, daily: [], topPages: [], topProducts: [], privacy: "Aggregate counts only." } }));
-  await page.route("**/api/admin/audit/recent", (route) => route.fulfill({ json: {
-    since: "2026-09-29T00:00:00.000Z",
-    categories: ["Storefront", "Sales", "Procurement", "Settings & team"],
-    total: 2,
-    limit: 50,
-    items: [
-      { id: "recent-upload", action: "MEDIA_ASSET_UPLOADED", entityType: "MEDIA_ASSET", entityId: "media-one", createdAt: "2026-10-06T08:30:00.000Z", title: "site-banner.webp", category: "Storefront", entityLabel: "Storefront image", actionLabel: "Uploaded", changedFields: ["mimeType", "byteSize"], staff: { name: "Owner", role: "SUPER_ADMIN" } },
-      { id: "recent-product", action: "CATALOG_PRODUCT_UPDATED", entityType: "CATALOG_PRODUCT", entityId: "product-one", createdAt: "2026-10-05T08:30:00.000Z", title: "QA test product", category: "Storefront", entityLabel: "Catalogue product", actionLabel: "Edited", changedFields: ["price", "availability"], staff: { name: "Catalogue Staff", role: "CATALOG_MANAGER" } },
-    ],
-  } }));
+test("staff can search seven-day activity and return to its related workspace", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    sessionStorage.setItem("ms-staff-token", "feature-load-test"),
+  );
+  await page.route("**/api/auth/mode", (route) =>
+    route.fulfill({ json: { demo: true } }),
+  );
+  await page.route("**/api/auth/staff/me", (route) =>
+    route.fulfill({
+      json: { name: "Owner", role: "SUPER_ADMIN", isDemo: true },
+    }),
+  );
+  await page.route("**/api/workspace/overview", (route) =>
+    route.fulfill({
+      json: {
+        customers: 0,
+        newCustomers30Days: 0,
+        openFollowups: 0,
+        closedFollowups: 0,
+        demo: true,
+      },
+    }),
+  );
+  await page.route("**/api/analytics/overview**", (route) =>
+    route.fulfill({
+      json: {
+        days: 30,
+        totals: {
+          pageViews: 0,
+          productViews: 0,
+          addToList: 0,
+          requestHandoffs: 0,
+        },
+        daily: [],
+        topPages: [],
+        topProducts: [],
+        privacy: "Aggregate counts only.",
+      },
+    }),
+  );
+  await page.route("**/api/admin/audit/recent", (route) =>
+    route.fulfill({
+      json: {
+        since: "2026-09-29T00:00:00.000Z",
+        categories: ["Storefront", "Sales", "Procurement", "Settings & team"],
+        total: 2,
+        limit: 50,
+        items: [
+          {
+            id: "recent-upload",
+            action: "MEDIA_ASSET_UPLOADED",
+            entityType: "MEDIA_ASSET",
+            entityId: "media-one",
+            createdAt: "2026-10-06T08:30:00.000Z",
+            title: "site-banner.webp",
+            category: "Storefront",
+            entityLabel: "Storefront image",
+            actionLabel: "Uploaded",
+            changedFields: ["mimeType", "byteSize"],
+            staff: { name: "Owner", role: "SUPER_ADMIN" },
+          },
+          {
+            id: "recent-product",
+            action: "CATALOG_PRODUCT_UPDATED",
+            entityType: "CATALOG_PRODUCT",
+            entityId: "product-one",
+            createdAt: "2026-10-05T08:30:00.000Z",
+            title: "QA test product",
+            category: "Storefront",
+            entityLabel: "Catalogue product",
+            actionLabel: "Edited",
+            changedFields: ["price", "availability"],
+            staff: { name: "Catalogue Staff", role: "CATALOG_MANAGER" },
+          },
+        ],
+      },
+    }),
+  );
   await page.goto("http://127.0.0.1:4174");
-  await page.getByRole("button", { name: "Recent changes", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Recent changes" })).toBeVisible();
+  await page
+    .getByRole("button", { name: "Recent changes", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Recent changes" }),
+  ).toBeVisible();
   await expect(page.getByText("site-banner.webp")).toBeVisible();
   await expect(page.getByText("Changed: mimeType, byteSize")).toBeVisible();
   await expect(page.getByText("Kept here for 7 days")).toBeVisible();
@@ -3861,7 +4846,9 @@ test("staff can search seven-day activity and return to its related workspace", 
   await expect(page.getByText("QA test product")).toBeVisible();
   await expect(page.getByText("site-banner.webp")).toHaveCount(0);
   await page.getByRole("button", { name: "Open catalogue" }).click();
-  await expect(page.getByRole("heading", { name: "Products, pricing & offers" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Products, pricing & offers" }),
+  ).toBeVisible();
 });
 
 test("sales staff schedule and cancel a quotation reminder", async ({
@@ -4043,6 +5030,7 @@ test("catalogue staff activate and deactivate discount rules", async ({
   await page
     .getByRole("button", { name: "Save discount rule", exact: true })
     .click();
+  await expect(page.locator("dialog.admin-confirm-dialog")).toHaveCount(0);
   await expect.poll(() => created?.maximumQuantity).toBe(20);
   expect(created?.minimumQuantity).toBe(10);
   expect(
@@ -4070,6 +5058,7 @@ test("catalogue staff activate and deactivate discount rules", async ({
   await page
     .getByRole("button", { name: "Save discount rule", exact: true })
     .click();
+  await expect(page.locator("dialog.admin-confirm-dialog")).toHaveCount(0);
   await expect.poll(() => edited?.category).toBe(null);
   expect(edited?.minimumQuantity).toBe(null);
   expect(edited?.startsAt).toBe(null);
@@ -4180,9 +5169,13 @@ test("notification setup explains an outdated API and can be retried", async ({
   });
 
   await signIntoBusiness(page, "SUPER_ADMIN");
-  await page.getByRole("button", { name: "Notifications", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Notifications", exact: true })
+    .click();
   await expect(
-    page.getByText(/API does not recognize the notification setup check \(404\)/),
+    page.getByText(
+      /API does not recognize the notification setup check \(404\)/,
+    ),
   ).toBeVisible();
   const checksBeforeRetry = readinessChecks;
   readinessAvailable = true;
@@ -4190,7 +5183,9 @@ test("notification setup explains an outdated API and can be retried", async ({
   await expect(
     page.getByText("Notification delivery is not configured."),
   ).toBeVisible();
-  await expect(page.getByText(/REDIS_URL, NOTIFICATION_WEBHOOK_URL/)).toBeVisible();
+  await expect(
+    page.getByText(/REDIS_URL, NOTIFICATION_WEBHOOK_URL/),
+  ).toBeVisible();
   expect(readinessChecks).toBeGreaterThan(checksBeforeRetry);
 });
 
@@ -4425,6 +5420,75 @@ test("procurement staff inspect order materials without dispatch actions", async
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Advance dispatch", exact: true }),
+  ).toHaveCount(0);
+});
+
+test("accounts staff record an offline order payment without a website checkout", async ({
+  page,
+}) => {
+  let order: Record<string, any> = {
+    id: "qa-order",
+    orderNumber: "MS-ORD-QA-ONLY",
+    customerName: "QA Only Customer",
+    status: "IN_TRANSIT",
+    deliverySite: "QA-only site, no delivery",
+    pincode: "201301",
+    grandTotal: "6400.00",
+    manualPaymentStatus: "UNPAID",
+    dispatch: null,
+    items: [],
+  };
+  let recorded: Record<string, unknown> | undefined;
+  await page.route("**/api/orders", (route) =>
+    route.fulfill({ json: [order] }),
+  );
+  await page.route("**/api/orders/qa-order/manual-payment", (route) => {
+    recorded = route.request().postDataJSON();
+    order = {
+      ...order,
+      manualPaymentStatus: "PAID",
+      manualPaymentMethod: recorded.method,
+      manualPaymentReference: recorded.reference,
+      manualPaymentRecordedAt: "2026-10-08T00:00:00.000Z",
+      manualPaymentRecordedBy: { name: "Business Staff" },
+    };
+    return route.fulfill({ json: order });
+  });
+  await signIntoBusiness(page, "ACCOUNTS_MANAGER");
+  await page
+    .getByRole("button", { name: "Quotations & orders", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Orders & dispatch", exact: true })
+    .click();
+  await page.getByText("Record offline payment", { exact: true }).click();
+  await expect(
+    page.getByText(/does not collect or verify funds/),
+  ).toBeVisible();
+  await page.getByLabel("Payment received by").selectOption("UPI");
+  await page.getByLabel("Reference (optional)").fill("QA-UPI-ONLY");
+  await page.removeLocatorHandler(page.locator("dialog.admin-confirm-dialog"));
+  await page
+    .getByRole("button", { name: "Mark full order total paid" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Record this offline payment?" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/No payment is collected or verified here/),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Mark order paid" }).click();
+  await expect
+    .poll(() => recorded)
+    .toEqual({
+      method: "UPI",
+      reference: "QA-UPI-ONLY",
+    });
+  await expect(page.getByText(/Payment: PAID · UPI/)).toBeVisible();
+  await expect(page.getByText(/by Business Staff/)).toBeVisible();
+  await expect(page.getByText(/reference QA-UPI-ONLY/)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Mark full order total paid" }),
   ).toHaveCount(0);
 });
 

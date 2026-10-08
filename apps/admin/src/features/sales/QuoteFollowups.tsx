@@ -1,10 +1,11 @@
-import type { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 
 type Followup = {
   id: string;
   channel: "WHATSAPP" | "EMAIL" | "INTERNAL";
   scheduledAt: string;
   status: "SCHEDULED" | "SENT" | "CANCELLED" | "FAILED";
+  notes?: string | null;
 };
 
 export type FollowupQuotation = {
@@ -95,31 +96,119 @@ export default function QuoteFollowups({
               Schedule follow-up
             </button>
           </form>
-          {quote.followups?.map((f) => (
-            <div className="business-candidate" key={f.id}>
-              <span>
-                {f.channel} · {new Date(f.scheduledAt).toLocaleString("en-IN")}{" "}
-                · {f.status}
-              </span>
-              {f.status === "SCHEDULED" && (
-                <button
-                  className="bc-button"
-                  disabled={busy}
-                  onClick={() =>
-                    void mutate(
-                      `/quotes/${quote.id}/followups/${f.id}`,
-                      "PATCH",
-                      { status: "CANCELLED" },
-                    )
-                  }
-                >
-                  Cancel
-                </button>
-              )}
-            </div>
+          {quote.followups?.map((followup) => (
+            <FollowupRow
+              key={followup.id}
+              quoteId={quote.id}
+              followup={followup}
+              busy={busy}
+              mutate={mutate}
+            />
           ))}
         </article>
       ))}
     </>
+  );
+}
+
+function FollowupRow({
+  quoteId,
+  followup,
+  busy,
+  mutate,
+}: {
+  quoteId: string;
+  followup: Followup;
+  busy: boolean;
+  mutate: Props["mutate"];
+}) {
+  const [rescheduling, setRescheduling] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState(() => {
+    const date = new Date(followup.scheduledAt);
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+    return date.toISOString().slice(0, 16);
+  });
+
+  async function reschedule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!scheduledAt) return;
+    const saved = await mutate(
+      `/quotes/${quoteId}/followups/${followup.id}`,
+      "PATCH",
+      { scheduledAt: new Date(scheduledAt).toISOString() },
+    );
+    if (saved) setRescheduling(false);
+  }
+
+  return (
+    <div className="business-candidate">
+      <span>
+        {followup.channel} · {new Date(followup.scheduledAt).toLocaleString("en-IN")} · {followup.status}
+      </span>
+      {followup.status === "SCHEDULED" && !rescheduling && (
+        <>
+          {followup.channel === "INTERNAL" && (
+            <button
+              className="bc-button"
+              disabled={busy}
+              onClick={() =>
+                void mutate(
+                  `/quotes/${quoteId}/followups/${followup.id}`,
+                  "PATCH",
+                  { status: "SENT" },
+                )
+              }
+            >
+              Mark complete
+            </button>
+          )}
+          <button
+            className="bc-button"
+            disabled={busy}
+            onClick={() => setRescheduling(true)}
+          >
+            Reschedule
+          </button>
+          <button
+            className="bc-button"
+            disabled={busy}
+            onClick={() =>
+              void mutate(
+                `/quotes/${quoteId}/followups/${followup.id}`,
+                "PATCH",
+                { status: "CANCELLED" },
+              )
+            }
+          >
+            Cancel
+          </button>
+        </>
+      )}
+      {followup.status === "SCHEDULED" && rescheduling && (
+        <form className="bc-inline-form" onSubmit={(event) => void reschedule(event)}>
+          <label>
+            New reminder time
+            <input
+              type="datetime-local"
+              required
+              value={scheduledAt}
+              disabled={busy}
+              onChange={(event) => setScheduledAt(event.target.value)}
+            />
+          </label>
+          <button className="bc-button" disabled={busy || !scheduledAt}>
+            Save new time
+          </button>
+          <button
+            className="bc-button"
+            type="button"
+            disabled={busy}
+            onClick={() => setRescheduling(false)}
+          >
+            Keep current time
+          </button>
+        </form>
+      )}
+    </div>
   );
 }

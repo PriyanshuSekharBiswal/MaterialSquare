@@ -3,6 +3,11 @@ export type OrderSummary = {
   deliverySite?: string;
   pincode?: string;
   grandTotal?: Amount;
+  manualPaymentStatus?: "UNPAID" | "PAID";
+  manualPaymentMethod?: "CASH" | "UPI" | "OTHER" | null;
+  manualPaymentReference?: string | null;
+  manualPaymentRecordedAt?: string | null;
+  manualPaymentRecordedBy?: { name: string } | null;
   items?: {
     id: string;
     productName: string;
@@ -19,6 +24,20 @@ const money = (value: Amount) =>
 
 export default function OrderDetails({ order }: { order: OrderSummary }) {
   return (
+    <>
+      {order.manualPaymentStatus && (
+        <p className="order-payment-status" role="status">
+          Payment: <strong>{order.manualPaymentStatus}</strong>
+          {order.manualPaymentMethod &&
+            ` · ${order.manualPaymentMethod === "OTHER" ? "Other offline method" : order.manualPaymentMethod}`}
+          {order.manualPaymentRecordedAt &&
+            ` · recorded ${new Date(order.manualPaymentRecordedAt).toLocaleString("en-IN")}`}
+          {order.manualPaymentRecordedBy?.name &&
+            ` by ${order.manualPaymentRecordedBy.name}`}
+          {order.manualPaymentReference &&
+            ` · reference ${order.manualPaymentReference}`}
+        </p>
+      )}
     <details>
       <summary>View order materials and delivery details</summary>
       {order.deliverySite && (
@@ -63,5 +82,6 @@ export default function OrderDetails({ order }: { order: OrderSummary }) {
         </div>
       )}
     </details>
+    </>
   );
 }

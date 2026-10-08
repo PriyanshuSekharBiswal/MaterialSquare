@@ -33,6 +33,22 @@ export class OrdersController {
     return this.ordersService.findById(id);
   }
 
+  @Patch(":id/manual-payment")
+  recordManualPayment(
+    @Param("id") id: string,
+    @Req() req: StaffRequest,
+    @Body() body: unknown,
+  ) {
+    const data = validate(
+      z.object({
+        method: z.enum(["CASH", "UPI", "OTHER"]),
+        reference: z.string().trim().max(120).optional(),
+      }),
+      body,
+    );
+    return this.ordersService.recordManualPayment(id, data, req.user.userId);
+  }
+
   @Post(":id/dispatch-challan")
   createDispatchChallan(
     @Param("id") id: string,

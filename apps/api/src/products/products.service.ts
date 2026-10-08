@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -12,28 +13,77 @@ function auditText(value: unknown): string {
   return (serialized || String(value)).slice(0, 500);
 }
 
-function listingChanges(before: Record<string, unknown>, after: CatalogListingInput) {
+function stableVariantIdentity(variant: {
+  label: string;
+  unit: string;
+  attributes: unknown;
+}) {
+  const attributes =
+    variant.attributes &&
+    typeof variant.attributes === "object" &&
+    !Array.isArray(variant.attributes)
+      ? Object.entries(variant.attributes as Record<string, unknown>)
+          .map(
+            ([name, value]) =>
+              [
+                name.trim().toLocaleLowerCase(),
+                String(value).trim().toLocaleLowerCase(),
+              ] as const,
+          )
+          .sort(([left], [right]) => left.localeCompare(right))
+      : [];
+  return JSON.stringify([
+    variant.label.trim().toLocaleLowerCase(),
+    variant.unit.trim().toLocaleLowerCase(),
+    attributes,
+  ]);
+}
+
+function listingChanges(
+  before: Record<string, unknown>,
+  after: CatalogListingInput,
+) {
   const fields = Object.keys(after) as Array<keyof CatalogListingInput>;
   return fields.flatMap((field) => {
     const oldValue = before[field as string];
     const newValue = after[field];
-    const normalizedOld = field === "variants" && Array.isArray(oldValue)
-      ? oldValue.map((variant: Record<string, unknown>) => ({
-          label: variant.label, code: variant.code, unit: variant.unit,
-          price: variant.price === null || variant.price === undefined ? variant.price : String(variant.price),
-          availabilityStatus: variant.availabilityStatus,
-          isInStock: variant.isInStock,
-        }))
-      : oldValue;
-    const normalizedNew = field === "variants"
-      ? after.variants.map((variant) => ({
-          label: variant.label, code: variant.code, unit: variant.unit,
-          price: variant.price, availabilityStatus: variant.availabilityStatus,
-          isInStock: variant.isInStock,
-        }))
-      : newValue;
-    if (JSON.stringify(normalizedOld ?? null) === JSON.stringify(normalizedNew ?? null)) return [];
-    return [{ field, before: auditText(normalizedOld), after: auditText(normalizedNew) }];
+    const normalizedOld =
+      field === "variants" && Array.isArray(oldValue)
+        ? oldValue.map((variant: Record<string, unknown>) => ({
+            label: variant.label,
+            code: variant.code,
+            unit: variant.unit,
+            price:
+              variant.price === null || variant.price === undefined
+                ? variant.price
+                : String(variant.price),
+            availabilityStatus: variant.availabilityStatus,
+            isInStock: variant.isInStock,
+          }))
+        : oldValue;
+    const normalizedNew =
+      field === "variants"
+        ? after.variants.map((variant) => ({
+            label: variant.label,
+            code: variant.code,
+            unit: variant.unit,
+            price: variant.price,
+            availabilityStatus: variant.availabilityStatus,
+            isInStock: variant.isInStock,
+          }))
+        : newValue;
+    if (
+      JSON.stringify(normalizedOld ?? null) ===
+      JSON.stringify(normalizedNew ?? null)
+    )
+      return [];
+    return [
+      {
+        field,
+        before: auditText(normalizedOld),
+        after: auditText(normalizedNew),
+      },
+    ];
   });
 }
 
@@ -66,6 +116,7 @@ export type CatalogListingInput = {
   applications: string[];
   specifications: Record<string, string>;
   variants: Array<{
+    id?: string;
     code?: string | null;
     label: string;
     attributes: Record<string, string>;
@@ -105,37 +156,98 @@ export class ProductsService {
     ["havells", "Havells India", "Wires", "Wires That Never Catch Fire"],
     ["finolex-cables", "Finolex Cables Limited", "Wires", "Cables Limited"],
     ["asian-paints", "Asian Paints", "Paints", "Har Ghar Kuch Kehta Hai"],
-    ["birla-opus", "Birla Opus Paints", "Paints", "Rich Colours, Superior Finish"],
+    [
+      "birla-opus",
+      "Birla Opus Paints",
+      "Paints",
+      "Rich Colours, Superior Finish",
+    ],
     ["jaquar", "Jaquar Bath + Light", "Sanitary", "Bath + Light"],
     ["cera", "CERA Sanitaryware", "Sanitary", "Sanitaryware | Faucets | Tiles"],
     ["tata-tiscon", "Tata Tiscon", "Steel", "Desh Ka Saria"],
-    ["myk-laticrete", "MYK Laticrete", "Adhesives", "World Leader in Tile Adhesives"],
+    [
+      "myk-laticrete",
+      "MYK Laticrete",
+      "Adhesives",
+      "World Leader in Tile Adhesives",
+    ],
   ].map(([id, name, category, tagline], sortOrder) => ({
-    id, name, category, tagline, isActive: true, sortOrder,
+    id,
+    name,
+    category,
+    tagline,
+    isActive: true,
+    sortOrder,
   }));
 
   async getPartnerBrands() {
-    const saved = await this.prisma.websiteContent.findUnique({ where: { id: "partner-brands" } });
-    const content = saved?.content && typeof saved.content === "object" && !Array.isArray(saved.content)
-      ? saved.content as Record<string, unknown>
-      : {};
+    const saved = await this.prisma.websiteContent.findUnique({
+      where: { id: "partner-brands" },
+    });
+    const content =
+      saved?.content &&
+      typeof saved.content === "object" &&
+      !Array.isArray(saved.content)
+        ? (saved.content as Record<string, unknown>)
+        : {};
     const brands = content["brands.directory"];
     return Array.isArray(brands) ? brands : this.initialPartnerBrands;
   }
 
-  async savePartnerBrands(brands: Array<{ id: string; name: string; category: string; tagline: string; isActive: boolean; sortOrder: number }>, staffId: string) {
-    return this.prisma.$transaction(async (db) => {
-      const previous = await db.websiteContent.findUnique({ where: { id: "partner-brands" } });
-      const content = previous?.content && typeof previous.content === "object" && !Array.isArray(previous.content)
-        ? previous.content as Record<string, unknown>
+  async getPublicPartnerBrands() {
+    const saved = await this.prisma.websiteContent.findUnique({
+      where: { id: "partner-brands" },
+    });
+    const content =
+      saved?.content &&
+      typeof saved.content === "object" &&
+      !Array.isArray(saved.content)
+        ? (saved.content as Record<string, unknown>)
         : {};
+    const brands = content["brands.directory"];
+    return Array.isArray(brands) ? brands : [];
+  }
+
+  async savePartnerBrands(
+    brands: Array<{
+      id: string;
+      name: string;
+      category: string;
+      tagline: string;
+      isActive: boolean;
+      sortOrder: number;
+    }>,
+    staffId: string,
+  ) {
+    return this.prisma.$transaction(async (db) => {
+      const previous = await db.websiteContent.findUnique({
+        where: { id: "partner-brands" },
+      });
+      const content =
+        previous?.content &&
+        typeof previous.content === "object" &&
+        !Array.isArray(previous.content)
+          ? (previous.content as Record<string, unknown>)
+          : {};
       await db.websiteContent.upsert({
         where: { id: "partner-brands" },
-        create: { id: "partner-brands", content: { ...content, "brands.directory": brands } },
+        create: {
+          id: "partner-brands",
+          content: { ...content, "brands.directory": brands },
+        },
         update: { content: { ...content, "brands.directory": brands } },
       });
       await db.auditLog.create({
-        data: { staffId, action: "PARTNER_BRANDS_UPDATED", entityType: "WEBSITE_BRANDS", entityId: "partner-brands", metadata: { count: brands.length, active: brands.filter((brand) => brand.isActive).length } },
+        data: {
+          staffId,
+          action: "PARTNER_BRANDS_UPDATED",
+          entityType: "WEBSITE_BRANDS",
+          entityId: "partner-brands",
+          metadata: {
+            count: brands.length,
+            active: brands.filter((brand) => brand.isActive).length,
+          },
+        },
       });
       return brands;
     });
@@ -173,13 +285,19 @@ export class ProductsService {
           (!offerStart || offerStart <= todayInIndia) &&
           (!offerEnd || offerEnd >= todayInIndia);
         const variantStatuses = variants.map((variant) =>
-          this.resolveAvailabilityStatus(variant.availabilityStatus, variant.isInStock),
+          this.resolveAvailabilityStatus(
+            variant.availabilityStatus,
+            variant.isInStock,
+          ),
         );
-        const publicAvailability = isInStock || variantStatuses.includes("IN_STOCK")
-          ? "IN_STOCK"
-          : (availabilityStatus === "OUT_OF_STOCK" || (variantStatuses.length > 0 && variantStatuses.every((status) => status === "OUT_OF_STOCK")))
-            ? "OUT_OF_STOCK"
-            : "CHECK_AVAILABILITY";
+        const publicAvailability =
+          isInStock || variantStatuses.includes("IN_STOCK")
+            ? "IN_STOCK"
+            : availabilityStatus === "OUT_OF_STOCK" ||
+                (variantStatuses.length > 0 &&
+                  variantStatuses.every((status) => status === "OUT_OF_STOCK"))
+              ? "OUT_OF_STOCK"
+              : "CHECK_AVAILABILITY";
         return {
           ...listing,
           availabilityStatus: publicAvailability,
@@ -197,7 +315,11 @@ export class ProductsService {
           compareAtPrice: offerActive ? listing.compareAtPrice : null,
           offerLabel: offerActive ? listing.offerLabel : null,
           variants: variants.map(
-            ({ isInStock: variantInStock, availabilityStatus: variantAvailability, ...variant }) => {
+            ({
+              isInStock: variantInStock,
+              availabilityStatus: variantAvailability,
+              ...variant
+            }) => {
               const variantOfferStart =
                 variant.offerStartsAt?.toISOString().slice(0, 10) || offerStart;
               const variantOfferEnd =
@@ -207,8 +329,15 @@ export class ProductsService {
                 (!variantOfferEnd || variantOfferEnd >= todayInIndia);
               return {
                 ...variant,
-                inStock: this.resolveAvailabilityStatus(variantAvailability, variantInStock) === "IN_STOCK",
-                availabilityStatus: this.resolveAvailabilityStatus(variantAvailability, variantInStock),
+                inStock:
+                  this.resolveAvailabilityStatus(
+                    variantAvailability,
+                    variantInStock,
+                  ) === "IN_STOCK",
+                availabilityStatus: this.resolveAvailabilityStatus(
+                  variantAvailability,
+                  variantInStock,
+                ),
                 attributes: variant.attributes as Record<string, string>,
                 image: variant.image || null,
                 galleryImages: variant.galleryImages,
@@ -255,7 +384,10 @@ export class ProductsService {
 
   async updatePrice(id: string, price: number, staffId: string) {
     return this.prisma.$transaction(async (db) => {
-      const previous = await db.productSKU.findUnique({ where: { id }, include: { brand: true } });
+      const previous = await db.productSKU.findUnique({
+        where: { id },
+        include: { brand: true },
+      });
       if (!previous) throw new NotFoundException("Product not found");
       const result = await db.productSKU.updateMany({
         where: { id },
@@ -275,7 +407,13 @@ export class ProductsService {
           metadata: {
             fields: ["basePricePerMt"],
             productName: previous.name,
-            changes: [{ field: "basePricePerMt", before: auditText(previous.basePricePerMt), after: auditText(price) }],
+            changes: [
+              {
+                field: "basePricePerMt",
+                before: auditText(previous.basePricePerMt),
+                after: auditText(price),
+              },
+            ],
           },
         },
       });
@@ -336,18 +474,58 @@ export class ProductsService {
           where: { id },
           include: { variants: { orderBy: { sortOrder: "asc" } } },
         });
-        if (!previous) throw new NotFoundException("Catalogue product not found");
-        const product = await db.catalogListing.update({
+        if (!previous)
+          throw new NotFoundException("Catalogue product not found");
+        await db.catalogListing.update({
           where: { id },
-          data: {
-            ...this.toPrismaData(data),
-            variants: {
-              deleteMany: {},
-              create: data.variants.map((variant) =>
-                this.toVariantPrismaData(variant),
-              ),
-            },
-          },
+          data: this.toPrismaData(data),
+        });
+        const retainedVariantIds = new Set<string>();
+        for (const variant of data.variants) {
+          let existingVariant = variant.id
+            ? previous.variants.find((candidate) => candidate.id === variant.id)
+            : undefined;
+          if (variant.id && !existingVariant) {
+            throw new BadRequestException(
+              "A product option does not belong to this catalogue product",
+            );
+          }
+          if (!variant.id) {
+            existingVariant = previous.variants.find(
+              (candidate) =>
+                !retainedVariantIds.has(candidate.id) &&
+                ((variant.code && candidate.code === variant.code) ||
+                  stableVariantIdentity(candidate) ===
+                    stableVariantIdentity(variant)),
+            );
+          }
+          if (existingVariant) {
+            await db.catalogListingVariant.update({
+              where: { id: existingVariant.id },
+              data: this.toVariantPrismaData(variant),
+            });
+            retainedVariantIds.add(existingVariant.id);
+          } else {
+            const created = await db.catalogListingVariant.create({
+              data: {
+                ...this.toVariantPrismaData(variant),
+                listingId: id,
+              },
+              select: { id: true },
+            });
+            retainedVariantIds.add(created.id);
+          }
+        }
+        const removedVariantIds = previous.variants
+          .filter((variant) => !retainedVariantIds.has(variant.id))
+          .map((variant) => variant.id);
+        if (removedVariantIds.length) {
+          await db.catalogListingVariant.deleteMany({
+            where: { id: { in: removedVariantIds } },
+          });
+        }
+        const product = await db.catalogListing.findUniqueOrThrow({
+          where: { id },
           include: { variants: { orderBy: { sortOrder: "asc" } } },
         });
         await db.auditLog.create({
@@ -359,7 +537,10 @@ export class ProductsService {
             metadata: {
               fields: Object.keys(data).sort(),
               productName: data.name,
-              changes: listingChanges(previous as unknown as Record<string, unknown>, data),
+              changes: listingChanges(
+                previous as unknown as Record<string, unknown>,
+                data,
+              ),
               variantCount: data.variants.length,
             },
           },
@@ -404,7 +585,13 @@ export class ProductsService {
           metadata: {
             fields: ["isPublished"],
             productName: previous.name,
-            changes: [{ field: "isPublished", before: String(previous.isPublished), after: "false" }],
+            changes: [
+              {
+                field: "isPublished",
+                before: String(previous.isPublished),
+                after: "false",
+              },
+            ],
           },
         },
       });
@@ -447,7 +634,10 @@ export class ProductsService {
           action: "CATALOG_PRODUCT_DELETED",
           entityType: "CATALOG_PRODUCT",
           entityId: id,
-          metadata: { productName: previous.name, expiresAt: expiresAt.toISOString() },
+          metadata: {
+            productName: previous.name,
+            expiresAt: expiresAt.toISOString(),
+          },
         },
       });
       return { success: true, expiresAt };
@@ -458,7 +648,10 @@ export class ProductsService {
     data: CatalogListingInput,
   ): Prisma.CatalogListingUncheckedCreateInput {
     const { variants: _variants, ...listing } = data;
-    const availabilityStatus = this.resolveAvailabilityStatus(data.availabilityStatus, data.isInStock);
+    const availabilityStatus = this.resolveAvailabilityStatus(
+      data.availabilityStatus,
+      data.isInStock,
+    );
     return {
       ...listing,
       isInStock: availabilityStatus === "IN_STOCK",
@@ -485,7 +678,10 @@ export class ProductsService {
   private toVariantPrismaData(
     variant: CatalogListingInput["variants"][number],
   ): Prisma.CatalogListingVariantUncheckedCreateWithoutListingInput {
-    const availabilityStatus = this.resolveAvailabilityStatus(variant.availabilityStatus, variant.isInStock);
+    const availabilityStatus = this.resolveAvailabilityStatus(
+      variant.availabilityStatus,
+      variant.isInStock,
+    );
     return {
       code: variant.code || null,
       label: variant.label,

@@ -41,8 +41,7 @@ export class QuotationAcceptanceService {
   async respondFromCustomer(
     quoteId: string,
     customerId: string,
-    decision: "REJECT" | "REQUEST_CHANGES",
-    notes: string,
+    decision: "REJECT",
   ) {
     return this.prisma.$transaction(async (tx) => {
       const quote = await tx.quotation.findFirst({
@@ -60,21 +59,12 @@ export class QuotationAcceptanceService {
       });
       if (claimed.count !== 1)
         throw new ConflictException("This quotation is no longer current");
-      if (decision === "REQUEST_CHANGES")
-        await tx.quotationFollowUp.create({
-          data: {
-            quotationId: quoteId,
-            channel: "INTERNAL",
-            scheduledAt: new Date(),
-            notes: `Customer requested changes: ${notes}`,
-          },
-        });
       await tx.auditLog.create({
         data: {
           action: `CUSTOMER_QUOTATION_${decision}`,
           entityType: "QUOTATION",
           entityId: quoteId,
-          metadata: { actorType: "CUSTOMER", customerId, notes },
+          metadata: { actorType: "CUSTOMER", customerId },
         },
       });
       return { decision };
@@ -258,24 +248,54 @@ export class QuotationAcceptanceService {
           },
         },
       });
-      const procurement = await tx.procurementRequest.create({
-        data: {
-          requestNumber: `MS-PR-${new Date().getFullYear()}-${randomUUID()}`,
-          orderId: order.id,
-          deliveryAddress: quote.projectSiteAddress,
-          deliveryCity: customer.city || "Customer site",
-          deliveryPincode: quote.sitePincode,
-          items: selectedItems.map((item) => ({
+      const procurementItems = await Promise.all(
+        selectedItems.map(async (item) => {
+          const requiredQuantity = item.quantityMt.toNumber();
+          const [catalogueVariant, inventoryProduct] = await Promise.all([
+            item.variantId
+              ? tx.catalogListingVariant.findUnique({
+                  where: { id: item.variantId },
+                  select: { stockQuantity: true },
+                })
+              : null,
+            item.productId
+              ? tx.productSKU.findUnique({
+                  where: { id: item.productId },
+                  select: { availableStockMt: true },
+                })
+              : null,
+          ]);
+          const clientStockQuantity = Number(
+            catalogueVariant?.stockQuantity ?? inventoryProduct?.availableStockMt ?? 0,
+          );
+          const quantity = Math.max(0, requiredQuantity - clientStockQuantity);
+          return {
+            ...(item.variantId ? { catalogVariantId: item.variantId } : {}),
             productName: item.productName,
             brand: item.brandName,
             category: item.categoryName,
-            quantity: item.quantityMt.toNumber(),
+            quantity,
+            requiredQuantity,
+            clientStockQuantity,
             unit: item.unit,
             notes: item.specification,
-          })),
-          notes: `Created from quotation accepted through ${channel} (${quote.quoteNumber})`,
-        },
-      });
+          };
+        }),
+      );
+      const sourcingItems = procurementItems.filter((item) => item.quantity > 0);
+      const procurement = sourcingItems.length
+        ? await tx.procurementRequest.create({
+            data: {
+              requestNumber: `MS-PR-${new Date().getFullYear()}-${randomUUID()}`,
+              orderId: order.id,
+              deliveryAddress: quote.projectSiteAddress,
+              deliveryCity: customer.city || "Customer site",
+              deliveryPincode: quote.sitePincode,
+              items: sourcingItems,
+              notes: `Created from quotation accepted through ${channel} (${quote.quoteNumber})`,
+            },
+          })
+        : null;
 
       await tx.auditLog.create({
         data: {
@@ -292,7 +312,7 @@ export class QuotationAcceptanceService {
             quoteId: quote.id,
             quoteNumber: quote.quoteNumber,
             orderNumber: order.orderNumber,
-            procurementRequestId: procurement.id,
+            procurementRequestId: procurement?.id ?? null,
             itemCount: selectedItems.length,
             selectedAlternativeCount: selections.length,
           },
@@ -301,7 +321,7 @@ export class QuotationAcceptanceService {
       return {
         decision: "ACCEPT",
         orderNumber: order.orderNumber,
-        procurementNumber: procurement.requestNumber,
+        procurementNumber: procurement?.requestNumber ?? null,
       };
     });
   }

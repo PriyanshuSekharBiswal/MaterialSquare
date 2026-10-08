@@ -23,7 +23,7 @@ describe("customer quotation responses", () => {
   it("does not expose another customer's quotation", async () => {
     const { tx, service } = setup(null);
     await expect(
-      service.respondFromCustomer("quote", "other", "REJECT", ""),
+      service.respondFromCustomer("quote", "other", "REJECT"),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(tx.quotation.findFirst).toHaveBeenCalledWith({
       where: { id: "quote", customerId: "other" },
@@ -33,7 +33,7 @@ describe("customer quotation responses", () => {
   it("rejects expired or already decided quotations without side effects", async () => {
     const { tx, service } = setup(undefined, 0);
     await expect(
-      service.respondFromCustomer("quote", "customer", "REJECT", ""),
+      service.respondFromCustomer("quote", "customer", "REJECT"),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(tx.auditLog.create).not.toHaveBeenCalled();
     expect(tx.quotation.updateMany.mock.calls[0][0].where).toMatchObject({
@@ -48,27 +48,12 @@ describe("customer quotation responses", () => {
         "quote",
         "customer",
         "REJECT",
-        "No longer needed",
       ),
     ).resolves.toEqual({ decision: "REJECT" });
     expect(tx.quotationFollowUp.create).not.toHaveBeenCalled();
     expect(tx.auditLog.create.mock.calls[0][0].data.metadata.customerId).toBe(
       "customer",
     );
-  });
-  it("creates an internal staff follow-up for requested revisions", async () => {
-    const { tx, service } = setup();
-    await service.respondFromCustomer(
-      "quote",
-      "customer",
-      "REQUEST_CHANGES",
-      "Use 100 bags",
-    );
-    expect(tx.quotationFollowUp.create.mock.calls[0][0].data).toMatchObject({
-      quotationId: "quote",
-      channel: "INTERNAL",
-      notes: "Customer requested changes: Use 100 bags",
-    });
   });
   it("scopes acceptance to the authenticated customer inside the transaction", async () => {
     const { tx, service } = setup(null);
@@ -80,10 +65,12 @@ describe("customer quotation responses", () => {
       customerId: "other",
     });
   });
-  it("requires revision details and rejects duplicate material selections", () => {
+  it("rejects customer negotiation and duplicate material selections", () => {
     expect(
-      CustomerQuotationResponseSchema.safeParse({ decision: "REQUEST_CHANGES" })
-        .success,
+      CustomerQuotationResponseSchema.safeParse({
+        decision: "REQUEST_CHANGES",
+        notes: "Use 100 bags",
+      }).success,
     ).toBe(false);
     expect(
       CustomerQuotationResponseSchema.safeParse({

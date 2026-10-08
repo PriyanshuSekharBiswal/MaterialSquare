@@ -143,6 +143,7 @@ export const STAFF_ROLE_DEFINITIONS: {
     permissions: [
       "staff.profile",
       "dashboard.view",
+      "catalog.view",
       "orders.read",
       "procurement.view",
       "procurement.manage",
@@ -167,7 +168,7 @@ export const STAFF_ROLE_DEFINITIONS: {
     role: "ACCOUNTS_MANAGER",
     label: "Accounts & finance",
     description:
-      "Views orders and manages commission approvals and loyalty settings.",
+      "Views orders, records offline customer payments, and manages commission approvals and loyalty settings.",
     permissions: [
       "staff.profile",
       "dashboard.view",
@@ -217,11 +218,15 @@ function routePermission(method: string, path: string): StaffPermission {
     verb === "GET"
   )
     return "audit.read";
-  if (route === "/admin/audit/recent" && verb === "GET") return "dashboard.view";
+  if (route === "/admin/audit/recent" && verb === "GET")
+    return "dashboard.view";
   if (route === "/admin/audit" && verb === "GET") return "audit.read";
   if (route === "/admin/recently-deleted" && verb === "GET")
     return "dashboard.view";
-  if (/^\/admin\/recently-deleted\/[^/]+\/restore$/.test(route) && verb === "POST")
+  if (
+    /^\/admin\/recently-deleted\/[^/]+\/restore$/.test(route) &&
+    verb === "POST"
+  )
     return "dashboard.view";
   if (route === "/auth/staff/me" || route === "/auth/staff/me/password")
     return "staff.profile";
@@ -241,7 +246,10 @@ function routePermission(method: string, path: string): StaffPermission {
   if (route.startsWith("/workspace/followups/")) return "followups.manage";
   if (
     route === "/rfqs" ||
+    route === "/rfqs/assignees" ||
+    /^\/rfqs\/[^/]+$/.test(route) ||
     /^\/rfqs\/[^/]+\/status$/.test(route) ||
+    /^\/rfqs\/[^/]+\/attachments\/[^/]+$/.test(route) ||
     route === "/inquiries"
   )
     return "sales.manage";
@@ -259,6 +267,7 @@ function routePermission(method: string, path: string): StaffPermission {
     )
   )
     return "dispatch.manage";
+  if (/^\/orders\/[^/]+\/manual-payment$/.test(route)) return "finance.manage";
   if (route === "/products/inventory") return "catalog.view";
   if (
     route === "/products/catalogue" ||

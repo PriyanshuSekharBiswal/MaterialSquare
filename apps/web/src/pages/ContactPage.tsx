@@ -57,7 +57,7 @@ export default function ContactPage() {
 
             {siteContent["contact.officeAddress"] && <article className="contact-info-card highlighted">
               <div className="info-card-icon depot"><MapPin size={24} /></div>
-              <h2>Office</h2>
+              <h2>{siteContent["contact.officeName"] || "Office"}</h2>
               <p>Contact the team before visiting so they can confirm the right location and availability.</p>
               <span className="depot-address">{siteContent["contact.officeAddress"]}</span>
               <a href={siteContent["contact.mapUrl"] || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(siteContent["contact.officeAddress"])}`} target="_blank" rel="noopener noreferrer" className="channel-link">

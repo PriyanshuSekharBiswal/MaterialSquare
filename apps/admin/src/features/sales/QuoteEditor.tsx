@@ -39,6 +39,7 @@ type Line = {
   }[];
 };
 type Rfq = {
+  id: string;
   customerName: string;
   customerPhone: string;
   siteLocation: string;
@@ -51,6 +52,7 @@ type Rfq = {
 };
 export type RevisionQuote = {
   id: string;
+  requestId?: string | null;
   customerName: string;
   customerPhone: string;
   customerEmail?: string | null;
@@ -115,35 +117,38 @@ export default function QuoteEditor({
   const [search, setSearch] = useState("");
   const [lines, setLines] = useState<Line[]>(
     () =>
-      revision?.items.map((item) => ({
-        ...blank(),
-        selection: item.variantId
-          ? `variant:${item.variantId}`
-          : item.catalogueId
-            ? `catalogue:${item.catalogueId}`
-            : `inventory:${item.productId}`,
-        quantity: item.quantityMt,
-        rate: item.unitPrice,
-        specification: item.specification,
-        alternatives:
-          item.options?.map((option) => ({
-            key: option.id,
-            selection: option.variantId
-              ? `variant:${option.variantId}`
-              : option.catalogueId
-                ? `catalogue:${option.catalogueId}`
-                : `inventory:${option.productId}`,
-            rate: option.unitPrice,
-            specification: option.specification,
-          })) || [],
-      })) ||
-      initialRequest?.items.map((item) => ({
-        ...blank(),
-        quantity: String(item.quantity),
-        specification: [item.material, item.specification]
-          .filter(Boolean)
-          .join(" · "),
-      })) || [blank()],
+      revision
+        ? revision.items.map((item) => ({
+            ...blank(),
+            selection: item.variantId
+              ? `variant:${item.variantId}`
+              : item.catalogueId
+                ? `catalogue:${item.catalogueId}`
+                : `inventory:${item.productId}`,
+            quantity: item.quantityMt,
+            rate: item.unitPrice,
+            specification: item.specification,
+            alternatives:
+              item.options?.map((option) => ({
+                key: option.id,
+                selection: option.variantId
+                  ? `variant:${option.variantId}`
+                  : option.catalogueId
+                    ? `catalogue:${option.catalogueId}`
+                    : `inventory:${option.productId}`,
+                rate: option.unitPrice,
+                specification: option.specification,
+              })) || [],
+          }))
+        : initialRequest?.items.length
+          ? initialRequest.items.map((item) => ({
+              ...blank(),
+              quantity: String(item.quantity),
+              specification: [item.material, item.specification]
+                .filter(Boolean)
+                .join(" · "),
+            }))
+          : [blank()],
   );
   useEffect(() => {
     let active = true;
@@ -273,6 +278,7 @@ export default function QuoteEditor({
           : "/quotes",
         revision && editing ? "PATCH" : "POST",
         {
+          requestId: revision?.requestId || initialRequest?.id || undefined,
           customerName: form.get("name"),
           customerPhone: form.get("phone"),
           customerEmail: form.get("email") || undefined,
@@ -326,6 +332,11 @@ export default function QuoteEditor({
         selected option. Catalogue prices are indicative; discounts and final
         totals are calculated when the draft is saved.
       </p>
+      {(initialRequest || revision?.requestId) && (
+        <p className="sales-source-request-note" role="status">
+          Linked to customer request #{(initialRequest?.id || revision?.requestId || "").slice(0, 8).toUpperCase()}. The customer will see this quotation under that request after it is published.
+        </p>
+      )}
       {revision && (
         <p>
           Saving recalculates the draft totals. Published quotations require a
@@ -399,7 +410,10 @@ export default function QuoteEditor({
               name="pincode"
               required
               pattern="[1-9][0-9]{5}"
-              defaultValue={revision?.sitePincode}
+              defaultValue={
+                revision?.sitePincode ||
+                initialRequest?.siteLocation.match(/\b[1-9][0-9]{5}\b/)?.[0]
+              }
             />
           </label>
           <label>

@@ -65,6 +65,30 @@ const marketplaceUrl =
   localMarketplaceUrl ||
   "https://material-square.vercel.app";
 
+const workspaceTabs: WorkspaceTab[] = [
+  "overview",
+  "recent",
+  "customers",
+  "followups",
+  "catalogue",
+  "content",
+  "notifications",
+  "audit",
+  "team",
+  "account",
+  "sales",
+  "business",
+  "reports",
+  "trash",
+];
+
+function workspaceTabFromUrl(): WorkspaceTab {
+  const value = new URLSearchParams(window.location.search).get("workspace");
+  return workspaceTabs.includes(value as WorkspaceTab)
+    ? (value as WorkspaceTab)
+    : "overview";
+}
+
 function restoredToken() {
   try {
     const token = localStorage.getItem("ms-staff-token") || sessionStorage.getItem("ms-staff-token") || "";
@@ -81,7 +105,7 @@ function restoredToken() {
 export function App() {
   const [token, setTokenState] = useState(restoredToken),
     [staff, setStaff] = useState<AdminStaff | null>(null);
-  const [tab, setTab] = useState<WorkspaceTab>("overview");
+  const [tab, setTab] = useState<WorkspaceTab>(workspaceTabFromUrl);
   const tabScrollPositions = useRef<Partial<Record<WorkspaceTab, number>>>({});
   const [stats, setStats] = useState<Stats | null>(null),
     [websiteAnalytics, setWebsiteAnalytics] = useState<WebsiteAnalytics | null>(
@@ -117,6 +141,22 @@ export function App() {
     token: string;
     promise: Promise<AdminStaff>;
   } | null>(null);
+  useEffect(() => {
+    const restoreWorkspaceFromHistory = () => {
+      setTab(workspaceTabFromUrl());
+      setPage(1);
+      setQuery("");
+      setSearch("");
+      setStatus("");
+      setSelected(null);
+      setDraft(null);
+      setNotice("");
+      setError("");
+    };
+    window.addEventListener("popstate", restoreWorkspaceFromHistory);
+    return () =>
+      window.removeEventListener("popstate", restoreWorkspaceFromHistory);
+  }, []);
   const setToken = useCallback((value: string) => {
     setTokenState(value);
     try {
@@ -365,6 +405,12 @@ export function App() {
   }, [token, tab, page, search, status, revision, request]);
   const navigate = (next: typeof tab) => {
     tabScrollPositions.current[tab] = window.scrollY;
+    const url = new URL(window.location.href);
+    url.searchParams.set("workspace", next);
+    // CMS section hashes are meaningful only inside Website Editor. Clear a
+    // stale CMS anchor when moving to another top-level workspace page.
+    url.hash = "";
+    window.history.pushState({}, "", `${url.pathname}${url.search}${url.hash}`);
     setTab(next);
     setPage(1);
     setQuery("");
@@ -584,6 +630,7 @@ export function App() {
           <BusinessConsole
             token={token}
             role={staff.role}
+            customerUrl={marketplaceUrl}
             onBack={() => navigate("overview")}
             onSignOut={signOut}
             embedded

@@ -8,6 +8,17 @@
   background: #f8fafc;
 }
 
+.order-payment-status {
+  margin: 10px 0;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.order-payment-status strong {
+  color: #166534;
+}
+
 .sales-external-acceptance legend {
   padding: 0 6px;
   color: #26354b;
@@ -31,6 +42,115 @@
   color: #18263d;
   background: #fff;
   font: inherit;
+}
+
+.sales-source-request-note {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid #b9dec8;
+  border-radius: 9px;
+  background: #eff9f2;
+  color: #17633f;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.rfq-attachments {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.rfq-attachments > strong {
+  color: #27364a;
+  font-size: 13px;
+}
+
+.rfq-attachments .rfq-attachment-download {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #bf4a16;
+  font: inherit;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rfq-attachments .rfq-attachment-download:hover {
+  color: #96370f;
+  text-decoration: underline;
+}
+.rfq-attachments .rfq-attachment-download:focus-visible {
+  outline: 2px solid #bf4a16;
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.rfq-attachments small {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.rfq-staff-controls {
+  display: grid;
+  gap: 12px;
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.rfq-staff-controls label {
+  display: grid;
+  gap: 6px;
+  color: #34445c;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.rfq-staff-controls label span {
+  color: #64748b;
+  font-weight: 450;
+}
+
+.rfq-staff-controls select,
+.rfq-staff-controls textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #ccd7e4;
+  border-radius: 8px;
+  padding: 9px 11px;
+  color: #18263d;
+  background: #fff;
+  font: inherit;
+}
+
+.rfq-staff-controls textarea {
+  resize: vertical;
+}
+
+.rfq-staff-controls form {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+.sales-request-link-copy {
+  color: #566477;
+  font-size: 12px;
 }
 
 .sales-external-acceptance button {

@@ -16,6 +16,7 @@ export type BlogPost = {
 type Props = {
   records: BlogPost[];
   token: string;
+  customerUrl?: string;
   busy: boolean;
   mediaBusy: boolean;
   setMediaBusy: (busy: boolean) => void;
@@ -30,6 +31,7 @@ const field = (data: FormData, key: string) =>
 export default function BlogManagementPanel({
   records,
   token,
+  customerUrl,
   busy,
   mediaBusy,
   setMediaBusy,
@@ -105,6 +107,7 @@ export default function BlogManagementPanel({
             token={token}
             initialUrl={editingBlog?.featuredImageUrl || ""}
             label="Featured image URL"
+            customerUrl={customerUrl}
             onBusyChange={setMediaBusy}
             onSignOut={onSignOut}
           />

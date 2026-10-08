@@ -130,6 +130,64 @@ describe("audit review", () => {
       }),
     );
   });
+  it("redacts sensitive values recursively from filtered audit metadata", async () => {
+    findMany.mockResolvedValueOnce([
+      {
+        id: "audit-sensitive",
+        action: "QA_SECRET_FIELDS",
+        entityType: "STAFF_USER",
+        entityId: "staff-1",
+        metadata: {
+          changedFields: ["password", "role"],
+          passwordHash: "hash-value",
+          nested: {
+            otp: "123456",
+            accessToken: "access-secret",
+            api_key: "api-secret",
+            changes: [
+              { field: "password", before: "old-password", after: "new-password" },
+              { field: "role", before: "SALES_MANAGER", after: "ADMIN" },
+            ],
+          },
+        },
+        createdAt: new Date("2026-10-08T08:00:00.000Z"),
+        staff: { id: "admin-1", name: "Owner", role: "SUPER_ADMIN" },
+      },
+    ]);
+    count.mockResolvedValueOnce(1);
+
+    const result = await controller.list({ page: "1" });
+    const metadata = result.items[0].metadata as Record<string, any>;
+
+    expect(metadata).toEqual({
+      changedFields: ["password", "role"],
+      passwordHash: "[REDACTED]",
+      nested: {
+        otp: "[REDACTED]",
+        accessToken: "[REDACTED]",
+        api_key: "[REDACTED]",
+        changes: [
+          {
+            field: "password",
+            before: "[REDACTED]",
+            after: "[REDACTED]",
+          },
+          { field: "role", before: "SALES_MANAGER", after: "ADMIN" },
+        ],
+      },
+    });
+    const serialized = JSON.stringify(result);
+    for (const secret of [
+      "hash-value",
+      "123456",
+      "access-secret",
+      "api-secret",
+      "old-password",
+      "new-password",
+    ])
+      expect(serialized).not.toContain(secret);
+    expect(serialized).toContain("SALES_MANAGER");
+  });
   it.each(["0", "-1", "1.5", "invalid", "100001"])(
     "rejects invalid page %s",
     async (page) => {

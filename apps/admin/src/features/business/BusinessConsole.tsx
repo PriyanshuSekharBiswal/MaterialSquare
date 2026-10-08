@@ -141,12 +141,14 @@ import MaterialSquareLogo from "../../components/MaterialSquareLogo";
 export default function BusinessConsole({
   token,
   role,
+  customerUrl,
   onBack,
   onSignOut,
   embedded = false,
 }: {
   token: string;
   role: string;
+  customerUrl?: string;
   onBack: () => void;
   onSignOut: () => void;
   embedded?: boolean;
@@ -306,7 +308,7 @@ export default function BusinessConsole({
       )}
       {section === "procurement" && (
         <>
-          <PurchaseRequestForm busy={busy} submit={submit} />
+          <PurchaseRequestForm busy={busy} submit={submit} request={request} />
           <h2>Purchase requests</h2>
           {(visibleRecords as ProcurementRequest[]).map((record) => (
             <ProcurementRequestCard
@@ -354,6 +356,7 @@ export default function BusinessConsole({
         <BlogManagementPanel
           records={visibleRecords as BlogPost[]}
           token={token}
+          customerUrl={customerUrl}
           busy={busy}
           mediaBusy={mediaBusy}
           setMediaBusy={setMediaBusy}
@@ -366,6 +369,7 @@ export default function BusinessConsole({
         <ExpertDirectoryPanel
           records={visibleRecords as ExpertProfile[]}
           token={token}
+          customerUrl={customerUrl}
           busy={busy}
           mediaBusy={mediaBusy}
           setMediaBusy={setMediaBusy}

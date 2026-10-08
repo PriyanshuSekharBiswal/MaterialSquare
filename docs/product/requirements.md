@@ -21,6 +21,9 @@ staff use a separate role-protected operations workspace.
 | Service area map | Keep the animated route map on Home and Contact. Office name, address, service area, and contact actions must use client-managed website content; map destinations stay unavailable until an office address is configured.    |
 | Admin workspace  | Provide protected sign-in for client admins and staff, role-based operations, catalogue editing, staff provisioning, and business management.                                                                                 |
 
+Customer sessions persist across browser restarts for up to one year and renew
+as the customer uses the account. Explicit sign-out revokes the session.
+
 ## Inventory and operations
 
 The client is the only seller. Partner brands identify the client's sourcing
@@ -33,9 +36,31 @@ client quotation.
 The storefront only displays records published in the client catalogue. Product
 photos and other client-specific assets come from the client.
 
+Supplier sourcing is a staff-only inventory workflow. Staff can register supplier
+business/contact details, location and service PINs, then associate each supplier
+with the products, brands, categories, units and packs they can provide. The
+supplier directory must support product and category search and show supplier
+location/service coverage so staff can find likely sources quickly. Supplier
+availability includes an available quantity and when it was last checked; it is
+an internal sourcing indication until staff confirms a current supplier quote.
+
+When a customer or order requires more than the client's available stock, staff
+must be able to see the shortfall and find matching suppliers for that product,
+brand, unit and quantity. Supplier candidates are ranked by delivery PIN and
+service coverage, then city and recorded supplier rating. A shortfall may be
+allocated across multiple suppliers; each supplier's offered quantity, price,
+lead time and quote validity are recorded for comparison before a purchase order
+is approved. Supplier identities, contact information, supplier stock and buy
+prices remain visible only to authorized staff and never appear in customer
+catalogue search, product pages or quotations. The client remains the sole seller
+to customers.
+
 ## Explicit exclusions
 
-- No checkout, payment gateway, payment collection, or payment status tracking.
+- No checkout, payment gateway, or online payment collection.
+- Client staff record an order as paid after they receive cash, UPI, or another
+  offline payment. The record is for internal order tracking and audit only; it
+  must never initiate, collect, or verify a payment through this website.
 - Customer-facing quotation negotiation and payment collection remain out of
   scope. Customers can review their submitted requests and staff-prepared quotes
   after phone verification; quote preparation and approval stay with staff.

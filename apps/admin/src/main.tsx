@@ -53,6 +53,14 @@ function adminMutationConfirmation(input: RequestInfo | URL, init?: RequestInit)
     title = "Upload this image?";
     message = "The image will be added to the website media library.";
     confirmLabel = "Upload image";
+  } else if (
+    method === "PATCH" &&
+    /\/orders\/[^/]+\/manual-payment$/.test(path)
+  ) {
+    title = "Record this offline payment?";
+    message =
+      "This marks the full order total as paid after staff has received payment outside this website. No payment is collected or verified here.";
+    confirmLabel = "Mark order paid";
   } else if (method === "DELETE") {
     title = "Delete this item?";
     message = "You can review this action before it is completed.";

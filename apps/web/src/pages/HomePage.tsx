@@ -413,7 +413,7 @@ export default function HomePage({
         </div>
       </section>
     ),
-    brands: (
+    brands: listedBrands.length > 0 ? (
       <section className="home-brands-strip">
         <div className="container">
           <div className="brands-intro">
@@ -446,7 +446,7 @@ export default function HomePage({
           </div>
         </div>
       </section>
-    ),
+    ) : null,
     why: (
       <section className="home-why-teaser-section">
         <div className="container why-teaser-box">

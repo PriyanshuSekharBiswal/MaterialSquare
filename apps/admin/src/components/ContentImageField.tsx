@@ -7,6 +7,7 @@ export default function ContentImageField({
   value,
   onChange,
   label,
+  customerUrl,
   onSignOut,
   onBusyChange,
 }: {
@@ -15,6 +16,7 @@ export default function ContentImageField({
   value?: string;
   onChange?: (url: string) => void;
   label: string;
+  customerUrl?: string;
   onSignOut: () => void;
   onBusyChange: (value: boolean) => void;
 }) {
@@ -23,6 +25,22 @@ export default function ContentImageField({
   const [error, setError] = useState("");
   const [imageFailed, setImageFailed] = useState(false);
   const currentUrl = value ?? url;
+  const previewUrl = (() => {
+    if (!currentUrl.startsWith("/")) return currentUrl;
+    const localCustomerUrl =
+      typeof window !== "undefined" &&
+      ["localhost", "127.0.0.1"].includes(window.location.hostname)
+        ? `${window.location.protocol}//material-square.localtest.me:5173`
+        : window.location.origin;
+    try {
+      return new URL(
+        currentUrl,
+        customerUrl || import.meta.env.VITE_CUSTOMER_APP_URL || localCustomerUrl,
+      ).toString();
+    } catch {
+      return currentUrl;
+    }
+  })();
 
   const updateUrl = (next: string) => {
     setImageFailed(false);
@@ -99,7 +117,7 @@ export default function ContentImageField({
       {error && <p role="alert" className="bc-error">{error}</p>}
       {currentUrl && (
         <div className="content-image-preview-card">
-          {imageFailed ? <div className="content-image-preview-placeholder"><ImagePlus size={24} /><span>Image preview unavailable</span></div> : <img className="content-image-preview" src={currentUrl} alt={`${label} preview`} onError={() => setImageFailed(true)} />}
+          {imageFailed ? <div className="content-image-preview-placeholder"><ImagePlus size={24} /><span>Image preview unavailable</span></div> : <img className="content-image-preview" src={previewUrl} alt={`${label} preview`} onError={() => setImageFailed(true)} />}
           <div className="content-image-preview-details">
             <strong>{imageFailed ? "Check this image link" : "Image preview"}</strong>
             <span title={currentUrl}>{currentUrl}</span>

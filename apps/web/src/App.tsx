@@ -227,8 +227,13 @@ function AppShell() {
         {/* Brand Footer */}
         <Footer products={catalogue} />
 
-        {/* The sticky catalogue header and per-product contact links replace the dock here. */}
-        {location.pathname !== "/marketplace" && location.pathname !== "/material-list" && !location.pathname.startsWith("/product/") && (
+        {/* Keep the floating dock off pages with their own controls and forms. */}
+        {location.pathname !== "/marketplace" &&
+          location.pathname !== "/material-list" &&
+          location.pathname !== "/get-quote" &&
+          location.pathname !== "/contact" &&
+          !location.pathname.startsWith("/product/") &&
+          !location.pathname.startsWith("/account") && (
           <aside className="floating-action-dock" aria-label="Quick Actions">
             <button
               type="button"

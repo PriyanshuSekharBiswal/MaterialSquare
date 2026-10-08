@@ -59,7 +59,22 @@ export default function MarketplacePage({
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const prevBomCountRef = useRef(bomList.length);
   const searchRef = useRef<HTMLDivElement>(null);
-  const catalogueBrands = useMemo(() => partnerBrands.map((brand) => ({ name: brand.name, category: brand.category, meta: getBrandMeta(brand.id) })), [partnerBrands]);
+  const catalogueBrands = useMemo(() => {
+    const byBrand = new Map<string, { name: string; category: string; meta: ReturnType<typeof getBrandMeta> }>();
+    for (const product of products) {
+      const name = product.brand.trim();
+      if (!name) continue;
+      const key = name.toLocaleLowerCase();
+      if (!byBrand.has(key)) {
+        byBrand.set(key, {
+          name,
+          category: product.categoryLabel || product.category,
+          meta: getBrandMeta(name),
+        });
+      }
+    }
+    return [...byBrand.values()].sort((left, right) => left.name.localeCompare(right.name));
+  }, [products]);
   const catalogueCategories = useMemo(() => [
     { id: 'all', label: 'All Materials', count: products.length },
     ...Array.from(new Map(products.map((product) => [product.category, product.categoryLabel])).entries())
@@ -216,6 +231,9 @@ export default function MarketplacePage({
 
   const relatedProducts = useMemo(() => {
     if (filteredProducts.length) return [];
+    // Suggestions may broaden an empty brand/category browse, but must not
+    // contradict a user's exact search, availability, or variant filters.
+    if (searchQuery.trim() || availability !== "all" || Object.values(variantFilters).some(Boolean)) return [];
     const selectedPartner = partnerBrands.find((brand) => brand.name.toLocaleLowerCase() === selectedBrand.toLocaleLowerCase());
     const categoryHints: Record<string, string[]> = {
       cement: ["cement"], pipes: ["pipe", "plumb", "valve"], wires: ["wire", "cable"],
@@ -228,7 +246,7 @@ export default function MarketplacePage({
       .filter((product) => !selectedPartner || hints.some((hint) => `${product.category} ${product.categoryLabel}`.toLocaleLowerCase().includes(hint)))
       .sort((a, b) => Number(b.inStock) - Number(a.inStock) || a.name.localeCompare(b.name))
       .slice(0, 4);
-  }, [products, filteredProducts.length, activeCategory, selectedBrand, partnerBrands]);
+  }, [products, filteredProducts.length, activeCategory, selectedBrand, partnerBrands, searchQuery, availability, variantFilters]);
 
   // Check if item in BOM
   const isItemInBOM = (id: string) => bomList.some((item) => (item.catalogueId || item.id) === id);

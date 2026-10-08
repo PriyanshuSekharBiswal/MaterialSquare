@@ -4,13 +4,29 @@ import { confirmAdminAction } from "../../components/confirmAdminAction";
 
 type Product = {
   id: string;
+  catalogVariantId: string | null;
+  catalogVariant: {
+    id: string;
+    label: string;
+    listing: { name: string; brand: string; category: string };
+  } | null;
   productName: string;
   brand: string;
   category: string;
   unit: string;
   minimumOrderQty: string | null;
+  availableQuantity: string | number | null;
+  availabilityCheckedAt: string | null;
   lastQuotedPrice: string | null;
   isActive: boolean;
+};
+type CatalogueVariantOption = {
+  id: string;
+  label: string;
+  unit: string;
+  productName: string;
+  brand: string;
+  category: string;
 };
 type Supplier = {
   name: string;
@@ -43,6 +59,7 @@ export default function SupplierProducts({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [catalogueVariants, setCatalogueVariants] = useState<CatalogueVariantOption[]>([]);
   const refresh = useCallback(async () => {
     setBusy(true);
     setError("");
@@ -57,6 +74,27 @@ export default function SupplierProducts({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+  useEffect(() => {
+    void request<{
+      name: string;
+      brand: string;
+      category: string;
+      variants: { id: string; label: string; unit: string }[];
+    }[]>("/products/catalogue")
+      .then((listings) =>
+        setCatalogueVariants(
+          listings.flatMap((listing) =>
+            listing.variants.map((variant) => ({
+              ...variant,
+              productName: listing.name,
+              brand: listing.brand,
+              category: listing.category,
+            })),
+          ),
+        ),
+      )
+      .catch(() => setCatalogueVariants([]));
+  }, [request]);
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editing) return;
@@ -69,6 +107,7 @@ export default function SupplierProducts({
         `/suppliers/${supplierId}/products/${editing.id}`,
         "PATCH",
         {
+          catalogVariantId: String(form.get("catalogVariantId") || "") || null,
           productName: form.get("name"),
           brand: form.get("brand"),
           category: form.get("category"),
@@ -76,6 +115,10 @@ export default function SupplierProducts({
           minimumOrderQty: form.get("minimum")
             ? Number(form.get("minimum"))
             : null,
+          availableQuantity:
+            form.get("availableQuantity") === ""
+              ? null
+              : Number(form.get("availableQuantity")),
           lastQuotedPrice: form.get("price") ? Number(form.get("price")) : null,
           isActive: form.get("active") === "on",
         },
@@ -136,6 +179,17 @@ export default function SupplierProducts({
                   Minimum quantity: {product.minimumOrderQty ?? "Not specified"}{" "}
                   · Last price: {product.lastQuotedPrice ?? "Not recorded"}
                 </p>
+                <p>
+                  Supplier-reported available: {product.availableQuantity ?? "Not checked"} {product.unit}
+                  {product.availabilityCheckedAt
+                    ? ` · checked ${new Date(product.availabilityCheckedAt).toLocaleString("en-IN")}`
+                    : ""}
+                </p>
+                {product.catalogVariant && (
+                  <p>
+                    Linked client pack: {product.catalogVariant.listing.name} · {product.catalogVariant.label}
+                  </p>
+                )}
               </div>
               <button
                 type="button"
@@ -181,6 +235,20 @@ export default function SupplierProducts({
             <form key={editing.id} onSubmit={save}>
               <h3>Edit {editing.productName}</h3>
               <fieldset disabled={busy} className="bc-fields">
+                <label>
+                  Link to client catalogue pack
+                  <select
+                    name="catalogVariantId"
+                    defaultValue={editing.catalogVariantId || ""}
+                  >
+                    <option value="">No linked client pack</option>
+                    {catalogueVariants.map((variant) => (
+                      <option value={variant.id} key={variant.id}>
+                        {variant.productName} · {variant.brand} · {variant.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label>
                   Supplied product name
                   <input
@@ -234,6 +302,16 @@ export default function SupplierProducts({
                     min="0"
                     step="0.01"
                     defaultValue={editing.lastQuotedPrice || ""}
+                  />
+                </label>
+                <label>
+                  Available quantity (leave blank if unknown)
+                  <input
+                    name="availableQuantity"
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    defaultValue={editing.availableQuantity ?? ""}
                   />
                 </label>
                 <label className="bc-check">

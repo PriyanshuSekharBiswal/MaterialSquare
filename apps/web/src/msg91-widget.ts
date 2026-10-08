@@ -21,6 +21,11 @@ function widgetConfig() {
 }
 
 export async function initializeMsg91Widget(): Promise<void> {
+  if (!window.isSecureContext || !window.crypto?.subtle) {
+    throw new Error(
+      "MSG91 phone sign-in needs a secure browser context. This local site is using HTTP, which blocks the cryptography the verification widget needs. Set up trusted local HTTPS for material-square.localtest.me, then reopen this page.",
+    );
+  }
   const config = widgetConfig();
   const container = document.getElementById("msg91-captcha");
   if (container && captchaContainer && container !== captchaContainer) {

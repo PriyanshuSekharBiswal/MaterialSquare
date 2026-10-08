@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import MaterialSquareLogo from "../../components/MaterialSquareLogo";
 import QuoteEditor, { type RevisionQuote } from "./QuoteEditor";
+import RfqOwnershipControls from "./RfqOwnershipControls";
 import CatalogueManager from "../catalogue/CatalogueManager";
 import "./sales-operations.css";
 
@@ -27,7 +28,17 @@ type Rfq = {
   customerPhone: string;
   siteLocation: string;
   status: string;
+  assignedStaffId?: string | null;
+  assignedStaff?: { id: string; name: string } | null;
+  staffNotes?: string | null;
   notes?: string;
+  attachments?: {
+    id: string;
+    fileName: string;
+    mimeType: string;
+    byteSize: number;
+    createdAt: string;
+  }[];
   items: {
     material: string;
     brand?: string;
@@ -36,6 +47,7 @@ type Rfq = {
     unit: string;
   }[];
 };
+type RfqAssignee = { id: string; name: string; role: string };
 type Product = {
   id: string;
   name: string;
@@ -45,6 +57,7 @@ type Product = {
 };
 type Quote = {
   id: string;
+  requestId?: string | null;
   quoteNumber: string;
   customerName: string;
   customerPhone: string;
@@ -92,6 +105,7 @@ type Order = OrderSummary & {
   orderNumber: string;
   customerName: string;
   status: string;
+  manualPaymentStatus: "UNPAID" | "PAID";
   dispatch?: { currentStep: number; truckNumber: string } | null;
 };
 type Inquiry = {
@@ -165,6 +179,7 @@ export default function SalesOperations({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [rfqs, setRfqs] = useState<Rfq[]>([]);
+  const [rfqAssignees, setRfqAssignees] = useState<RfqAssignee[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -214,7 +229,14 @@ export default function SalesOperations({
     try {
       if (tab === "overview")
         setAnalytics(await request<Analytics>("/analytics/dashboard"));
-      if (tab === "rfqs") setRfqs(await request<Rfq[]>("/rfqs"));
+      if (tab === "rfqs") {
+        const [requests, assignees] = await Promise.all([
+          request<Rfq[]>("/rfqs"),
+          request<RfqAssignee[]>("/rfqs/assignees"),
+        ]);
+        setRfqs(requests);
+        setRfqAssignees(assignees);
+      }
       if (tab === "quotes") setQuotes(await request<Quote[]>("/quotes"));
       if (tab === "orders") setOrders(await request<Order[]>("/orders"));
       if (tab === "quotes")
@@ -272,8 +294,17 @@ export default function SalesOperations({
         `${import.meta.env.VITE_API_URL || "/api"}${path}`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
-      if (!response.ok) throw new Error("Could not download document");
-      const url = URL.createObjectURL(await response.blob());
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(
+          typeof data?.message === "string"
+            ? data.message
+            : "Could not download document. Please try again.",
+        );
+      }
+      const blob = await response.blob();
+      if (!blob.size) throw new Error("The downloaded document is empty.");
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = filename;
@@ -377,6 +408,40 @@ export default function SalesOperations({
                 ))}
               </ul>
               {r.notes && <p>{r.notes}</p>}
+              {(r.attachments ?? []).length > 0 && (
+                <div className="rfq-attachments">
+                  <strong>Project plans and files</strong>
+                  {(r.attachments ?? []).map((attachment) => (
+                    <button
+                      type="button"
+                      className="rfq-attachment-download"
+                      key={attachment.id}
+                      aria-label={`Download ${attachment.fileName}`}
+                      onClick={() =>
+                        void download(
+                          `/rfqs/${r.id}/attachments/${attachment.id}`,
+                          attachment.fileName,
+                        )
+                      }
+                    >
+                      <FileText size={15} />
+                      {attachment.fileName}
+                      <small>
+                        {(attachment.byteSize / (1024 * 1024)).toFixed(1)} MB
+                      </small>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <RfqOwnershipControls
+                rfqId={r.id}
+                ownerId={r.assignedStaffId}
+                ownerName={r.assignedStaff?.name}
+                staffNotes={r.staffNotes}
+                assignees={rfqAssignees}
+                busy={busy}
+                mutate={mutate}
+              />
               <label>
                 Request status
                 <select
@@ -440,6 +505,12 @@ export default function SalesOperations({
                   {q.quoteNumber} · Revision {q.revisionNumber || 1} ·{" "}
                   {q.status} · {money(q.totalAmount)}
                 </p>
+                {q.requestId && (
+                  <p className="sales-request-link-copy">
+                    Linked to customer request #
+                    {q.requestId.slice(0, 8).toUpperCase()}
+                  </p>
+                )}
                 <details>
                   <summary>Review materials and totals</summary>
                   {(q.items || []).map((item) => (
@@ -629,7 +700,7 @@ export default function SalesOperations({
                     {q.customerEmail && (
                       <button
                         className="btn-sm btn-secondary"
-                      onClick={() => {
+                        onClick={() => {
                           const subject = `Material Square quotation ${q.quoteNumber}`;
                           const body = `Hello ${q.customerName},\n\nYour Material Square quotation ${q.quoteNumber} is ready. Reply to this email and our team will share the quotation PDF and answer any questions.\n\nMaterial Square`;
                           window.location.href = `mailto:${encodeURIComponent(q.customerEmail!)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -664,6 +735,50 @@ export default function SalesOperations({
                   `· ${o.dispatch.truckNumber} · Dispatch step ${o.dispatch.currentStep}/5`}
               </p>
               <OrderDetails order={o} />
+              {["SUPER_ADMIN", "ADMIN", "ACCOUNTS_MANAGER"].includes(role) &&
+                o.manualPaymentStatus !== "PAID" && (
+                  <details className="sales-external-acceptance">
+                    <summary>Record offline payment</summary>
+                    <p>
+                      Use this only after staff has received payment outside the
+                      website. This records the full order total as paid; it
+                      does not collect or verify funds.
+                    </p>
+                    <form
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        const values = new FormData(event.currentTarget);
+                        const details = event.currentTarget.closest("details");
+                        void mutate(`/orders/${o.id}/manual-payment`, "PATCH", {
+                          method: values.get("method"),
+                          reference: values.get("reference") || undefined,
+                        }).then((saved) => {
+                          if (saved && details) details.open = false;
+                        });
+                      }}
+                    >
+                      <label>
+                        Payment received by
+                        <select name="method" required defaultValue="CASH">
+                          <option value="CASH">Cash</option>
+                          <option value="UPI">UPI</option>
+                          <option value="OTHER">Other offline method</option>
+                        </select>
+                      </label>
+                      <label>
+                        Reference (optional)
+                        <input
+                          name="reference"
+                          maxLength={120}
+                          placeholder="UPI reference or receipt number"
+                        />
+                      </label>
+                      <button className="btn-sm btn-primary" disabled={busy}>
+                        Mark full order total paid
+                      </button>
+                    </form>
+                  </details>
+                )}
               {o.dispatch &&
                 ["SUPER_ADMIN", "ADMIN", "DISPATCH_OFFICER"].includes(role) && (
                   <>

@@ -165,8 +165,39 @@ export class AuditController {
       }),
       this.prisma.auditLog.count({ where }),
     ]);
-    return { items, total, page, pageSize };
+    return {
+      items: items.map((item) => ({
+        ...item,
+        metadata: redactAuditSecrets(item.metadata),
+      })),
+      total,
+      page,
+      pageSize,
+    };
   }
+}
+
+const sensitiveAuditField =
+  /password|passphrase|otp|token|secret|credential|authorization|cookie|session|api[_-]?key|authkey|private[_-]?key/i;
+const redactedAuditValue = "[REDACTED]";
+
+/** Keep useful audit context while preventing accidental secrets in JSON metadata from reaching staff clients. */
+function redactAuditSecrets(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactAuditSecrets);
+  if (!value || typeof value !== "object") return value;
+
+  const record = value as Record<string, unknown>;
+  const fieldName = typeof record.field === "string" ? record.field : "";
+  const sensitiveChange = sensitiveAuditField.test(fieldName);
+  return Object.fromEntries(
+    Object.entries(record).map(([key, child]) => [
+      key,
+      sensitiveAuditField.test(key) ||
+      (sensitiveChange && ["before", "after", "value"].includes(key))
+        ? redactedAuditValue
+        : redactAuditSecrets(child),
+    ]),
+  );
 }
 
 function recentCategoriesForRole(role: string) {

@@ -19,6 +19,10 @@ export default defineConfig({
         VITE_MSG91_TOKEN_AUTH: "browser-test-token",
         VITE_ALLOW_LOCALHOST_OTP_TESTS: "true",
         VITE_ADMIN_APP_ORIGIN: "http://127.0.0.1:4174",
+        // Keep the isolated HTTP test server independent from the developer's
+        // trusted HTTPS cert in apps/web/.env.local.
+        VITE_LOCAL_HTTPS_CERT: "",
+        VITE_LOCAL_HTTPS_KEY: "",
       },
     },
     {
@@ -28,6 +32,8 @@ export default defineConfig({
       reuseExistingServer: false,
       env: {
         VITE_CUSTOMER_APP_URL: "http://127.0.0.1:4173",
+        VITE_LOCAL_HTTPS_CERT: "",
+        VITE_LOCAL_HTTPS_KEY: "",
       },
     },
   ],

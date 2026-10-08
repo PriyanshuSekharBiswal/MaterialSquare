@@ -19,6 +19,7 @@ export class OrdersService {
     return this.prisma.order.findMany({
       include: {
         dispatch: true,
+        manualPaymentRecordedBy: { select: { name: true } },
         items: { include: { product: true, deliveries: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -29,6 +30,7 @@ export class OrdersService {
       where: { OR: [{ id }, { orderNumber: id }] },
       include: {
         dispatch: true,
+        manualPaymentRecordedBy: { select: { name: true } },
         customer: { select: { city: true } },
         items: {
           include: { product: { include: { brand: true } }, deliveries: true },
@@ -37,6 +39,52 @@ export class OrdersService {
     });
     if (!order) throw new NotFoundException("Order not found");
     return order;
+  }
+  async recordManualPayment(
+    id: string,
+    input: { method: "CASH" | "UPI" | "OTHER"; reference?: string },
+    staffId: string,
+  ) {
+    const order = await this.findById(id);
+    if (order.manualPaymentStatus === "PAID")
+      throw new ConflictException("This order is already marked paid");
+    return this.prisma.$transaction(async (db) => {
+      const changed = await db.order.updateMany({
+        where: {
+          id: order.id,
+          manualPaymentStatus: "UNPAID",
+          updatedAt: order.updatedAt,
+        },
+        data: {
+          manualPaymentStatus: "PAID",
+          manualPaymentMethod: input.method,
+          manualPaymentReference: input.reference || null,
+          manualPaymentRecordedAt: new Date(),
+          manualPaymentRecordedById: staffId,
+        },
+      });
+      if (changed.count !== 1)
+        throw new ConflictException(
+          "Order changed; refresh before recording payment",
+        );
+      await db.auditLog.create({
+        data: {
+          staffId,
+          action: "ORDER_OFFLINE_PAYMENT_RECORDED",
+          entityType: "ORDER",
+          entityId: order.id,
+          metadata: {
+            method: input.method,
+            reference: input.reference || null,
+            amountInr: Number(order.grandTotal),
+          },
+        },
+      });
+      return db.order.findUniqueOrThrow({
+        where: { id: order.id },
+        include: { manualPaymentRecordedBy: { select: { name: true } } },
+      });
+    });
   }
   async createDispatchChallan(
     id: string,

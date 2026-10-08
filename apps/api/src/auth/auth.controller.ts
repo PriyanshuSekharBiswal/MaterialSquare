@@ -20,6 +20,7 @@ import { validate } from "../common/validation";
 import { AuthService } from "./auth.service";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { CUSTOMER_SESSION_TTL_MS } from "./customer-session";
 
 import { StaffLoginSchema } from "@material-square/types";
 
@@ -73,7 +74,7 @@ export class AuthController {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/api",
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      maxAge: CUSTOMER_SESSION_TTL_MS,
     });
     res.setHeader("Cache-Control", "no-store");
     return session.customer;

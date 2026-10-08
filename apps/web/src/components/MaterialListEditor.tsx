@@ -17,7 +17,7 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
       </p>
       {!items.length && (
         <p>
-          Your list is empty. Browse the catalogue and add the products you need.
+          Your list is empty. Add products if you know what you need, or attach a project plan in the request form and our team can help you work out a list.
         </p>
       )}
       {items.map((item) => {

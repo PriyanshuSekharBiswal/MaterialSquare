@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import QuotationResponse from "../features/customer-account/QuotationResponse";
 import { Link } from "react-router-dom";
 import {
@@ -35,21 +35,95 @@ export function AccountContent({
   onSaveProfile: (e: React.FormEvent<HTMLFormElement>) => void;
   busy: boolean;
 }) {
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState("");
+  const [attachmentDownloadError, setAttachmentDownloadError] = useState("");
+  const downloadRequestAttachment = async (
+    requestId: string,
+    attachment: Activity["requests"][number]["attachments"][number],
+  ) => {
+    setDownloadingAttachmentId(attachment.id);
+    setAttachmentDownloadError("");
+    try {
+      const apiBase = (import.meta.env.VITE_API_URL || "/api").replace(
+        /\/+$/,
+        "",
+      );
+      const response = await fetch(
+        `${apiBase}/customer/rfqs/${encodeURIComponent(requestId)}/attachments/${encodeURIComponent(attachment.id)}`,
+        {
+          credentials: "include",
+          cache: "no-store",
+          headers: {
+            Accept: attachment.mimeType,
+            "X-Material-Square": "customer",
+          },
+        },
+      );
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(
+          typeof data?.message === "string"
+            ? data.message
+            : "Could not download this file. Please try again.",
+        );
+      }
+      const blob = await response.blob();
+      if (!blob.size) throw new Error("The downloaded file is empty.");
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = attachment.fileName;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (cause) {
+      setAttachmentDownloadError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not download this file. Please try again.",
+      );
+    } finally {
+      setDownloadingAttachmentId("");
+    }
+  };
+
   if (path.startsWith("/account/quotations/") && quote)
     return (
       <>
         <div className="account-breadcrumb">
+          <Link to="/account">Account</Link>
+          <span>/</span>
           <Link to="/account/quotations">Quotations</Link>
           <span>/</span>
-          {quote.quoteNumber}
+          <span>Quotation details</span>
         </div>
         <header className="account-page-heading">
           <span className="account-eyebrow">QUOTATION DETAILS</span>
-          <h1>{quote.quoteNumber}</h1>
+          <h1>Quotation details</h1>
           <p>
             Issued {formatDate(quote.createdAt)} · Valid until{" "}
             {formatDate(quote.validUntil)}
           </p>
+          <div className="account-reference-number">
+            <span>Quote number</span>
+            <strong>{quote.quoteNumber}</strong>
+          </div>
+          {quote.requestId && (
+            <p className="account-quote-source">
+              This quotation responds to request #
+              {quote.requestId.slice(0, 8).toUpperCase()}.{" "}
+              <Link to={`/account/quotations#request-${quote.requestId}`}>
+                View request details
+              </Link>
+            </p>
+          )}
+          <a
+            className="account-inline-link"
+            href={`${(import.meta.env.VITE_API_URL || "/api").replace(/\/+$/, "")}/customer/quotes/${encodeURIComponent(quote.id)}/pdf`}
+          >
+            <FileText size={16} /> Download quotation PDF
+          </a>
         </header>
         <div className="account-detail-grid">
           <div className="account-panel">
@@ -113,17 +187,23 @@ export function AccountContent({
     return (
       <>
         <div className="account-breadcrumb">
+          <Link to="/account">Account</Link>
+          <span>/</span>
           <Link to="/account/orders">Orders</Link>
           <span>/</span>
-          {order.orderNumber}
+          <span>Order tracking</span>
         </div>
         <header className="account-page-heading">
           <span className="account-eyebrow">ORDER TRACKING</span>
-          <h1>{order.orderNumber}</h1>
+          <h1>Order tracking</h1>
           <p>
             Order placed {formatDate(order.createdAt)} · {order.deliverySite},{" "}
             {order.pincode}
           </p>
+          <div className="account-reference-number">
+            <span>Order number</span>
+            <strong>{order.orderNumber}</strong>
+          </div>
         </header>
         <div className="account-panel account-tracking-panel">
           <div>
@@ -298,95 +378,234 @@ export function AccountContent({
     return (
       <>
         <PageHeading
-          eyebrow="YOUR REQUESTS & QUOTES"
-          title="Quotations"
-          subtitle="Review the prices, brands, quantities and validity of quotes prepared for your projects."
+          eyebrow="REQUESTS & QUOTATIONS"
+          title="Your requests and quotations"
+          subtitle="Track each material request. When our team prepares its quotation, you can open it from the matching request below."
         />
+        <section
+          className="account-quote-list"
+          aria-labelledby="customer-quotes-title"
+        >
+          <div className="account-quote-list-heading">
+            <div>
+              <span className="account-eyebrow">
+                PRICES & OPTIONS FROM OUR TEAM
+              </span>
+              <h2 id="customer-quotes-title">Quotations prepared for you</h2>
+            </div>
+            <span className="account-quote-count">
+              {activity.quotations.length} quotation
+              {activity.quotations.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          {activity.quotations.length ? (
+            activity.quotations.map((q) => (
+              <article className="account-panel account-quote-card" key={q.id}>
+                <div className="account-panel-title">
+                  <div>
+                    <span className="account-eyebrow">{q.quoteNumber}</span>
+                    <h3>
+                      {q.items.length} quoted material
+                      {q.items.length === 1 ? "" : "s"}
+                    </h3>
+                  </div>
+                  <StatusBadge status={q.status} />
+                </div>
+                <p className="account-quote-meta">
+                  Issued {formatDate(q.createdAt)} · Valid until{" "}
+                  {formatDate(q.validUntil)}
+                </p>
+                <ul className="account-quote-items">
+                  {q.items.map((item) => (
+                    <li key={item.id}>
+                      <span>
+                        {item.productName} · {item.brandName}
+                      </span>
+                      <small>
+                        {item.quantityMt} {item.unit} × {money(item.unitPrice)}
+                      </small>
+                    </li>
+                  ))}
+                </ul>
+                <div className="account-quote-card-footer">
+                  <div>
+                    <span>Total</span>
+                    <strong>{money(q.totalAmount)}</strong>
+                  </div>
+                  <Link
+                    className="account-open-quote-button"
+                    to={`/account/quotations/${q.id}`}
+                  >
+                    Open quotation <ArrowRight size={16} />
+                  </Link>
+                </div>
+                {q.requestId && (
+                  <p className="account-quote-request-link">
+                    For request #{q.requestId.slice(0, 8).toUpperCase()} ·{" "}
+                    <a href={`#request-${q.requestId}`}>View request</a>
+                  </p>
+                )}
+              </article>
+            ))
+          ) : (
+            <div className="account-no-quote-yet">
+              <FileText size={20} />
+              <div>
+                <strong>No quotation has been issued yet</strong>
+                <p>
+                  We’ll show your team’s prices and availability here as soon as
+                  a quotation is ready.
+                </p>
+              </div>
+            </div>
+          )}
+        </section>
         {activity.requests.length > 0 && (
-          <div className="account-request-list">
-            <h2>Requests awaiting a quotation</h2>
+          <section
+            className="account-request-list"
+            aria-labelledby="customer-requests-title"
+          >
+            <div className="account-quote-list-heading">
+              <div>
+                <span className="account-eyebrow">WHAT YOU SENT US</span>
+                <h2 id="customer-requests-title">Your material requests</h2>
+              </div>
+            </div>
             {activity.requests.map((request) => (
               <article
                 className="account-panel account-request-card"
                 key={request.id}
+                id={`request-${request.id}`}
               >
                 <div className="account-panel-title">
                   <div>
                     <span className="account-eyebrow">
-                      REQUEST · {formatDate(request.createdAt)}
+                      REQUEST #{request.id.slice(0, 8).toUpperCase()} ·{" "}
+                      {formatDate(request.createdAt)}
                     </span>
-                    <h3>
-                      {request.items.length} material
-                      {request.items.length === 1 ? "" : "s"} ·{" "}
-                      {request.siteLocation}
-                    </h3>
+                    <h3>Delivery location · {request.siteLocation}</h3>
                   </div>
                   <StatusBadge status={request.status} />
                 </div>
-                <ul>
-                  {request.items.map((item, index) => (
-                    <li key={`${item.material}-${index}`}>
-                      {item.material}
-                      {item.brand ? ` · ${item.brand}` : ""} — {item.quantity}{" "}
-                      {item.unit}
-                      {item.specification ? ` · ${item.specification}` : ""}
-                    </li>
-                  ))}
-                </ul>
-                {request.notes && <p>{request.notes}</p>}
+                <details className="account-request-details">
+                  <summary>
+                    View request details · {request.items.length} material
+                    {request.items.length === 1 ? "" : "s"}
+                  </summary>
+                  <ul>
+                    {request.items.map((item, index) => (
+                      <li key={`${item.material}-${index}`}>
+                        <strong>
+                          {item.material}
+                          {item.brand ? ` · ${item.brand}` : ""}
+                        </strong>
+                        <span>
+                          {item.quantity} {item.unit}
+                          {item.specification ? ` · ${item.specification}` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="account-request-extra">
+                    {request.projectStage && (
+                      <p>
+                        <b>Project stage</b>
+                        <span>{request.projectStage}</span>
+                      </p>
+                    )}
+                    {request.deliveryTiming && (
+                      <p>
+                        <b>Requested delivery</b>
+                        <span>{formatDate(request.deliveryTiming)}</span>
+                      </p>
+                    )}
+                    {request.notes && (
+                      <p>
+                        <b>Notes</b>
+                        <span>{request.notes}</span>
+                      </p>
+                    )}
+                  </div>
+                  {(request.attachments ?? []).length > 0 && (
+                    <div className="account-request-attachments">
+                      <strong>Plans and files you shared</strong>
+                      {attachmentDownloadError && (
+                        <p className="account-attachment-error" role="alert">
+                          {attachmentDownloadError}
+                        </p>
+                      )}
+                      {(request.attachments ?? []).map((attachment) => (
+                        <button
+                          type="button"
+                          className="account-request-attachment-download"
+                          key={attachment.id}
+                          aria-label={`Download ${attachment.fileName}`}
+                          disabled={downloadingAttachmentId === attachment.id}
+                          onClick={() =>
+                            void downloadRequestAttachment(
+                              request.id,
+                              attachment,
+                            )
+                          }
+                        >
+                          <FileText size={16} />
+                          {attachment.fileName}
+                          <small>
+                            {(attachment.byteSize / (1024 * 1024)).toFixed(1)}{" "}
+                            {downloadingAttachmentId === attachment.id
+                              ? "MB · Downloading…"
+                              : "MB · Download"}
+                          </small>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </details>
+                {(() => {
+                  const requestQuotes = activity.quotations.filter(
+                    (q) => q.requestId === request.id,
+                  );
+                  if (requestQuotes.length) {
+                    return (
+                      <div className="account-request-response">
+                        <strong>Quotation ready for this request</strong>
+                        {requestQuotes.map((q) => (
+                          <Link key={q.id} to={`/account/quotations/${q.id}`}>
+                            {q.quoteNumber} · {money(q.totalAmount)} ·{" "}
+                            {q.status === "REJECTED"
+                              ? "Declined"
+                              : q.status.replaceAll("_", " ")}
+                            <ArrowRight size={15} />
+                          </Link>
+                        ))}
+                      </div>
+                    );
+                  }
+                  if (request.status === "QUOTED")
+                    return (
+                      <p className="account-request-awaiting">
+                        This request is marked as quoted, but its quotation is
+                        not linked to the request yet. Please contact our team
+                        for help.
+                      </p>
+                    );
+                  if (request.status === "CLOSED")
+                    return (
+                      <p className="account-request-awaiting">
+                        This request is closed. Contact our team if you still
+                        need help with it.
+                      </p>
+                    );
+                  return (
+                    <p className="account-request-awaiting">
+                      No quotation has been issued for this request yet. We’ll
+                      add it here when it’s ready.
+                    </p>
+                  );
+                })()}
               </article>
             ))}
-          </div>
-        )}
-        {activity.quotations.length ? (
-          <div className="account-panel account-table-panel">
-            <div className="account-table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Quote</th>
-                    <th>Issued</th>
-                    <th>Status</th>
-                    <th>Valid until</th>
-                    <th>Total</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activity.quotations.map((q) => (
-                    <tr key={q.id}>
-                      <td>
-                        <b>{q.quoteNumber}</b>
-                      </td>
-                      <td>{formatDate(q.createdAt)}</td>
-                      <td>
-                        <StatusBadge status={q.status} />
-                      </td>
-                      <td>{formatDate(q.validUntil)}</td>
-                      <td>
-                        <b>{money(q.totalAmount)}</b>
-                      </td>
-                      <td>
-                        <Link
-                          className="account-inline-link"
-                          to={`/account/quotations/${q.id}`}
-                        >
-                          View quote <ArrowRight size={14} />
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : (
-          <EmptyState
-            title="No quotations yet"
-            body="When our team prepares a quote from your material request, it will appear here."
-            action="Browse materials"
-            to="/marketplace"
-          />
+          </section>
         )}
       </>
     );
@@ -774,11 +993,19 @@ function PageHeading({
   );
 }
 function StatusBadge({ status }: { status: string }) {
+  const labels: Record<string, string> = {
+    NEW: "Request received",
+    CONTACTED: "Team contacted",
+    QUOTED: "Quotation ready",
+    CLOSED: "Request closed",
+    QUOTE_SENT: "Quotation ready to review",
+    REJECTED: "Declined",
+  };
   return (
     <span
       className={`account-status status-${status.toLowerCase().replaceAll("_", "-")}`}
     >
-      {status.replaceAll("_", " ")}
+      {labels[status] || status.replaceAll("_", " ")}
     </span>
   );
 }

@@ -8,6 +8,7 @@ describe("quotation business rules", () => {
       quoteNumber: "MS-QT-2026-0001",
       revisionNumber: 1,
       revisedFromId: null,
+      requestId: "request-1",
       validUntil,
       customerPhone: "9876543210",
     };
@@ -28,6 +29,7 @@ describe("quotation business rules", () => {
       },
       notificationOutbox: notifications,
       auditLog: { create: jest.fn() },
+      rfq: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     };
     const prisma = {
       $transaction: (work: (tx: typeof db) => unknown) => work(db),
@@ -43,6 +45,10 @@ describe("quotation business rules", () => {
         payload: { quoteId: "quote-1", phone: "9876543210" },
         runAt: new Date(validUntil.getTime() - 6 * 60 * 60 * 1000),
       },
+    });
+    expect(db.rfq.updateMany).toHaveBeenCalledWith({
+      where: { id: "request-1", status: { in: ["NEW", "CONTACTED"] } },
+      data: { status: "QUOTED" },
     });
   });
 });

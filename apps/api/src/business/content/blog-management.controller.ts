@@ -35,7 +35,7 @@ export class BlogManagementController {
           .max(220),
         summary: z.string().trim().min(10).max(500),
         body: z.string().trim().min(20).max(50000),
-        featuredImageUrl: z.string().url().optional(),
+        featuredImageUrl: z.string().url().nullable().optional(),
         status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).default("DRAFT"),
         authorName: z.string().max(150).optional(),
       }),

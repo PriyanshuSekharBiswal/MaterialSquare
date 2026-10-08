@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BRAND_LIST, getBrandMeta } from "./components/icons/BrandBadges";
+import { getBrandMeta } from "./components/icons/BrandBadges";
 
 export type PartnerBrand = {
   id: string;
@@ -10,17 +10,8 @@ export type PartnerBrand = {
   sortOrder: number;
 };
 
-const defaults: PartnerBrand[] = BRAND_LIST.map((brand, sortOrder) => ({
-  id: brand.id,
-  name: brand.name,
-  category: brand.category,
-  tagline: brand.tagline,
-  isActive: true,
-  sortOrder,
-}));
-
 export function usePartnerBrands() {
-  const [brands, setBrands] = useState(defaults);
+  const [brands, setBrands] = useState<PartnerBrand[]>([]);
   useEffect(() => {
     const controller = new AbortController();
     fetch(`${import.meta.env.VITE_API_URL || "/api"}/products/partner-brands`, {

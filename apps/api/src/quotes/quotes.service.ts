@@ -128,6 +128,36 @@ export class QuotesService {
         const source = revisedFromId
           ? await db.quotation.findUnique({ where: { id: revisedFromId } })
           : null;
+        const existingDraft = editId
+          ? await db.quotation.findUnique({ where: { id: editId } })
+          : null;
+        if (editId && !existingDraft)
+          throw new NotFoundException("Quotation not found");
+        const sourceRequest = input.requestId
+          ? await db.rfq.findUnique({
+              where: { id: input.requestId },
+              select: { id: true, customerPhone: true },
+            })
+          : null;
+        if (input.requestId && !sourceRequest)
+          throw new NotFoundException("Customer request not found");
+        if (
+          sourceRequest &&
+          sourceRequest.customerPhone !== input.customerPhone
+        )
+          throw new BadRequestException(
+            "The quotation customer must match the selected request",
+          );
+        const existingRequestId =
+          source?.requestId ?? existingDraft?.requestId ?? null;
+        if (
+          existingRequestId &&
+          input.requestId &&
+          existingRequestId !== input.requestId
+        )
+          throw new ConflictException(
+            "A quotation cannot be moved to a different customer request",
+          );
         if (revisedFromId) {
           if (!source)
             throw new NotFoundException("Original quotation not found");
@@ -188,6 +218,7 @@ export class QuotesService {
             },
             data: {
               ...data,
+              requestId: existing.requestId ?? sourceRequest?.id ?? null,
               items: { deleteMany: {}, create: itemCreates },
             },
             include: { items: { include: { product: true, options: true } } },
@@ -213,6 +244,7 @@ export class QuotesService {
         const saved = await db.quotation.create({
           data: {
             ...data,
+            requestId: source?.requestId ?? sourceRequest?.id ?? null,
             revisedFromId,
             revisionNumber: source ? source.revisionNumber + 1 : 1,
             quoteNumber: `MS-QT-${new Date().getFullYear()}-${randomUUID()}`,
@@ -293,6 +325,11 @@ export class QuotesService {
         throw new BadRequestException(
           "Only current draft quotations can be published",
         );
+      if (quote.requestId)
+        await db.rfq.updateMany({
+          where: { id: quote.requestId, status: { in: ["NEW", "CONTACTED"] } },
+          data: { status: "QUOTED" },
+        });
       const businessRules =
         (await db.businessRuleSetting.findUnique({
           where: { id: "global" },

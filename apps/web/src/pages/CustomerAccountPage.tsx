@@ -115,6 +115,12 @@ export default function CustomerAccountPage() {
     void refresh();
   }, [refresh]);
   useEffect(() => {
+    // Account routes can be opened from a page that was already scrolled.
+    // Reset to the start of the new screen so its heading is not hidden behind
+    // the sticky storefront header.
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
+  useEffect(() => {
     if (checking || profile || isLocalhost || !hasMsg91WidgetConfiguration())
       return;
     let active = true;
@@ -144,11 +150,16 @@ export default function CustomerAccountPage() {
     setBusy(true);
     setError("");
     try {
+      const { attachments = [], ...payload } = pendingRfq;
+      const form = new FormData();
+      form.append("payload", JSON.stringify(payload));
+      attachments.forEach((file) => form.append("attachments", file));
       const result = await customerApi<{ id: string }>(
         "/customer/rfqs",
         "POST",
-        pendingRfq,
+        form,
         profile.id,
+        attachments.length ? 20 * 60 * 1000 : 65000,
       );
       updateItems([]);
       const successNotice = `Request ${result.id.slice(0, 8).toUpperCase()} was sent to the team.`;
@@ -382,14 +393,14 @@ export default function CustomerAccountPage() {
             {!sent && (isLocalhost || !hasMsg91WidgetConfiguration()) && (
               <p className="account-config-note" role="status">
                 {isLocalhost
-                  ? "Phone sign-in requires a hostname supported by CAPTCHA. For local development, open http://material-square.localtest.me:5173/account and request a fresh code there."
+                  ? "Phone sign-in requires a secure hostname supported by CAPTCHA. For local development, open https://material-square.localtest.me:5175/account and request a fresh code there."
                   : "Phone sign-in is not configured in this environment yet. You can still browse products and build a guest material list."}
               </p>
             )}
             {sent && isLocalhost && (
               <p className="account-config-note" role="status">
                 This code was requested on localhost. Open
-                http://material-square.localtest.me:5173/account, request a
+                https://material-square.localtest.me:5175/account, request a
                 fresh code there, and verify it on that same site.
               </p>
             )}
@@ -433,16 +444,22 @@ export default function CustomerAccountPage() {
               </div>
             </div>
             <nav aria-label="Customer account navigation">
-              {nav.map(({ to, label, icon: Icon }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  className={`account-side-link ${location.pathname === to ? "is-active" : ""}`}
-                >
-                  <Icon size={18} />
-                  <span>{label}</span>
-                </Link>
-              ))}
+              {nav.map(({ to, label, icon: Icon }) => {
+                const current =
+                  location.pathname === to ||
+                  (to !== "/account" && location.pathname.startsWith(`${to}/`));
+                return (
+                  <Link
+                    key={to}
+                    to={to}
+                    className={`account-side-link ${current ? "is-active" : ""}`}
+                    aria-current={current ? "page" : undefined}
+                  >
+                    <Icon size={18} />
+                    <span>{label}</span>
+                  </Link>
+                );
+              })}
             </nav>
             <button
               type="button"

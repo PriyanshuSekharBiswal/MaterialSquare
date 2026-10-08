@@ -214,6 +214,13 @@
   margin-right: 0.25rem;
 }
 
+.regions-unconfigured-copy {
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
 .region-chip-btn {
   display: inline-flex;
   align-items: center;

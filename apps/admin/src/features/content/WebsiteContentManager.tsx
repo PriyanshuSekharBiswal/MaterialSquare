@@ -580,6 +580,7 @@ export default function WebsiteContentManager({
                   <ContentImageField
                     key={key}
                     token={token}
+                    customerUrl={customerUrl}
                     value={content[key]}
                     label={label}
                     onChange={(url) =>

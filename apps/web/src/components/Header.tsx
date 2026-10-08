@@ -22,6 +22,7 @@ export default function Header({
 }) {
   const siteContent = useSiteContent();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const serviceArea = siteContent["contact.location"].trim();
 
   const navigation = publicNavigation(siteContent);
   const closeMenu = () => setMobileMenuOpen(false);
@@ -32,11 +33,12 @@ export default function Header({
       <div className="ms-top-bar">
         <div className="container top-bar-content">
           <div className="top-bar-left">
-            <span className="location-tag">
-              <MapPin size={12} className="loc-icon" />
-              <strong className="top-bar-serving">Serving Delhi NCR</strong>
-              <span className="top-bar-cities">: {siteContent["contact.location"] || "Noida, Greater Noida, Delhi, Gurugram, Ghaziabad & Faridabad"}</span>
-            </span>
+            {serviceArea && (
+              <span className="location-tag">
+                <MapPin size={12} className="loc-icon" />
+                <span className="top-bar-cities">{serviceArea}</span>
+              </span>
+            )}
           </div>
 
           <div className="top-bar-right">
@@ -114,7 +116,8 @@ export default function Header({
               to="/account"
               className="nav-btn nav-btn-outline nav-account-trigger"
               onClick={closeMenu}
-              title="Sign in to your customer account"
+              title="Open your customer account"
+              aria-label="Account"
             >
               <UserRound size={15} />
               <span>Account</span>
@@ -125,6 +128,7 @@ export default function Header({
               onClick={closeMenu}
               className="nav-btn nav-btn-primary nav-quote-btn"
               title="Request a customized quote for your construction materials"
+              aria-label="Get Quote"
             >
               <span>Get Quote</span>
               <ArrowRight size={14} className="quote-arrow" />

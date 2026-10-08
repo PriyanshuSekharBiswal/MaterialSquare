@@ -58,7 +58,7 @@ const destinations: Destination[] = [
     id: "sales",
     label: "Quotations & orders",
     keywords:
-      "quotation quote rfq order invoice dispatch payment delivery sales",
+      "quotation quote rfq order invoice dispatch delivery sales",
     detail: "Quotations, requests and orders",
     icon: FileText,
   },

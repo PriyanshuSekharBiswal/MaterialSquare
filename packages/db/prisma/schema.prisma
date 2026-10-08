@@ -42,6 +42,17 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum ManualPaymentStatus {
+  UNPAID
+  PAID
+}
+
+enum ManualPaymentMethod {
+  CASH
+  UPI
+  OTHER
+}
+
 enum ProductCategory {
   TMT_REBAR
   STRUCTURAL_STEEL
@@ -94,23 +105,25 @@ enum LoyaltyTransactionType {
 // ----------------------------------------------------
 
 model StaffUser {
-  id                         String               @id @default(uuid())
-  email                      String?              @unique
+  id                         String                   @id @default(uuid())
+  email                      String?                  @unique
   passwordHash               String
   name                       String
-  role                       StaffRole            @default(SALES_MANAGER)
-  authVersion                Int                  @default(0)
-  phone                      String?              @unique
-  isActive                   Boolean              @default(true)
+  role                       StaffRole                @default(SALES_MANAGER)
+  authVersion                Int                      @default(0)
+  phone                      String?                  @unique
+  isActive                   Boolean                  @default(true)
   deletedAt                  DateTime?
-  createdAt                  DateTime             @default(now())
-  updatedAt                  DateTime             @updatedAt
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
   auditLogs                  AuditLog[]
   websiteContentRevisions    WebsiteContentRevision[]
-  supplierRatings            SupplierRating[]     @relation("StaffSupplierRatings")
-  createdProcurementRequests ProcurementRequest[] @relation("ProcurementCreator")
-  approvedPurchaseOrders     PurchaseOrder[]      @relation("PurchaseOrderApprover")
-  approvedCommissions        CommissionRecord[]   @relation("CommissionApprover")
+  supplierRatings            SupplierRating[]         @relation("StaffSupplierRatings")
+  assignedRfqs               Rfq[]                    @relation("RfqOwner")
+  createdProcurementRequests ProcurementRequest[]     @relation("ProcurementCreator")
+  approvedPurchaseOrders     PurchaseOrder[]          @relation("PurchaseOrderApprover")
+  approvedCommissions        CommissionRecord[]       @relation("CommissionApprover")
+  recordedManualPayments     Order[]                  @relation("ManualPaymentRecorder")
 
   @@map("staff_users")
 }
@@ -126,14 +139,14 @@ model WebsiteContent {
 }
 
 model WebsiteContentRevision {
-  id            String    @id @default(uuid())
+  id            String     @id @default(uuid())
   staffId       String?
   staff         StaffUser? @relation(fields: [staffId], references: [id], onDelete: SetNull)
   content       Json
   changedFields Json
-  saveType      String    @default("AUTOSAVE")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  saveType      String     @default("AUTOSAVE")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
   expiresAt     DateTime
 
   @@index([expiresAt])
@@ -252,39 +265,39 @@ enum CatalogAvailabilityStatus {
 }
 
 model CatalogListing {
-  id             String                  @id @default(uuid())
-  slug           String                  @unique
-  code           String?                 @unique
-  name           String
-  brand          String                  @default("")
-  brandTagline   String?
-  category       String
-  categoryLabel  String
-  unit           String
-  packaging      String?
-  image          String?
-  galleryImages  String[]                @default([])
-  grade          String?
-  description    String?
-  minOrderQty    String?
-  dispatchTime   String?
-  price          Decimal?                @db.Decimal(12, 2)
-  compareAtPrice Decimal?                @db.Decimal(12, 2)
-  priceNote      String?
-  offerLabel     String?
-  offerStartsAt  DateTime?
-  offerEndsAt    DateTime?
-  isInStock      Boolean                 @default(false)
+  id                 String                    @id @default(uuid())
+  slug               String                    @unique
+  code               String?                   @unique
+  name               String
+  brand              String                    @default("")
+  brandTagline       String?
+  category           String
+  categoryLabel      String
+  unit               String
+  packaging          String?
+  image              String?
+  galleryImages      String[]                  @default([])
+  grade              String?
+  description        String?
+  minOrderQty        String?
+  dispatchTime       String?
+  price              Decimal?                  @db.Decimal(12, 2)
+  compareAtPrice     Decimal?                  @db.Decimal(12, 2)
+  priceNote          String?
+  offerLabel         String?
+  offerStartsAt      DateTime?
+  offerEndsAt        DateTime?
+  isInStock          Boolean                   @default(false)
   availabilityStatus CatalogAvailabilityStatus @default(CHECK_AVAILABILITY)
-  isPublished    Boolean                 @default(false)
-  deletedAt      DateTime?
-  features       String[]                @default([])
-  applications   String[]                @default([])
-  specifications Json                    @default("{}")
-  variants       CatalogListingVariant[]
-  sortOrder      Int                     @default(0)
-  createdAt      DateTime                @default(now())
-  updatedAt      DateTime                @updatedAt
+  isPublished        Boolean                   @default(false)
+  deletedAt          DateTime?
+  features           String[]                  @default([])
+  applications       String[]                  @default([])
+  specifications     Json                      @default("{}")
+  variants           CatalogListingVariant[]
+  sortOrder          Int                       @default(0)
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
 
   @@index([isPublished, category, sortOrder])
   @@map("catalog_listings")
@@ -294,29 +307,30 @@ model CatalogListing {
 // Keep price and stock at variant level because a 1 L paint tin and a 20 L drum
 // are distinct sellable units with their own price and availability.
 model CatalogListingVariant {
-  id               String         @id @default(uuid())
-  listingId        String
-  listing          CatalogListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  code             String?        @unique
-  label            String
-  attributes       Json           @default("{}")
-  unit             String
-  image            String?
-  galleryImages    String[]       @default([])
-  price            Decimal?       @db.Decimal(12, 2)
-  compareAtPrice   Decimal?       @db.Decimal(12, 2)
-  priceNote        String?
-  offerLabel       String?
-  offerStartsAt    DateTime?
-  offerEndsAt      DateTime?
-  isInStock        Boolean        @default(false)
+  id                 String                    @id @default(uuid())
+  listingId          String
+  listing            CatalogListing            @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  code               String?                   @unique
+  label              String
+  attributes         Json                      @default("{}")
+  unit               String
+  image              String?
+  galleryImages      String[]                  @default([])
+  price              Decimal?                  @db.Decimal(12, 2)
+  compareAtPrice     Decimal?                  @db.Decimal(12, 2)
+  priceNote          String?
+  offerLabel         String?
+  offerStartsAt      DateTime?
+  offerEndsAt        DateTime?
+  isInStock          Boolean                   @default(false)
   availabilityStatus CatalogAvailabilityStatus @default(CHECK_AVAILABILITY)
-  stockQuantity    Decimal?       @db.Decimal(12, 3)
-  minOrderQuantity Decimal?       @db.Decimal(12, 3)
-  quantityBreaks   Json           @default("[]")
-  sortOrder        Int            @default(0)
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  stockQuantity      Decimal?                  @db.Decimal(12, 3)
+  minOrderQuantity   Decimal?                  @db.Decimal(12, 3)
+  quantityBreaks     Json                      @default("[]")
+  supplierProducts   SupplierProduct[]
+  sortOrder          Int                       @default(0)
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
 
   @@index([listingId, sortOrder])
   @@map("catalog_listing_variants")
@@ -328,6 +342,8 @@ model CatalogListingVariant {
 
 model Quotation {
   id                 String              @id @default(uuid())
+  requestId          String?
+  request            Rfq?                @relation(fields: [requestId], references: [id], onDelete: SetNull)
   revisedFromId      String?             @unique
   revisionNumber     Int                 @default(1)
   quoteNumber        String              @unique // MS-QT-2026-XXXX
@@ -356,6 +372,7 @@ model Quotation {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
+  @@index([requestId])
   @@map("quotations")
 }
 
@@ -409,34 +426,40 @@ model QuotationItemOption {
 // ----------------------------------------------------
 
 model Order {
-  id                    String               @id @default(uuid())
-  orderNumber           String               @unique // MS-ORD-2026-XXXX
-  quotationId           String?
-  quotation             Quotation?           @relation(fields: [quotationId], references: [id], onDelete: SetNull)
-  customerId            String?
-  customer              Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  customerName          String
-  customerPhone         String
-  deliverySite          String
-  pincode               String
-  status                OrderStatus          @default(PROCESSING_AT_YARD)
-  subtotal              Decimal              @db.Decimal(12, 2)
-  taxAmount             Decimal              @db.Decimal(12, 2)
-  freightAmount         Decimal              @db.Decimal(12, 2)
-  loyaltyDiscountAmount Decimal              @default(0) @db.Decimal(12, 2)
-  grandTotal            Decimal              @db.Decimal(12, 2)
-  invoiceUrl            String?
-  challanUrl            String?
-  deliveryVersion       Int                  @default(0)
-  items                 OrderItem[]
-  deliveries            OrderDelivery[]
-  dispatch              DispatchChallan?
-  transportationPlan    TransportationPlan?
-  procurementRequests   ProcurementRequest[]
-  loyaltyTransactions   LoyaltyTransaction[]
-  commissions           CommissionRecord[]
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  id                        String               @id @default(uuid())
+  orderNumber               String               @unique // MS-ORD-2026-XXXX
+  quotationId               String?
+  quotation                 Quotation?           @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  customerId                String?
+  customer                  Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName              String
+  customerPhone             String
+  deliverySite              String
+  pincode                   String
+  status                    OrderStatus          @default(PROCESSING_AT_YARD)
+  manualPaymentStatus       ManualPaymentStatus  @default(UNPAID)
+  manualPaymentMethod       ManualPaymentMethod?
+  manualPaymentReference    String?
+  manualPaymentRecordedAt   DateTime?
+  manualPaymentRecordedById String?
+  manualPaymentRecordedBy   StaffUser?           @relation("ManualPaymentRecorder", fields: [manualPaymentRecordedById], references: [id], onDelete: SetNull)
+  subtotal                  Decimal              @db.Decimal(12, 2)
+  taxAmount                 Decimal              @db.Decimal(12, 2)
+  freightAmount             Decimal              @db.Decimal(12, 2)
+  loyaltyDiscountAmount     Decimal              @default(0) @db.Decimal(12, 2)
+  grandTotal                Decimal              @db.Decimal(12, 2)
+  invoiceUrl                String?
+  challanUrl                String?
+  deliveryVersion           Int                  @default(0)
+  items                     OrderItem[]
+  deliveries                OrderDelivery[]
+  dispatch                  DispatchChallan?
+  transportationPlan        TransportationPlan?
+  procurementRequests       ProcurementRequest[]
+  loyaltyTransactions       LoyaltyTransaction[]
+  commissions               CommissionRecord[]
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
 
   @@map("orders")
 }
@@ -540,23 +563,29 @@ model Supplier {
 }
 
 model SupplierProduct {
-  id              String   @id @default(uuid())
-  supplierId      String
-  supplier        Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-  productName     String
-  brand           String   @default("")
-  category        String
-  supplierSku     String?
-  unit            String
-  minimumOrderQty Decimal? @db.Decimal(12, 3)
-  lastQuotedPrice Decimal? @db.Decimal(12, 2)
-  isActive        Boolean  @default(true)
-  deletedAt       DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                    String                 @id @default(uuid())
+  supplierId            String
+  supplier              Supplier               @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  catalogVariantId      String?
+  catalogVariant        CatalogListingVariant? @relation(fields: [catalogVariantId], references: [id], onDelete: SetNull)
+  productName           String
+  brand                 String                 @default("")
+  category              String
+  supplierSku           String?
+  unit                  String
+  minimumOrderQty       Decimal?               @db.Decimal(12, 3)
+  availableQuantity     Decimal?               @db.Decimal(12, 3)
+  availabilityCheckedAt DateTime?
+  lastQuotedPrice       Decimal?               @db.Decimal(12, 2)
+  isActive              Boolean                @default(true)
+  deletedAt             DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 
-  @@unique([supplierId, productName, brand])
+  @@unique([supplierId, catalogVariantId])
   @@index([category, productName, isActive])
+  @@index([brand, category, isActive])
+  @@index([catalogVariantId])
   @@map("supplier_products")
 }
 
@@ -801,12 +830,12 @@ model LoyaltyProgramSetting {
 }
 
 model BusinessRuleSetting {
-  id                              String   @id @default("global")
-  quotationValidityHours          Int      @default(48)
-  sendQuotePublishedNotification  Boolean  @default(true)
-  sendQuoteExpiryReminder         Boolean  @default(true)
-  expiryReminderHoursBefore       Int      @default(24)
-  updatedAt                       DateTime @updatedAt
+  id                             String   @id @default("global")
+  quotationValidityHours         Int      @default(48)
+  sendQuotePublishedNotification Boolean  @default(true)
+  sendQuoteExpiryReminder        Boolean  @default(true)
+  expiryReminderHoursBefore      Int      @default(24)
+  updatedAt                      DateTime @updatedAt
 
   @@map("business_rule_settings")
 }
@@ -876,18 +905,39 @@ model Rfq {
   id             String    @id @default(uuid())
   customerId     String?
   customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  assignedStaffId String?
+  assignedStaff   StaffUser? @relation("RfqOwner", fields: [assignedStaffId], references: [id], onDelete: SetNull)
   customerName   String
   customerPhone  String
   siteLocation   String
   projectStage   String?
   deliveryTiming String?
   notes          String?
+  staffNotes     String?
   items          Json
   status         String    @default("NEW")
+  quotations     Quotation[]
+  attachments    RfqAttachment[]
   createdAt      DateTime  @default(now())
 
   @@index([customerId, createdAt])
+  @@index([assignedStaffId, status, createdAt])
   @@map("rfqs")
+}
+
+model RfqAttachment {
+  id          String   @id @default(uuid())
+  rfqId       String
+  rfq         Rfq      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  fileName    String
+  mimeType    String
+  byteSize    Int
+  storageKey  String?
+  content     Bytes?   @db.ByteA
+  createdAt   DateTime @default(now())
+
+  @@index([rfqId, createdAt])
+  @@map("rfq_attachments")
 }
 
 model ContactInquiry {

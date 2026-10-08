@@ -7,6 +7,8 @@ type Material = {
   productName: string;
   brand?: string;
   quantity: number;
+  requiredQuantity?: number;
+  clientStockQuantity?: number;
   unit: string;
   notes?: string;
 };
@@ -14,10 +16,26 @@ type Supplier = {
   id: string;
   name: string;
   phone: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  servicePincodes?: string[];
   averageScore?: number | null;
   matchedItems: string[];
   serviceAreaMatch: boolean;
+  deliveryPincodeMatch?: boolean;
+  serviceCoverageMatch?: boolean;
   cityMatch: boolean;
+  matchedProducts?: {
+    productName: string;
+    brand: string;
+    category: string;
+    unit: string;
+    availableQuantity: string | number | null;
+    availabilityCheckedAt: string | null;
+    lastQuotedPrice: string | number | null;
+    requestedQuantity: number;
+  }[];
 };
 type SupplierQuote = {
   id: string;
@@ -173,8 +191,10 @@ export default function ProcurementRequestCard({
         <details key={supplier.id} className="procurement-candidate">
           <summary>
             {supplier.name} · {supplier.matchedItems.join(", ")} ·{" "}
-            {supplier.serviceAreaMatch
+            {supplier.deliveryPincodeMatch || supplier.serviceAreaMatch && !supplier.serviceCoverageMatch
               ? `Serves delivery PIN ${record.deliveryPincode}`
+              : supplier.serviceCoverageMatch
+                ? `Covers delivery PIN ${record.deliveryPincode}`
               : supplier.cityMatch
                 ? `Same city · ${record.deliveryCity}`
                 : "Other city / service area"}{" "}
@@ -183,6 +203,26 @@ export default function ProcurementRequestCard({
               ? "No ratings"
               : `${supplier.averageScore.toFixed(1)}/5`}
           </summary>
+          {(supplier.city || supplier.pincode || supplier.servicePincodes?.length) && (
+            <p>
+              Supplier location: {[supplier.city, supplier.state].filter(Boolean).join(", ") || "Not recorded"}
+              {supplier.pincode ? ` · PIN ${supplier.pincode}` : ""}
+              {supplier.servicePincodes?.length
+                ? ` · Serves PINs ${supplier.servicePincodes.join(", ")}`
+                : " · No service PINs recorded"}
+            </p>
+          )}
+          {supplier.matchedProducts?.map((product) => (
+            <p key={`${product.productName}-${product.brand}-${product.unit}`}>
+              Supplier listing: {product.productName} · {product.brand || "Brand unspecified"} · {product.category} · Available: {product.availableQuantity ?? "Not checked"} {product.unit}
+              {product.availabilityCheckedAt
+                ? ` · checked ${new Date(product.availabilityCheckedAt).toLocaleString("en-IN")}`
+                : ""}
+              {product.lastQuotedPrice != null
+                ? ` · last quote ₹${Number(product.lastQuotedPrice).toLocaleString("en-IN")}/${product.unit}`
+                : ""}
+            </p>
+          ))}
           <form
             className="bc-fields"
             onSubmit={(event) => void saveQuote(event, supplier.id)}
@@ -196,8 +236,14 @@ export default function ProcurementRequestCard({
                 >
                   <strong>
                     {item.productName}
-                    {item.brand ? ` · ${item.brand}` : ""} · request{" "}
+                    {item.brand ? ` · ${item.brand}` : ""} · source shortfall{" "}
                     {item.quantity} {item.unit}
+                    {item.requiredQuantity != null && (
+                      <> · total need {item.requiredQuantity} {item.unit}</>
+                    )}
+                    {item.clientStockQuantity != null && (
+                      <> · client stock {item.clientStockQuantity} {item.unit}</>
+                    )}
                   </strong>
                   <label>
                     Quantity offered ({item.unit})

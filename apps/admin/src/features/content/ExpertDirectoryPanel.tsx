@@ -19,6 +19,7 @@ export type ExpertProfile = {
 type Props = {
   records: ExpertProfile[];
   token: string;
+  customerUrl?: string;
   busy: boolean;
   mediaBusy: boolean;
   setMediaBusy: (busy: boolean) => void;
@@ -33,6 +34,7 @@ const field = (data: FormData, key: string) =>
 export default function ExpertDirectoryPanel({
   records,
   token,
+  customerUrl,
   busy,
   mediaBusy,
   setMediaBusy,
@@ -152,6 +154,7 @@ export default function ExpertDirectoryPanel({
             token={token}
             initialUrl={editingExpert?.imageUrl || ""}
             label="Image URL"
+            customerUrl={customerUrl}
             onBusyChange={setMediaBusy}
             onSignOut={onSignOut}
           />

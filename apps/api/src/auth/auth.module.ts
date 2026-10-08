@@ -5,6 +5,7 @@ import { JwtModule } from "@nestjs/jwt";
 import { PassportModule } from "@nestjs/passport";
 import { JwtStrategy } from "./jwt.strategy";
 import { QuotesModule } from "../quotes/quotes.module";
+import { PdfModule } from "../pdf/pdf.module";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { StaffManagementController } from "./staff-management.controller";
@@ -12,11 +13,14 @@ import { CustomerController } from "./customer.controller";
 import { CustomerGuard } from "./customer.guard";
 import { Msg91WidgetService } from "./msg91-widget.service";
 import { RecentlyDeletedController } from "./recently-deleted.controller";
+import { StorageModule } from "../storage/storage.module";
 
 @Global()
 @Module({
   imports: [
     QuotesModule,
+    PdfModule,
+    StorageModule,
     PassportModule.register({ defaultStrategy: "jwt" }),
     JwtModule.registerAsync({
       useFactory: () => ({
@@ -27,7 +31,12 @@ import { RecentlyDeletedController } from "./recently-deleted.controller";
       }),
     }),
   ],
-  controllers: [AuthController, CustomerController, StaffManagementController, RecentlyDeletedController],
+  controllers: [
+    AuthController,
+    CustomerController,
+    StaffManagementController,
+    RecentlyDeletedController,
+  ],
   providers: [
     AuthService,
     JwtStrategy,

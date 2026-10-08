@@ -11,6 +11,12 @@ import {
   type RequestDetails,
 } from "../messages";
 import { useSiteContent } from "../site-content";
+import type { PendingRfq, Profile } from "../features/customer-account/model";
+import {
+  getRfqAttachmentValidationError,
+  RFQ_ATTACHMENT_MAX_FILE_BYTES,
+  RFQ_ATTACHMENT_MAX_FILES,
+} from "@material-square/types";
 export default function RequestContactForm({
   enquiry = false,
   products = [],
@@ -43,6 +49,43 @@ export default function RequestContactForm({
     [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [sessionState, setSessionState] = useState<
+    "checking" | "signed-in" | "guest"
+  >(enquiry ? "guest" : "checking");
+  useEffect(() => {
+    if (enquiry) return;
+    let active = true;
+    void customerApi<Profile>("/customer/me", "GET", undefined, undefined, 12000)
+      .then((profile) => {
+        if (!active) return;
+        setSessionState("signed-in");
+        const digits = profile.phone.replace(/\D/g, "");
+        const mobile = digits.startsWith("91") && digits.length === 12
+          ? digits.slice(2)
+          : digits;
+        setDetails((current) => ({
+          ...current,
+          name: current.name || profile.name,
+          phone: current.phone || mobile,
+          email: current.email || profile.email || "",
+          company: current.company || profile.companyName || "",
+          address:
+            current.address ||
+            profile.shippingAddress ||
+            profile.billingAddress ||
+            "",
+          city: current.city || profile.city,
+          pincode: current.pincode || profile.pincode,
+        }));
+      })
+      .catch(() => {
+        if (active) setSessionState("guest");
+      });
+    return () => {
+      active = false;
+    };
+  }, [enquiry]);
   function update(key: keyof RequestDetails, value: string) {
     setPrepared(false);
     setCopied(false);
@@ -60,9 +103,15 @@ export default function RequestContactForm({
   const message = requestMessage(details, items, enquiry);
   async function submitQuoteRequest() {
     setError("");
-    const belowMinimum = items.find((item) => item.minOrderQuantity != null && Number(item.quantity || 0) < Number(item.minOrderQuantity));
+    const belowMinimum = items.find(
+      (item) =>
+        item.minOrderQuantity != null &&
+        Number(item.quantity || 0) < Number(item.minOrderQuantity),
+    );
     if (belowMinimum) {
-      setError(`${belowMinimum.name} requires a minimum of ${belowMinimum.minOrderQuantity} ${belowMinimum.unit}.`);
+      setError(
+        `${belowMinimum.name} requires a minimum of ${belowMinimum.minOrderQuantity} ${belowMinimum.unit}.`,
+      );
       return;
     }
     setSubmitting(true);
@@ -79,7 +128,9 @@ export default function RequestContactForm({
       items: items.map((item) => {
         const candidateId = item.catalogueId || item.id;
         const product = products.find((entry) => entry.id === candidateId);
-        const variant = product?.variants?.find((entry) => entry.id === item.variantId);
+        const variant = product?.variants?.find(
+          (entry) => entry.id === item.variantId,
+        );
         return {
           ...(product ? { catalogueId: product.id } : {}),
           ...(variant ? { variantId: variant.id } : {}),
@@ -93,10 +144,19 @@ export default function RequestContactForm({
       }),
     };
     try {
+      const requestBody: FormData | typeof payload = attachments.length
+        ? new FormData()
+        : payload;
+      if (requestBody instanceof FormData) {
+        requestBody.append("payload", JSON.stringify(payload));
+        attachments.forEach((file) => requestBody.append("attachments", file));
+      }
       const result = await customerApi<{ id: string }>(
         "/customer/rfqs",
         "POST",
-        payload,
+        requestBody,
+        undefined,
+        attachments.length ? 20 * 60 * 1000 : 65000,
       );
       updateItems([]);
       navigate("/account/quotations", {
@@ -106,7 +166,11 @@ export default function RequestContactForm({
       });
     } catch (cause) {
       if (cause instanceof Error && "status" in cause && cause.status === 401) {
-        navigate("/account", { state: { pendingRfq: payload } });
+        navigate("/account", {
+          state: {
+            pendingRfq: { ...payload, attachments } as PendingRfq,
+          },
+        });
       } else {
         setError(
           cause instanceof Error
@@ -181,14 +245,24 @@ export default function RequestContactForm({
         Confirm the site location for this request. Our team will discuss
         availability and delivery with you.
       </p>
+      {!enquiry && (
+        <div className="request-plan-guidance">
+          <strong>Not sure what materials or quantities you need?</strong>
+          <span>
+            Add a house plan, handwritten sketch, bill of quantities (BOQ), or
+            site photo. Our team can review it with you. Final quantities should
+            be checked against approved drawings by your project professional.
+          </span>
+        </div>
+      )}
       <form
         className="customer-form"
         onSubmit={(e) => {
           e.preventDefault();
           setError("");
-          if (!enquiry && !items.length) {
+          if (!enquiry && !items.length && !attachments.length) {
             setError(
-              "Add at least one material before preparing your request.",
+              "Add a material or attach a project plan so the team knows what to help with.",
             );
             return;
           }
@@ -290,6 +364,57 @@ export default function RequestContactForm({
               onChange={(e) => update("notes", e.target.value)}
             />
           </label>
+          {!enquiry && (
+            <label className="request-plan-upload">
+              Project plans, sketches or BOQ <span>(optional)</span>
+              <input
+                type="file"
+                accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp"
+                multiple
+                onChange={(event) => {
+                  const selected = Array.from(event.currentTarget.files || []);
+                  const uploadError = getRfqAttachmentValidationError(selected);
+                  if (uploadError) {
+                    setError(uploadError);
+                    event.currentTarget.value = "";
+                    return;
+                  }
+                  setError("");
+                  setAttachments(selected);
+                  setPrepared(false);
+                }}
+              />
+              <span className="customer-help">
+                PDF, JPG, PNG or WebP · up to {RFQ_ATTACHMENT_MAX_FILES} files ·{" "}
+                {RFQ_ATTACHMENT_MAX_FILE_BYTES / (1024 * 1024)} MB each. Files
+                are visible only to you and authorized staff on this request.
+              </span>
+              {attachments.length > 0 && (
+                <ul className="request-plan-file-list">
+                  {attachments.map((file, index) => (
+                    <li key={`${file.name}-${file.lastModified}-${index}`}>
+                      <span>
+                        {file.name} · {(file.size / (1024 * 1024)).toFixed(1)}{" "}
+                        MB
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${file.name}`}
+                        onClick={() => {
+                          setAttachments((current) =>
+                            current.filter((_, i) => i !== index),
+                          );
+                          setPrepared(false);
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </label>
+          )}
           <button className="btn btn-primary" disabled={!ready}>
             Preview {enquiry ? "enquiry" : "request"}
           </button>
@@ -306,9 +431,23 @@ export default function RequestContactForm({
                   : "Review your quotation request"}
               </h3>
               <pre className="request-preview">{message}</pre>
+              {!enquiry && attachments.length > 0 && (
+                <div className="request-plan-preview-files">
+                  <strong>Project files included with your request</strong>
+                  <ul>
+                    {attachments.map((file, index) => (
+                      <li key={`${file.name}-${file.lastModified}-${index}`}>
+                        {file.name}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <p className="customer-help">
                 {!enquiry ? (
-                  "After phone verification, your request will be saved to your account and sent to the team’s request queue."
+                  sessionState === "signed-in"
+                    ? "Your verified customer session will be used. You will not need to sign in again."
+                    : "Your request will be saved to your account and sent to the team after you verify your mobile number."
                 ) : channel === "copy" ? (
                   "Review the details, copy the message, and paste it into your preferred messaging app."
                 ) : (
@@ -377,19 +516,19 @@ export default function RequestContactForm({
               {!enquiry && (
                 <div className="request-submit-actions">
                   <p className="customer-help">
-                    Sign in with your mobile number to save this request to your
-                    account. The team will confirm pricing, stock and delivery;
-                    no online payment is taken.
+                    The team will confirm pricing, stock and delivery; no online payment is taken.
                   </p>
                   <button
                     type="button"
                     className="btn btn-primary"
-                    disabled={submitting}
+                    disabled={submitting || sessionState === "checking"}
                     onClick={() => void submitQuoteRequest()}
                   >
                     {submitting
                       ? "Submitting request…"
-                      : "Verify phone & request quotation"}
+                      : sessionState === "signed-in"
+                        ? "Submit quotation request"
+                        : "Verify phone & request quotation"}
                   </button>
                 </div>
               )}

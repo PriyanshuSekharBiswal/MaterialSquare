@@ -1,3 +1,4 @@
+import { ConflictException } from "@nestjs/common";
 import { SuppliersController } from "./suppliers.controller";
 
 const staff = {
@@ -21,13 +22,16 @@ describe("supplier audit history", () => {
     await controller.create(staff, {
       name: "North Supply",
       phone: "9876543210",
+      gstin: "",
       address: "Market Road",
       city: "Noida",
       pincode: "201301",
     });
 
     expect(transaction).toHaveBeenCalledTimes(1);
-    expect(tx.supplier.create).toHaveBeenCalledTimes(1);
+    expect(tx.supplier.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ gstin: null }),
+    });
     expect(auditCreate).toHaveBeenCalledWith({
       data: {
         staffId: "staff-1",
@@ -69,5 +73,72 @@ describe("supplier audit history", () => {
       },
     });
     expect(JSON.stringify(auditCreate.mock.calls)).not.toContain("9876543210");
+  });
+
+  it("returns a useful conflict when a supplier GSTIN already exists", async () => {
+    const prismaError = Object.assign(new Error("unique constraint"), {
+      code: "P2002",
+      meta: { target: ["gstin"] },
+    });
+    const controller = new SuppliersController({
+      $transaction: jest.fn().mockRejectedValue(prismaError),
+    } as never);
+
+    const create = controller.create(staff, {
+      name: "North Supply",
+      phone: "9876543210",
+      address: "Market Road",
+      city: "Noida",
+      pincode: "201301",
+      gstin: "09ABCDE1234F1Z5",
+    });
+    await expect(create).rejects.toBeInstanceOf(ConflictException);
+    await expect(create).rejects.toThrow(
+      "A supplier with this GSTIN is already registered.",
+    );
+  });
+
+  it("returns a useful conflict when a supplier already lists a product and brand", async () => {
+    const prismaError = Object.assign(new Error("unique constraint"), {
+      code: "P2002",
+      meta: { target: ["supplierId", "productName", "brand"] },
+    });
+    const controller = new SuppliersController({
+      $transaction: jest.fn().mockRejectedValue(prismaError),
+    } as never);
+
+    const addProduct = controller.addProduct("supplier-1", staff, {
+      productName: "UltraTech Cement 50 kg",
+      brand: "UltraTech Cement",
+      category: "Cement & Aggregates",
+      unit: "50 kg bag",
+      availableQuantity: 120,
+    });
+    await expect(addProduct).rejects.toBeInstanceOf(ConflictException);
+    await expect(addProduct).rejects.toThrow(
+      "This supplier already has a listing for that unlinked product and brand.",
+    );
+  });
+
+  it("returns a catalogue-pack-specific conflict for an exact duplicate link", async () => {
+    const prismaError = Object.assign(new Error("unique constraint"), {
+      code: "P2002",
+      meta: { target: ["supplierId", "catalogVariantId"] },
+    });
+    const controller = new SuppliersController({
+      $transaction: jest.fn().mockRejectedValue(prismaError),
+    } as never);
+
+    const addProduct = controller.addProduct("supplier-1", staff, {
+      catalogVariantId: "refv-ultratech-ppc-50",
+      productName: "UltraTech PPC Cement, 50 kg",
+      brand: "UltraTech Cement",
+      category: "Cement",
+      unit: "bag",
+    });
+    await expect(addProduct).rejects.toBeInstanceOf(ConflictException);
+    await expect(addProduct).rejects.toThrow(
+      "This supplier already has a listing for that catalogue pack.",
+    );
   });
 });

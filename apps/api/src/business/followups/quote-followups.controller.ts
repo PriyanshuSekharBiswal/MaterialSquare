@@ -104,22 +104,101 @@ export class QuoteFollowupsController {
   ) {
     const data = validate(
       z.object({
-        status: z.enum(["SCHEDULED", "SENT", "CANCELLED", "FAILED"]),
+        status: z.enum(["SCHEDULED", "SENT", "CANCELLED", "FAILED"]).optional(),
+        scheduledAt: z.string().datetime().optional(),
         notes: z.string().max(3000).optional(),
-      }),
+      }).refine(
+        (value) => value.status !== undefined || value.scheduledAt !== undefined || value.notes !== undefined,
+        "Choose a status, new schedule time, or note to update",
+      ).refine(
+        (value) => !(value.status !== undefined && value.scheduledAt !== undefined),
+        "Reschedule the follow-up separately from changing its status",
+      ),
       body,
     );
     const followup = await this.prisma.quotationFollowUp.findFirst({
       where: { id, quotationId: quoteId },
     });
     if (!followup) throw new NotFoundException("Follow-up not found");
+
+    if (data.scheduledAt) {
+      if (followup.status !== "SCHEDULED")
+        throw new ConflictException("Only scheduled follow-ups can be rescheduled");
+      const scheduledAt = new Date(data.scheduledAt);
+      if (scheduledAt < new Date())
+        throw new BadRequestException(
+          "Schedule the follow-up for now or a future time",
+        );
+
+      return this.prisma.$transaction(async (tx) => {
+        const closed = await tx.quotationFollowUp.updateMany({
+          where: { id, quotationId: quoteId, status: "SCHEDULED" },
+          data: { status: "CANCELLED" },
+        });
+        if (closed.count !== 1)
+          throw new ConflictException(
+            "This follow-up changed. Refresh before rescheduling it.",
+          );
+
+        const notes = data.notes ?? followup.notes;
+        const replacement = await tx.quotationFollowUp.create({
+          data: {
+            quotationId: quoteId,
+            channel: followup.channel,
+            scheduledAt,
+            notes,
+          },
+        });
+        if (followup.channel !== "INTERNAL") {
+          const quote = await tx.quotation.findUnique({
+            where: { id: quoteId },
+          });
+          if (!quote) throw new NotFoundException("Quotation not found");
+          await tx.notificationOutbox.create({
+            data: {
+              type: "quote-follow-up",
+              runAt: scheduledAt,
+              payload: {
+                followupId: replacement.id,
+                quotationId: quote.id,
+                channel: followup.channel,
+                phone: quote.customerPhone,
+                email: quote.customerEmail,
+                quoteNumber: quote.quoteNumber,
+                notes: notes || "",
+              },
+            },
+          });
+        }
+        await tx.auditLog.create({
+          data: {
+            staffId: req?.user.userId,
+            action: "QUOTATION_FOLLOWUP_RESCHEDULED",
+            entityType: "QUOTATION",
+            entityId: quoteId,
+            metadata: {
+              previousFollowupId: id,
+              followupId: replacement.id,
+              channel: followup.channel,
+              previousScheduledAt: followup.scheduledAt.toISOString(),
+              scheduledAt: scheduledAt.toISOString(),
+            },
+          },
+        });
+        return replacement;
+      });
+    }
+
+    if (!data.status)
+      throw new BadRequestException("Choose a status or new schedule time");
     if (followup.status === "CANCELLED" || followup.status === "SENT")
       throw new ConflictException("This follow-up is already closed");
     return this.prisma.$transaction(async (tx) => {
       const changed = await tx.quotationFollowUp.updateMany({
         where: { id, quotationId: quoteId, status: followup.status },
         data: {
-          ...data,
+          status: data.status!,
+          ...(data.notes !== undefined ? { notes: data.notes } : {}),
           sentAt: data.status === "SENT" ? new Date() : null,
         },
       });

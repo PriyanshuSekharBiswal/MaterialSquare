@@ -15,11 +15,13 @@ live. Never send passwords, provider keys, or database URLs in chat or email.
 
 ## Catalogue records
 
-The repository does not seed sample products. The pending catalogue cleanup
-migration hides known legacy starter listings while preserving them for staff
-review. Before client launch, verify the public products endpoint contains only
-the client's approved inventory. Add the client-approved initial products in
-the admin workspace and provide:
+Historical migrations add manufacturer/reference product families and legacy
+starter records for staff review. Cleanup migrations keep unapproved entries
+unpublished and remove reference prices, stock, offers, minimums, and images
+while retaining editable drafts. These rows are not client inventory. Before
+client launch, verify the public products endpoint contains only the client's
+approved inventory. Add client-approved products in the admin workspace and
+provide:
 
 - Product name/code, exact brand spelling, category and type.
 - Colour/finish, size/specifications, pack or selling unit, and quantity options.

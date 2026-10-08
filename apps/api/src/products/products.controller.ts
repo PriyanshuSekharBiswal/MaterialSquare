@@ -42,19 +42,35 @@ const availabilityStatusSchema = z.enum([
   "OUT_OF_STOCK",
   "CHECK_AVAILABILITY",
 ]);
-const partnerBrandsSchema = z.array(z.object({
-  id: z.string().trim().min(2).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-  name: z.string().trim().min(2).max(120),
-  category: z.string().trim().min(2).max(80),
-  tagline: z.string().trim().max(160),
-  isActive: z.boolean(),
-  sortOrder: z.number().int().min(0).max(100000),
-}).strict()).max(200).refine((brands) =>
-  new Set(brands.map((brand) => brand.id)).size === brands.length &&
-  new Set(brands.map((brand) => brand.name.toLocaleLowerCase())).size === brands.length,
-"Brand names and IDs must be unique");
+const partnerBrandsSchema = z
+  .array(
+    z
+      .object({
+        id: z
+          .string()
+          .trim()
+          .min(2)
+          .max(80)
+          .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+        name: z.string().trim().min(2).max(120),
+        category: z.string().trim().min(2).max(80),
+        tagline: z.string().trim().max(160),
+        isActive: z.boolean(),
+        sortOrder: z.number().int().min(0).max(100000),
+      })
+      .strict(),
+  )
+  .max(200)
+  .refine(
+    (brands) =>
+      new Set(brands.map((brand) => brand.id)).size === brands.length &&
+      new Set(brands.map((brand) => brand.name.toLocaleLowerCase())).size ===
+        brands.length,
+    "Brand names and IDs must be unique",
+  );
 const variantSchema = z
   .object({
+    id: z.string().uuid().optional(),
     code: z.string().trim().max(80).nullable().optional(),
     label: z.string().trim().min(1).max(160),
     attributes: z.record(z.string(), z.string().trim().max(120)).default({}),
@@ -174,7 +190,9 @@ export class ProductsController {
 
   @Get("partner-brands")
   async getPartnerBrands() {
-    return (await this.productsService.getPartnerBrands()).filter((brand: { isActive?: boolean }) => brand.isActive !== false);
+    return (await this.productsService.getPublicPartnerBrands()).filter(
+      (brand: { isActive?: boolean }) => brand.isActive !== false,
+    );
   }
 
   @Get("catalogue/partner-brands")

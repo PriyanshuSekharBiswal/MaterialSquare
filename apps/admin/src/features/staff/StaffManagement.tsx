@@ -198,13 +198,15 @@ export default function StaffManagement({
 
   async function resetPassword(event: FormEvent<HTMLFormElement>, record: StaffRecord) {
     event.preventDefault();
+    // Capture the form before awaiting the confirmation dialog; React clears
+    // the submit event's currentTarget after the handler yields.
+    const form = event.currentTarget;
     if (!(await confirmAdminAction({
       title: `Reset ${record.name}’s password?`,
       message: "Their existing password will stop working, and their other active sessions will be signed out.",
       confirmLabel: "Reset password",
       tone: "danger",
     }))) return;
-    const form = event.currentTarget;
     const password = new FormData(form).get("password");
     setBusy(true);
     setError("");

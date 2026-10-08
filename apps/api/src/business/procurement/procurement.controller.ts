@@ -78,23 +78,41 @@ export class ProcurementController {
     if (!request) throw new NotFoundException("Procurement request not found");
     const items = z.array(procurementItem).parse(request.items);
     const suppliers = await this.prisma.supplier.findMany({
-      where: { status: "ACTIVE" },
-      include: { products: { where: { isActive: true } }, ratings: true },
+      where: { status: "ACTIVE", deletedAt: null },
+      include: {
+        products: { where: { isActive: true, deletedAt: null } },
+        ratings: true,
+      },
     });
     const candidates = suppliers
       .map((supplier) => {
-        const matchedItems = items.filter((item) =>
-          supplier.products.some(
-            (product) =>
-              product.productName.toLowerCase() ===
-                item.productName.toLowerCase() &&
-              (!item.brand ||
-                product.brand.toLowerCase() === item.brand.toLowerCase()),
-          ),
+        const matchedProducts = items.flatMap((item) => {
+          const product = supplier.products.find(
+            (candidate) => {
+              if (item.catalogVariantId && candidate.catalogVariantId)
+                return candidate.catalogVariantId === item.catalogVariantId;
+              return (
+                !candidate.catalogVariantId &&
+                candidate.productName.trim().toLowerCase() ===
+                  item.productName.trim().toLowerCase() &&
+                candidate.brand.trim().toLowerCase() ===
+                  (item.brand || "").trim().toLowerCase() &&
+                (!item.category ||
+                  candidate.category.trim().toLowerCase() ===
+                    item.category.trim().toLowerCase()) &&
+                (!item.unit ||
+                  candidate.unit.trim().toLowerCase() ===
+                    item.unit.trim().toLowerCase())
+              );
+            },
+          );
+          return product ? [{ ...product, requestedQuantity: item.quantity }] : [];
+        });
+        const deliveryPincodeMatch =
+          supplier.pincode === request.deliveryPincode;
+        const serviceCoverageMatch = supplier.servicePincodes.includes(
+          request.deliveryPincode,
         );
-        const serviceAreaMatch =
-          supplier.pincode === request.deliveryPincode ||
-          supplier.servicePincodes.includes(request.deliveryPincode);
         const cityMatch =
           supplier.city.trim().toLowerCase() ===
           request.deliveryCity.trim().toLowerCase();
@@ -107,18 +125,22 @@ export class ProcurementController {
         ]);
         return {
           ...supplier,
-          matchedItems: matchedItems.map((item) => item.productName),
-          serviceAreaMatch,
+          matchedItems: matchedProducts.map((product) => product.productName),
+          matchedProducts,
+          deliveryPincodeMatch,
+          serviceCoverageMatch,
+          serviceAreaMatch: deliveryPincodeMatch || serviceCoverageMatch,
           cityMatch,
           averageScore: scores.length
             ? scores.reduce((sum, value) => sum + value, 0) / scores.length
             : null,
         };
       })
-      .filter((supplier) => supplier.matchedItems.length > 0)
+      .filter((supplier) => supplier.matchedProducts.length > 0)
       .sort(
         (a, b) =>
-          Number(b.serviceAreaMatch) - Number(a.serviceAreaMatch) ||
+          Number(b.deliveryPincodeMatch) - Number(a.deliveryPincodeMatch) ||
+          Number(b.serviceCoverageMatch) - Number(a.serviceCoverageMatch) ||
           Number(b.cityMatch) - Number(a.cityMatch) ||
           (b.averageScore || 0) - (a.averageScore || 0),
       );

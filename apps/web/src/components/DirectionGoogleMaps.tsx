@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   MapPin,
@@ -87,6 +87,29 @@ export const ROAD_ROUTES = [
   },
 ];
 
+function routesForServiceArea(serviceArea: string) {
+  const normalizedArea = serviceArea
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/^(serving|service area|coverage)\s*[:\-]?\s*/, '');
+  if (!normalizedArea) return [];
+  if (/\bdelhi\s+ncr\b|\bncr\b/.test(normalizedArea)) return ROAD_ROUTES;
+
+  const configuredRegions = new Set(
+    normalizedArea
+      .split(/[,;|&]+|\band\b/)
+      .map((region) => region.trim().replace(/\s+/g, ' '))
+      .filter(Boolean),
+  );
+  return ROAD_ROUTES.filter((route) => {
+    const region = route.name.toLocaleLowerCase();
+    return (
+      configuredRegions.has(region) ||
+      (region === 'gurugram' && configuredRegions.has('gurgaon'))
+    );
+  });
+}
+
 export default function DirectionGoogleMaps({ className = '' }) {
   const siteContent = useSiteContent();
   const mapSectionRef = useRef<HTMLElement>(null);
@@ -102,11 +125,24 @@ export default function DirectionGoogleMaps({ className = '' }) {
   const mapViewY = Math.min(620 - mapViewHeight, Math.max(0, OFFICE_HUB.svgPos.y - mapViewHeight / 2));
   const officeAddress = siteContent['contact.officeAddress'].trim();
   const serviceArea = siteContent['contact.location'].trim();
+  const serviceRoutes = useMemo(
+    () => officeAddress ? routesForServiceArea(serviceArea) : [],
+    [officeAddress, serviceArea],
+  );
   const officeDestination = officeAddress;
-  const officeMapUrl = siteContent['contact.mapUrl'].trim() || OFFICE_HUB.exactLocationUrl;
+  const officeMapUrl = siteContent['contact.mapUrl'].trim() || (
+    officeAddress
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(officeAddress)}`
+      : ''
+  );
   const officeName = siteContent['contact.officeName'].trim() || 'Material Square';
   const officePhone = siteContent['contact.phone'].trim();
   const officePhoneDisplay = siteContent['contact.phoneDisplay'].trim() || officePhone;
+
+  useEffect(() => {
+    if (activeRoute && !serviceRoutes.some((route) => route.id === activeRoute.id))
+      setActiveRoute(null);
+  }, [activeRoute, serviceRoutes]);
 
   // Keep the illustrated route map and its animations, but avoid downloading
   // its large backdrop or running SVG animation work before the visitor reaches it.
@@ -225,29 +261,39 @@ export default function DirectionGoogleMaps({ className = '' }) {
 
           {/* Google Maps Interactive Region Route Chips */}
           <div className="gmaps-quick-regions-bar">
-            <span className="regions-bar-title">Service area routes:</span>
-            <button
-              type="button"
-              className={`region-chip-btn ${!activeRoute ? 'active' : ''}`}
-              onClick={() => setActiveRoute(null)}
-            >
-              <span className="region-chip-dot all-hubs"></span>
-              All 6 Regions
-            </button>
-            {ROAD_ROUTES.map((route) => {
-              const isSelected = activeRoute?.id === route.id;
-              return (
+            {serviceRoutes.length ? (
+              <>
+                <span className="regions-bar-title">Configured service routes:</span>
                 <button
-                  key={route.id}
                   type="button"
-                  className={`region-chip-btn ${isSelected ? 'active' : ''}`}
-                  onClick={() => setActiveRoute(isSelected ? null : route)}
+                  className={`region-chip-btn ${!activeRoute ? 'active' : ''}`}
+                  aria-pressed={!activeRoute}
+                  onClick={() => setActiveRoute(null)}
                 >
-                  <span className="region-chip-dot"></span>
-                  {route.name}
+                  <span className="region-chip-dot all-hubs"></span>
+                  All {serviceRoutes.length} {serviceRoutes.length === 1 ? 'Region' : 'Regions'}
                 </button>
-              );
-            })}
+                {serviceRoutes.map((route) => {
+                  const isSelected = activeRoute?.id === route.id;
+                  return (
+                    <button
+                      key={route.id}
+                      type="button"
+                      className={`region-chip-btn ${isSelected ? 'active' : ''}`}
+                      aria-pressed={isSelected}
+                      onClick={() => setActiveRoute(isSelected ? null : route)}
+                    >
+                      <span className="region-chip-dot"></span>
+                      {route.name}
+                    </button>
+                  );
+                })}
+              </>
+            ) : (
+              <span className="regions-unconfigured-copy" role="status">
+                Service areas have not been configured. Contact the team to confirm delivery coverage.
+              </span>
+            )}
           </div>
 
           {/* Full Interactive Google Maps Canvas */}
@@ -257,7 +303,9 @@ export default function DirectionGoogleMaps({ className = '' }) {
               className="gmaps-vector-svg"
               viewBox={`${mapViewX} ${mapViewY} ${mapViewWidth} ${mapViewHeight}`}
               preserveAspectRatio="xMidYMid meet"
-                aria-label={officeAddress ? `Illustrated delivery routes around ${officeName}` : 'Illustrated delivery service area map'}
+                aria-label={serviceRoutes.length
+                  ? `Illustrated delivery routes around ${officeName}`
+                  : `Illustrative service map for ${officeName}`}
             >
               <defs>
                 {/* Google Maps Route Drop Shadows & Glow */}
@@ -407,7 +455,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
                   Google Navigation Blue (#1a73e8) with moving flow dots
                   ======================================================== */}
               <g className="gmap-active-routes">
-                {ROAD_ROUTES.map((route) => {
+                {serviceRoutes.map((route) => {
                   const isHighlighted = activeRoute ? activeRoute.id === route.id : true;
 
                   return (
@@ -513,7 +561,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
 
               {/* 7. ORIGIN LOCATION MARKERS (Noida, Greater Noida, Delhi, Gurugram, Ghaziabad, Faridabad) */}
               <g className="origin-city-markers">
-                {ROAD_ROUTES.map((route) => {
+                {serviceRoutes.map((route) => {
                   const isHovered = activeRoute?.id === route.id;
 
                   return (
@@ -676,7 +724,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
               {/* Google Maps Bottom Watermarks */}
               <g transform="translate(18, 604)">
                 <text x="0" y="0" fill="#70757a" fontSize="10" fontFamily="sans-serif">
-                  Material Square · Service area routes
+                  Material Square · {serviceRoutes.length ? `${serviceRoutes.length} configured service routes` : 'Illustrative map'}
                 </text>
               </g>
 

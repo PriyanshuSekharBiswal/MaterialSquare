@@ -113,6 +113,31 @@ describe("predefined staff access", () => {
     }
   });
 
+  it("limits offline payment records to finance and administrative roles", () => {
+    for (const role of ["SUPER_ADMIN", "ADMIN", "ACCOUNTS_MANAGER"])
+      expect(() =>
+        assertStaffRoutePermission(
+          "PATCH",
+          "/api/orders/qa-order/manual-payment",
+          role,
+        ),
+      ).not.toThrow();
+    for (const role of [
+      "SALES_MANAGER",
+      "CATALOG_MANAGER",
+      "PROCUREMENT_HEAD",
+      "DISPATCH_OFFICER",
+      "CONTENT_MANAGER",
+    ])
+      expect(() =>
+        assertStaffRoutePermission(
+          "PATCH",
+          "/api/orders/qa-order/manual-payment",
+          role,
+        ),
+      ).toThrow(ForbiddenException);
+  });
+
   it("limits public website copy to administrators and the content manager", () => {
     for (const role of ["SUPER_ADMIN", "ADMIN", "CONTENT_MANAGER"])
       expect(() =>
@@ -309,7 +334,7 @@ describe("V1 staff action permission matrix", () => {
       action: "catalogue review",
       method: "GET",
       path: "/api/products/catalogue",
-      allowed: ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER", "CATALOG_MANAGER"],
+      allowed: ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER", "CATALOG_MANAGER", "PROCUREMENT_HEAD"],
     },
     {
       action: "catalogue maintenance",
@@ -587,7 +612,7 @@ describe("V1 staff action permission matrix", () => {
       action: "catalogue inventory view",
       method: "GET",
       path: "/api/products/inventory",
-      allowed: ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER", "CATALOG_MANAGER"],
+      allowed: ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER", "CATALOG_MANAGER", "PROCUREMENT_HEAD"],
     },
     {
       action: "catalogue product creation",

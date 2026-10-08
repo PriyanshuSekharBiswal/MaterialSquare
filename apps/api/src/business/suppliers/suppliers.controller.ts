@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
@@ -18,6 +19,44 @@ import { validate } from "../../common/validation";
 import type { StaffRequest } from "../../auth/staff-request";
 import { supplierInput, supplierProductInput } from "../business.schemas";
 
+function throwSupplierConstraintError(error: unknown): never {
+  const prismaError = error as { code?: string; meta?: { target?: unknown } };
+  const target = Array.isArray(prismaError.meta?.target)
+    ? prismaError.meta.target.map(String)
+    : [];
+  if (prismaError.code === "P2002" && target.includes("gstin"))
+    throw new ConflictException("A supplier with this GSTIN is already registered.");
+  throw error;
+}
+
+function throwSupplierProductConstraintError(error: unknown): never {
+  const prismaError = error as {
+    code?: string;
+    meta?: { target?: unknown };
+  };
+  const target = Array.isArray(prismaError.meta?.target)
+    ? prismaError.meta.target.map(String)
+    : typeof prismaError.meta?.target === "string"
+      ? [prismaError.meta.target]
+      : [];
+  const targetText = target.join("_");
+  if (prismaError.code === "P2002" && targetText.includes("catalogVariantId"))
+    throw new ConflictException(
+      "This supplier already has a listing for that catalogue pack.",
+    );
+  const duplicateUnlinkedProduct =
+    targetText.includes("unlinked_identity") ||
+    targetText.includes("supplierId_productName_brand") ||
+    (target.includes("supplierId") &&
+      target.includes("productName") &&
+      target.includes("brand"));
+  if (prismaError.code === "P2002" && duplicateUnlinkedProduct)
+    throw new ConflictException(
+      "This supplier already has a listing for that unlinked product and brand.",
+    );
+  throw error;
+}
+
 @Controller("suppliers")
 @UseGuards(StaffGuard)
 export class SuppliersController {
@@ -25,23 +64,51 @@ export class SuppliersController {
 
   @Get()
   list(@Query("q") q = "", @Query("status") status?: string) {
+    const term = q.trim();
     return this.prisma.supplier.findMany({
       where: {
         deletedAt: null,
         ...(status
           ? { status: status as "PENDING" | "ACTIVE" | "SUSPENDED" }
           : {}),
-        ...(q.trim()
+        ...(term
           ? {
               OR: [
-                { name: { contains: q.trim(), mode: "insensitive" as const } },
-                { city: { contains: q.trim(), mode: "insensitive" as const } },
-                { pincode: { contains: q.trim() } },
+                { name: { contains: term, mode: "insensitive" as const } },
+                { legalName: { contains: term, mode: "insensitive" as const } },
+                { city: { contains: term, mode: "insensitive" as const } },
+                { pincode: { contains: term } },
+                { servicePincodes: { has: term } },
+                {
+                  products: {
+                    some: {
+                      deletedAt: null,
+                      OR: [
+                        { productName: { contains: term, mode: "insensitive" as const } },
+                        { brand: { contains: term, mode: "insensitive" as const } },
+                        { category: { contains: term, mode: "insensitive" as const } },
+                      ],
+                    },
+                  },
+                },
               ],
             }
           : {}),
       },
-      include: { _count: { select: { products: true, ratings: true } } },
+      include: {
+        _count: { select: { products: true, ratings: true } },
+        products: {
+          where: { deletedAt: null },
+          orderBy: [{ category: "asc" }, { productName: "asc" }],
+          include: {
+            catalogVariant: {
+              include: {
+                listing: { select: { name: true, brand: true, category: true } },
+              },
+            },
+          },
+        },
+      },
       orderBy: [{ status: "asc" }, { name: "asc" }],
     });
   }
@@ -61,7 +128,7 @@ export class SuppliersController {
         },
       });
       return supplier;
-    });
+    }).catch(throwSupplierConstraintError);
   }
 
   @Get(":id")
@@ -72,6 +139,13 @@ export class SuppliersController {
         products: {
           where: { deletedAt: null },
           orderBy: [{ category: "asc" }, { productName: "asc" }],
+          include: {
+            catalogVariant: {
+              include: {
+                listing: { select: { name: true, brand: true, category: true } },
+              },
+            },
+          },
         },
         ratings: { orderBy: { createdAt: "desc" }, take: 50 },
         quotes: { orderBy: { createdAt: "desc" }, take: 20 },
@@ -115,7 +189,7 @@ export class SuppliersController {
         },
       });
       return supplier;
-    });
+    }).catch(throwSupplierConstraintError);
   }
 
   @Delete(":id")
@@ -174,7 +248,12 @@ export class SuppliersController {
       const supplier = await db.supplier.count({ where: { id, deletedAt: null } });
       if (!supplier) throw new NotFoundException("Supplier not found");
       const product = await db.supplierProduct.create({
-        data: { supplierId: id, ...data },
+        data: {
+          supplierId: id,
+          ...data,
+          availabilityCheckedAt:
+            data.availableQuantity == null ? null : new Date(),
+        },
       });
       await db.auditLog.create({
         data: {
@@ -186,7 +265,7 @@ export class SuppliersController {
         },
       });
       return product;
-    });
+    }).catch(throwSupplierProductConstraintError);
   }
 
   @Patch(":id/products/:productId")
@@ -210,7 +289,15 @@ export class SuppliersController {
       if (!supplierExists) throw new NotFoundException("Supplier not found");
       const changed = await db.supplierProduct.updateMany({
         where: { id: productId, supplierId: id, deletedAt: null },
-        data,
+        data: {
+          ...data,
+          ...(data.availableQuantity !== undefined
+            ? {
+                availabilityCheckedAt:
+                  data.availableQuantity === null ? null : new Date(),
+              }
+            : {}),
+        },
       });
       if (!changed.count)
         throw new NotFoundException("Supplier product not found");
@@ -227,7 +314,7 @@ export class SuppliersController {
         },
       });
       return product;
-    });
+    }).catch(throwSupplierProductConstraintError);
   }
 
   @Delete(":id/products/:productId")
