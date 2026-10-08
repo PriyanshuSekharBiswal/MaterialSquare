@@ -193,7 +193,7 @@ export default function ProductDetailPage({ products, loading = false, catalogue
 
         <div className="product-detail-information">
           <div className="product-detail-kicker"><span>{product.categoryLabel}</span>{product.code && <span>SKU · {product.code}</span>}</div>
-          <div className="product-detail-brand-line"><BrandLogo id={brandMeta?.id || product.brand} className="mini" /><div><strong>{product.brand}</strong>{product.brandTagline && <small>{product.brandTagline}</small>}</div></div>
+          <div className="product-detail-brand-line"><BrandLogo id={brandMeta?.id || product.brand} className="mini" style={{ width: 32, height: 32, maxWidth: 32, maxHeight: 32 }} /><div><strong>{product.brand}</strong>{product.brandTagline && <small>{product.brandTagline}</small>}</div></div>
           <h1>{product.name}</h1>
           {description && <p className="product-detail-description">{description}</p>}
           {quantityBreaks.length > 0 && <section className="product-detail-spec-block"><h2>Quantity prices</h2>{quantityBreaks.map((row) => <div className="product-detail-spec-row" key={`${row.minimumQuantity}-${row.unitPrice}`}><span>{Number(row.minimumQuantity).toLocaleString("en-IN")}+ {unit}</span><strong>₹{Number(row.unitPrice).toLocaleString("en-IN")} / {unit}</strong></div>)}</section>}
