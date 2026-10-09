@@ -93,6 +93,10 @@ export default function HomePage({
     paints: "/images/categories/paints-category.webp",
     sanitary: "/images/categories/sanitary-category.webp",
   };
+  const editableCategoryImages: Record<string, string> = {
+    steel: siteContent["home.categoryImage.steel"],
+    adhesives: siteContent["home.categoryImage.adhesives"],
+  };
   const categoryCards = Array.from(
     new Map(
       products.map((product) => [product.category, product.categoryLabel]),
@@ -101,7 +105,7 @@ export default function HomePage({
     id,
     title,
     subtitle: `Browse ${title.toLowerCase()} available in the catalogue.`,
-    image: categoryImages[id],
+    image: editableCategoryImages[id] || categoryImages[id],
     badge: title,
   }));
   const listedBrands = partnerBrands.map((brand) => ({

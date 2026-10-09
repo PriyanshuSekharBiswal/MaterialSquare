@@ -9,6 +9,7 @@ export interface CatalogueProduct {
   unit: string;
   packaging?: string;
   image?: string | null;
+  photoBanner?: string | null;
   galleryImages?: string[];
   variants?: CatalogueVariant[];
   grade?: string;

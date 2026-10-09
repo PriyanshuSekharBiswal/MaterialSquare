@@ -15,12 +15,31 @@ import WhatsAppIcon from './icons/WhatsAppIcon';
 import { useSiteContent } from '../site-content';
 import './DirectionGoogleMaps.css';
 
+type MapPoint = { x: number; y: number };
+
+// Keep route endpoints on the Satellite reference coordinates across themes.
+const MAP_LAYOUT: {
+  office: MapPoint;
+  routes: Record<string, { city: MapPoint; control: MapPoint }>;
+} = {
+  office: { x: 805, y: 140 },
+  routes: {
+    delhi: { city: { x: 500, y: 213 }, control: { x: 650, y: 165 } },
+    noida: { city: { x: 755, y: 295 }, control: { x: 785, y: 205 } },
+    // Keep the pin label aligned to the Satellite label position; the wider
+    // card covers the differently typeset name baked into the vector artwork.
+    'greater-noida': { city: { x: 889, y: 343 }, control: { x: 826, y: 241 } },
+    gurugram: { city: { x: 245, y: 467 }, control: { x: 490, y: 300 } },
+    'ghaziabad-local': { city: { x: 853, y: 121 }, control: { x: 830, y: 132 } },
+    faridabad: { city: { x: 667, y: 553 }, control: { x: 720, y: 350 } },
+  },
+};
+
 // The NCR illustration keeps its delivery hub aligned with the Ghaziabad map label.
 export const OFFICE_HUB = {
   exactLocationUrl: 'https://maps.app.goo.gl/sPj9Ai7rZpLMPKh36',
   directionsUrl: (destination: string, origin = '') =>
     `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}${origin ? `&origin=${encodeURIComponent(origin)}` : ''}`,
-  svgPos: { x: 760, y: 155 }, // Exactly at Ghaziabad on clean map
 };
 
 // Six route animations on the Delhi NCR illustration.
@@ -29,60 +48,42 @@ export const ROAD_ROUTES = [
     id: 'delhi',
     name: 'Delhi',
     routeLabel: 'Delhi-Meerut Expressway (NH 9)',
-    // Exactly at the 'Delhi' center label on the map
-    pathD: 'M 760 155 Q 620 160 480 220',
     routePathId: 'road-office-to-delhi',
-    startPos: { x: 480, y: 220 },
     speed: '7s',
   },
   {
     id: 'noida',
     name: 'Noida',
     routeLabel: 'Noida Expressway → NH 9 Corridor',
-    // Exactly at the 'Noida' label east of Yamuna River
-    pathD: 'M 760 155 Q 710 210 670 275',
     routePathId: 'road-office-to-noida',
-    startPos: { x: 670, y: 275 },
     speed: '6.5s',
   },
   {
     id: 'greater-noida',
     name: 'Greater Noida',
     routeLabel: 'Greater Noida Link Rd → Hindon Bypass',
-    // Exactly at the 'Greater Noida' label in southeast
-    pathD: 'M 760 155 Q 770 235 785 330',
     routePathId: 'road-office-to-gr-noida',
-    startPos: { x: 785, y: 330 },
     speed: '8s',
   },
   {
     id: 'gurugram',
     name: 'Gurugram',
     routeLabel: 'NH 48 → DND Flyway → Link Road',
-    // Exactly at the 'Gurugram' label in southwest
-    pathD: 'M 760 155 Q 470 290 268 440',
     routePathId: 'road-office-to-gurugram',
-    startPos: { x: 268, y: 440 },
     speed: '10s',
   },
   {
     id: 'ghaziabad-local',
     name: 'Ghaziabad',
     routeLabel: 'Ghaziabad urban corridors',
-    // Right at the 'Ghaziabad' label in northeast
-    pathD: 'M 760 155 Q 800 145 830 165',
     routePathId: 'road-office-to-ghaziabad',
-    startPos: { x: 830, y: 165 },
     speed: '4.5s',
   },
   {
     id: 'faridabad',
     name: 'Faridabad',
     routeLabel: 'Mathura Road → FNG Expressway Corridor',
-    // Exactly at the 'Faridabad' label south of Delhi
-    pathD: 'M 760 155 Q 670 340 595 520',
     routePathId: 'road-office-to-faridabad',
-    startPos: { x: 595, y: 520 },
     speed: '9s',
   },
 ];
@@ -119,16 +120,25 @@ export default function DirectionGoogleMaps({ className = '' }) {
   const [isOfficeModalOpen, setIsOfficeModalOpen] = useState(false);
   const [mapTheme, setMapTheme] = useState<'clean' | 'dark' | 'satellite'>('clean'); // 'clean' | 'dark' | 'satellite'
   const [mapZoom, setMapZoom] = useState(1);
+  const officeMapPosition = MAP_LAYOUT.office;
   const mapViewWidth = 1000 / mapZoom;
   const mapViewHeight = 620 / mapZoom;
-  const mapViewX = Math.min(1000 - mapViewWidth, Math.max(0, OFFICE_HUB.svgPos.x - mapViewWidth / 2));
-  const mapViewY = Math.min(620 - mapViewHeight, Math.max(0, OFFICE_HUB.svgPos.y - mapViewHeight / 2));
+  const mapViewX = Math.min(1000 - mapViewWidth, Math.max(0, officeMapPosition.x - mapViewWidth / 2));
+  const mapViewY = Math.min(620 - mapViewHeight, Math.max(0, officeMapPosition.y - mapViewHeight / 2));
   const officeAddress = siteContent['contact.officeAddress'].trim();
   const serviceArea = siteContent['contact.location'].trim();
   const serviceRoutes = useMemo(
     () => officeAddress ? routesForServiceArea(serviceArea) : [],
     [officeAddress, serviceArea],
   );
+  const mapRoutes = useMemo(() => serviceRoutes.map((route) => {
+    const placement = MAP_LAYOUT.routes[route.id];
+    return {
+      ...route,
+      cityPosition: placement.city,
+      pathD: `M ${officeMapPosition.x} ${officeMapPosition.y} Q ${placement.control.x} ${placement.control.y} ${placement.city.x} ${placement.city.y}`,
+    };
+  }), [officeMapPosition, serviceRoutes]);
   const officeDestination = officeAddress;
   const officeMapUrl = siteContent['contact.mapUrl'].trim() || (
     officeAddress
@@ -424,18 +434,19 @@ export default function DirectionGoogleMaps({ className = '' }) {
 
               {/* 1. Dynamic Map Style Graphic Layer */}
               <image
-                href={mapInView ? (
-                  mapTheme === 'clean'
-                    ? '/images/delhi_ncr_clean_map.webp'
+                href={mapInView
+                  ? mapTheme === 'satellite'
+                    ? '/images/delhi_ncr_satellite_map.webp'
                     : mapTheme === 'dark'
-                    ? '/images/delhi_ncr_dark_map.webp'
-                    : '/images/delhi_ncr_satellite_map.webp'
-                ) : undefined}
+                      ? '/images/delhi_ncr_dark_map.webp'
+                      : '/images/delhi_ncr_clean_map.webp'
+                  : undefined}
                 x="0"
                 y="0"
                 width="1000"
                 height="620"
                 preserveAspectRatio="xMidYMid slice"
+                transform={mapTheme === 'clean' ? 'translate(-31 0) scale(1.104 1)' : undefined}
               />
 
               {/* Atmospheric Overlay for Crisp Readability */}
@@ -455,7 +466,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
                   Google Navigation Blue (#1a73e8) with moving flow dots
                   ======================================================== */}
               <g className="gmap-active-routes">
-                {serviceRoutes.map((route) => {
+                {mapRoutes.map((route) => {
                   const isHighlighted = activeRoute ? activeRoute.id === route.id : true;
 
                   return (
@@ -561,14 +572,14 @@ export default function DirectionGoogleMaps({ className = '' }) {
 
               {/* 7. ORIGIN LOCATION MARKERS (Noida, Greater Noida, Delhi, Gurugram, Ghaziabad, Faridabad) */}
               <g className="origin-city-markers">
-                {serviceRoutes.map((route) => {
+                {mapRoutes.map((route) => {
                   const isHovered = activeRoute?.id === route.id;
 
                   return (
                     <g
                       key={route.id}
                       className={`city-marker-pin ${isHovered ? 'marker-hovered' : ''}`}
-                      transform={`translate(${route.startPos.x}, ${route.startPos.y})`}
+                      transform={`translate(${route.cityPosition.x}, ${route.cityPosition.y})`}
                       onClick={() => setActiveRoute((prev) => (prev?.id === route.id ? null : route))}
                       cursor="pointer"
                       role="button"
@@ -613,9 +624,9 @@ export default function DirectionGoogleMaps({ className = '' }) {
                       {/* City Name Label Box (Google Maps Card Style) */}
                       <g transform="translate(0, 16)" style={{ pointerEvents: 'none' }}>
                         <rect
-                          x="-50"
+                          x={route.id === 'greater-noida' ? '-70' : '-50'}
                           y="0"
-                          width="100"
+                          width={route.id === 'greater-noida' ? '140' : '100'}
                           height="22"
                           rx="4"
                           fill="#ffffff"
@@ -646,7 +657,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
                   ======================================================== */}
               <g
                 className="office-dest-pin-group"
-                transform={`translate(${OFFICE_HUB.svgPos.x}, ${OFFICE_HUB.svgPos.y})`}
+                transform={`translate(${officeMapPosition.x}, ${officeMapPosition.y})`}
                 onClick={officeAddress ? () => setIsOfficeModalOpen(true) : undefined}
                 cursor={officeAddress ? 'pointer' : undefined}
                 role={officeAddress ? 'button' : undefined}

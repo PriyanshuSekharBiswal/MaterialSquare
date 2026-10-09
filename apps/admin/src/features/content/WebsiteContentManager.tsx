@@ -398,7 +398,7 @@ export default function WebsiteContentManager({
         </div>
         <div className="website-content-actions">
           <button
-            className="btn-sm btn-secondary"
+            className="btn-sm btn-secondary btn-orange-outline"
             type="button"
             disabled={contentDisabled}
             onClick={() => updateContent({ ...SITE_CONTENT_DEFAULTS })}
@@ -406,7 +406,7 @@ export default function WebsiteContentManager({
             <RotateCcw size={16} /> Restore draft defaults
           </button>
           <button
-            className="btn-sm btn-secondary"
+            className="btn-sm btn-secondary btn-orange-outline"
             type="button"
             disabled={contentDisabled}
             onClick={() => (preview ? closePreview() : void previewDraft())}
@@ -414,7 +414,7 @@ export default function WebsiteContentManager({
             {preview ? "Close preview" : "Preview draft"}
           </button>
           <button
-            className="btn-sm btn-secondary"
+            className="btn-sm btn-secondary btn-orange-outline"
             type="button"
             disabled={contentDisabled}
             onClick={() => void save()}

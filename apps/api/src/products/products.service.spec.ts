@@ -16,12 +16,16 @@ describe("customer catalogue", () => {
     );
   });
 
-  it("does not publish fallback partner brands before the client configures them", async () => {
+  it("publishes the default partner directory until the client customizes it", async () => {
     const findUnique = jest.fn().mockResolvedValue(null);
     const service = new ProductsService({
       websiteContent: { findUnique },
     } as unknown as PrismaService);
-    await expect(service.getPublicPartnerBrands()).resolves.toEqual([]);
+    const brands = await service.getPublicPartnerBrands();
+    expect(brands).toHaveLength(17);
+    expect(brands.map((brand: { name: string }) => brand.name)).toContain(
+      "UltraTech Cement",
+    );
     expect(findUnique).toHaveBeenCalledWith({ where: { id: "partner-brands" } });
   });
 

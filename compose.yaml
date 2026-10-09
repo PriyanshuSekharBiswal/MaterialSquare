@@ -1,16 +1,16 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
-      POSTGRES_DB: material_square
+      POSTGRES_DB: material_square_dev
       POSTGRES_USER: material_square
       POSTGRES_PASSWORD: local-development-only
     ports:
       - "127.0.0.1:55432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_v18:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U material_square -d material_square"]
+      test: ["CMD-SHELL", "pg_isready -U material_square -d material_square_dev"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -33,6 +33,6 @@ services:
     volumes:
       - s3mock_data:/s3mockroot
 volumes:
-  postgres_data:
+  postgres_data_v18:
   redis_data:
   s3mock_data:

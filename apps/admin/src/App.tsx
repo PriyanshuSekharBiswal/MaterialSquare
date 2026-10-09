@@ -407,6 +407,10 @@ export function App() {
     tabScrollPositions.current[tab] = window.scrollY;
     const url = new URL(window.location.href);
     url.searchParams.set("workspace", next);
+    if (next !== "team") {
+      url.searchParams.delete("staffId");
+      url.searchParams.delete("staffView");
+    }
     // CMS section hashes are meaningful only inside Website Editor. Clear a
     // stale CMS anchor when moving to another top-level workspace page.
     url.hash = "";
@@ -604,11 +608,11 @@ export function App() {
             onOpenStaff={() => navigate("team")}
           />
         )}
-        {tab === "audit" && <AuditLog token={token} />}
+        {tab === "audit" && <AuditLog token={token} revision={revision} />}
         {tab === "trash" && (
           <RecentlyDeleted token={token} onSignOut={signOut} />
         )}
-        {tab === "notifications" && <NotificationStatus token={token} />}
+        {tab === "notifications" && <NotificationStatus token={token} revision={revision} />}
         {tab === "catalogue" && (
           <CatalogueManager
             token={token}

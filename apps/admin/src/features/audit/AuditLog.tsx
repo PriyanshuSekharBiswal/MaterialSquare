@@ -18,7 +18,7 @@ type Filters = {
   to: string;
 };
 
-export default function AuditLog({ token }: { token: string }) {
+export default function AuditLog({ token, revision }: { token: string; revision: number }) {
   const [filters, setFilters] = useState<Filters>({
     from: "",
     to: "",
@@ -30,7 +30,6 @@ export default function AuditLog({ token }: { token: string }) {
   const [result, setResult] = useState<Page | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -80,13 +79,13 @@ export default function AuditLog({ token }: { token: string }) {
     setPage(1);
   }
   return (
-    <section>
+    <section className="audit-log-page">
       <h2>Audit log</h2>
       <p>
         Recorded staff and system actions. Filters match exact action names and
         entity references.
       </p>
-      <form onSubmit={search} className="filter-bar">
+      <form onSubmit={search} className="filter-bar audit-log-filter-form">
         <label>
           From date (IST)
           <input name="from" type="date" />
@@ -107,23 +106,19 @@ export default function AuditLog({ token }: { token: string }) {
           Entity reference
           <input name="entityId" maxLength={200} />
         </label>
-        <button className="btn-sm" disabled={loading}>
-          Apply filters
-        </button>
-        <button
-          type="button"
-          className="btn-sm"
-          onClick={() => setRevision((value) => value + 1)}
-          disabled={loading}
-        >
-          Refresh records
-        </button>
+        <div className="audit-log-filter-actions">
+          <button className="btn-sm btn-secondary btn-orange-outline" disabled={loading}>
+            Apply filters
+          </button>
+        </div>
       </form>
       {loading && <p role="status">Loading audit records…</p>}
       {error && <p role="alert">{error}</p>}
       {result && (
         <>
-          <p>{result.total} recorded actions</p>
+          <div className="audit-log-results-heading">
+            <p><strong>{result.total}</strong> recorded actions</p>
+          </div>
           {result.items.length === 0 ? (
             <p className="empty">No audit records match these filters.</p>
           ) : (
@@ -185,21 +180,23 @@ export default function AuditLog({ token }: { token: string }) {
               </table>
             </div>
           )}
-          <button
-            className="btn-sm"
-            disabled={page === 1}
-            onClick={() => setPage((value) => value - 1)}
-          >
-            Previous audit page
-          </button>
-          <span> Page {page} </span>
-          <button
-            className="btn-sm"
-            disabled={page * result.pageSize >= result.total}
-            onClick={() => setPage((value) => value + 1)}
-          >
-            Next audit page
-          </button>
+          <div className="admin-pagination-controls">
+            <button
+              className="btn-sm"
+              disabled={page === 1}
+              onClick={() => setPage((value) => value - 1)}
+            >
+              Previous audit page
+            </button>
+            <span>Page {page}</span>
+            <button
+              className="btn-sm"
+              disabled={page * result.pageSize >= result.total}
+              onClick={() => setPage((value) => value + 1)}
+            >
+              Next audit page
+            </button>
+          </div>
         </>
       )}
     </section>

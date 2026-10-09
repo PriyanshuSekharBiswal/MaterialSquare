@@ -46,6 +46,7 @@ type Listing = {
   unit: string;
   packaging: string | null;
   image: string | null;
+  photoBanner: string | null;
   galleryImages: string[];
   variants: Variant[];
   grade: string | null;
@@ -114,6 +115,7 @@ const blank: Listing = {
   unit: "",
   packaging: "",
   image: "",
+  photoBanner: "",
   grade: "",
   description: "",
   minOrderQty: "",
@@ -909,6 +911,8 @@ export default function CatalogueManager({
       packaging: String(formValues.get("packaging") || "").trim() || null,
       brandTagline: String(formValues.get("brandTagline") || "").trim() || null,
       image: String(formValues.get("image") || "").trim() || null,
+      photoBanner:
+        String(formValues.get("photoBanner") || "").trim() || null,
       price: String(formValues.get("price") || "").trim() || null,
       compareAtPrice:
         String(formValues.get("compareAtPrice") || "").trim() || null,
@@ -983,6 +987,7 @@ export default function CatalogueManager({
       unit: String(values.get("unit") || "").trim(),
       packaging: String(values.get("packaging") || "").trim() || null,
       image: String(values.get("image") || "").trim() || null,
+      photoBanner: String(values.get("photoBanner") || "").trim() || null,
       galleryImages: fromLines(values.get("galleryImages")),
       grade: String(values.get("grade") || "").trim() || null,
       description: String(values.get("description") || "").trim() || null,
@@ -1202,13 +1207,13 @@ export default function CatalogueManager({
         </div>
         <div className="catalogue-manager-actions">
           <button
-            className="btn-sm btn-secondary"
+            className="btn-sm btn-secondary btn-orange-outline"
             onClick={() => setManagingBrands(true)}
           >
             <Tags size={15} /> Partner brands
           </button>
           <button
-            className="btn-sm btn-secondary"
+            className="btn-sm btn-secondary btn-orange-outline"
             disabled={busy}
             onClick={() => void refresh()}
           >
@@ -1531,6 +1536,16 @@ export default function CatalogueManager({
                   PNG, JPEG or WebP · Up to 5 MB. Uploading replaces the main
                   photo.
                 </small>
+              </label>
+              <label className="catalogue-wide">
+                Photo banner (optional)
+                <input
+                  name="photoBanner"
+                  maxLength={40}
+                  placeholder="Bestseller, Top choice, First choice"
+                  defaultValue={formProduct.photoBanner || ""}
+                />
+                <small>Appears at the top-left of the product photo.</small>
               </label>
               <input
                 type="hidden"
@@ -1977,6 +1992,11 @@ export default function CatalogueManager({
                                 <span className="store-preview-category">
                                   {previewListing.categoryLabel || "Category"}
                                 </span>
+                                {previewListing.photoBanner && (
+                                  <span className="store-preview-photo-banner">
+                                    {previewListing.photoBanner}
+                                  </span>
+                                )}
                                 <span
                                   className={`store-preview-stock ${previewCardAvailability === "IN_STOCK" ? "available" : ""}`}
                                 >
@@ -2323,6 +2343,11 @@ export default function CatalogueManager({
                             </strong>
                           </div>
                           <div className="store-preview-detail-media">
+                            {previewListing.photoBanner && (
+                              <span className="store-preview-photo-banner store-preview-detail-banner">
+                                {previewListing.photoBanner}
+                              </span>
+                            )}
                             <StorefrontPreviewImage
                               src={
                                 previewListing.image ||
@@ -2727,29 +2752,6 @@ export default function CatalogueManager({
             Clear all filters
           </button>
         </section>
-      )}
-      {visibleListings.length > 0 && (
-        <nav className="catalogue-pagination" aria-label="Catalogue pages">
-          <button
-            className="btn-sm btn-secondary"
-            disabled={currentPage <= 1}
-            onClick={() => setCataloguePage((page) => Math.max(1, page - 1))}
-          >
-            Previous
-          </button>
-          <span>
-            Page {currentPage} of {pageCount}
-          </span>
-          <button
-            className="btn-sm btn-secondary"
-            disabled={currentPage >= pageCount}
-            onClick={() =>
-              setCataloguePage((page) => Math.min(pageCount, page + 1))
-            }
-          >
-            Next
-          </button>
-        </nav>
       )}
       <div className="catalogue-listings">
         {pageListings.map((product) => (

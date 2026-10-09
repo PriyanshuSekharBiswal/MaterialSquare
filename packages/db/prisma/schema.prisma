@@ -276,6 +276,7 @@ model CatalogListing {
   unit               String
   packaging          String?
   image              String?
+  photoBanner        String?                   @db.VarChar(40)
   galleryImages      String[]                  @default([])
   grade              String?
   description        String?

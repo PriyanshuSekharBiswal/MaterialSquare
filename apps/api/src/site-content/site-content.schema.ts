@@ -121,15 +121,27 @@ export const SiteContentSchema = z
         message: "Invalid homepage content blocks",
       });
     }
-    if (content["home.heroImage"]) {
-      const result = z.string().url().safeParse(content["home.heroImage"]);
+    for (const key of [
+      "home.heroImage",
+      "home.categoryImage.steel",
+      "home.categoryImage.adhesives",
+    ]) {
+      if (!content[key]) continue;
+      if (
+        key !== "home.heroImage" &&
+        /^\/images\/categories\/[A-Za-z0-9._-]+\.(?:png|jpe?g|webp)$/i.test(
+          content[key],
+        )
+      )
+        continue;
+      const result = z.string().url().safeParse(content[key]);
       if (
         !result.success ||
-        new URL(content["home.heroImage"]).protocol !== "https:"
+        new URL(content[key]).protocol !== "https:"
       )
         ctx.addIssue({
           code: "custom",
-          path: ["home.heroImage"],
+          path: [key],
           message: "Use a valid HTTPS image URL or leave blank",
         });
     }

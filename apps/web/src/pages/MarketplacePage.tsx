@@ -50,13 +50,12 @@ export default function MarketplacePage({
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchExamples = buildSearchExamples(products);
-  const [availability, setAvailability] = useState('all');
-  const [variantFilters, setVariantFilters] = useState<Record<string, string>>({});
-  const [sortBy, setSortBy] = useState('relevance');
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [isStickyDismissed, setIsStickyDismissed] = useState(false);
   const [visibleProductCount, setVisibleProductCount] = useState(CATALOGUE_PAGE_SIZE);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
+  const catalogueEndRef = useRef<HTMLDivElement>(null);
+  const [hasReachedCatalogueEnd, setHasReachedCatalogueEnd] = useState(false);
   const prevBomCountRef = useRef(bomList.length);
   const searchRef = useRef<HTMLDivElement>(null);
   const catalogueBrands = useMemo(() => {
@@ -73,8 +72,22 @@ export default function MarketplacePage({
         });
       }
     }
-    return [...byBrand.values()].sort((left, right) => left.name.localeCompare(right.name));
-  }, [products]);
+    const configuredBrands = partnerBrands.map((brand) => ({
+      name: brand.name,
+      category: brand.category,
+      meta: getBrandMeta(brand.id || brand.name),
+    }));
+    const productOnlyBrands = [...byBrand.values()]
+      .filter((productBrand) => !partnerBrands.some((brand) =>
+        partnerBrandMatchesProduct(
+          brand.name,
+          productBrand.name,
+          productBrand.category,
+        ),
+      ))
+      .sort((left, right) => left.name.localeCompare(right.name));
+    return [...configuredBrands, ...productOnlyBrands];
+  }, [partnerBrands, products]);
   const catalogueCategories = useMemo(() => [
     { id: 'all', label: 'All Materials', count: products.length },
     ...Array.from(new Map(products.map((product) => [product.category, product.categoryLabel])).entries())
@@ -84,23 +97,6 @@ export default function MarketplacePage({
     ? ""
     : catalogueCategories.find((category) => category.id === activeCategory)?.label
       || activeCategory.replace(/[-_]+/g, " ").replace(/\b\p{L}/gu, (letter) => letter.toLocaleUpperCase());
-  const variantFilterGroups = useMemo(() => {
-    const groups = new Map<string, { label: string; values: Set<string> }>();
-    for (const product of products) {
-      if (activeCategory !== 'all' && product.category !== activeCategory) continue;
-      if (selectedBrand && !partnerBrandMatchesProduct(selectedBrand, product.brand, `${product.category} ${product.categoryLabel}`)) continue;
-      for (const variant of product.variants || []) for (const [rawKey, rawValue] of Object.entries(variant.attributes || {})) {
-        const key = rawKey.trim().toLocaleLowerCase();
-        const value = String(rawValue || '').trim();
-        if (!key || !value) continue;
-        const group = groups.get(key) || { label: rawKey.trim(), values: new Set<string>() };
-        group.values.add(value);
-        groups.set(key, group);
-      }
-    }
-    return Array.from(groups.entries()).map(([key, group]) => ({ key, label: group.label, values: Array.from(group.values).sort((a, b) => a.localeCompare(b)) })).filter((group) => group.values.length > 1).slice(0, 5);
-  }, [products, activeCategory, selectedBrand]);
-
   // If user adds new items to BOM, re-show notification bar if it was dismissed
   useEffect(() => {
     if (bomList.length > prevBomCountRef.current) {
@@ -134,7 +130,6 @@ export default function MarketplacePage({
   // Handle category change
   const handleCategoryChange = (catId: string) => {
     setActiveCategory(catId);
-    setVariantFilters({});
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
       if (catId === 'all') {
@@ -149,7 +144,6 @@ export default function MarketplacePage({
   // Handle brand filter
   const handleBrandChange = (brandName: string) => {
     setSelectedBrand(brandName);
-    setVariantFilters({});
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
       if (!brandName) {
@@ -173,19 +167,6 @@ export default function MarketplacePage({
       if (selectedBrand && !partnerBrandMatchesProduct(selectedBrand, item.brand, `${item.category} ${item.categoryLabel}`)) {
         return false;
       }
-      const activeVariantFilters = Object.entries(variantFilters).filter(([, value]) => value);
-      if (activeVariantFilters.length && !(item.variants || []).some((variant) => activeVariantFilters.every(([key, value]) => Object.entries(variant.attributes || {}).some(([variantKey, variantValue]) => variantKey.trim().toLocaleLowerCase() === key && String(variantValue).toLocaleLowerCase() === value.toLocaleLowerCase())))) return false;
-
-      // Unavailable listings remain visible unless the user filters them out.
-      const itemAvailability = item.availabilityStatus || (item.inStock ? 'IN_STOCK' : 'CHECK_AVAILABILITY');
-      const variantStatuses = (item.variants || []).map((variant) => variant.availabilityStatus || (variant.inStock ? 'IN_STOCK' : 'CHECK_AVAILABILITY'));
-      const effectiveAvailability = itemAvailability === 'IN_STOCK' || variantStatuses.includes('IN_STOCK')
-        ? 'IN_STOCK'
-        : (itemAvailability === 'OUT_OF_STOCK' || (variantStatuses.length > 0 && variantStatuses.every((status) => status === 'OUT_OF_STOCK')))
-          ? 'OUT_OF_STOCK'
-          : 'CHECK_AVAILABILITY';
-      if (availability !== 'all' && availability !== effectiveAvailability) return false;
-
       // Search query
       if (searchQuery.trim()) {
         return matchesCatalogueSearch(item, searchQuery);
@@ -193,18 +174,10 @@ export default function MarketplacePage({
 
       return true;
     });
-    return matches.sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      if (sortBy === 'brand') return a.brand.localeCompare(b.brand) || a.name.localeCompare(b.name);
-      if (sortBy === 'availability') {
-        const inStockA = a.inStock || (a.variants || []).some((variant) => variant.inStock);
-        const inStockB = b.inStock || (b.variants || []).some((variant) => variant.inStock);
-        return Number(inStockB) - Number(inStockA) || a.name.localeCompare(b.name);
-      }
-      if (searchQuery.trim()) return scoreCatalogueSearch(b, searchQuery) - scoreCatalogueSearch(a, searchQuery);
-      return 0;
-    });
-  }, [products, activeCategory, selectedBrand, availability, searchQuery, sortBy, variantFilters]);
+    return searchQuery.trim()
+      ? matches.sort((a, b) => scoreCatalogueSearch(b, searchQuery) - scoreCatalogueSearch(a, searchQuery))
+      : matches;
+  }, [products, activeCategory, selectedBrand, searchQuery]);
 
   const visibleProducts = useMemo(
     () => filteredProducts.slice(0, visibleProductCount),
@@ -213,7 +186,8 @@ export default function MarketplacePage({
 
   useEffect(() => {
     setVisibleProductCount(CATALOGUE_PAGE_SIZE);
-  }, [activeCategory, selectedBrand, availability, searchQuery, sortBy, variantFilters]);
+    setHasReachedCatalogueEnd(false);
+  }, [activeCategory, selectedBrand, searchQuery]);
 
   useEffect(() => {
     const sentinel = loadMoreSentinelRef.current;
@@ -229,11 +203,22 @@ export default function MarketplacePage({
     return () => observer.disconnect();
   }, [visibleProductCount, filteredProducts.length]);
 
+  useEffect(() => {
+    const sentinel = catalogueEndRef.current;
+    if (!sentinel || !filteredProducts.length || visibleProducts.length < filteredProducts.length || !('IntersectionObserver' in window)) return;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) setHasReachedCatalogueEnd(true);
+    }, { threshold: 0 });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [visibleProducts.length, filteredProducts.length]);
+
   const relatedProducts = useMemo(() => {
     if (filteredProducts.length) return [];
-    // Suggestions may broaden an empty brand/category browse, but must not
-    // contradict a user's exact search, availability, or variant filters.
-    if (searchQuery.trim() || availability !== "all" || Object.values(variantFilters).some(Boolean)) return [];
+    // Suggestions may broaden an empty brand/category browse, but not an exact search.
+    if (searchQuery.trim()) return [];
     const selectedPartner = partnerBrands.find((brand) => brand.name.toLocaleLowerCase() === selectedBrand.toLocaleLowerCase());
     const categoryHints: Record<string, string[]> = {
       cement: ["cement"], pipes: ["pipe", "plumb", "valve"], wires: ["wire", "cable"],
@@ -246,7 +231,7 @@ export default function MarketplacePage({
       .filter((product) => !selectedPartner || hints.some((hint) => `${product.category} ${product.categoryLabel}`.toLocaleLowerCase().includes(hint)))
       .sort((a, b) => Number(b.inStock) - Number(a.inStock) || a.name.localeCompare(b.name))
       .slice(0, 4);
-  }, [products, filteredProducts.length, activeCategory, selectedBrand, partnerBrands, searchQuery, availability, variantFilters]);
+  }, [products, filteredProducts.length, activeCategory, selectedBrand, partnerBrands, searchQuery]);
 
   // Check if item in BOM
   const isItemInBOM = (id: string) => bomList.some((item) => (item.catalogueId || item.id) === id);
@@ -256,9 +241,6 @@ export default function MarketplacePage({
     setActiveCategory('all');
     setSelectedBrand('');
     setSearchQuery('');
-    setAvailability('all');
-    setVariantFilters({});
-    setSortBy('relevance');
     lastSearchParamRef.current = '';
     setSearchParams({});
   };
@@ -409,35 +391,7 @@ export default function MarketplacePage({
                 </select>
               </div>
 
-              <div className="catalog-select-wrap">
-                <label className="sr-only" htmlFor="catalog-availability">Availability</label>
-                <select id="catalog-availability" value={availability} onChange={(e) => setAvailability(e.target.value)} className="brand-dropdown-select">
-                  <option value="all">All availability</option>
-                  <option value="IN_STOCK">In stock</option>
-                  <option value="OUT_OF_STOCK">Out of stock</option>
-                  <option value="CHECK_AVAILABILITY">Check availability</option>
-                </select>
-              </div>
-
-              {variantFilterGroups.map((group) => <div className="catalog-select-wrap" key={group.key}>
-                <label className="sr-only" htmlFor={`catalog-option-${group.key}`}>Filter by {group.label}</label>
-                <select id={`catalog-option-${group.key}`} value={variantFilters[group.key] || ''} onChange={(event) => setVariantFilters((previous) => ({ ...previous, [group.key]: event.target.value }))} className="brand-dropdown-select">
-                  <option value="">All {group.label.toLocaleLowerCase()}s</option>
-                  {group.values.map((value) => <option key={value} value={value}>{value}</option>)}
-                </select>
-              </div>)}
-
-              <div className="catalog-select-wrap">
-                <label className="sr-only" htmlFor="catalog-sort">Sort products</label>
-                <select id="catalog-sort" value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="brand-dropdown-select">
-                  <option value="relevance">Sort: relevance</option>
-                  <option value="name">Name: A to Z</option>
-                  <option value="brand">Brand</option>
-                  <option value="availability">Availability</option>
-                </select>
-              </div>
-
-              {(activeCategory !== 'all' || selectedBrand || searchQuery || availability !== 'all' || sortBy !== 'relevance' || Object.values(variantFilters).some(Boolean)) && (
+              {(activeCategory !== 'all' || selectedBrand || searchQuery) && (
                 <button
                   type="button"
                   onClick={handleResetFilters}
@@ -516,13 +470,6 @@ export default function MarketplacePage({
 
           {/* Results Summary Bar */}
           <div className="results-summary-row reveal-text">
-            <span className="results-count-text">
-              Showing <strong>{visibleProducts.length}</strong> of <strong>{filteredProducts.length}</strong> products
-              {filteredProducts.length !== products.length && ' matching your filters'}
-              {activeCategoryLabel && ` in ${activeCategoryLabel}`}
-              {selectedBrand && ` by ${selectedBrand}`}
-            </span>
-
             <div className="dispatch-help-note">
               <span>Need a custom quantity or site delivery information?</span>
               {siteContent["contact.phone"] && (
@@ -541,18 +488,8 @@ export default function MarketplacePage({
                 const productHref = `/product/${encodeURIComponent(product.id)}${searchQuery.trim() ? `?q=${encodeURIComponent(searchQuery.trim())}` : ""}`;
                 const cardImage = queryVariant?.image || product.image;
                 const inBOM = isItemInBOM(product.id);
-                const brandMeta = getBrandMeta(product.brand);
                 const productOffer = queryVariant?.offerLabel || product.offerLabel || product.variants?.find((variant) => variant.offerLabel)?.offerLabel;
                 const priceNote = customerPriceNote(queryVariant?.priceNote || product.priceNote || product.variants?.find(variant => variant.price != null)?.priceNote);
-                const itemAvailability = product.availabilityStatus || (product.inStock ? 'IN_STOCK' : 'CHECK_AVAILABILITY');
-                const variantStatuses = (product.variants || []).map((variant) => variant.availabilityStatus || (variant.inStock ? 'IN_STOCK' : 'CHECK_AVAILABILITY'));
-                const effectiveAvailability = queryVariant
-                  ? queryVariant.availabilityStatus || (queryVariant.inStock ? 'IN_STOCK' : 'CHECK_AVAILABILITY')
-                  : itemAvailability === 'IN_STOCK' || variantStatuses.includes('IN_STOCK')
-                  ? 'IN_STOCK'
-                  : (itemAvailability === 'OUT_OF_STOCK' || (variantStatuses.length > 0 && variantStatuses.every((status) => status === 'OUT_OF_STOCK')))
-                    ? 'OUT_OF_STOCK'
-                    : 'CHECK_AVAILABILITY';
                 return (
                     <article
                       key={product.id}
@@ -575,10 +512,10 @@ export default function MarketplacePage({
                       <ProductImage src={cardImage} alt={product.name} />
                       <div className="media-overlay-tags">
                         <span className="product-cat-tag">{product.categoryLabel}</span>
-                        <span className={`stock-status-tag ${effectiveAvailability === 'IN_STOCK' ? '' : 'is-unavailable'}`}>
-                          <span className="pulse-dot"></span> {effectiveAvailability === 'IN_STOCK' ? 'In stock' : effectiveAvailability === 'OUT_OF_STOCK' ? 'Out of stock' : 'Check availability'}
-                        </span>
                       </div>
+                      {product.photoBanner && (
+                        <span className="product-photo-banner">{product.photoBanner}</span>
+                      )}
                       {productOffer && <span className="catalog-card-offer">{productOffer}</span>}
                     </Link>
 
@@ -586,9 +523,9 @@ export default function MarketplacePage({
                     <div className="product-card-body">
                       <div className="brand-code-line">
                         <div className="brand-title-badge">
-                          <div className="brand-mini-logo-frame">
-                            <BrandLogo id={brandMeta?.id || product.brand} className="brand-mini-svg" />
-                          </div>
+                          <span className="brand-mini-logo-frame" aria-hidden="true">
+                            {(product.brand || "B").slice(0, 1).toUpperCase()}
+                          </span>
                           <span className="brand-title">{product.brand}</span>
                         </div>
                         <span className="product-sku-code">{product.code}</span>
@@ -628,7 +565,7 @@ export default function MarketplacePage({
                       {/* Technical Specs Preview */}
                       <div className="product-spec-preview-box">
                         <div className="spec-item">
-                          <span className="spec-label">Packaging:</span>
+                          <span className="spec-label">Packaging</span>
                           <span className="spec-val">{product.unit}</span>
                         </div>
                         {product.specs?.standard && (
@@ -744,16 +681,16 @@ export default function MarketplacePage({
             </div>
           )}
           {filteredProducts.length > 0 && visibleProducts.length === filteredProducts.length && (
-            <p className="catalogue-end-message" role="status">
-              You’ve reached the end — all {filteredProducts.length} products are loaded.
-            </p>
+            <>
+              <div ref={catalogueEndRef} aria-hidden="true" />
+              {hasReachedCatalogueEnd && <p className="catalogue-end-message" role="status">You’ve reached the end</p>}
+            </>
           )}
           {!filteredProducts.length && relatedProducts.length > 0 && <section className="catalogue-related-section" aria-label="Other catalogue items">
             <div><h3>Other items to explore</h3><p>These are listed in a related materials category. Confirm the exact brand and specification with the team.</p></div>
             <div className="catalogue-related-grid">{relatedProducts.map((product) => <Link to={`/product/${encodeURIComponent(product.id)}`} key={product.id} className="catalogue-related-card">
               <ProductImage src={product.image} alt={product.name} />
               <small>{product.brand}</small><strong>{product.name}</strong>
-              <span>{product.availabilityStatus === "IN_STOCK" ? "In stock" : product.availabilityStatus === "OUT_OF_STOCK" ? "Out of stock" : "Check availability"}</span>
             </Link>)}</div>
           </section>}
 

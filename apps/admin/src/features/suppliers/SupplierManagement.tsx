@@ -62,6 +62,7 @@ export default function SupplierManagement({
   mutate,
   submitForm,
 }: Props) {
+  const [view, setView] = useState<"add" | "list">("add");
   const [supplierDetailId, setSupplierDetailId] = useState("");
   const [directoryQuery, setDirectoryQuery] = useState("");
   const [directoryResults, setDirectoryResults] = useState<SupplierRecord[] | null>(null);
@@ -96,6 +97,26 @@ export default function SupplierManagement({
 
   return (
     <>
+      <div className="supplier-management-switch" aria-label="Supplier pages">
+        <button
+          type="button"
+          className={view === "add" ? "active" : ""}
+          onClick={() => {
+            setEditingSupplier(null);
+            setView("add");
+          }}
+        >
+          Add supplier
+        </button>
+        <button
+          type="button"
+          className={view === "list" ? "active" : ""}
+          onClick={() => setView("list")}
+        >
+          Registered suppliers
+        </button>
+      </div>
+      {view === "add" && (
       <form
         key={editingSupplier?.id || "new-supplier"}
         className="bc-form"
@@ -236,20 +257,23 @@ export default function SupplierManagement({
             />
           </label>
         </fieldset>
-        <button className="bc-primary" disabled={busy}>
-          {editingSupplier ? "Save supplier changes" : "Save supplier"}
-        </button>
-        {editingSupplier && (
-          <button
-            type="button"
-            className="bc-button"
-            disabled={busy}
-            onClick={() => setEditingSupplier(null)}
-          >
-            Cancel supplier edit
+        <div className="bc-form-actions">
+          <button className="bc-primary" disabled={busy}>
+            {editingSupplier ? "Save supplier changes" : "Save supplier"}
           </button>
-        )}
+          {editingSupplier && (
+            <button
+              type="button"
+              className="bc-button"
+              disabled={busy}
+              onClick={() => setEditingSupplier(null)}
+            >
+              Cancel supplier edit
+            </button>
+          )}
+        </div>
       </form>
+      )}
       {supplierDetailId && (
         <SupplierProducts
           key={supplierDetailId}
@@ -258,6 +282,8 @@ export default function SupplierManagement({
           onClose={() => setSupplierDetailId("")}
         />
       )}
+      {view === "list" && (
+      <>
       <h2>Registered suppliers</h2>
       <form
         className="bc-inline-form"
@@ -326,9 +352,12 @@ export default function SupplierManagement({
             )}
           </div>
           <button
-            className="bc-button"
-            disabled={busy}
-            onClick={() => setEditingSupplier(s)}
+          className="bc-button"
+          disabled={busy}
+          onClick={() => {
+            setEditingSupplier(s);
+            setView("add");
+          }}
           >
             Edit supplier
           </button>
@@ -514,6 +543,8 @@ export default function SupplierManagement({
           </form>
         </article>
       ))}
+      </>
+      )}
     </>
   );
 }

@@ -34,6 +34,8 @@ export const SITE_CONTENT_DEFAULTS = {
   "home.hiddenSections": "",
   "home.contentBlocks": "[]",
   "home.heroImage": "",
+  "home.categoryImage.steel": "/images/categories/steel-category.webp",
+  "home.categoryImage.adhesives": "/images/categories/adhesives-category.webp",
   "home.calloutBadge": "Prepare a material request",
   "home.calloutTitle": "Build your material list",
   "home.calloutDescription":
@@ -174,6 +176,16 @@ export const SITE_CONTENT_GROUPS: {
       {
         key: "home.heroImage",
         label: "Homepage hero banner image",
+        image: true,
+      },
+      {
+        key: "home.categoryImage.steel",
+        label: "Steel & Reinforcement category image",
+        image: true,
+      },
+      {
+        key: "home.categoryImage.adhesives",
+        label: "Adhesives & Grouts category image",
         image: true,
       },
       { key: "home.eyebrow", label: "Hero badge" },

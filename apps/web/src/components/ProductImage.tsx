@@ -1,4 +1,4 @@
-import { Package } from "lucide-react";
+import { PackagePlus } from "lucide-react";
 import React from "react";
 
 type ProductImageProps = {
@@ -22,7 +22,8 @@ export default function ProductImage({
         role="img"
         aria-label={`${alt} image not provided`}
       >
-        <Package aria-hidden="true" />
+        <PackagePlus aria-hidden="true" />
+        <span>Product image preview</span>
       </div>
     );
   }

@@ -1,7 +1,7 @@
 # Local PostgreSQL
 
 Local development uses the PostgreSQL service from the root `compose.yaml`.
-The app database is `material_square`; API integration tests must use a separate
+The app database is `material_square_dev`; API integration tests must use a separate
 `material_square_test` database. This keeps test writes away from the customer,
 admin, and catalogue data used by the browser. Compose exposes PostgreSQL on
 `127.0.0.1:55432`, avoiding conflicts with host PostgreSQL services on ports

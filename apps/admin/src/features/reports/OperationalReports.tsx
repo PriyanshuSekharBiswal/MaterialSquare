@@ -319,7 +319,7 @@ export default function OperationalReports({
     <section className="panel-card operational-reports">
       <div className="operational-reports-header">
         <button
-          className="btn-sm btn-secondary"
+          className="btn-sm btn-secondary btn-orange-outline"
           onClick={() => setRange({ ...range })}
           disabled={loading}
         >

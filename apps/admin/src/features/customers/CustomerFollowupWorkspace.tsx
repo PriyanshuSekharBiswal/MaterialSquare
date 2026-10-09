@@ -103,7 +103,7 @@ export default function CustomerFollowupWorkspace({
                 </select>
                 <button
                   type="button"
-                  className="btn-sm btn-primary"
+                  className="btn-sm btn-primary customer-new-followup"
                   onClick={() => setDraft(blankFollowup())}
                 >
                   <Plus size={16} />
@@ -153,8 +153,8 @@ export default function CustomerFollowupWorkspace({
               : followups.items.map((f) => (
                   <article className="workspace-record" key={f.id}>
                     <div>
-                      <h3>
-                        {f.customerName}{" "}
+                      <h3 className="followup-record-heading">
+                        <span>{f.customerName}</span>
                         <span
                           className={`status-label status-${f.status.toLowerCase()}`}
                         >
@@ -172,7 +172,7 @@ export default function CustomerFollowupWorkspace({
                       </small>
                     </div>
                     <button
-                      className="btn-sm btn-secondary"
+                      className="btn-sm btn-secondary btn-orange-outline"
                       onClick={() => {
                         setDraft(f);
                         setError("");
@@ -206,14 +206,16 @@ export default function CustomerFollowupWorkspace({
       )}
       {selected && !draft && (
         <section className="panel-card panel-body">
-          <button
-            className="btn-sm btn-secondary"
-            onClick={() => setSelected(null)}
-          >
-            <ArrowLeft size={16} />
-            Back to customers
-          </button>
-          <h2>{selected.name || "Profile not completed"}</h2>
+          <div className="customer-profile-header">
+            <h2>{selected.name || "Profile not completed"}</h2>
+            <button
+              className="btn-sm btn-secondary btn-orange-outline"
+              onClick={() => setSelected(null)}
+            >
+              <ArrowLeft size={16} />
+              Back to customers
+            </button>
+          </div>
           <div className="customer-summary">
             <p>
               <strong>Mobile</strong>+91 {selected.phone}
@@ -275,11 +277,11 @@ export default function CustomerFollowupWorkspace({
       )}
       {draft && (
         <form className="panel-card panel-body followup-form" onSubmit={save}>
-          <div className="workspace-actions">
+          <div className="followup-form-header">
             <h2>{draft.id ? "Edit follow-up" : "Record an enquiry"}</h2>
             <button
               type="button"
-              className="btn-sm btn-secondary"
+              className="btn-sm btn-secondary btn-orange-outline"
               onClick={() => {
                 setDraft(null);
                 setSelected(null);

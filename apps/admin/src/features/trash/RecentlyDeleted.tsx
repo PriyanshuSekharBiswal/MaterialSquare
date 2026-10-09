@@ -100,7 +100,7 @@ export default function RecentlyDeleted({
           <h2><Trash2 size={20} /> Recently deleted</h2>
           <p>Deleted items stay here for 30 days. Restore actions are recorded in the audit log.</p>
         </div>
-        <button className="btn-sm btn-secondary" disabled={busy} onClick={() => void refresh()}>
+        <button className="btn-sm btn-secondary btn-orange-outline" disabled={busy} onClick={() => void refresh()}>
           <RefreshCw size={15} className={busy ? "spin" : ""} /> Refresh
         </button>
       </header>
@@ -132,7 +132,7 @@ export default function RecentlyDeleted({
                 Available to restore until {new Date(record.expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
               </small>
             </div>
-            <button className="btn-sm btn-secondary" disabled={busy} onClick={() => void restore(record)}>
+            <button className="btn-sm btn-secondary btn-orange-outline" disabled={busy} onClick={() => void restore(record)}>
               <RotateCcw size={15} /> Restore
             </button>
           </article>

@@ -9,6 +9,7 @@ import { useSiteContent } from "../site-content";
 import type { CatalogueProduct, MaterialItem } from "../types";
 import ProductImage from "../components/ProductImage";
 import { BrandLogo, getBrandMeta } from "../components/icons/BrandBadges";
+import ProductRecommendationCarousel from "../components/ProductRecommendationCarousel";
 import WhatsAppIcon from "../components/icons/WhatsAppIcon";
 import { bestMatchingVariant } from "../search/variant-match";
 import { customerPriceNote, customerProductDescription, customerSpecifications } from "../catalogue/customer-display";
@@ -100,7 +101,7 @@ export default function ProductDetailPage({ products, loading = false, catalogue
   const description = customerProductDescription(product.description);
   const availability = selectedVariant?.availabilityStatus || product.availabilityStatus || ((selectedVariant?.inStock ?? product.inStock) ? "IN_STOCK" : "CHECK_AVAILABILITY");
   const minimumOrder = Number(selectedVariant?.minOrderQuantity || product.minOrderQty?.match(/[\d.]+/)?.[0] || 0) || 0;
-  const relatedProducts = products.filter((item) => item.id !== product.id && item.category === product.category).slice(0, 8);
+  const relatedProducts = products.filter((item) => item.id !== product.id && item.category === product.category).slice(0, 10);
   const complementaryCategories: Record<string, string[]> = {
     cement: ["paints", "pipes", "adhesives", "steel"],
     pipes: ["sanitary", "paints", "adhesives", "cement"],
@@ -110,10 +111,20 @@ export default function ProductDetailPage({ products, loading = false, catalogue
     steel: ["cement", "pipes", "paints", "adhesives"],
     adhesives: ["paints", "pipes", "cement", "sanitary"],
   };
-  const complementaryProducts = (complementaryCategories[product.category] || [])
-    .flatMap((category) => products.filter((item) => item.category === category))
-    .filter((item) => item.id !== product.id && !relatedProducts.some((related) => related.id === item.id))
-    .slice(0, 4);
+  const availableCategories = Array.from(new Set(products.map((item) => item.category).filter((category) => category !== product.category)));
+  const complementaryCategoryOrder = Array.from(new Set([...(complementaryCategories[product.category] || []), ...availableCategories]));
+  const complementaryByCategory = complementaryCategoryOrder.map((category) => products
+    .filter((item) => item.category === category && item.id !== product.id && !relatedProducts.some((related) => related.id === item.id)));
+  const complementaryProducts = Array.from({ length: 10 }, (_, round) => complementaryByCategory.flatMap((categoryProducts) => categoryProducts[round] ? [categoryProducts[round]] : []))
+    .flat()
+    .slice(0, 10);
+  const additionalCategorySections = complementaryCategoryOrder
+    .map((category) => ({
+      category,
+      products: products.filter((item) => item.category === category && item.id !== product.id).slice(0, 10),
+    }))
+    .filter((section) => section.products.length > 0)
+    .slice(0, 3);
   const enquiryMessage = productMessage({ ...product, unit, specification: selectedLabel });
   const waProductUrl = whatsappLink(enquiryMessage, siteContent["contact.phone"]);
   const emailProductUrl = emailLink("Material Square — Product Enquiry", enquiryMessage, siteContent["contact.email"]);
@@ -177,18 +188,12 @@ export default function ProductDetailPage({ products, loading = false, catalogue
       <article className="product-detail-card">
         <div className="product-detail-gallery">
           <div className="product-detail-image">
-            {selectedLabel && <span className="selected-size-badge">Selected: {selectedLabel}</span>}
+            {product.photoBanner && <span className="product-photo-banner">{product.photoBanner}</span>}
             <ProductImage src={activeImage} alt={product.name} loading="eager" />
           </div>
           {gallery.length > 1 && <div className="catalogue-gallery-thumbnails" aria-label="Product images">
             {gallery.map((image, index) => <button type="button" key={`${image}-${index}`} className={image === activeImage ? "is-active" : ""} onClick={() => setSelectedImage(image)} aria-label={`View product image ${index + 1}`}><ProductImage src={image} alt="" /></button>)}
           </div>}
-          <div className="product-detail-assurance">
-            <div><Truck size={17} /><span><strong>Delivery</strong>Confirm timing and site availability with the team.</span></div>
-            <div><Info size={17} /><span><strong>Product information</strong>Confirm exact specifications and documents before ordering.</span></div>
-          </div>
-          {waProductUrl && <a href={waProductUrl} target="_blank" rel="noopener noreferrer" className="btn btn-whatsapp btn-block"><WhatsAppIcon size={18} color="#ffffff" />Ask about this product</a>}
-          {emailProductUrl && <a href={emailProductUrl} className="btn btn-secondary btn-block"><Mail size={17} />Email about this product</a>}
         </div>
 
         <div className="product-detail-information">
@@ -233,17 +238,52 @@ export default function ProductDetailPage({ products, loading = false, catalogue
           </form>
       </article>
 
+      <section className="product-detail-support" aria-label="Product support">
+        <div className="product-detail-assurance">
+          <div><Truck size={17} /><span><strong>Delivery</strong>Confirm timing and site availability with the team.</span></div>
+          <div><Info size={17} /><span><strong>Product information</strong>Confirm exact specifications and documents before ordering.</span></div>
+        </div>
+        <div className="product-detail-contact-actions">
+          {waProductUrl && <a href={waProductUrl} target="_blank" rel="noopener noreferrer" className="btn btn-whatsapp"><WhatsAppIcon size={18} color="#ffffff" />Ask about this product</a>}
+          {emailProductUrl && <a href={emailProductUrl} className="btn btn-secondary product-detail-email-action"><Mail size={15} /><span>Email about this product</span></a>}
+        </div>
+      </section>
+
       {relatedProducts.length > 0 && <section className="product-page-related" aria-label="Similar products">
-        <div className="product-related-heading"><div><span>Continue browsing</span><h2>Similar {product.categoryLabel.toLowerCase()} products</h2></div><Link to={`/marketplace?category=${encodeURIComponent(product.category)}`}>View all <ArrowRight size={14} /></Link></div>
-        <div className="product-related-grid">{relatedProducts.map((item) => <Link className="product-related-card" key={item.id} to={`/product/${encodeURIComponent(item.id)}`}><ProductImage src={item.image || "/images/materials-editorial.png"} alt={`${item.name} — illustrative material image`} /><span className="product-related-brand">{item.brand}</span><strong>{item.name}</strong><small>{item.price != null ? `₹${Number(item.price).toLocaleString("en-IN")} / ${item.unit}` : "Request a quotation"}</small></Link>)}</div>
-        <small className="project-related-disclosure">Illustrative generated image; exact product packaging may differ. Confirm availability with the team.</small>
+        <ProductRecommendationCarousel
+          eyebrow="Continue browsing"
+          title={`Similar ${product.categoryLabel.toLowerCase()} products`}
+          browseHref={`/marketplace?category=${encodeURIComponent(product.category)}`}
+          browseLabel="View all"
+          products={relatedProducts}
+          ariaLabel="Similar products carousel"
+        />
       </section>}
       {complementaryProducts.length > 0 && <section className="product-page-related product-project-related" aria-label="Products to complete your project">
-        <div className="product-related-heading"><div><span>Plan the next step</span><h2>Complete your project</h2></div><Link to="/marketplace">Browse all materials <ArrowRight size={14} /></Link></div>
-        <p className="project-related-note">Useful materials from other catalogue categories. Add only what your project needs; pricing and availability are confirmed with the team.</p>
-        <div className="product-related-grid">{complementaryProducts.map((item) => <Link className="product-related-card" key={item.id} to={`/product/${encodeURIComponent(item.id)}`}><ProductImage src={item.image || "/images/materials-editorial.png"} alt={`${item.name} — illustrative material image`} /><span className="product-related-brand">{item.categoryLabel} · {item.brand}</span><strong>{item.name}</strong><small>{item.price != null ? `₹${Number(item.price).toLocaleString("en-IN")} / ${item.unit}` : "Request a quotation"}</small></Link>)}</div>
-        <small className="project-related-disclosure">Generated editorial material image; exact product packaging may differ. Confirm availability with the team.</small>
+        <ProductRecommendationCarousel
+          eyebrow="Plan the next step"
+          title="Complete your project"
+          browseHref="/marketplace"
+          browseLabel="Browse all materials"
+          products={complementaryProducts}
+          description="Useful materials from other catalogue categories. Add only what your project needs; pricing and availability are confirmed with the team."
+          ariaLabel="Other category products carousel"
+          showCategory
+        />
       </section>}
+      {additionalCategorySections.map(({ category, products: categoryProducts }) => {
+        const categoryLabel = categoryProducts[0].categoryLabel;
+        return <section className="product-page-related" aria-label={`${categoryLabel} products`} key={category}>
+          <ProductRecommendationCarousel
+            eyebrow="Explore more materials"
+            title={`${categoryLabel} products`}
+            browseHref={`/marketplace?category=${encodeURIComponent(category)}`}
+            browseLabel="View all"
+            products={categoryProducts}
+            ariaLabel={`${categoryLabel} products carousel`}
+          />
+        </section>;
+      })}
     </section>
   );
 }

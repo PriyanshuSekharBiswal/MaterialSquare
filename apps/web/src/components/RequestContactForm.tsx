@@ -38,7 +38,7 @@ export default function RequestContactForm({
     delivery: "",
     notes: "",
   });
-  const [channel, setChannel] = useState<"whatsapp" | "email" | "copy">(
+  const [channel, setChannel] = useState<"whatsapp" | "email" | "copy" | "website">(
       siteContent["contact.phone"]
         ? "whatsapp"
         : siteContent["contact.email"]
@@ -49,6 +49,7 @@ export default function RequestContactForm({
     [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [websiteSubmitted, setWebsiteSubmitted] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [sessionState, setSessionState] = useState<
     "checking" | "signed-in" | "guest"
@@ -89,6 +90,7 @@ export default function RequestContactForm({
   function update(key: keyof RequestDetails, value: string) {
     setPrepared(false);
     setCopied(false);
+    setWebsiteSubmitted(false);
     setDetails((old) => ({ ...old, [key]: value }));
   }
   useEffect(() => {
@@ -282,6 +284,10 @@ export default function RequestContactForm({
             setError("Email contact is not configured. Choose WhatsApp.");
             return;
           }
+          if (enquiry && channel === "website" && !/^[6-9]\d{9}$/.test(details.phone.trim())) {
+            setError("Enter a valid 10-digit mobile number so the team can respond.");
+            return;
+          }
           if (
             fields.some(
               (f) =>
@@ -307,6 +313,7 @@ export default function RequestContactForm({
                   setChannel(e.target.value as typeof channel);
                   setPrepared(false);
                   setCopied(false);
+                  setWebsiteSubmitted(false);
                 }}
               >
                 <option
@@ -319,6 +326,7 @@ export default function RequestContactForm({
                   Email
                 </option>
                 <option value="copy">Copy message</option>
+                <option value="website">Website enquiry</option>
               </select>
             </label>
           )}
@@ -331,7 +339,7 @@ export default function RequestContactForm({
                 <input
                   type={field.type || "text"}
                   autoComplete={field.auto}
-                  required={field.required}
+                  required={field.required || (enquiry && channel === "website" && field.key === "phone")}
                   pattern={field.pattern}
                   maxLength={field.max}
                   minLength={field.key === "name" ? 2 : undefined}
@@ -427,7 +435,9 @@ export default function RequestContactForm({
             <div>
               <h3>
                 {enquiry
-                  ? `${channel === "copy" ? "Copy your" : "Send your"} enquiry${channel === "copy" ? " message" : ` through ${channel === "email" ? "email" : "WhatsApp"}`}`
+                  ? channel === "website"
+                    ? "Submit your enquiry on the website"
+                    : `${channel === "copy" ? "Copy your" : "Send your"} enquiry${channel === "copy" ? " message" : ` through ${channel === "email" ? "email" : "WhatsApp"}`}`
                   : "Review your quotation request"}
               </h3>
               <pre className="request-preview">{message}</pre>
@@ -448,6 +458,10 @@ export default function RequestContactForm({
                   sessionState === "signed-in"
                     ? "Your verified customer session will be used. You will not need to sign in again."
                     : "Your request will be saved to your account and sent to the team after you verify your mobile number."
+                ) : websiteSubmitted ? (
+                  "Your enquiry has been sent to the Material Square team. They can follow up using the details you provided."
+                ) : channel === "website" ? (
+                  "Submit this form to send your enquiry to the Material Square team."
                 ) : channel === "copy" ? (
                   "Review the details, copy the message, and paste it into your preferred messaging app."
                 ) : (
@@ -459,7 +473,7 @@ export default function RequestContactForm({
                   </>
                 )}
               </p>
-              {enquiry && channel !== "copy" && (
+              {enquiry && channel !== "copy" && channel !== "website" && (
                 <a
                   className={`btn ${channel === "whatsapp" ? "btn-whatsapp" : "btn-primary"}`}
                   href={
@@ -482,6 +496,40 @@ export default function RequestContactForm({
                 >
                   Continue in {channel === "whatsapp" ? "WhatsApp" : "email"}
                 </a>
+              )}
+              {enquiry && channel === "website" && !websiteSubmitted && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={submitting}
+                  onClick={async () => {
+                    setError("");
+                    setSubmitting(true);
+                    try {
+                      await customerApi<{ id: string }>("/inquiries", "POST", {
+                        name: details.name.trim(),
+                        phone: details.phone.trim(),
+                        location: [details.address.trim(), details.city.trim(), details.pincode.trim()]
+                          .filter(Boolean)
+                          .join(", "),
+                        projectType: "Website contact enquiry",
+                        message: [
+                          details.notes.trim(),
+                          details.company.trim() ? `Company: ${details.company.trim()}` : "",
+                          details.email.trim() ? `Email: ${details.email.trim()}` : "",
+                        ].filter(Boolean).join("\n\n"),
+                      });
+                      setWebsiteSubmitted(true);
+                      setPrepared(true);
+                    } catch (cause) {
+                      setError(cause instanceof Error ? cause.message : "Could not send the enquiry.");
+                    } finally {
+                      setSubmitting(false);
+                    }
+                  }}
+                >
+                  {submitting ? "Sending enquiry…" : "Send enquiry to the team"}
+                </button>
               )}
               {enquiry && (
                 <button

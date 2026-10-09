@@ -142,6 +142,7 @@ const listingSchema = z
     unit: z.string().trim().min(1).max(100),
     packaging: optionalText,
     image: imagePath.nullable().optional(),
+    photoBanner: z.string().trim().max(40).nullable().optional(),
     galleryImages: z.array(imagePath).max(4).default([]),
     grade: optionalText,
     description: z.string().trim().max(3000).nullable().optional(),

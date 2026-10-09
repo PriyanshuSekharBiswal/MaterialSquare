@@ -140,7 +140,7 @@ export default function RecentActivity({
         </div>
         <div className="recent-activity-tools">
           <span className="recent-changes-range"><Clock3 size={15} aria-hidden="true" /> Kept here for 7 days</span>
-          <button className="btn-sm btn-secondary" type="button" onClick={() => setRefresh((value) => value + 1)} disabled={loading}>
+          <button className="btn-sm btn-secondary btn-orange-outline" type="button" onClick={() => setRefresh((value) => value + 1)} disabled={loading}>
             <RefreshCw size={14} aria-hidden="true" /> Refresh
           </button>
         </div>

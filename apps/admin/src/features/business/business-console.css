@@ -3,6 +3,14 @@
 
 fieldset.bc-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 
+.supplier-management-switch{display:flex;align-items:center;gap:6px;width:max-content;max-width:100%;margin:0 0 16px;padding:5px;border:1px solid #dfe6ef;border-radius:12px;background:#fff;box-shadow:0 3px 12px rgba(15,23,42,.04)}
+.supplier-management-switch button{display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:8px 13px;border:1px solid transparent;border-radius:8px;background:transparent;color:#526176;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.supplier-management-switch button:hover{background:#f5f7fa;color:#17243a}
+.supplier-management-switch button.active{border-color:#e9530b;background:#e9530b;color:#fff;box-shadow:0 3px 9px rgba(233,83,11,.2)}
+.supplier-management-switch button span{display:inline-grid;min-width:21px;height:21px;place-items:center;padding:0 5px;border-radius:999px;background:rgba(15,23,42,.08);font-size:11px}
+.supplier-management-switch button.active span{background:rgba(255,255,255,.22)}
+@media(max-width:480px){.supplier-management-switch{width:100%}.supplier-management-switch button{flex:1;justify-content:center;padding-inline:7px;font-size:12px}}
+
 
 .procurement-table { width:100%; overflow-x:auto; }
 .procurement-table table { width:100%; border-collapse:collapse; text-align:left; }
@@ -10,3 +18,5 @@ fieldset.bc-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 .procurement-table td p { font-size:12px; margin-top:5px; }
 .procurement-candidate { padding:12px; border:1px solid #e2e8f0; border-radius:8px; }
 .procurement-candidate summary { cursor:pointer; margin-bottom:10px; }
+.bc-form-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:10px; margin-top:19px; }
+.bc-form-actions .bc-primary { margin-top:0; }

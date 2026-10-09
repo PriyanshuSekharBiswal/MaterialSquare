@@ -23,6 +23,7 @@ import {
   BadgePercent,
   Coins,
   Clock3,
+  Menu,
 } from "lucide-react";
 import "./business-console.css";
 import ProcurementRequestCard from "../procurement/ProcurementRequestCard";
@@ -159,6 +160,8 @@ export default function BusinessConsole({
   const [section, setSection] = useState<Section>(
     () => visibleSections[0]?.id || "suppliers",
   );
+  const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
+  const sectionMenuRef = useRef<HTMLDivElement>(null);
   const [records, setRecords] = useState<unknown[]>([]);
   const [recordsSection, setRecordsSection] = useState<Section | null>(null);
   const loadSequence = useRef(0);
@@ -167,6 +170,23 @@ export default function BusinessConsole({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!sectionMenuOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!sectionMenuRef.current?.contains(event.target as Node)) {
+        setSectionMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSectionMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [sectionMenuOpen]);
   const active =
     visibleSections.find((entry) => entry.id === section) ||
     visibleSections[0] ||
@@ -420,30 +440,37 @@ export default function BusinessConsole({
   if (embedded) {
     return (
       <div className="embedded-business-view">
-        <div className="embedded-subnav-bar">
-          <div className="embedded-subnav-items">
-            {visibleSections.map(({ id, label, icon: Icon }) => (
-              <button
-                className={`subnav-pill ${section === id ? "active" : ""}`}
-                key={id}
-                onClick={() => {
-                  setSection(id);
-                  setMessage("");
-                  setError("");
-                }}
-              >
-                <Icon size={15} />
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
+        <div className="embedded-subnav-bar" ref={sectionMenuRef}>
+          <h1 className="operations-current-section">{active.label}</h1>
+          {sectionMenuOpen && (
+            <div className="embedded-subnav-items" id="business-section-menu">
+              {visibleSections.map(({ id, label, icon: Icon }) => (
+                <button
+                  className={`subnav-pill ${section === id ? "active" : ""}`}
+                  key={id}
+                  onClick={() => {
+                    setSection(id);
+                    setMessage("");
+                    setError("");
+                    setSectionMenuOpen(false);
+                  }}
+                >
+                  <Icon size={15} />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <button
-            className="btn-sm btn-secondary"
-            onClick={() => void refresh()}
-            disabled={busy}
+            type="button"
+            className="operations-menu-trigger"
+            aria-label="Open business management sections"
+            aria-expanded={sectionMenuOpen}
+            aria-controls="business-section-menu"
+            title="Open business management sections"
+            onClick={() => setSectionMenuOpen((open) => !open)}
           >
-            <RefreshCw size={14} className={busy ? "spin" : ""} />
-            <span>{busy ? "Loading…" : "Refresh"}</span>
+            <Menu size={22} aria-hidden="true" />
           </button>
         </div>
         {error && (
@@ -500,7 +527,7 @@ export default function BusinessConsole({
             <h1>{active.label}</h1>
           </div>
           <button
-            className="bc-button"
+            className="bc-button btn-orange-outline"
             onClick={() => void refresh()}
             disabled={busy}
           >

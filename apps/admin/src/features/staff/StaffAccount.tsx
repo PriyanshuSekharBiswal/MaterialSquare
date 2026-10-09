@@ -142,7 +142,7 @@ export default function StaffAccount({
           <input name="phone" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength={10} defaultValue={staff.phone || ""} />
         </label>
         <p className="staff-account-hint">Keep at least one sign-in method. Your role and permissions are managed separately by an administrator.</p>
-        <button className="btn-sm btn-primary" disabled={busy}>
+        <button className="btn-sm btn-primary staff-account-submit" disabled={busy}>
           <Save size={15} /> {busy ? "Saving…" : "Save account details"}
         </button>
       </form>
@@ -170,7 +170,7 @@ export default function StaffAccount({
             <input name="confirmPassword" type="password" autoComplete="new-password" required minLength={6} maxLength={256} pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{6,256}" />
           </label>
           <p className="staff-account-hint">Use at least 6 characters, including an uppercase letter, a number and a special character. Changing your password signs out your other active sessions.</p>
-          <button className="btn-sm btn-primary" disabled={passwordBusy}>
+          <button className="btn-sm btn-primary staff-account-submit" disabled={passwordBusy}>
             <KeyRound size={15} /> {passwordBusy ? "Updating…" : "Update password"}
           </button>
         </form>

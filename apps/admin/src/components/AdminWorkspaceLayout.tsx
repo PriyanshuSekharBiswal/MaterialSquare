@@ -187,12 +187,12 @@ export default function AdminWorkspaceLayout({
   };
   const showGlobalSearch = [
     "overview",
-    "recent",
     "catalogue",
     "business",
     "sales",
     "reports",
   ].includes(tab);
+  const showGlobalRefresh = ["overview", "customers", "followups", "account", "audit", "notifications"].includes(tab);
 
   return (
     <div className="admin-layout">
@@ -322,14 +322,16 @@ export default function AdminWorkspaceLayout({
                 searchRecords={onSearchRecords}
               />
             )}
-            <button
-              className="btn-sm btn-secondary"
-              disabled={loading || busy}
-              onClick={onRefresh}
-            >
-              <RefreshCw size={15} className={loading || busy ? "spin" : ""} />
-              <span>Refresh</span>
-            </button>
+            {showGlobalRefresh && (
+              <button
+                className="btn-sm btn-secondary btn-orange-outline"
+                disabled={loading || busy}
+                onClick={onRefresh}
+              >
+                <RefreshCw size={15} className={loading || busy ? "spin" : ""} />
+                <span>{tab === "audit" ? "Refresh records" : tab === "notifications" ? "Refresh notifications" : "Refresh"}</span>
+              </button>
+            )}
           </div>
         </header>
         {error && (

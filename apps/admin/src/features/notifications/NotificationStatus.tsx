@@ -13,10 +13,9 @@ type Readiness = {
   missingRequired: string[];
   webhookTokenConfigured: boolean;
 };
-export default function NotificationStatus({ token }: { token: string }) {
+export default function NotificationStatus({ token, revision }: { token: string; revision: number }) {
   const [filters, setFilters] = useState({ status: "", type: "" });
   const [page, setPage] = useState(1);
-  const [revision, setRevision] = useState(0);
   const [result, setResult] = useState<Page | null>(null);
   const [error, setError] = useState("");
   const [readiness, setReadiness] = useState<Readiness | null>(null);
@@ -118,7 +117,7 @@ export default function NotificationStatus({ token }: { token: string }) {
     setPage(1);
   }
   return (
-    <section>
+    <section className="notification-status-page">
       <h2>Notification status</h2>
       <p>
         Queued jobs await the configured provider. Delivered means the provider
@@ -151,7 +150,7 @@ export default function NotificationStatus({ token }: { token: string }) {
       ) : readiness?.ready ? (
         <p role="status">Notification worker configuration is present.</p>
       ) : null}
-      <form onSubmit={applyFilters} className="filter-bar">
+      <form onSubmit={applyFilters} className="filter-bar notification-filter-form">
         <label>
           Notification outcome
           <select name="status">
@@ -169,21 +168,19 @@ export default function NotificationStatus({ token }: { token: string }) {
           Notification type
           <input name="type" maxLength={100} placeholder="Exact job type" />
         </label>
-        <button className="btn-sm">Filter notifications</button>
+        <div className="notification-filter-actions">
+          <button className="btn-sm btn-secondary btn-orange-outline">Filter notifications</button>
+        </div>
       </form>
-      <button
-        className="btn-sm"
-        onClick={() => setRevision((value) => value + 1)}
-      >
-        Refresh notifications
-      </button>
       {error ? (
         <p role="alert">{error}</p>
       ) : !result ? (
         <p role="status">Loading notifications…</p>
       ) : (
         <>
-          <p>{result.total} notification jobs</p>
+          <div className="notification-results-heading">
+            <p><strong>{result.total}</strong> notification jobs</p>
+          </div>
           {result.items.length === 0 ? (
             <p className="empty">No notification jobs recorded.</p>
           ) : (
@@ -212,21 +209,23 @@ export default function NotificationStatus({ token }: { token: string }) {
               </table>
             </div>
           )}
-          <button
-            className="btn-sm"
-            disabled={page === 1}
-            onClick={() => setPage((value) => value - 1)}
-          >
-            Previous notification page
-          </button>
-          <span> Page {page} </span>
-          <button
-            className="btn-sm"
-            disabled={page * result.pageSize >= result.total}
-            onClick={() => setPage((value) => value + 1)}
-          >
-            Next notification page
-          </button>
+          <div className="pagination notification-pagination">
+            <button
+              className="btn-sm btn-secondary"
+              disabled={page === 1 || !result.total}
+              onClick={() => setPage((value) => value - 1)}
+            >
+              Previous
+            </button>
+            <span>Page {page} of {Math.max(1, Math.ceil(result.total / result.pageSize))}</span>
+            <button
+              className="btn-sm btn-secondary"
+              disabled={page * result.pageSize >= result.total}
+              onClick={() => setPage((value) => value + 1)}
+            >
+              Next
+            </button>
+          </div>
         </>
       )}
     </section>

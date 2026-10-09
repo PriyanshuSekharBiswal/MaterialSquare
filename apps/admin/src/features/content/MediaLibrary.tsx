@@ -107,7 +107,7 @@ export default function MediaLibrary({
         </div>
         <button
           type="button"
-          className="btn-sm btn-secondary"
+          className="btn-sm btn-secondary btn-orange-outline"
           onClick={() => void refresh()}
           disabled={loading}
         >

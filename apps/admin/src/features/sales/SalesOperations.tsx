@@ -1,5 +1,5 @@
 import OrderDetails, { type OrderSummary } from "./OrderDetails";
-import { useState, useEffect, useCallback, type FormEvent } from "react";
+import { useState, useEffect, useCallback, useRef, type FormEvent } from "react";
 import {
   BarChart,
   Bar,
@@ -9,12 +9,13 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import {
+  ArrowRight,
   TrendingUp,
   FileText,
   Truck,
   Package,
   Mail,
-  RefreshCw,
+  Menu,
 } from "lucide-react";
 import MaterialSquareLogo from "../../components/MaterialSquareLogo";
 import QuoteEditor, { type RevisionQuote } from "./QuoteEditor";
@@ -175,6 +176,8 @@ export default function SalesOperations({
   const [token, setToken] = useState(accessToken);
   const [staffName, setStaffName] = useState("");
   const [tab, setTab] = useState<Tab>("overview");
+  const [operationsMenuOpen, setOperationsMenuOpen] = useState(false);
+  const operationsMenuRef = useRef<HTMLDivElement>(null);
   const visibleTabs = roleTabs[role] || ["overview"];
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -186,6 +189,23 @@ export default function SalesOperations({
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   useEffect(() => setToken(accessToken), [accessToken]);
+  useEffect(() => {
+    if (!operationsMenuOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!operationsMenuRef.current?.contains(event.target as Node)) {
+        setOperationsMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOperationsMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [operationsMenuOpen]);
   const [editorRevision, setEditorRevision] = useState(0);
   const [selectedRfq, setSelectedRfq] = useState<Rfq | null>(null);
   const [editingDraft, setEditingDraft] = useState(false);
@@ -318,33 +338,40 @@ export default function SalesOperations({
 
   const innerContent = (
     <>
-      <div className="embedded-subnav-bar">
-        <div className="embedded-subnav-items">
-          {visibleTabs.map((item) => {
-            const Icon = icons[tabs.indexOf(item)];
-            return (
-              <button
-                key={item}
-                className={`subnav-pill ${tab === item ? "active" : ""}`}
-                onClick={() => {
-                  setTab(item);
-                  setSelectedRfq(null);
-                  setRevision(null);
-                }}
-              >
-                <Icon size={16} />
-                <span>{labels[item]}</span>
-              </button>
-            );
-          })}
-        </div>
+      <div className="embedded-subnav-bar" ref={operationsMenuRef}>
+        <h1 className="operations-current-section">{labels[tab]}</h1>
+        {operationsMenuOpen && (
+          <div className="embedded-subnav-items" id="operations-section-menu">
+            {visibleTabs.map((item) => {
+              const Icon = icons[tabs.indexOf(item)];
+              return (
+                <button
+                  key={item}
+                  className={`subnav-pill ${tab === item ? "active" : ""}`}
+                  onClick={() => {
+                    setTab(item);
+                    setSelectedRfq(null);
+                    setRevision(null);
+                    setOperationsMenuOpen(false);
+                  }}
+                >
+                  <Icon size={16} />
+                  <span>{labels[item]}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <button
-          className="btn-sm btn-secondary"
-          disabled={busy}
-          onClick={() => void refresh()}
+          type="button"
+          className="operations-menu-trigger"
+          aria-label="Open operations sections"
+          aria-expanded={operationsMenuOpen}
+          aria-controls="operations-section-menu"
+          title="Open operations sections"
+          onClick={() => setOperationsMenuOpen((open) => !open)}
         >
-          <RefreshCw size={15} className={busy ? "spin" : ""} />
-          <span>{busy ? "Loading…" : "Refresh"}</span>
+          <Menu size={22} aria-hidden="true" />
         </button>
       </div>
 
@@ -362,10 +389,29 @@ export default function SalesOperations({
                 {money(analytics.currentMonthOrderValueInr)}
               </p>
             </article>
-            <article className="kpi-card">
-              <h2>New RFQs</h2>
-              <p className="kpi-value">{analytics.activeRfqsCount}</p>
-            </article>
+            {visibleTabs.includes("rfqs") ? (
+              <button
+                type="button"
+                className="kpi-card kpi-card-action"
+                onClick={() => {
+                  setSelectedRfq(null);
+                  setRevision(null);
+                  setTab("rfqs");
+                }}
+                aria-label={`View RFQ inbox, ${analytics.activeRfqsCount} new RFQs`}
+              >
+                <h2>New RFQs</h2>
+                <p className="kpi-value">{analytics.activeRfqsCount}</p>
+                <span className="kpi-card-link">
+                  View RFQ inbox <ArrowRight size={14} aria-hidden="true" />
+                </span>
+              </button>
+            ) : (
+              <article className="kpi-card">
+                <h2>New RFQs</h2>
+                <p className="kpi-value">{analytics.activeRfqsCount}</p>
+              </article>
+            )}
           </div>
           <section className="panel-card panel-body">
             <h2>Daily order value this month</h2>

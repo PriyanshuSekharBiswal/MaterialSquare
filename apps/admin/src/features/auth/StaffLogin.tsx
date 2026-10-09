@@ -1,4 +1,5 @@
-import type { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import MaterialSquareLogo from "../../components/MaterialSquareLogo";
 
 type StaffLoginProps = {
@@ -14,6 +15,8 @@ export default function StaffLogin({
   marketplaceUrl,
   onSubmit,
 }: StaffLoginProps) {
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
     <main className="login-shell">
       <form className="login-card" onSubmit={onSubmit}>
@@ -37,17 +40,29 @@ export default function StaffLogin({
             required
           />
         </label>
-        <label>
-          Password
-          <input
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            placeholder="Enter your security password"
-            minLength={8}
-            required
-          />
-        </label>
+        <div className="login-password-group">
+          <label htmlFor="staff-login-password">Password</label>
+          <div className="login-password-field">
+            <input
+              id="staff-login-password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              placeholder="Enter your security password"
+              minLength={8}
+              required
+            />
+            <button
+              className="login-password-toggle"
+              type="button"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword((visible) => !visible)}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+        </div>
         <p className="login-session-note">
           Stay signed in on this browser when you close or refresh it. Sign out
           from the workspace when you’re finished. For security, remembered

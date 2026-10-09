@@ -98,6 +98,7 @@ export type CatalogListingInput = {
   unit: string;
   packaging?: string | null;
   image?: string | null;
+  photoBanner?: string | null;
   galleryImages: string[];
   grade?: string | null;
   description?: string | null;
@@ -205,7 +206,7 @@ export class ProductsService {
         ? (saved.content as Record<string, unknown>)
         : {};
     const brands = content["brands.directory"];
-    return Array.isArray(brands) ? brands : [];
+    return Array.isArray(brands) ? brands : this.initialPartnerBrands;
   }
 
   async savePartnerBrands(
@@ -660,6 +661,7 @@ export class ProductsService {
       brandTagline: data.brandTagline || null,
       packaging: data.packaging || null,
       image: data.image ?? null,
+      photoBanner: data.photoBanner || null,
       grade: data.grade || null,
       description: data.description || null,
       minOrderQty: data.minOrderQty || null,

@@ -92,6 +92,7 @@ const blank = (): Line => ({
   specification: "",
   alternatives: [],
 });
+const serviceStates = ["Delhi", "Haryana", "Uttar Pradesh"];
 
 export default function QuoteEditor({
   inventory,
@@ -150,6 +151,33 @@ export default function QuoteEditor({
             }))
           : [blank()],
   );
+  const initialSiteAddress =
+    revision?.projectSiteAddress || initialRequest?.siteLocation || "";
+  const getAddressPart = (label: string) => {
+    const match = initialSiteAddress.match(
+      new RegExp(`(?:^|,\\s*)${label}:\\s*(.*?)(?=,\\s*(?:Building|Area|Landmark|City|State):|$)`, "i"),
+    );
+    return match?.[1]?.trim() || "";
+  };
+  const hasStructuredAddress = /(?:^|,\s*)(?:Building|Area|Landmark|City|State):/i.test(
+    initialSiteAddress,
+  );
+  const initialStreet = getAddressPart("Area") || (!hasStructuredAddress
+    ? initialSiteAddress.replace(/\b[1-9][0-9]{5}\b/g, "").replace(/[\s,]+$/, "")
+    : "");
+  const initialPincode =
+    revision?.sitePincode ||
+    initialRequest?.siteLocation.match(/\b[1-9][0-9]{5}\b/)?.[0] ||
+    initialSiteAddress.match(/\b[1-9][0-9]{5}\b/)?.[0] ||
+    "";
+  const initialState = getAddressPart("State") || serviceStates.find((state) =>
+    initialSiteAddress.toLocaleLowerCase().includes(state.toLocaleLowerCase()),
+  ) || "";
+  const initialCity = getAddressPart("City") || [
+    "Greater Noida", "Ghaziabad", "Faridabad", "Gurugram", "Gurgaon", "Noida", "New Delhi", "Delhi",
+  ].find((city) =>
+    initialSiteAddress.toLocaleLowerCase().includes(city.toLocaleLowerCase()),
+  ) || "";
   useEffect(() => {
     let active = true;
     request<Listing[]>("/products/catalogue")
@@ -268,6 +296,18 @@ export default function QuoteEditor({
       return;
     }
     const form = new FormData(event.currentTarget);
+    const addressParts = [
+      ["Building", form.get("building")],
+      ["Area", form.get("street")],
+      ["Landmark", form.get("landmark")],
+      ["City", form.get("city")],
+      ["State", form.get("state")],
+    ]
+      .map(([label, value]) => {
+        const text = String(value || "").trim();
+        return text ? `${label}: ${text}` : "";
+      })
+      .filter(Boolean);
     setBusy(true);
     try {
       await request(
@@ -283,7 +323,7 @@ export default function QuoteEditor({
           customerPhone: form.get("phone"),
           customerEmail: form.get("email") || undefined,
           drawingFileUrl: revision?.drawingFileUrl || undefined,
-          projectSiteAddress: form.get("address"),
+          projectSiteAddress: addressParts.join(", "),
           sitePincode: form.get("pincode"),
           notes: form.get("notes") || undefined,
           freightAmount: Number(form.get("freight")),
@@ -359,63 +399,99 @@ export default function QuoteEditor({
       )}
       <form className="operation-form" onSubmit={save}>
         <fieldset disabled={busy || loading} className="quote-editor-fields">
-          <label>
-            Customer name
-            <input
-              name="name"
-              required
-              minLength={2}
-              maxLength={100}
-              defaultValue={
-                revision?.customerName || initialRequest?.customerName
-              }
-            />
-          </label>
-          <label>
-            Mobile number
-            <input
-              name="phone"
-              required
-              pattern="[6-9][0-9]{9}"
-              readOnly={Boolean(revision)}
-              defaultValue={
-                revision?.customerPhone || initialRequest?.customerPhone
-              }
-            />
-          </label>
-          <label>
-            Customer email
-            <input
-              name="email"
-              type="email"
-              maxLength={254}
-              defaultValue={revision?.customerEmail || ""}
-            />
-          </label>
-          <label>
-            Delivery address
-            <input
-              name="address"
-              required
-              minLength={5}
-              maxLength={500}
-              defaultValue={
-                revision?.projectSiteAddress || initialRequest?.siteLocation
-              }
-            />
-          </label>
-          <label>
-            PIN code
-            <input
-              name="pincode"
-              required
-              pattern="[1-9][0-9]{5}"
-              defaultValue={
-                revision?.sitePincode ||
-                initialRequest?.siteLocation.match(/\b[1-9][0-9]{5}\b/)?.[0]
-              }
-            />
-          </label>
+          <div className="quote-customer-details">
+            <label>
+              Customer name
+              <input
+                name="name"
+                required
+                minLength={2}
+                maxLength={100}
+                defaultValue={
+                  revision?.customerName || initialRequest?.customerName
+                }
+              />
+            </label>
+            <label>
+              Mobile number
+              <input
+                name="phone"
+                required
+                pattern="[6-9][0-9]{9}"
+                readOnly={Boolean(revision)}
+                defaultValue={
+                  revision?.customerPhone || initialRequest?.customerPhone
+                }
+              />
+            </label>
+            <label>
+              Customer email
+              <input
+                name="email"
+                type="email"
+                maxLength={254}
+                defaultValue={revision?.customerEmail || ""}
+              />
+            </label>
+            <label>
+              PIN code
+              <input
+                name="pincode"
+                required
+                pattern="[1-9][0-9]{5}"
+                placeholder="6 digit PIN code"
+                defaultValue={initialPincode}
+              />
+            </label>
+            <label className="quote-field-address">
+              Flat, house no., building, company or apartment
+              <input
+                name="building"
+                maxLength={250}
+                placeholder="Flat, house number, building or apartment"
+                defaultValue={getAddressPart("Building")}
+              />
+            </label>
+            <label className="quote-field-address">
+              Area, street, sector or village
+              <input
+                name="street"
+                required
+                minLength={5}
+                maxLength={500}
+                placeholder="Enter the area, street, sector or village"
+                defaultValue={initialStreet}
+              />
+            </label>
+            <label>
+              Landmark
+              <input
+                name="landmark"
+                maxLength={200}
+                placeholder="Nearby landmark (optional)"
+                defaultValue={getAddressPart("Landmark")}
+              />
+            </label>
+            <label>
+              Town / City
+              <input
+                name="city"
+                required
+                maxLength={100}
+                placeholder="City"
+                defaultValue={initialCity}
+              />
+            </label>
+            <label>
+              State
+              <select name="state" required defaultValue={initialState}>
+                <option value="">Choose a state</option>
+                {serviceStates.map((state) => (
+                  <option key={state} value={state}>{state}</option>
+                ))}
+              </select>
+            </label>
+          </div>
           <label>
             Search quotation products
             <input
