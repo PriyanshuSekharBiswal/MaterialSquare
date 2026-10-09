@@ -21,7 +21,9 @@ import type { StaffRequest } from "../../auth/staff-request";
 export class BlogManagementController {
   constructor(private readonly prisma: PrismaService) {}
   @Get() list() {
-    return this.prisma.blogPost.findMany({ orderBy: { updatedAt: "desc" } });
+    return this.prisma.blogPost.findMany({
+      orderBy: [{ sortOrder: "asc" }, { publishedAt: "desc" }, { slug: "asc" }],
+    });
   }
   @Post()
   create(@Req() req: StaffRequest, @Body() body: unknown) {
@@ -38,6 +40,7 @@ export class BlogManagementController {
         featuredImageUrl: z.string().url().nullable().optional(),
         status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).default("DRAFT"),
         authorName: z.string().max(150).optional(),
+        sortOrder: z.number().int().min(0).max(100000).default(0),
       }),
       body,
     );
@@ -81,6 +84,7 @@ export class BlogManagementController {
         featuredImageUrl: z.string().url().nullable().optional(),
         status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).optional(),
         authorName: z.string().max(150).nullable().optional(),
+        sortOrder: z.number().int().min(0).max(100000).optional(),
       }),
       body,
     );

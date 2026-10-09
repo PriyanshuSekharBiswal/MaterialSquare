@@ -15,7 +15,7 @@ export class PublicBlogsController {
     const parsedPage = Math.max(1, Math.min(1000, Number(page) || 1));
     return this.prisma.blogPost.findMany({
       where: { status: "PUBLISHED", publishedAt: { lte: new Date() } },
-      orderBy: { publishedAt: "desc" },
+      orderBy: [{ sortOrder: "asc" }, { publishedAt: "desc" }, { slug: "asc" }],
       skip: (parsedPage - 1) * 20,
       take: 20,
       select: {

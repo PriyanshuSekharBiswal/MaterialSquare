@@ -11,6 +11,7 @@ export type BlogPost = {
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   summary: string;
   body: string;
+  sortOrder?: number;
 };
 
 type Props = {
@@ -67,6 +68,7 @@ export default function BlogManagementPanel({
               featuredImageUrl: field(f, "image") || null,
               authorName: field(f, "author") || undefined,
               status: field(f, "status"),
+              sortOrder: Number(field(f, "sortOrder")),
             }),
             editing ? `/admin/blogs/${editing.id}` : "/admin/blogs",
             editing ? "PATCH" : "POST",
@@ -118,6 +120,19 @@ export default function BlogManagementPanel({
               <option value="PUBLISHED">Publish on website</option>
               <option value="ARCHIVED">Archived</option>
             </select>
+          </label>
+          <label>
+            Display order
+            <input
+              name="sortOrder"
+              type="number"
+              min={0}
+              max={100000}
+              step={1}
+              required
+              defaultValue={editingBlog?.sortOrder ?? 0}
+            />
+            <small>Lower numbers appear first on the website.</small>
           </label>
           <label className="bc-wide">
             Short summary
@@ -194,6 +209,7 @@ export default function BlogManagementPanel({
             <strong>{r.title}</strong>
             <p>{r.slug}</p>
             <small>{r.status}</small>
+            <p>Display order: {r.sortOrder ?? 0}</p>
           </div>
           <button className="bc-button" onClick={() => setEditingBlog(r)}>
             Edit

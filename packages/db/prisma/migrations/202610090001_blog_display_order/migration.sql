@@ -1,0 +1,1 @@
+ALTER TABLE "blog_posts" ADD COLUMN "sortOrder" INTEGER NOT NULL DEFAULT 0;
