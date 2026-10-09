@@ -78,7 +78,7 @@ test("catalogue preview uses the same displayed pack label as the storefront", a
 
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("owner@example.test");
-  await page.getByLabel("Password").fill("long-test-password");
+  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page.getByRole("button", { name: "Products & pricing" }).click();
   await page.getByRole("button", { name: "Edit", exact: true }).first().click();

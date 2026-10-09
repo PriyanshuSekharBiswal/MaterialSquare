@@ -102,7 +102,7 @@ test("admin search opens quick access on focus and carries product text into cat
 
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("owner@example.test");
-  await page.getByLabel("Password").fill("long-test-password");
+  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
 
   const globalSearch = page.getByRole("combobox", {

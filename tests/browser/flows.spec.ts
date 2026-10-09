@@ -1146,7 +1146,7 @@ test("admin overview displays aggregate website activity and top products", asyn
   );
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("owner@example.com");
-  await page.getByLabel("Password").fill("long-test-password");
+  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await expect(
     page.getByRole("heading", { name: "Website activity · last 30 days" }),
@@ -1210,7 +1210,7 @@ test("staff can review a customer contact and record a follow-up", async ({
 
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("owner@example.com");
-  await page.getByLabel("Password").fill("long-test-password");
+  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page.getByRole("button", { name: "Customers", exact: true }).click();
   await page.getByRole("button", { name: "View contact" }).click();
@@ -1296,7 +1296,7 @@ test("staff website content edits publish to the public homepage", async ({
 
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("owner@example.com");
-  await page.getByLabel("Password").fill("long-test-password");
+  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page.getByRole("button", { name: "Website editor" }).click();
   await expect(page.getByLabel("Main heading")).toHaveValue(
@@ -1660,7 +1660,7 @@ test("admin requires sign-in and displays login failures", async ({ page }) => {
   await page
     .getByLabel("Mobile number or email", { exact: true })
     .fill("9000000000");
-  await page.getByLabel("Password").fill("wrong-password");
+  await page.getByRole("textbox", { name: "Password" }).fill("wrong-password");
   await page.route("**/api/auth/staff/login", (route) =>
     route.fulfill({
       status: 401,
@@ -1725,7 +1725,7 @@ test("catalogue manager gets a first-product action when the catalogue is empty"
   );
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("catalog@example.test");
-  await page.getByLabel("Password").fill("long-test-password");
+  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page.getByRole("button", { name: "Products & pricing" }).click();
   await expect(
@@ -1926,7 +1926,7 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   );
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("owner@example.com");
-  await page.getByLabel("Password").fill("long-test-password");
+  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page.getByRole("button", { name: "Products & pricing" }).click();
   await page
@@ -2305,7 +2305,7 @@ test("owner creates staff accounts, assigns roles, disables access, and resets p
 
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("owner@example.com");
-  await page.getByLabel("Password").fill("owner-test-password");
+  await page.getByRole("textbox", { name: "Password" }).fill("owner-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page.getByRole("button", { name: "Staff & Roles" }).click();
   await expect(
@@ -3143,7 +3143,7 @@ test("sales staff can update a website request status in the RFQ inbox", async (
   });
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("sales@example.com");
-  await page.getByLabel("Password").fill("long-test-password");
+  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page
     .getByRole("button", { name: "Quotations & orders", exact: true })
@@ -3421,7 +3421,7 @@ async function signIntoBusiness(
   );
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("staff@example.com");
-  await page.getByLabel("Password").fill("long-test-password");
+  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page
     .getByRole("button", { name: "Business management", exact: true })

@@ -130,7 +130,7 @@ test("overview recent changes link to the matching admin workspace", async ({
 
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("owner@example.com");
-  await page.getByLabel("Password").fill("long-test-password");
+  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
 
   await expect(page.getByRole("button", { name: "Open staff & roles" })).toBeVisible();
