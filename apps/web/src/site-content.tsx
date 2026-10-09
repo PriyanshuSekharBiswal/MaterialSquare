@@ -46,19 +46,52 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
     }
 
     const controller = new AbortController();
-    fetch(`${import.meta.env.VITE_API_URL || "/api"}/site-content`, {
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    })
-      .then((response) => response.ok ? response.json() as Promise<SiteContent> : null)
-      .then((value) => {
-        if (value && !controller.signal.aborted)
-          setContent(sanitizePublicSiteContent(value as Record<string, unknown>));
-      })
-      .catch(() => {
-        /* Saved copy is optional; compiled defaults stay visible. */
-      });
-    return () => controller.abort();
+    let retryTimer: number | undefined;
+    let retryDelay = 500;
+    let requestInFlight = false;
+
+    const loadPublishedContent = async () => {
+      if (controller.signal.aborted || requestInFlight) return;
+      requestInFlight = true;
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/site-content`, {
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`Public site content request failed (${response.status})`);
+        const value = await response.json() as SiteContent;
+        if (controller.signal.aborted) return;
+        setContent(sanitizePublicSiteContent(value as Record<string, unknown>));
+        retryDelay = 500;
+      } catch {
+        if (controller.signal.aborted) return;
+        // The API may still be starting, or a brief network error may interrupt
+        // the request. Keep retrying so saved coverage and other published copy
+        // appear without requiring the visitor to reload the page.
+        retryTimer = window.setTimeout(() => {
+          retryTimer = undefined;
+          void loadPublishedContent();
+        }, retryDelay);
+        retryDelay = Math.min(retryDelay * 2, 15_000);
+      } finally {
+        requestInFlight = false;
+      }
+    };
+
+    const retryWhenOnline = () => {
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+      retryTimer = undefined;
+      retryDelay = 500;
+      void loadPublishedContent();
+    };
+
+    void loadPublishedContent();
+    window.addEventListener("online", retryWhenOnline);
+    return () => {
+      controller.abort();
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+      window.removeEventListener("online", retryWhenOnline);
+    };
   }, []);
 
   return (
