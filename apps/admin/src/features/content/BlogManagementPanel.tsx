@@ -209,7 +209,36 @@ export default function BlogManagementPanel({
             <strong>{r.title}</strong>
             <p>{r.slug}</p>
             <small>{r.status}</small>
-            <p>Display order: {r.sortOrder ?? 0}</p>
+            <form
+              className="bc-fields"
+              key={`${r.id}-${r.sortOrder ?? 0}`}
+              onSubmit={(event) => {
+                void submitForm(
+                  event,
+                  (values) => ({
+                    sortOrder: Number(field(values, "sortOrder")),
+                  }),
+                  `/admin/blogs/${r.id}`,
+                  "PATCH",
+                );
+              }}
+            >
+              <label>
+                Display order for {r.title}
+                <input
+                  name="sortOrder"
+                  type="number"
+                  min={0}
+                  max={100000}
+                  step={1}
+                  required
+                  defaultValue={r.sortOrder ?? 0}
+                />
+              </label>
+              <button className="bc-button" disabled={busy}>
+                Save order
+              </button>
+            </form>
           </div>
           <button className="bc-button" onClick={() => setEditingBlog(r)}>
             Edit
