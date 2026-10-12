@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { CheckCircle2, X } from "lucide-react";
 
 export type ClientActionConfirmationDetails = {
@@ -29,7 +30,7 @@ export default function ClientActionConfirmation({
   if (!confirmation) return null;
   const actionLabel = confirmation.actionLabel || "Got it";
 
-  return (
+  return createPortal((
     <div className="client-confirmation-backdrop" onMouseDown={onClose}>
       <section
         className="client-confirmation-dialog"
@@ -69,5 +70,5 @@ export default function ClientActionConfirmation({
         )}
       </section>
     </div>
-  );
+  ), document.body);
 }
