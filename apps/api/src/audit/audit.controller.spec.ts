@@ -57,7 +57,7 @@ describe("audit review", () => {
     } as never);
 
     expect(result.total).toBe(3);
-    expect(result.limit).toBe(50);
+    expect(result.items).toHaveLength(3);
     expect(result.categories).toContain("Procurement");
     expect(
       result.items.map((item) => [item.title, item.category, item.actionLabel]),
@@ -74,7 +74,6 @@ describe("audit review", () => {
     ]);
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        take: 50,
         where: {
           createdAt: { gte: expect.any(Date) },
           entityType: {
@@ -139,6 +138,7 @@ describe("audit review", () => {
         entityId: "staff-1",
         metadata: {
           changedFields: ["password", "role"],
+          sessionsRevoked: true,
           passwordHash: "hash-value",
           nested: {
             otp: "123456",
@@ -161,6 +161,7 @@ describe("audit review", () => {
 
     expect(metadata).toEqual({
       changedFields: ["password", "role"],
+      sessionsRevoked: true,
       passwordHash: "[REDACTED]",
       nested: {
         otp: "[REDACTED]",

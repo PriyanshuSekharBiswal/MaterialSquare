@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { CreateQuoteInput } from "@material-square/types";
 import { Prisma } from "@prisma/client";
-import { randomUUID } from "node:crypto";
+import { createBusinessReferenceNumber } from "../business/procurement/procurement-number";
 import { DEFAULT_BUSINESS_RULES } from "../business/settings/business-rules";
 import {
   buildQuotationItems,
@@ -247,7 +247,7 @@ export class QuotesService {
             requestId: source?.requestId ?? sourceRequest?.id ?? null,
             revisedFromId,
             revisionNumber: source ? source.revisionNumber + 1 : 1,
-            quoteNumber: `MS-QT-${new Date().getFullYear()}-${randomUUID()}`,
+            quoteNumber: await createBusinessReferenceNumber(db, "QU"),
             items: { create: itemCreates },
           },
           include: { items: { include: { product: true, options: true } } },

@@ -34,9 +34,19 @@ export type PendingRfq = {
   }[];
 };
 
+export type PendingInquiry = {
+  name: string;
+  phone: string;
+  location: string;
+  projectType: string;
+  message: string;
+};
+
 export type AccountRouteState = {
   pendingRfq?: PendingRfq;
+  pendingInquiry?: PendingInquiry;
   notice?: string;
+  rfqSubmitted?: boolean;
 };
 
 export type Line = {
@@ -83,9 +93,11 @@ export type Order = {
   }[];
   dispatch: {
     currentStep: number;
-    estimatedArrival: string;
+    estimatedArrival: string | null;
     currentLocation: string | null;
     updatedAt: string;
+    vehicleNumber?: string | null;
+    transporter?: string | null;
   } | null;
 };
 

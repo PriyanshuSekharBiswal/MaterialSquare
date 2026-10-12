@@ -1,5 +1,15 @@
 const privateSpecificationKey = /(?:^|\s)(?:image source|price source|reference(?: note| price source| source updated| mrp)?|price observed)$/i;
 
+export function customerProductTitle(
+  name: string,
+  brand: string | null | undefined,
+  siteTitle: string,
+): string {
+  const cleanBrand = String(brand || "").trim();
+  const brandAlreadyInName = cleanBrand && name.toLocaleLowerCase().includes(cleanBrand.toLocaleLowerCase());
+  return `${name}${cleanBrand && !brandAlreadyInName ? ` by ${cleanBrand}` : ""} | ${siteTitle}`;
+}
+
 export function customerSpecifications(
   specifications: Record<string, string | undefined> | null | undefined,
 ): Array<[string, string]> {

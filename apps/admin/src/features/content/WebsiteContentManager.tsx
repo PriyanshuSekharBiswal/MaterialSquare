@@ -10,7 +10,7 @@ import SocialLinksEditor from "./SocialLinksEditor";
 import "./media-library.css";
 import ContentImageField from "../../components/ContentImageField";
 import { useCallback, useEffect, useRef, useState, type SetStateAction } from "react";
-import { Clock3, RotateCcw, Save, RotateCw } from "lucide-react";
+import { Clock3, RotateCcw, Save, RotateCw, Trash2 } from "lucide-react";
 import {
   SITE_CONTENT_DEFAULTS,
   SITE_CONTENT_GROUPS,
@@ -300,6 +300,32 @@ export default function WebsiteContentManager({
     }
   }
 
+  async function discardDraft() {
+    if (!window.confirm("Discard the shared unpublished website draft and return the editor to the published version? Other content editors will see this change. Existing recovery points remain available for 7 days.")) return;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await autosaveQueue.current;
+      const published = await request("DELETE", undefined, "draft");
+      lastSavedContent.current = JSON.stringify(published);
+      setContent(published);
+      setHasServerDraft(false);
+      setLastSavedAt(null);
+      setSaveState("saved");
+      setBrowserRecovery(null);
+      setPreview(false);
+      setPreviewContent(null);
+      previewedContent.current = "";
+      try { localStorage.removeItem(RECOVERY_KEY); } catch { /* ignore */ }
+      setNotice("Unpublished draft discarded. The live website was not changed.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not discard the website draft.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function previewDraft() {
     if (!customerUrl) {
       setError("The customer website URL is not configured for preview.");
@@ -422,6 +448,14 @@ export default function WebsiteContentManager({
             <Save size={16} /> Save draft
           </button>
           <button
+            className="btn-sm btn-secondary btn-orange-outline"
+            type="button"
+            disabled={contentDisabled || saveState === "saving"}
+            onClick={() => void discardDraft()}
+          >
+            <Trash2 size={16} /> Discard draft
+          </button>
+          <button
             className="btn-sm btn-primary"
             type="button"
             disabled={contentDisabled}
@@ -433,7 +467,7 @@ export default function WebsiteContentManager({
       </header>
       <section className={`website-content-save-status is-${saveState}`} aria-live="polite">
         <div><Clock3 size={17} /><strong>{saveState === "saving" ? "Saving your draft…" : saveState === "error" ? "Automatic save needs attention" : "Draft saved privately"}</strong></div>
-        <span>{saveState === "saved" && lastSavedAt ? `Last saved ${lastSavedAt.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}` : saveState === "error" ? "Your browser keeps a recovery copy for up to 7 days." : hasServerDraft ? "Edits are saved automatically. Recovery points are kept for 7 days." : "No private draft yet. New edits save automatically and stay recoverable for 7 days."}</span>
+        <span>{saveState === "saved" && lastSavedAt ? `Last saved ${lastSavedAt.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })} · recovery points expire after 7 days` : saveState === "error" ? "Your browser recovery copy expires after 7 days." : hasServerDraft ? "The private draft stays until it is published or discarded. Recovery points expire after 7 days." : "No private draft yet. New edits save automatically; recovery points expire after 7 days."}</span>
         {browserRecovery && <button className="btn-sm btn-secondary" type="button" disabled={contentDisabled} onClick={() => { updateContent(browserRecovery); setBrowserRecovery(null); setNotice("Browser recovery copy selected. Saving it as the current private draft."); }}>Restore this browser copy</button>}
         {recoveryPoints.length > 0 && <details className="website-content-history">
           <summary>{recoveryPoints.length} recent recovery {recoveryPoints.length === 1 ? "point" : "points"}</summary>

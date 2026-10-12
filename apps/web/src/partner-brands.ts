@@ -5,10 +5,22 @@ export type PartnerBrand = {
   id: string;
   name: string;
   category: string;
+  categories?: string[];
   tagline: string;
+  logoUrl?: string | null;
   isActive: boolean;
   sortOrder: number;
 };
+
+export function partnerBrandCategories(brand: Pick<PartnerBrand, "category" | "categories">) {
+  const categories = Array.isArray(brand.categories) ? brand.categories : [];
+  const legacy = typeof brand.category === "string" && brand.category.trim() ? [brand.category.trim()] : [];
+  return Array.from(new Set([...categories, ...legacy].map((category) => category.trim()).filter(Boolean)));
+}
+
+export function partnerBrandCategoryLabel(brand: Pick<PartnerBrand, "category" | "categories">) {
+  return partnerBrandCategories(brand).join(" · ");
+}
 
 export function usePartnerBrands() {
   const [brands, setBrands] = useState<PartnerBrand[]>([]);

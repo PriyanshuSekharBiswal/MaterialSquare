@@ -279,7 +279,7 @@ function routePermission(method: string, path: string): StaffPermission {
     return "media.manage";
   if (
     route === "/suppliers" ||
-    /^\/suppliers\/[^/]+(?:\/(?:products(?:\/[^/]+)?|ratings))?$/.test(route)
+    /^\/suppliers\/[^/]+(?:\/(?:products(?:\/[^/]+)?|ratings(?:\/[^/]+)?))?$/.test(route)
   )
     return verb === "GET" ? "procurement.view" : "procurement.manage";
   if (route === "/procurement" || route.startsWith("/procurement/"))

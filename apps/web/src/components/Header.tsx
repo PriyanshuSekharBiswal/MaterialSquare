@@ -23,6 +23,7 @@ export default function Header({
   const siteContent = useSiteContent();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const serviceArea = siteContent["contact.location"].trim();
+  const isDelhiNcr = /^(?:serving\s+)?delhi\s+ncr$/i.test(serviceArea);
 
   const navigation = publicNavigation(siteContent);
   const closeMenu = () => setMobileMenuOpen(false);
@@ -36,7 +37,14 @@ export default function Header({
             {serviceArea && (
               <span className="location-tag">
                 <MapPin size={12} className="loc-icon" />
-                <span className="top-bar-cities">{serviceArea}</span>
+                {isDelhiNcr ? (
+                  <span>
+                    <strong className="top-bar-serving">Serving Delhi NCR</strong>
+                    <span className="top-bar-cities">: Noida, Greater Noida, Delhi, Gurugram, Ghaziabad &amp; Faridabad</span>
+                  </span>
+                ) : (
+                  <strong className="top-bar-serving">{serviceArea}</strong>
+                )}
               </span>
             )}
           </div>

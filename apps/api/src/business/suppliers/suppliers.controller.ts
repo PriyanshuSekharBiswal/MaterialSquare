@@ -17,7 +17,11 @@ import { StaffGuard } from "../../auth/access.guard";
 import { PrismaService } from "../../prisma/prisma.service";
 import { validate } from "../../common/validation";
 import type { StaffRequest } from "../../auth/staff-request";
-import { supplierInput, supplierProductInput } from "../business.schemas";
+import {
+  supplierCreateInput,
+  supplierProductInput,
+  supplierUpdateInput,
+} from "../business.schemas";
 
 function throwSupplierConstraintError(error: unknown): never {
   const prismaError = error as { code?: string; meta?: { target?: unknown } };
@@ -97,6 +101,7 @@ export class SuppliersController {
       },
       include: {
         _count: { select: { products: true, ratings: true } },
+        ratings: { orderBy: { createdAt: "desc" }, take: 1 },
         products: {
           where: { deletedAt: null },
           orderBy: [{ category: "asc" }, { productName: "asc" }],
@@ -115,16 +120,26 @@ export class SuppliersController {
 
   @Post()
   create(@Req() req: StaffRequest, @Body() body: unknown) {
-    const data = validate(supplierInput, body);
+    const { products = [], brandCatalog = [], ...data } = validate(supplierCreateInput, body);
     return this.prisma.$transaction(async (db) => {
-      const supplier = await db.supplier.create({ data });
+      const supplier = await db.supplier.create({ data: { ...data, brandCatalog } });
+      if (products.length) {
+        await db.supplierProduct.createMany({
+          data: products.map((product) => ({
+            ...product,
+            supplierId: supplier.id,
+            availabilityCheckedAt:
+              product.availableQuantity == null ? null : new Date(),
+          })),
+        });
+      }
       await db.auditLog.create({
         data: {
           staffId: req.user.userId,
           action: "SUPPLIER_CREATED",
           entityType: "SUPPLIER",
           entityId: supplier.id,
-          metadata: { status: supplier.status },
+          metadata: { status: supplier.status, productCount: products.length },
         },
       });
       return supplier;
@@ -147,11 +162,48 @@ export class SuppliersController {
             },
           },
         },
-        ratings: { orderBy: { createdAt: "desc" }, take: 50 },
+        ratings: {
+          orderBy: { createdAt: "desc" },
+          take: 50,
+          include: { staff: { select: { name: true } } },
+        },
         quotes: { orderBy: { createdAt: "desc" }, take: 20 },
       },
     });
     if (!supplier) throw new NotFoundException("Supplier not found");
+    const ratingAuditLogs = await this.prisma.auditLog.findMany({
+      where: {
+        entityType: "SUPPLIER",
+        entityId: id,
+        action: { in: ["SUPPLIER_RATED", "SUPPLIER_RATING_UPDATED"] },
+      },
+      select: {
+        createdAt: true,
+        metadata: true,
+        staff: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    const ratingActivityById = new Map(
+      ratingAuditLogs.reverse().flatMap((log) => {
+        const metadata = log.metadata;
+        const ratingId =
+          metadata &&
+          typeof metadata === "object" &&
+          "ratingId" in metadata &&
+          typeof metadata.ratingId === "string"
+            ? metadata.ratingId
+            : null;
+        return ratingId && log.staff
+          ? [[ratingId, { staff: log.staff, createdAt: log.createdAt }] as const]
+          : [];
+      }),
+    );
+    const ratings = supplier.ratings.map((rating) => ({
+      ...rating,
+      ...ratingActivityById.get(rating.id),
+      staff: ratingActivityById.get(rating.id)?.staff ?? rating.staff ?? null,
+    }));
     const averageRating = supplier.ratings.length
       ? supplier.ratings.reduce(
           (sum, rating) =>
@@ -165,7 +217,7 @@ export class SuppliersController {
         ) /
         (supplier.ratings.length * 5)
       : null;
-    return { ...supplier, averageRating };
+    return { ...supplier, ratings, averageRating };
   }
 
   @Patch(":id")
@@ -174,18 +226,74 @@ export class SuppliersController {
     @Req() req: StaffRequest,
     @Body() body: unknown,
   ) {
-    const data = validate(supplierInput.partial(), body);
+    const { catalogueProducts, brandCatalog, ...data } = validate(supplierUpdateInput, body);
     return this.prisma.$transaction(async (db) => {
       const exists = await db.supplier.findFirst({ where: { id, deletedAt: null } });
       if (!exists) throw new NotFoundException("Supplier not found");
-      const supplier = await db.supplier.update({ where: { id }, data });
+      const supplier = await db.supplier.update({
+        where: { id },
+        data: { ...data, ...(brandCatalog !== undefined ? { brandCatalog } : {}) },
+      });
+      if (catalogueProducts !== undefined) {
+        const selectedProducts = catalogueProducts;
+        const selectedVariantIds = selectedProducts
+          .map((product) => product.catalogVariantId)
+          .filter((variantId): variantId is string => Boolean(variantId));
+        const existingProducts = await db.supplierProduct.findMany({
+          where: { supplierId: id, catalogVariantId: { not: null } },
+          select: { id: true, catalogVariantId: true, deletedAt: true },
+        });
+        const existingByVariant = new Map(
+          existingProducts.map((product) => [product.catalogVariantId!, product]),
+        );
+        const now = new Date();
+
+        for (const product of existingProducts) {
+          if (
+            !product.catalogVariantId ||
+            selectedVariantIds.includes(product.catalogVariantId)
+          ) continue;
+          if (!product.deletedAt) {
+            await db.supplierProduct.update({
+              where: { id: product.id },
+              data: { deletedAt: now },
+            });
+          }
+        }
+
+        const productsToCreate = [];
+        for (const product of selectedProducts) {
+          const variantId = product.catalogVariantId;
+          if (!variantId) continue;
+          const existing = existingByVariant.get(variantId);
+          if (existing) {
+            if (existing.deletedAt) {
+              await db.supplierProduct.update({
+                where: { id: existing.id },
+                data: { deletedAt: null },
+              });
+            }
+          } else {
+            productsToCreate.push({ ...product, supplierId: id });
+          }
+        }
+        if (productsToCreate.length) {
+          await db.supplierProduct.createMany({ data: productsToCreate });
+        }
+      }
       await db.auditLog.create({
         data: {
           staffId: req.user.userId,
           action: "SUPPLIER_UPDATED",
           entityType: "SUPPLIER",
           entityId: id,
-          metadata: { changedFields: Object.keys(data) },
+          metadata: {
+            changedFields: [
+              ...Object.keys(data),
+              ...(catalogueProducts !== undefined ? ["catalogueProducts"] : []),
+              ...(brandCatalog !== undefined ? ["brandCatalog"] : []),
+            ],
+          },
         },
       });
       return supplier;
@@ -396,6 +504,46 @@ export class SuppliersController {
           entityType: "SUPPLIER",
           entityId: id,
           metadata: { ratingId: rating.id, scoreCount: 5 },
+        },
+      });
+      return rating;
+    });
+  }
+
+  @Patch(":id/ratings/:ratingId")
+  async updateRating(
+    @Param("id") id: string,
+    @Param("ratingId") ratingId: string,
+    @Req() req: StaffRequest,
+    @Body() body: unknown,
+  ) {
+    const data = validate(
+      z.object({
+        priceScore: z.number().int().min(1).max(5),
+        deliveryScore: z.number().int().min(1).max(5),
+        availabilityScore: z.number().int().min(1).max(5),
+        qualityScore: z.number().int().min(1).max(5),
+        serviceScore: z.number().int().min(1).max(5),
+        comment: z.string().max(2000).optional(),
+      }),
+      body,
+    );
+    return this.prisma.$transaction(async (db) => {
+      const existing = await db.supplierRating.findFirst({
+        where: { id: ratingId, supplierId: id, supplier: { deletedAt: null } },
+      });
+      if (!existing) throw new NotFoundException("Supplier rating not found");
+      const rating = await db.supplierRating.update({
+        where: { id: ratingId },
+        data,
+      });
+      await db.auditLog.create({
+        data: {
+          staffId: req.user.userId,
+          action: "SUPPLIER_RATING_UPDATED",
+          entityType: "SUPPLIER",
+          entityId: id,
+          metadata: { ratingId, scoreCount: 5 },
         },
       });
       return rating;

@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
 import type { CatalogueProduct } from '../types';
-import { BrandLogo, getBrandMeta } from './icons/BrandBadges';
-import { partnerBrandMatchesProduct, type PartnerBrand } from '../partner-brands';
+import PartnerBrandLogo from './PartnerBrandLogo';
+import { partnerBrandCategories, partnerBrandCategoryLabel, partnerBrandMatchesProduct, type PartnerBrand } from '../partner-brands';
 
 export default function BrandRoster({ products, partnerBrands, onSelectBrand, selectedBrand }: { products: CatalogueProduct[]; partnerBrands: PartnerBrand[]; onSelectBrand: (brand: string) => void; selectedBrand: string }) {
   const [filterCategory, setFilterCategory] = useState('All');
 
-  const brands = partnerBrands.map(({ name, category, id }) => ({ name, category, id, meta: getBrandMeta(id) }));
-  const categories = ['All', ...Array.from(new Set(brands.map((brand) => brand.category)))];
+  const brands = partnerBrands.map((brand) => ({ ...brand, categories: partnerBrandCategories(brand), category: partnerBrandCategoryLabel(brand) }));
+  const categories = ['All', ...Array.from(new Set(brands.flatMap((brand) => brand.categories)))];
 
   const filteredBrands = filterCategory === 'All'
     ? brands
-    : brands.filter((brand) => brand.category === filterCategory);
+    : brands.filter((brand) => brand.categories.includes(filterCategory));
 
   return (
     <section id="brands" className="ms-brand-roster-section">
@@ -67,11 +67,11 @@ export default function BrandRoster({ products, partnerBrands, onSelectBrand, se
                 </div>
 
                 <div className="brand-logo-frame">
-                  <BrandLogo id={brand.meta?.id || brand.name} className="brand-logo-svg" />
+                  <PartnerBrandLogo brand={brand} className="brand-logo-svg" />
                 </div>
 
                 <div className="brand-info-plate">
-                  <p className="brand-tagline-text">{listedCount ? `${listedCount} product${listedCount === 1 ? '' : 's'} listed in ${brand.category.toLowerCase()}` : `Partner brand · ${brand.category}`}</p>
+                  <p className="brand-tagline-text">{listedCount ? `${listedCount} product${listedCount === 1 ? '' : 's'} listed across ${brand.category.toLowerCase()}` : `Partner brand · ${brand.category}`}</p>
                 </div>
 
                 <div className="brand-card-footer">

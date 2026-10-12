@@ -2,12 +2,11 @@ import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 
 /**
- * Universal scroll reveal hook inspired by materialsquare.in
- * Supports route changes, dynamic tab switching, and Locomotive Scroll / Lenis.
- * Uses high-performance IntersectionObserver + rAF throttled scroll fallback.
+ * Reveal visible content after route changes and dynamic page updates.
+ * Uses IntersectionObserver plus a requestAnimationFrame-throttled native scroll fallback.
  */
 export default function useScrollReveal() {
-  const { pathname, search } = useLocation();
+  const { pathname } = useLocation();
   const rafIdRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -70,14 +69,8 @@ export default function useScrollReveal() {
     const t2 = setTimeout(checkAndReveal, 180);
     const t3 = setTimeout(checkAndReveal, 400);
 
-    // Listen to window scroll (Lenis & native scrolls trigger window scroll)
+    // Native scrolling keeps reveal checks in sync with the browser viewport.
     window.addEventListener('scroll', throttledCheck, { passive: true });
-
-    // Safely listen to Lenis scroll if available
-    let lenisUnsub: (() => void) | null = null;
-    if (window.__lenis && typeof window.__lenis.on === 'function') {
-      lenisUnsub = window.__lenis.on('scroll', throttledCheck);
-    }
 
     // Watch for dynamic DOM changes (e.g. tabs or filter changes)
     let mutationTimer: ReturnType<typeof setTimeout> | null = null;
@@ -96,15 +89,10 @@ export default function useScrollReveal() {
       if (mutationTimer) clearTimeout(mutationTimer);
       if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
       window.removeEventListener('scroll', throttledCheck);
-      if (typeof lenisUnsub === 'function') {
-        lenisUnsub();
-      } else if (window.__lenis && typeof window.__lenis.off === 'function') {
-        window.__lenis.off('scroll', throttledCheck);
-      }
       if (observer) {
         observer.disconnect();
       }
       mutationObserver.disconnect();
     };
-  }, [pathname, search]);
+  }, [pathname]);
 }

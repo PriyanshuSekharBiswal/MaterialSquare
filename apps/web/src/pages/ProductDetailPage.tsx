@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Info, Mail, Package, Truck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Info, Package, ShoppingCart, Truck } from "lucide-react";
 import { materialId } from "../ids";
 import { useCustomer } from "../customer";
-import { emailLink, productMessage, whatsappLink } from "../messages";
 import { trackWebsiteEvent } from "../analytics";
-import { useSiteContent } from "../site-content";
 import type { CatalogueProduct, MaterialItem } from "../types";
 import ProductImage from "../components/ProductImage";
-import { BrandLogo, getBrandMeta } from "../components/icons/BrandBadges";
+import { getBrandMeta } from "../components/icons/BrandBadges";
+import PartnerBrandLogo from "../components/PartnerBrandLogo";
 import ProductRecommendationCarousel from "../components/ProductRecommendationCarousel";
-import WhatsAppIcon from "../components/icons/WhatsAppIcon";
 import { bestMatchingVariant } from "../search/variant-match";
+import { partnerBrandMatchesProduct, usePartnerBrands } from "../partner-brands";
 import { customerPriceNote, customerProductDescription, customerSpecifications } from "../catalogue/customer-display";
 
 export default function ProductDetailPage({ products, loading = false, catalogueUnavailable = false, onRetryCatalogue }: { products: CatalogueProduct[]; loading?: boolean; catalogueUnavailable?: boolean; onRetryCatalogue?: () => void }) {
@@ -21,7 +20,7 @@ export default function ProductDetailPage({ products, loading = false, catalogue
   const searchQuery = searchParams.get("q") || "";
   const product = products.find((item) => item.id === productId);
   const { items, updateItems, ready, canEdit, error } = useCustomer();
-  const siteContent = useSiteContent();
+  const partnerBrands = usePartnerBrands();
   const [specification, setSpecification] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [selectedVariantId, setSelectedVariantId] = useState("");
@@ -90,6 +89,8 @@ export default function ProductDetailPage({ products, loading = false, catalogue
   const currentProduct = product;
 
   const brandMeta = getBrandMeta(product.brand);
+  const partnerBrand = partnerBrands.find((brand) => partnerBrandMatchesProduct(brand.name, product.brand, `${product.category} ${product.categoryLabel}`));
+  const displayBrand = partnerBrand || { id: brandMeta?.id, name: product.brand };
   const gallery = Array.from(new Set([...(selectedVariant?.galleryImages || []), selectedVariant?.image, ...(product.galleryImages || []), product.image].filter((image): image is string => Boolean(image))));
   const activeImage = selectedImage || gallery[0] || null;
   const selectedLabel = [selectedVariant?.label, ...Object.entries(selectedVariant?.attributes || {}).map(([key, value]) => `${key}: ${value}`), specification.trim()].filter(Boolean).join(" · ");
@@ -125,9 +126,6 @@ export default function ProductDetailPage({ products, loading = false, catalogue
     }))
     .filter((section) => section.products.length > 0)
     .slice(0, 3);
-  const enquiryMessage = productMessage({ ...product, unit, specification: selectedLabel });
-  const waProductUrl = whatsappLink(enquiryMessage, siteContent["contact.phone"]);
-  const emailProductUrl = emailLink("Material Square — Product Enquiry", enquiryMessage, siteContent["contact.email"]);
   const inList = items.some((item) => (item.catalogueId || item.id) === product.id && (item.variantId || "") === (selectedVariant?.id || "") && (item.specification || "") === selectedLabel);
 
   function addSelection(event: FormEvent<HTMLFormElement>) {
@@ -138,7 +136,7 @@ export default function ProductDetailPage({ products, loading = false, catalogue
       const existing = old.find((item) => (item.catalogueId || item.id) === currentProduct.id && (item.variantId || "") === (selectedVariant?.id || "") && (item.specification || "") === selectedLabel);
       const item: MaterialItem = {
         ...currentProduct,
-        ...(selectedVariant ? { price, compareAtPrice: selectedVariant.compareAtPrice, priceNote: selectedVariant.priceNote, unit, inStock: selectedVariant.inStock, variantId: selectedVariant.id, minOrderQuantity: selectedVariant.minOrderQuantity, image: selectedVariant.image || currentProduct.image, galleryImages: selectedVariant.galleryImages || currentProduct.galleryImages } : {}),
+        ...(selectedVariant ? { code: selectedVariant.code || currentProduct.code, price, compareAtPrice: selectedVariant.compareAtPrice, priceNote: selectedVariant.priceNote, unit, inStock: selectedVariant.inStock, variantId: selectedVariant.id, minOrderQuantity: selectedVariant.minOrderQuantity, image: selectedVariant.image || currentProduct.image, galleryImages: selectedVariant.galleryImages || currentProduct.galleryImages } : {}),
         catalogueId: currentProduct.id,
         id: existing?.id || `${currentProduct.id}-${materialId()}`,
         specification: selectedLabel,
@@ -181,9 +179,9 @@ export default function ProductDetailPage({ products, loading = false, catalogue
   return (
     <section className="product-detail-page container">
       <nav className="product-breadcrumbs" aria-label="Breadcrumb">
-        <Link to="/">Home</Link><span>/</span><Link to={`/marketplace?brand=${encodeURIComponent(product.brand)}`}>{product.brand}</Link><span>/</span><span aria-current="page">{product.name}</span>
+        <Link to="/">Home</Link><span>/</span><Link to={product.brand ? `/marketplace?brand=${encodeURIComponent(product.brand)}` : "/marketplace"}>{product.brand || "Marketplace"}</Link><span>/</span><span aria-current="page">{product.name}</span>
       </nav>
-      <Link className="product-back-link" to={`/marketplace?brand=${encodeURIComponent(product.brand)}`}><ArrowLeft size={16} /> Back to {product.brand} products</Link>
+      <Link className="product-back-link" to={product.brand ? `/marketplace?brand=${encodeURIComponent(product.brand)}` : "/marketplace"}><ArrowLeft size={16} /> Back to {product.brand ? `${product.brand} products` : "all materials"}</Link>
 
       <article className="product-detail-card">
         <div className="product-detail-gallery">
@@ -198,7 +196,7 @@ export default function ProductDetailPage({ products, loading = false, catalogue
 
         <div className="product-detail-information">
           <div className="product-detail-kicker"><span>{product.categoryLabel}</span>{product.code && <span>SKU · {product.code}</span>}</div>
-          <div className="product-detail-brand-line"><BrandLogo id={brandMeta?.id || product.brand} className="mini" style={{ width: 32, height: 32, maxWidth: 32, maxHeight: 32 }} /><div><strong>{product.brand}</strong>{product.brandTagline && <small>{product.brandTagline}</small>}</div></div>
+          <div className="product-detail-brand-line"><PartnerBrandLogo brand={displayBrand} className="mini" style={{ width: 32, height: 32, maxWidth: 32, maxHeight: 32, objectFit: "contain" }} /><div><strong>{product.brand}</strong>{product.brandTagline && <small>{product.brandTagline}</small>}</div></div>
           <h1>{product.name}</h1>
           {description && <p className="product-detail-description">{description}</p>}
           {quantityBreaks.length > 0 && <section className="product-detail-spec-block"><h2>Quantity prices</h2>{quantityBreaks.map((row) => <div className="product-detail-spec-row" key={`${row.minimumQuantity}-${row.unitPrice}`}><span>{Number(row.minimumQuantity).toLocaleString("en-IN")}+ {unit}</span><strong>₹{Number(row.unitPrice).toLocaleString("en-IN")} / {unit}</strong></div>)}</section>}
@@ -209,7 +207,7 @@ export default function ProductDetailPage({ products, loading = false, catalogue
         </div>
 
         <form className="product-detail-buy-box" onSubmit={addSelection}>
-            <div className="product-detail-buy-heading"><span>Configure your selection</span><strong>{selectedVariant?.label || selectedLabel || "Choose a product option"}</strong><small>Options and pricing reflect the selected product combination.</small></div>
+            <div className="product-detail-buy-heading"><span>Configure your selection</span><strong>{selectedVariant?.label || selectedLabel || "Choose a product option"}</strong></div>
             <div className="product-detail-offer-row">
               <div><span className="rate-k">{price == null ? "Pricing" : `Price per ${unit}`}</span><strong className="product-detail-price">{price == null ? "Request a quotation" : `₹${Number(price).toLocaleString("en-IN")}`}</strong>
                 {(selectedVariant?.offerLabel || product.offerLabel) && <span className="catalogue-offer-badge">{selectedVariant?.offerLabel || product.offerLabel}</span>}
@@ -230,11 +228,11 @@ export default function ProductDetailPage({ products, loading = false, catalogue
             })}</div>}
             {variants.length > 0 && optionGroups.length === 0 && <label>Choose size, pack or option<select required value={selectedVariant?.id || ""} onChange={(event) => { const next = variants.find((variant) => variant.id === event.target.value); if (next) selectVariant(next); }}>{variants.map((variant) => { const state = variant.availabilityStatus || (variant.inStock ? "IN_STOCK" : "CHECK_AVAILABILITY"); return <option key={variant.id} value={variant.id}>{variant.label}{variant.price != null ? ` · ₹${Number(variant.price).toLocaleString("en-IN")}` : ""}{state === "OUT_OF_STOCK" ? " · Out of stock" : state === "CHECK_AVAILABILITY" ? " · Check availability" : ""}</option>; })}</select></label>}
             {!variants.length && <label>Required size / specification{product.specs?.sizes ? " *" : " (optional)"}<input required={Boolean(product.specs?.sizes)} maxLength={500} value={specification} placeholder="Enter your required size or variant" onChange={(event) => { setSpecification(event.target.value); setAdded(false); }} /></label>}
-            <div className="product-detail-quantity-row"><label>Quantity ({unit})<input type="number" min={minimumOrder > 0 ? minimumOrder : 0.001} max="1000000" step="any" required value={quantity} onChange={(event) => { setQuantity(event.target.value); setAdded(false); }} /></label>
-              <button disabled={!canEdit || !ready} className="btn btn-orange">{inList ? "Update material list" : "Add to Material List"}<ArrowRight size={16} /></button>
+            <div className="product-detail-quantity-row"><label><span className="product-detail-quantity-label">Quantity ({unit})</span><input type="number" min={minimumOrder > 0 ? minimumOrder : 0.001} max="1000000" step="any" required value={quantity} onChange={(event) => { setQuantity(event.target.value); setAdded(false); }} /></label>
+              <button disabled={!canEdit || !ready} className="btn btn-orange"><ShoppingCart size={17} aria-hidden="true" />{inList ? "Update cart" : "Add to cart"}<ArrowRight size={16} /></button>
             </div>
             {error && <p role="alert" className="customer-help">{error}</p>}
-            {added && !error && <p role="status" className="product-added-confirmation">Added to your Material List. <Link to="/material-list">Review list <ArrowRight size={14} /></Link></p>}
+            {added && !error && <p role="status" className="product-added-confirmation">Added to your cart. <Link to="/material-list">Review cart <ArrowRight size={14} /></Link></p>}
           </form>
       </article>
 
@@ -242,10 +240,6 @@ export default function ProductDetailPage({ products, loading = false, catalogue
         <div className="product-detail-assurance">
           <div><Truck size={17} /><span><strong>Delivery</strong>Confirm timing and site availability with the team.</span></div>
           <div><Info size={17} /><span><strong>Product information</strong>Confirm exact specifications and documents before ordering.</span></div>
-        </div>
-        <div className="product-detail-contact-actions">
-          {waProductUrl && <a href={waProductUrl} target="_blank" rel="noopener noreferrer" className="btn btn-whatsapp"><WhatsAppIcon size={18} color="#ffffff" />Ask about this product</a>}
-          {emailProductUrl && <a href={emailProductUrl} className="btn btn-secondary product-detail-email-action"><Mail size={15} /><span>Email about this product</span></a>}
         </div>
       </section>
 
@@ -256,6 +250,7 @@ export default function ProductDetailPage({ products, loading = false, catalogue
           browseHref={`/marketplace?category=${encodeURIComponent(product.category)}`}
           browseLabel="View all"
           products={relatedProducts}
+          partnerBrands={partnerBrands}
           ariaLabel="Similar products carousel"
         />
       </section>}
@@ -266,6 +261,7 @@ export default function ProductDetailPage({ products, loading = false, catalogue
           browseHref="/marketplace"
           browseLabel="Browse all materials"
           products={complementaryProducts}
+          partnerBrands={partnerBrands}
           description="Useful materials from other catalogue categories. Add only what your project needs; pricing and availability are confirmed with the team."
           ariaLabel="Other category products carousel"
           showCategory
@@ -280,6 +276,7 @@ export default function ProductDetailPage({ products, loading = false, catalogue
             browseHref={`/marketplace?category=${encodeURIComponent(category)}`}
             browseLabel="View all"
             products={categoryProducts}
+            partnerBrands={partnerBrands}
             ariaLabel={`${categoryLabel} products carousel`}
           />
         </section>;

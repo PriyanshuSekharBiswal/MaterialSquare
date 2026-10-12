@@ -110,7 +110,7 @@ export interface QuotationLineItem {
 
 export interface Quotation {
   id: string;
-  quoteNumber: string; // e.g. MS-QT-2026-0891
+  quoteNumber: string; // e.g. MS-QU-2026-a0aa-afdgch-00b-0a (23 chars excluding hyphens)
   customerId?: string;
   customerName: string;
   customerPhone: string;
@@ -234,7 +234,7 @@ export interface DispatchTracking {
 
 export interface OrderRecord {
   id: string;
-  orderNumber: string; // e.g. MS-ORD-2026-4421
+  orderNumber: string; // e.g. MS-OR-2026-a0aa-afdgch-00b-0a (23 chars excluding hyphens)
   quotationId?: string;
   customerId: string;
   customerName: string;
@@ -287,7 +287,9 @@ export const TRANSPORTATION_TRANSITIONS = {
     "CANCELLED",
   ],
   DELIVERED: [],
-  CANCELLED: [],
+  // A cancelled plan can be replaced before delivery is complete. The current
+  // plan row is retained per order, so staff reuses it with PLANNED status.
+  CANCELLED: ["PLANNED"],
 } as const;
 export type TransportationStatus = keyof typeof TRANSPORTATION_TRANSITIONS;
 

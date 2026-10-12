@@ -19,12 +19,23 @@ export type TransportationPlan = {
   };
   status: string;
   destination: string;
+  transporter: string | null;
   vehicleNumber: string | null;
   driverName: string | null;
+  driverPhone: string | null;
   currentLocation: string | null;
   estimatedArrival: string | null;
   notes: string | null;
 };
+
+function localDateTimeValue(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 16);
+}
 export default function TransportationPlanCard({
   plan,
   busy,
@@ -46,6 +57,13 @@ export default function TransportationPlanCard({
     if (
       await mutate(`/transportation/${plan.orderId}`, "PUT", {
         status: values.get("status"),
+        transporter: values.get("transporter") || null,
+        vehicleNumber: values.get("vehicleNumber") || null,
+        driverName: values.get("driverName") || null,
+        driverPhone: values.get("driverPhone") || null,
+        estimatedArrival: values.get("estimatedArrival")
+          ? new Date(String(values.get("estimatedArrival"))).toISOString()
+          : null,
         currentLocation: values.get("location") || null,
         notes: values.get("notes") || null,
       })
@@ -82,7 +100,7 @@ export default function TransportationPlanCard({
     "PARTIALLY_DELIVERED",
   ].includes(plan.status);
   return (
-    <article className="business-record bc-record-block">
+    <article className="business-record bc-record-block bc-transport-plan">
       <h3>{plan.order?.orderNumber || plan.orderId}</h3>
       <p>
         {plan.destination} · {plan.vehicleNumber || "Vehicle pending"} ·{" "}
@@ -167,6 +185,47 @@ export default function TransportationPlanCard({
       )}
       {editing && (
         <form className="bc-fields" onSubmit={(event) => void update(event)}>
+          <label>
+            Transporter
+            <input
+              name="transporter"
+              maxLength={150}
+              defaultValue={plan.transporter || ""}
+            />
+          </label>
+          <label>
+            Vehicle number
+            <input
+              name="vehicleNumber"
+              maxLength={30}
+              defaultValue={plan.vehicleNumber || ""}
+            />
+          </label>
+          <label>
+            Driver name
+            <input
+              name="driverName"
+              maxLength={150}
+              defaultValue={plan.driverName || ""}
+            />
+          </label>
+          <label>
+            Driver phone
+            <input
+              name="driverPhone"
+              inputMode="numeric"
+              pattern="[6-9][0-9]{9}"
+              defaultValue={plan.driverPhone || ""}
+            />
+          </label>
+          <label>
+            Estimated arrival
+            <input
+              name="estimatedArrival"
+              type="datetime-local"
+              defaultValue={localDateTimeValue(plan.estimatedArrival)}
+            />
+          </label>
           <label>
             Delivery status
             <select name="status" defaultValue={plan.status}>

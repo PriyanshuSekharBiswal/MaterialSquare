@@ -1,5 +1,75 @@
 import { DEFAULT_POLICIES } from "./legal-content";
 import { z } from "zod";
+export const SEO_SERVICE_AREA_SLUGS = [
+  "noida",
+  "greater-noida",
+  "delhi",
+  "gurugram",
+  "ghaziabad",
+  "faridabad",
+] as const;
+export const SEO_SERVICE_AREA_PAGES = [
+  { slug: "noida", name: "Noida", description: "Browse construction material options and request a project quote for Noida. Share your sector, exact site PIN code, materials and delivery stage so the team can check current coverage and availability." },
+  { slug: "greater-noida", name: "Greater Noida", description: "Planning a build in Greater Noida? Organise cement, steel, electrical, plumbing and finishing requirements into one material enquiry. Delivery coverage and timing are confirmed against your site PIN code." },
+  { slug: "delhi", name: "Delhi", description: "For construction and renovation projects in Delhi, prepare a specification-led list with brand, grade, size, pack and quantity. Ask the team to confirm product options, quote details and delivery access for your location." },
+  { slug: "gurugram", name: "Gurugram", description: "Material Square accepts project enquiries from Gurugram for listed construction materials. Share the project stage, bill of quantities and PIN code to check product availability, transport and delivery timing." },
+  { slug: "ghaziabad", name: "Ghaziabad", description: "Build a clear material list for residential or commercial work in Ghaziabad, including the exact sizes, grades and pack options required. Local pricing, stock and delivery are confirmed for the specific site." },
+  { slug: "faridabad", name: "Faridabad", description: "Request construction material options for a Faridabad project by sharing your site PIN code and item specifications. The team confirms the available catalogue, current quote and delivery plan before an order is placed." },
+] as const;
+/**
+ * City pages stay out of search until each has distinct, reviewed local
+ * information beyond shared catalogue and quotation copy.
+ */
+export const SEO_INDEXABLE_SERVICE_AREA_SLUGS: readonly string[] = [];
+
+/** Resolve only locations explicitly named in the approved service-area copy. */
+export function serviceAreaSlugs(value: string): string[] {
+  const normalized = value.toLocaleLowerCase("en-IN").replace(/[^a-z0-9]+/g, " ").trim();
+  if (!normalized) return [];
+  if (/\b(?:delhi\s+)?ncr\b/.test(normalized)) return [...SEO_SERVICE_AREA_SLUGS];
+
+  const contains = (name: string) =>
+    new RegExp(`(?:^| )${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?: |$)`).test(normalized);
+  return SEO_SERVICE_AREA_SLUGS.filter((slug) => {
+    const name = slug.replace(/-/g, " ");
+    return contains(name) || (slug === "gurugram" && contains("gurgaon"));
+  });
+}
+
+export const SEO_ROUTE_DESCRIPTIONS: Record<string, string> = {
+  "/": "Browse construction materials, build a list by product and quantity, and request a project quote. Price, stock and delivery depend on your site PIN code.",
+  "/marketplace": "Explore listed cement, steel, plumbing, electrical and finishing materials by brand and specification. Add product options and quantities to your project list.",
+  "/why-us": "See how Material Square helps project teams organise material enquiries. The team confirms product options, current pricing and delivery for each project site.",
+  "/guides": "Use material and site-planning guides to prepare your enquiry. Check technical values and installation instructions against current manufacturer documents.",
+  "/get-quote": "Request a material quote with product options, quantities and delivery details. Price, availability, taxes and delivery are confirmed for your project site.",
+  "/contact": "Contact Material Square about materials and project quotations. Share your site PIN code so the team can check availability and delivery.",
+  "/blogs": "Read practical articles on construction materials, product specifications and project procurement from Material Square.",
+  "/experts": "Find listed product enquiry desks and service providers, then check whether they support your project requirements and PIN code.",
+  "/privacy": "Read how Material Square handles customer account, quotation and project information when you use this website.",
+  "/terms": "Review the terms that apply when browsing the Material Square catalogue and submitting a construction-material enquiry.",
+};
+export const DEFAULT_FAQ_ENTRIES = [
+  {
+    question: "How do I request a construction material quotation?",
+    answer:
+      "Browse the published catalogue, add the products and pack options you need, and enter your quantities and project location. Submit the request so the team can confirm current pricing, availability, taxes and delivery for your site.",
+  },
+  {
+    question: "Are catalogue prices and stock availability guaranteed?",
+    answer:
+      "No. A catalogue listing or reference price does not confirm local stock or a final price. Material Square confirms the current price, availability, taxes and delivery for the products, quantities and site location in your request.",
+  },
+  {
+    question: "Which locations does Material Square serve?",
+    answer:
+      "Coverage depends on your exact site PIN code, requested products and quantities. Share your PIN code with the team so they can confirm whether delivery is available for your project.",
+  },
+  {
+    question: "Do I need an account to browse materials or build a material list?",
+    answer:
+      "No. You can browse the published catalogue and prepare a material list without signing in. You will be asked for contact and project details when submitting a quotation request.",
+  },
+];
 /**
  * Small, structured copy settings for the existing public pages. Content is
  * plain text only; page layout and product data remain owned by the app.
@@ -8,7 +78,8 @@ export const SITE_CONTENT_DEFAULTS = {
   "website.pages": "[]",
   "policy.privacy": JSON.stringify(DEFAULT_POLICIES.privacy),
   "policy.terms": JSON.stringify(DEFAULT_POLICIES.terms),
-  "faq.entries": "[]",
+  "faq.enabled": "true",
+  "faq.entries": JSON.stringify(DEFAULT_FAQ_ENTRIES),
   "navigation.order": "home,marketplace,why,guides,blogs,experts,contact",
   "navigation.hidden": "",
   "navigation.custom": "[]",
@@ -21,7 +92,7 @@ export const SITE_CONTENT_DEFAULTS = {
   "navigation.contact": "Contact",
   "seo.siteTitle": "Material Square",
   "seo.description":
-    "Browse construction materials, prepare your material list and request a quotation from Material Square.",
+    SEO_ROUTE_DESCRIPTIONS["/"],
   "seo.homeTitle": "Material Square | Construction Materials",
   "seo.marketplaceTitle": "Construction Materials Catalogue | Material Square",
   "seo.whyUsTitle": "Why Material Square",
@@ -425,9 +496,10 @@ export function visibleGuideTabs(content: SiteContent) {
 }
 export function homepageSectionOrder(value: string) {
   const ids: string[] = HOMEPAGE_SECTIONS.map((section) => section.id);
-  return [
+  const order = [
     ...new Set([...value.split(",").filter((id) => ids.includes(id)), ...ids]),
   ];
+  return ["hero", ...order.filter((id) => id !== "hero")];
 }
 
 export const PUBLIC_NAVIGATION = [
@@ -522,4 +594,9 @@ export function parseFaqEntries(value: string): FaqEntry[] {
   } catch {
     return [];
   }
+}
+export function publicFaqEntries(content: SiteContent): FaqEntry[] {
+  if (content["faq.enabled"] === "false") return [];
+  const savedEntries = parseFaqEntries(content["faq.entries"]);
+  return savedEntries.length ? savedEntries : DEFAULT_FAQ_ENTRIES;
 }

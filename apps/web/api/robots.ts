@@ -1,4 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { canonicalSiteOrigin } from "./seo-origin.js";
+import { isPreviewDeployment } from "./seo-environment.js";
 
 function getRequestOrigin(req: IncomingMessage) {
   const forwardedHost = req.headers["x-forwarded-host"];
@@ -15,8 +17,8 @@ export default function handler(req: IncomingMessage, res: ServerResponse) {
     res.end();
     return;
   }
-  const origin = getRequestOrigin(req);
-  if (!origin) {
+  const requestOrigin = getRequestOrigin(req);
+  if (!requestOrigin) {
     res.writeHead(400, {
       "Content-Type": "text/plain; charset=utf-8",
       "X-Robots-Tag": "noindex",
@@ -24,11 +26,12 @@ export default function handler(req: IncomingMessage, res: ServerResponse) {
     res.end(req.method === "HEAD" ? undefined : "Invalid website host");
     return;
   }
-  const isPreview = process.env.VERCEL_ENV !== "production";
+  const origin = canonicalSiteOrigin(requestOrigin);
+  const isPreview = isPreviewDeployment();
   const body = [
     "User-agent: *",
     ...(isPreview
-      ? ["Disallow: /"]
+      ? ["Allow: /", "Disallow: /api/"]
       : [
           "Allow: /",
           "Disallow: /api/",

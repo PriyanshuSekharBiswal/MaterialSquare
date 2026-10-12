@@ -18,6 +18,9 @@ import { z } from "zod";
 import { validate } from "../common/validation";
 import { MediaAssetsService } from "./media-assets.service";
 import { detectSupportedImage } from "./image-file";
+
+const MAX_IMAGE_UPLOAD_BYTES = 30 * 1024 * 1024;
+
 @Controller("storage")
 @UseGuards(StaffGuard)
 export class StorageController {
@@ -41,7 +44,7 @@ export class StorageController {
   @Post("images")
   @UseInterceptors(
     FileInterceptor("file", {
-      limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+      limits: { fileSize: MAX_IMAGE_UPLOAD_BYTES, files: 1 },
     }),
   )
   async upload(

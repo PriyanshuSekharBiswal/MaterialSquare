@@ -26,6 +26,7 @@ export class PublicBlogsController {
         body: true,
         featuredImageUrl: true,
         publishedAt: true,
+        updatedAt: true,
         authorName: true,
       },
     });
@@ -42,6 +43,7 @@ export class PublicBlogsController {
         body: true,
         featuredImageUrl: true,
         publishedAt: true,
+        updatedAt: true,
         authorName: true,
       },
     });

@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Clock3, Package, Pencil, Plus, RefreshCw, Upload } from "lucide-react";
+import {
+  ArrowRight,
+  Clock3,
+  Package,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Upload,
+} from "lucide-react";
 import type { RecentChanges } from "./contracts";
 
 const BUSINESS_ENTITIES = [
@@ -192,18 +200,46 @@ export default function RecentActivity({
                       {change.field === "isActive" ? "Account status" : change.field === "role" ? "Role" : change.field}: {changeValue(change.field, change.before)} → {changeValue(change.field, change.after)}
                     </small>
                   )) : item.changedFields.length > 0 && <small>Changed: {item.changedFields.join(", ")}</small>}
-                  <small>{item.staff?.name || "System"}{item.staff?.role ? ` · ${item.staff.role.replaceAll("_", " ").toLowerCase()}` : ""}</small>
-                  {canOpen && <button type="button" className="recent-change-open" onClick={() => openDestination(item.entityType)}>{destinationLabel}</button>}
                 </div>
-                <time className="recent-change-meta" dateTime={item.createdAt} title={new Date(item.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}>
-                  {new Date(item.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
-                </time>
+                <div className="recent-change-meta">
+                  <span className="recent-change-staff">
+                    {item.staff?.name || "System"}
+                    {item.staff?.role
+                      ? ` · ${item.staff.role.replaceAll("_", " ").toLowerCase()}`
+                      : ""}
+                  </span>
+                  <time
+                    dateTime={item.createdAt}
+                    title={new Date(item.createdAt).toLocaleString("en-IN", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  >
+                    {new Date(item.createdAt).toLocaleString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </time>
+                </div>
+                {canOpen && (
+                  <button
+                    type="button"
+                    className="recent-change-open"
+                    title={destinationLabel}
+                    aria-label={`${destinationLabel} — ${item.title || item.entityLabel}`}
+                    onClick={() => openDestination(item.entityType)}
+                  >
+                    View <ArrowRight size={14} aria-hidden="true" />
+                  </button>
+                )}
               </li>
             );
           })}
         </ul>
       )}
-      {data && <div className="recent-changes-footer"><span>Showing {items.length} of {data.total} recorded changes from the past 7 days{data.total > data.limit ? ` · latest ${data.limit}` : ""}.</span></div>}
+      {data && <div className="recent-changes-footer"><span>Showing {items.length} of {data.total} recorded changes from the past 7 days.</span></div>}
     </section>
   );
 }

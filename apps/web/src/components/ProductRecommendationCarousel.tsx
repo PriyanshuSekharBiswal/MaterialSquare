@@ -2,6 +2,7 @@ import React from "react";
 import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { CatalogueProduct } from "../types";
+import type { PartnerBrand } from "../partner-brands";
 import ProductRecommendationCard from "./ProductRecommendationCard";
 
 type ProductRecommendationCarouselProps = {
@@ -13,6 +14,7 @@ type ProductRecommendationCarouselProps = {
   description?: string;
   ariaLabel: string;
   showCategory?: boolean;
+  partnerBrands?: PartnerBrand[];
 };
 
 export default function ProductRecommendationCarousel({
@@ -24,6 +26,7 @@ export default function ProductRecommendationCarousel({
   description,
   ariaLabel,
   showCategory = false,
+  partnerBrands = [],
 }: ProductRecommendationCarouselProps) {
   return (
     <>
@@ -36,7 +39,7 @@ export default function ProductRecommendationCarousel({
       </div>
       {description && <p className="project-related-note">{description}</p>}
       <div className="product-related-slider" aria-label={ariaLabel} tabIndex={0}>
-        {products.slice(0, 10).map((product) => <ProductRecommendationCard product={product} showCategory={showCategory} key={product.id} />)}
+        {products.slice(0, 10).map((product) => <ProductRecommendationCard product={product} partnerBrands={partnerBrands} showCategory={showCategory} key={product.id} />)}
       </div>
     </>
   );

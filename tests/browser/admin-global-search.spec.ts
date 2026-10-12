@@ -121,7 +121,7 @@ test("admin search opens quick access on focus and carries product text into cat
     "QA cement pack preview",
   );
   await expect(page.getByRole("heading", { name: product.name })).toBeVisible();
-  await expect(globalSearch).toBeVisible();
+  await expect(globalSearch).toHaveCount(0);
 
   await page.getByRole("button", { name: "Overview", exact: true }).click();
   await expect(globalSearch).toBeVisible();

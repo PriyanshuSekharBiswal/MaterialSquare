@@ -188,8 +188,9 @@ export default function GlobalAdminSearch({
       return;
     }
     let current = true;
+    setRecordSuggestions([]);
+    setRecordsLoading(true);
     const timeout = window.setTimeout(() => {
-      setRecordsLoading(true);
       void searchRecords(value.trim())
         .then((records) => {
           if (current) setRecordSuggestions(records);
@@ -319,9 +320,12 @@ export default function GlobalAdminSearch({
           value={value}
           onFocus={() => setOpen(true)}
           onChange={(event) => {
-            setValue(event.target.value);
+            const nextValue = event.target.value;
+            setValue(nextValue);
             setActive(0);
             setOpen(true);
+            setRecordSuggestions([]);
+            setRecordsLoading(nextValue.trim().length >= 2);
           }}
           onKeyDown={(event) => {
             if (event.key === "ArrowDown" && suggestions.length) {
@@ -376,6 +380,10 @@ export default function GlobalAdminSearch({
                 </button>
               );
             })
+          ) : recordsLoading ? (
+            <div className="admin-search-skeleton-list" role="status" aria-label="Loading search suggestions">
+              {Array.from({ length: 3 }, (_, index) => <div className="admin-search-skeleton-option" key={index}><span /><i /><b /></div>)}
+            </div>
           ) : (
             <div className="admin-search-empty">
               <Search size={17} />
@@ -386,11 +394,9 @@ export default function GlobalAdminSearch({
               </span>
             </div>
           )}
-          {recordsLoading && suggestions.length > 0 && (
-            <div className="admin-search-loading" role="status">
-              Searching records…
-            </div>
-          )}
+          {recordsLoading && suggestions.length > 0 && <div className="admin-search-skeleton-list is-inline" role="status" aria-label="Loading more suggestions">
+            {Array.from({ length: 2 }, (_, index) => <div className="admin-search-skeleton-option" key={index}><span /><i /><b /></div>)}
+          </div>}
           <div className="admin-search-footer">
             <span>
               <ArrowDown size={13} /> Navigate

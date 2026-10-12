@@ -46,5 +46,4 @@ export type RecentChanges = {
   categories: string[];
   items: RecentChange[];
   total: number;
-  limit: number;
 };

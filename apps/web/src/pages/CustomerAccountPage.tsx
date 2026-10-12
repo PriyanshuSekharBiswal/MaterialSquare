@@ -38,6 +38,7 @@ import type {
 import { emptyActivity } from "../features/customer-account/model";
 import { AccountContent } from "./CustomerAccountContent";
 import { useCustomer } from "../customer";
+import ClientActionConfirmation from "../components/ClientActionConfirmation";
 
 const nav = [
   { to: "/account", label: "Overview", icon: LayoutDashboard },
@@ -65,6 +66,7 @@ export default function CustomerAccountPage() {
   const { updateItems } = useCustomer();
   const routeState = location.state as AccountRouteState | null;
   const pendingRfq = routeState?.pendingRfq;
+  const pendingInquiry = routeState?.pendingInquiry;
   const quoteId = location.pathname.match(
     /^\/account\/quotations\/([^/]+)$/,
   )?.[1];
@@ -75,6 +77,7 @@ export default function CustomerAccountPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [rfqConfirmationOpen, setRfqConfirmationOpen] = useState(false);
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [requestId, setRequestId] = useState("");
@@ -82,7 +85,9 @@ export default function CustomerAccountPage() {
   const [cooldown, setCooldown] = useState(0);
   const [widgetReady, setWidgetReady] = useState(false);
   const pendingAttempted = useRef(false);
+  const pendingInquiryAttempted = useRef(false);
   const [pendingFailed, setPendingFailed] = useState(false);
+  const [pendingInquiryFailed, setPendingInquiryFailed] = useState(false);
 
   const refresh = useCallback(async () => {
     setChecking(true);
@@ -121,7 +126,12 @@ export default function CustomerAccountPage() {
     window.scrollTo(0, 0);
   }, [location.pathname]);
   useEffect(() => {
-    if (checking || profile || isLocalhost || !hasMsg91WidgetConfiguration())
+    if (
+      checking ||
+      profile ||
+      isLocalhost ||
+      !hasMsg91WidgetConfiguration()
+    )
       return;
     let active = true;
     void initializeMsg91Widget()
@@ -143,7 +153,19 @@ export default function CustomerAccountPage() {
 
   useEffect(() => {
     if (routeState?.notice) setNotice(routeState.notice);
-  }, [routeState?.notice]);
+    if (routeState?.rfqSubmitted) {
+      setRfqConfirmationOpen(true);
+      navigate(location.pathname, {
+        replace: true,
+        state: routeState.notice ? { notice: routeState.notice } : null,
+      });
+    }
+  }, [
+    routeState?.notice,
+    routeState?.rfqSubmitted,
+    navigate,
+    location.pathname,
+  ]);
 
   const submitPendingRfq = useCallback(async () => {
     if (!profile || !pendingRfq) return;
@@ -154,7 +176,7 @@ export default function CustomerAccountPage() {
       const form = new FormData();
       form.append("payload", JSON.stringify(payload));
       attachments.forEach((file) => form.append("attachments", file));
-      const result = await customerApi<{ id: string }>(
+      const result = await customerApi<{ id: string; requestNumber: string }>(
         "/customer/rfqs",
         "POST",
         form,
@@ -162,13 +184,13 @@ export default function CustomerAccountPage() {
         attachments.length ? 20 * 60 * 1000 : 65000,
       );
       updateItems([]);
-      const successNotice = `Request ${result.id.slice(0, 8).toUpperCase()} was sent to the team.`;
+      const successNotice = `Request ${result.requestNumber} was sent to the team.`;
       const data = await customerApi<Activity>("/customer/activity");
       setActivity(data);
       setPendingFailed(false);
       navigate("/account/quotations", {
         replace: true,
-        state: { notice: successNotice },
+        state: { notice: successNotice, rfqSubmitted: true },
       });
       setNotice(successNotice);
     } catch (cause) {
@@ -183,6 +205,42 @@ export default function CustomerAccountPage() {
       setBusy(false);
     }
   }, [navigate, pendingRfq, profile, updateItems]);
+
+  const submitPendingInquiry = useCallback(async () => {
+    if (!profile || !pendingInquiry) return;
+    setBusy(true);
+    setError("");
+    try {
+      await customerApi<{ id: string }>(
+        "/inquiries",
+        "POST",
+        pendingInquiry,
+        profile.id,
+      );
+      setPendingInquiryFailed(false);
+      const successNotice =
+        "Your enquiry was sent to the Material Square team.";
+      navigate("/account", {
+        replace: true,
+        state: { notice: successNotice },
+      });
+      setNotice(successNotice);
+    } catch (cause) {
+      pendingInquiryAttempted.current = false;
+      setPendingInquiryFailed(true);
+      setError(
+        cause instanceof Error ? cause.message : "Could not send the enquiry.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [navigate, pendingInquiry, profile]);
+
+  useEffect(() => {
+    if (!profile || !pendingInquiry || pendingInquiryAttempted.current) return;
+    pendingInquiryAttempted.current = true;
+    void submitPendingInquiry();
+  }, [pendingInquiry, profile, submitPendingInquiry]);
 
   useEffect(() => {
     if (!profile || !pendingRfq || pendingAttempted.current) return;
@@ -225,8 +283,6 @@ export default function CustomerAccountPage() {
       setProfile(customer);
       setSent(false);
       setOtp("");
-      // A completed login is implicit in the opened account workspace. Keep
-      // this slot available for the more useful RFQ submission confirmation.
       setNotice("");
       const data = await customerApi<Activity>("/customer/activity");
       setActivity(data);
@@ -250,9 +306,11 @@ export default function CustomerAccountPage() {
       setBusy(false);
     }
   }
-  async function saveProfile(e: React.FormEvent<HTMLFormElement>) {
+  async function saveProfile(
+    e: React.FormEvent<HTMLFormElement>,
+  ): Promise<boolean> {
     e.preventDefault();
-    if (!profile) return;
+    if (!profile) return false;
     setBusy(true);
     setError("");
     setNotice("");
@@ -266,8 +324,10 @@ export default function CustomerAccountPage() {
       );
       setProfile(saved);
       setNotice("Profile details saved.");
+      return true;
     } catch (err) {
       setError((err as Error).message);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -289,22 +349,18 @@ export default function CustomerAccountPage() {
           <div className="account-auth-card">
             <span className="account-eyebrow">MATERIAL SQUARE ACCOUNT</span>
             <h1>
-              {sent ? "Verify your number" : "Your projects, in one place"}
+              {sent ? "Verify your number" : "Sign in to your account"}
             </h1>
             <p>
               {sent
                 ? `Enter the code we sent to +91 ${phone}.`
-                : "Sign in to see your quotations, orders, delivery updates and purchase history."}
+                : "Enter your mobile number. We’ll text you a one-time code to sign in."}
             </p>
             <form
-              onSubmit={
-                sent
-                  ? verify
-                  : (e) => {
-                      e.preventDefault();
-                      void requestOtp();
-                    }
-              }
+              onSubmit={sent ? verify : (e) => {
+                e.preventDefault();
+                void requestOtp();
+              }}
               className="account-auth-form"
             >
               {!sent ? (
@@ -373,30 +429,31 @@ export default function CustomerAccountPage() {
                 className="account-primary-button"
                 disabled={
                   busy ||
-                  !widgetReady ||
-                  (sent && isLocalhost) ||
-                  (!sent && (isLocalhost || !hasMsg91WidgetConfiguration()))
+                  (!widgetReady ||
+                    (sent && isLocalhost) ||
+                    (!sent && (isLocalhost || !hasMsg91WidgetConfiguration())))
                 }
               >
                 {busy
                   ? "Please wait…"
                   : !widgetReady &&
-                      hasMsg91WidgetConfiguration() &&
-                      !isLocalhost
-                    ? "Loading SMS security check…"
-                    : sent
-                      ? "Verify and continue"
-                      : "Continue with OTP"}
+                        hasMsg91WidgetConfiguration() &&
+                        !isLocalhost
+                      ? "Loading SMS security check…"
+                      : sent
+                        ? "Verify and continue"
+                        : "Send verification code"}
                 <ArrowRight size={17} />
               </button>
             </form>
-            {!sent && (isLocalhost || !hasMsg91WidgetConfiguration()) && (
-              <p className="account-config-note" role="status">
-                {isLocalhost
-                  ? "Phone sign-in requires a secure hostname supported by CAPTCHA. For local development, open https://material-square.localtest.me:5175/account and request a fresh code there."
-                  : "Phone sign-in is not configured in this environment yet. You can still browse products and build a guest material list."}
-              </p>
-            )}
+            {!sent &&
+              (isLocalhost || !hasMsg91WidgetConfiguration()) && (
+                <p className="account-config-note" role="status">
+                  {isLocalhost
+                    ? "Phone sign-in requires a secure hostname supported by CAPTCHA. For local development, open https://material-square.localtest.me:5175/account and request a fresh code there."
+                    : "Phone sign-in is not configured in this environment yet. You can still browse products and build a guest material list."}
+                </p>
+              )}
             {sent && isLocalhost && (
               <p className="account-config-note" role="status">
                 This code was requested on localhost. Open
@@ -500,6 +557,16 @@ export default function CustomerAccountPage() {
                 {busy ? "Submitting request…" : "Retry quotation request"}
               </button>
             )}
+            {pendingInquiryFailed && pendingInquiry && (
+              <button
+                className="account-primary-button account-page-alert"
+                type="button"
+                disabled={busy}
+                onClick={() => void submitPendingInquiry()}
+              >
+                {busy ? "Sending enquiry…" : "Retry sending enquiry"}
+              </button>
+            )}
             {notice && (
               <div className="account-notice account-page-alert" role="status">
                 {notice}
@@ -517,6 +584,17 @@ export default function CustomerAccountPage() {
           </main>
         </div>
       ) : null}
+      <ClientActionConfirmation
+        confirmation={
+          rfqConfirmationOpen
+            ? {
+                title: "Quotation request sent",
+                message: notice,
+              }
+            : null
+        }
+        onClose={() => setRfqConfirmationOpen(false)}
+      />
     </section>
   );
 }

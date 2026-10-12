@@ -12,8 +12,8 @@ import {
 import './SearchSuggestions.css';
 import ProductImage from "./ProductImage";
 import { matchesCatalogueSearch, scoreCatalogueSearch } from '../search/catalogue-search';
-import { BrandLogo } from "./icons/BrandBadges";
-import { partnerBrandMatchesProduct, type PartnerBrand } from "../partner-brands";
+import PartnerBrandLogo from "./PartnerBrandLogo";
+import { partnerBrandCategoryLabel, partnerBrandCategories, partnerBrandMatchesProduct, type PartnerBrand } from "../partner-brands";
 import { bestMatchingVariant } from "../search/variant-match";
 
 export default function SearchSuggestions({
@@ -21,20 +21,21 @@ export default function SearchSuggestions({
   partnerBrands = [],
   query = '',
   isOpen = false,
+  loading = false,
   onSelectSuggestion,
   onSelectCategory,
   onSelectBrand,
   onSelectProduct,
   className = '',
-}: { products?: CatalogueProduct[]; partnerBrands?: PartnerBrand[]; query?: string; isOpen?: boolean; onSelectSuggestion?: (query: string) => void; onSelectCategory?: (category: string) => void; onSelectBrand?: (brand: string) => void; onSelectProduct?: (product: CatalogueProduct, query: string) => void; className?: string }) {
+}: { products?: CatalogueProduct[]; partnerBrands?: PartnerBrand[]; query?: string; isOpen?: boolean; loading?: boolean; onSelectSuggestion?: (query: string) => void; onSelectCategory?: (category: string) => void; onSelectBrand?: (brand: string) => void; onSelectProduct?: (product: CatalogueProduct, query: string) => void; className?: string }) {
   const trimmed = query.trim().toLowerCase();
   const categories = useMemo(() => Array.from(new Map(products.map((product) => [product.category, product.categoryLabel])).entries()).map(([id, label]) => ({ id, label })), [products]);
   const brands = useMemo(() => {
-    const directory = partnerBrands.map((brand) => ({ name: brand.name, category: brand.category, id: brand.id }));
+    const directory = partnerBrands.map((brand) => ({ name: brand.name, category: partnerBrandCategoryLabel(brand), categories: partnerBrandCategories(brand), id: brand.id, logoUrl: brand.logoUrl }));
     const known = new Set(directory.map((brand) => brand.name.toLocaleLowerCase()));
     const listed = Array.from(new Set(products.map((product) => product.brand).filter(Boolean)))
       .filter((name) => !known.has(name.toLocaleLowerCase()))
-      .map((name) => ({ name, category: products.find((product) => product.brand === name)?.categoryLabel || "", id: name }));
+      .map((name) => { const category = products.find((product) => product.brand === name)?.categoryLabel || ""; return { name, category, categories: category ? [category] : [], id: name, logoUrl: null }; });
     return [...directory, ...listed];
   }, [partnerBrands, products]);
 
@@ -78,8 +79,13 @@ export default function SearchSuggestions({
       role="listbox"
       aria-label="Search Suggestions"
     >
+      {loading && trimmed && (
+        <div className="catalogue-search-skeleton" role="status" aria-label="Loading search suggestions">
+          {Array.from({ length: 3 }, (_, index) => <div className="catalogue-search-skeleton-row" key={index}><i /><span><b /><b /></span></div>)}
+        </div>
+      )}
       {/* CASE 1: Query is EMPTY — Show Trending Searches & Category Quick Chips */}
-      {!trimmed && (
+      {!loading && !trimmed && (
         <div className="suggestions-empty-state">
           {/* Search guidance */}
           <div className="suggestions-section">
@@ -113,7 +119,7 @@ export default function SearchSuggestions({
       )}
 
       {/* CASE 2: Query has MATCHES */}
-      {trimmed && hasMatches && (
+      {!loading && trimmed && hasMatches && (
         <div className="suggestions-results-state">
           {/* Matching Products */}
           {matchingProducts.length > 0 && (
@@ -179,7 +185,7 @@ export default function SearchSuggestions({
                     className="brand-suggestion-item"
                     onClick={() => onSelectBrand && onSelectBrand(brand.name)}
                   >
-                    <span className="brand-suggest-thumb"><BrandLogo id={brand.id} className="brand-suggest-logo" /></span>
+                    <span className="brand-suggest-thumb"><PartnerBrandLogo brand={brand} className="brand-suggest-logo" /></span>
                     <span className="brand-suggest-info">
                       <strong>{brand.name}</strong>
                       <span>{brand.category} · {products.filter((product) => partnerBrandMatchesProduct(brand.name, product.brand, `${product.category} ${product.categoryLabel}`)).length} listed products</span>
@@ -229,7 +235,7 @@ export default function SearchSuggestions({
       )}
 
       {/* CASE 3: Query has NO MATCHES */}
-      {trimmed && !hasMatches && (
+      {!loading && trimmed && !hasMatches && (
         <div className="suggestions-no-results">
           <p>No exact product matches found for <strong>"{query}"</strong></p>
           <span className="no-res-hint">

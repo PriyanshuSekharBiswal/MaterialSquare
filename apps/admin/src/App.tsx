@@ -28,6 +28,7 @@ import type {
   WebsiteAnalytics,
 } from "./features/overview/contracts";
 import StaffLogin from "./features/auth/StaffLogin";
+import { isInitialReloadForCurrentLocation } from "./scroll-position";
 
 const NotificationStatus = lazy(
   () => import("./features/notifications/NotificationStatus"),
@@ -106,7 +107,6 @@ export function App() {
   const [token, setTokenState] = useState(restoredToken),
     [staff, setStaff] = useState<AdminStaff | null>(null);
   const [tab, setTab] = useState<WorkspaceTab>(workspaceTabFromUrl);
-  const tabScrollPositions = useRef<Partial<Record<WorkspaceTab, number>>>({});
   const [stats, setStats] = useState<Stats | null>(null),
     [websiteAnalytics, setWebsiteAnalytics] = useState<WebsiteAnalytics | null>(
       null,
@@ -129,6 +129,7 @@ export function App() {
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(false),
     [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [showRefreshSkeleton, setShowRefreshSkeleton] = useState(isInitialReloadForCurrentLocation);
   const [query, setQuery] = useState(""),
     [search, setSearch] = useState(""),
     [catalogueInitialSearch, setCatalogueInitialSearch] = useState(""),
@@ -170,7 +171,7 @@ export function App() {
     setStaff(null);
   }, [setToken]);
   const request = useCallback(
-    async <T,>(path: string, method = "GET", body?: unknown): Promise<T> => {
+    async <T,>(path: string, method = "GET", body?: unknown, timeoutMs = 65000): Promise<T> => {
       let r: Response;
       try {
         r = await fetch(`${import.meta.env.VITE_API_URL || "/api"}${path}`, {
@@ -181,7 +182,7 @@ export function App() {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: body === undefined ? undefined : JSON.stringify(body),
-          signal: AbortSignal.timeout(65000),
+          signal: AbortSignal.timeout(timeoutMs),
         });
       } catch {
         throw new Error(
@@ -354,7 +355,22 @@ export function App() {
     } else if (staffRequestRef.current?.token === token) {
       staffRequest = staffRequestRef.current.promise;
     } else {
-      staffRequest = request<AdminStaff>("/auth/staff/me");
+      const loadStaff = async () => {
+        try {
+          return await request<AdminStaff>("/auth/staff/me", "GET", undefined, 8000);
+        } catch (cause) {
+          const message = cause instanceof Error ? cause.message : "";
+          const transient = [
+            "taking longer than usual",
+            "temporarily unavailable",
+            "Unable to connect",
+          ].some((part) => message.includes(part));
+          if (!transient) throw cause;
+          await new Promise((resolve) => window.setTimeout(resolve, 500));
+          return request<AdminStaff>("/auth/staff/me", "GET", undefined, 8000);
+        }
+      };
+      staffRequest = loadStaff();
       staffRequestRef.current = { token, promise: staffRequest };
       void staffRequest.then(
         () => {
@@ -403,8 +419,21 @@ export function App() {
       active = false;
     };
   }, [token, tab, page, search, status, revision, request]);
+  useEffect(() => {
+    const ready = !token || (Boolean(staff) && !loading);
+    document.documentElement.dataset.msScrollReady = ready ? "true" : "false";
+    if (!ready) return;
+    const completeReload = () => {
+      document.getElementById("root")?.style.removeProperty("min-height");
+      setShowRefreshSkeleton(false);
+    };
+    if (isInitialReloadForCurrentLocation()) {
+      window.addEventListener("ms-scroll-restored", completeReload, { once: true });
+      return () => window.removeEventListener("ms-scroll-restored", completeReload);
+    }
+    completeReload();
+  }, [token, staff, loading]);
   const navigate = (next: typeof tab) => {
-    tabScrollPositions.current[tab] = window.scrollY;
     const url = new URL(window.location.href);
     url.searchParams.set("workspace", next);
     if (next !== "team") {
@@ -426,19 +455,6 @@ export function App() {
     setNotice("");
     setError("");
   };
-  useEffect(() => {
-    let firstFrame = 0;
-    let secondFrame = 0;
-    firstFrame = window.requestAnimationFrame(() => {
-      secondFrame = window.requestAnimationFrame(() => {
-        window.scrollTo({ top: tabScrollPositions.current[tab] ?? 0, behavior: "instant" });
-      });
-    });
-    return () => {
-      window.cancelAnimationFrame(firstFrame);
-      window.cancelAnimationFrame(secondFrame);
-    };
-  }, [tab]);
   const login = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setBusy(true);
@@ -513,6 +529,11 @@ export function App() {
     );
 
   return (
+    <>
+    {showRefreshSkeleton && <div className="boot-loading" role="status" aria-label="Loading workspace">
+      <aside className="boot-sidebar"><div className="boot-mark" /><div className="boot-nav" /><div className="boot-nav" /><div className="boot-nav" /><div className="boot-nav" /><div className="boot-nav" /></aside>
+      <main className="boot-main"><header className="boot-main-head"><div className="boot-heading"><i className="boot-line" /><i className="boot-line" /></div><div className="boot-search" /></header><section className="boot-cards"><div className="boot-card" /><div className="boot-card" /><div className="boot-card" /></section><section className="boot-table"><i className="boot-line" /><i className="boot-line" /><i className="boot-line" /><i className="boot-line" /></section></main>
+    </div>}
     <AdminWorkspaceLayout
       staff={
         staff ?? {
@@ -619,12 +640,14 @@ export function App() {
             role={staff?.role || ""}
             onSignOut={signOut}
             initialSearch={catalogueInitialSearch}
+            customerUrl={marketplaceUrl}
           />
         )}
         {tab === "sales" && staff && (
           <SalesOperations
             accessToken={token}
             role={staff.role}
+            customerUrl={marketplaceUrl}
             onBack={() => navigate("overview")}
             onSignOut={signOut}
             embedded
@@ -675,6 +698,7 @@ export function App() {
         )}
       </FeatureBoundary>
     </AdminWorkspaceLayout>
+    </>
   );
 }
 export default App;

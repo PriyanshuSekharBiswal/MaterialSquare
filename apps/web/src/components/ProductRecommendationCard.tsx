@@ -6,7 +6,8 @@ import { useCustomer } from "../customer";
 import { trackWebsiteEvent } from "../analytics";
 import type { CatalogueProduct, CatalogueVariant, MaterialItem } from "../types";
 import ProductImage from "./ProductImage";
-import { BrandLogo, getBrandMeta } from "./icons/BrandBadges";
+import PartnerBrandLogo from "./PartnerBrandLogo";
+import { partnerBrandMatchesProduct, type PartnerBrand } from "../partner-brands";
 
 function formatPrice(value: number | string) {
   return `₹${Number(value).toLocaleString("en-IN")}`;
@@ -18,13 +19,16 @@ function variantSpecification(variant: CatalogueVariant) {
     .join(" · ");
 }
 
-export default function ProductRecommendationCard({ product, showCategory = false }: { product: CatalogueProduct; showCategory?: boolean }) {
+export default function ProductRecommendationCard({ product, showCategory = false, partnerBrands = [] }: { product: CatalogueProduct; showCategory?: boolean; partnerBrands?: PartnerBrand[] }) {
   const { items, updateItems, ready } = useCustomer();
-  const href = `/product/${encodeURIComponent(product.id)}`;
+  const productHref = `/product/${encodeURIComponent(product.id)}`;
   const variants = product.variants || [];
   const needsOptions = variants.length > 1 || Boolean(product.specs?.sizes);
   const existingItems = items.filter((item) => (item.catalogueId || item.id) === product.id);
   const existingItem = existingItems[0];
+  const destination = existingItem
+    ? `/material-list?item=${encodeURIComponent(existingItem.id)}`
+    : productHref;
   const addableVariant = variants.length === 1 ? variants[0] : undefined;
   const pricedVariants = variants.filter((variant) => variant.price != null);
   const lowestVariantPrice = pricedVariants.length
@@ -34,7 +38,7 @@ export default function ProductRecommendationCard({ product, showCategory = fals
     : lowestVariantPrice != null ? `From ${formatPrice(lowestVariantPrice)}`
     : "Request a quote";
   const unit = addableVariant?.unit || product.unit;
-  const brandMeta = getBrandMeta(product.brand);
+  const partnerBrand = partnerBrands.find((brand) => partnerBrandMatchesProduct(brand.name, product.brand, `${product.category} ${product.categoryLabel}`));
 
   function addToList() {
     if (!ready || needsOptions || existingItem) return;
@@ -43,6 +47,7 @@ export default function ProductRecommendationCard({ product, showCategory = fals
     const item: MaterialItem = {
       ...product,
       ...(addableVariant ? {
+        code: addableVariant.code || product.code,
         price: addableVariant.price ?? product.price,
         compareAtPrice: addableVariant.compareAtPrice ?? product.compareAtPrice,
         priceNote: addableVariant.priceNote || product.priceNote,
@@ -63,27 +68,27 @@ export default function ProductRecommendationCard({ product, showCategory = fals
 
   return (
     <article className="product-related-card">
-      <Link className="product-related-media" to={href} aria-label={`View ${product.name}`}>
+      <Link className="product-related-media" to={destination} aria-label={existingItem ? `${product.name} is in your cart. Go to this item` : `View ${product.name}`}>
         <ProductImage src={addableVariant?.image || product.image} alt={product.name} />
       </Link>
       <div className="product-related-content">
         {showCategory && <span className="product-related-category">{product.categoryLabel}</span>}
         <Link className="product-related-brand" to={`/marketplace?brand=${encodeURIComponent(product.brand)}`}>
           <span className="product-related-brand-logo">
-            <BrandLogo id={brandMeta?.id || product.brand} className="brand-logo-mini" />
+            <PartnerBrandLogo brand={partnerBrand || { name: product.brand }} className="brand-logo-mini" />
           </span>
           <span className="product-related-brand-name">{product.brand}</span>
         </Link>
-        <Link className="product-related-name" to={href}>{product.name}</Link>
+        <Link className="product-related-name" to={destination}>{product.name}</Link>
         <div className="product-related-footer">
           <div className="product-related-price" aria-label={product.price != null || lowestVariantPrice != null ? `${price} per ${unit}` : price}>
             <strong>{price}</strong>
             {(product.price != null || lowestVariantPrice != null) && <small>/{unit}</small>}
           </div>
           {existingItem ? (
-            <Link className="product-related-action is-added" to="/material-list" aria-label={`${product.name} is in your quote list`}><Check size={14} /><span>Added</span></Link>
+            <Link className="product-related-action is-added" to={destination} aria-label={`${product.name} is in your cart. Go to this item`}><Check size={14} /><span>Added</span></Link>
           ) : needsOptions ? (
-            <Link className="product-related-action" to={href} aria-label={`Choose options for ${product.name}`}><SlidersHorizontal size={14} /><span>Options</span></Link>
+            <Link className="product-related-action" to={productHref} aria-label={`Choose options for ${product.name}`}><SlidersHorizontal size={14} /><span>Options</span></Link>
           ) : (
             <button className="product-related-action" type="button" onClick={addToList} disabled={!ready} aria-label={`Add ${product.name} to quote list`}><Plus size={15} /><span>Add</span></button>
           )}

@@ -185,13 +185,9 @@ export default function AdminWorkspaceLayout({
     onNavigate(next);
     onMobileNavChange(false);
   };
-  const showGlobalSearch = [
-    "overview",
-    "catalogue",
-    "business",
-    "sales",
-    "reports",
-  ].includes(tab);
+  // Cross-workspace search belongs on the overview. Other sections keep their
+  // own search/filter controls so their suggestions stay within that page.
+  const showGlobalSearch = tab === "overview";
   const showGlobalRefresh = ["overview", "customers", "followups", "account", "audit", "notifications"].includes(tab);
 
   return (
@@ -349,8 +345,13 @@ export default function AdminWorkspaceLayout({
             {notice}
           </p>
         )}
-        {loading && <p role="status">Loading workspace…</p>}
-        {children}
+        <div className={`admin-workspace-content${loading ? " is-loading" : ""}`}>
+          {loading && <div className="admin-workspace-skeleton" role="status" aria-label="Loading workspace">
+            <div className="admin-workspace-skeleton-cards"><i /><i /><i /></div>
+            <div className="admin-workspace-skeleton-table"><i /><i /><i /><i /><i /></div>
+          </div>}
+          <div className="admin-workspace-content-inner">{children}</div>
+        </div>
       </main>
     </div>
   );

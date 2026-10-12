@@ -1,4 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { canonicalSiteOrigin } from "./seo-origin.js";
+import { isPreviewDeployment } from "./seo-environment.js";
 
 function getRequestOrigin(req: IncomingMessage) {
   const forwardedHost = req.headers["x-forwarded-host"];
@@ -13,7 +15,7 @@ function getRequestOrigin(req: IncomingMessage) {
     ?.split(",")[0]
     ?.trim();
   const scheme =
-    protocol === "http" && process.env.VERCEL_ENV !== "production"
+    protocol === "http" && isPreviewDeployment()
       ? "http"
       : "https";
   return `${scheme}://${host}`;
@@ -29,8 +31,8 @@ export default async function handler(
     return;
   }
 
-  const origin = getRequestOrigin(req);
-  if (!origin) {
+  const requestOrigin = getRequestOrigin(req);
+  if (!requestOrigin) {
     res.writeHead(400, {
       "Content-Type": "text/plain; charset=utf-8",
       "X-Robots-Tag": "noindex",
@@ -38,6 +40,7 @@ export default async function handler(
     res.end(req.method === "HEAD" ? undefined : "Invalid website host");
     return;
   }
+  const origin = canonicalSiteOrigin(requestOrigin);
 
   const configuredApiOrigin = process.env.API_ORIGIN?.trim() || "";
   let apiOrigin: URL;
@@ -70,6 +73,7 @@ export default async function handler(
       ),
       {
         headers: { Accept: "application/xml" },
+        signal: AbortSignal.timeout(8000),
       },
     );
     const body = await response.text();
@@ -80,7 +84,7 @@ export default async function handler(
       "Cache-Control": response.ok
         ? "public, max-age=300, s-maxage=300, stale-while-revalidate=600"
         : "no-store",
-      ...(process.env.VERCEL_ENV !== "production"
+      ...(isPreviewDeployment()
         ? { "X-Robots-Tag": "noindex, nofollow" }
         : {}),
     });

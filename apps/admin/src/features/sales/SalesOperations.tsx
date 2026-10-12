@@ -25,6 +25,7 @@ import "./sales-operations.css";
 
 type Rfq = {
   id: string;
+  requestNumber: string;
   customerName: string;
   customerPhone: string;
   siteLocation: string;
@@ -106,7 +107,7 @@ type Order = OrderSummary & {
   orderNumber: string;
   customerName: string;
   status: string;
-  manualPaymentStatus: "UNPAID" | "PAID";
+  manualPaymentStatus: "UNPAID" | "PARTIALLY_PAID" | "PAID";
   dispatch?: { currentStep: number; truckNumber: string } | null;
 };
 type Inquiry = {
@@ -163,12 +164,14 @@ const money = (value: number | string) =>
 export default function SalesOperations({
   accessToken,
   role,
+  customerUrl,
   onBack,
   onSignOut,
   embedded = false,
 }: {
   accessToken: string;
   role: string;
+  customerUrl?: string;
   onBack: () => void;
   onSignOut: () => void;
   embedded?: boolean;
@@ -178,10 +181,12 @@ export default function SalesOperations({
   const [tab, setTab] = useState<Tab>("overview");
   const [operationsMenuOpen, setOperationsMenuOpen] = useState(false);
   const operationsMenuRef = useRef<HTMLDivElement>(null);
+  const quoteEditorRef = useRef<HTMLDivElement>(null);
   const visibleTabs = roleTabs[role] || ["overview"];
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [rfqs, setRfqs] = useState<Rfq[]>([]);
+  const [rfqsLoaded, setRfqsLoaded] = useState(false);
   const [rfqAssignees, setRfqAssignees] = useState<RfqAssignee[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -210,6 +215,19 @@ export default function SalesOperations({
   const [selectedRfq, setSelectedRfq] = useState<Rfq | null>(null);
   const [editingDraft, setEditingDraft] = useState(false);
   const [revision, setRevision] = useState<RevisionQuote | null>(null);
+  useEffect(() => {
+    if (
+      tab !== "quotes" ||
+      (!selectedRfq && !editingDraft && !revision)
+    ) return;
+    const frame = window.requestAnimationFrame(() => {
+      quoteEditorRef.current?.scrollIntoView({
+        block: "start",
+        behavior: "instant",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [tab, selectedRfq?.id, editingDraft, revision?.id]);
   const [acceptanceChannels, setAcceptanceChannels] = useState<
     Record<string, AcceptanceChannel>
   >({});
@@ -256,6 +274,7 @@ export default function SalesOperations({
         ]);
         setRfqs(requests);
         setRfqAssignees(assignees);
+        setRfqsLoaded(true);
       }
       if (tab === "quotes") setQuotes(await request<Quote[]>("/quotes"));
       if (tab === "orders") setOrders(await request<Order[]>("/orders"));
@@ -437,23 +456,42 @@ export default function SalesOperations({
       {tab === "rfqs" && (
         <section className="panel-card panel-body">
           <h2>Customer requests</h2>
-          {!rfqs.length && <p>No RFQs received yet.</p>}
+          {!rfqsLoaded ? (
+            <p role="status">
+              {busy
+                ? "Loading customer requests…"
+                : error
+                  ? "Customer requests could not be loaded. Retry to try again."
+                  : "Loading customer requests…"}
+            </p>
+          ) : !rfqs.length ? (
+            <p>No RFQs received yet.</p>
+          ) : null}
           {rfqs.map((r) => (
-            <article className="record-card" key={r.id}>
-              <h3>{r.customerName}</h3>
-              <p>
-                {r.customerPhone} · {r.siteLocation} · {r.status}
-              </p>
-              <ul>
+            <article className="record-card rfq-request-card" key={r.id}>
+              <header className="rfq-request-heading">
+                <h3>{r.requestNumber} · {r.customerName}</h3>
+                <p>
+                  {r.customerPhone} · {r.siteLocation} · {r.status}
+                </p>
+              </header>
+              <ul className="rfq-item-list">
                 {r.items.map((i, n) => (
                   <li key={n}>
-                    {i.material}
-                    {i.brand ? ` · ${i.brand}` : ""} — {i.quantity} {i.unit}
-                    {i.specification ? ` · ${i.specification}` : ""}
+                    <div className="rfq-item-heading">
+                      <strong>{i.material}</strong>
+                      {i.brand && <span>{i.brand}</span>}
+                    </div>
+                    <div className="rfq-item-details">
+                      <span className="rfq-item-quantity">
+                        {i.quantity} {i.unit}
+                      </span>
+                      {i.specification && <span>{i.specification}</span>}
+                    </div>
                   </li>
                 ))}
               </ul>
-              {r.notes && <p>{r.notes}</p>}
+              {r.notes && <p className="rfq-customer-note">{r.notes}</p>}
               {(r.attachments ?? []).length > 0 && (
                 <div className="rfq-attachments">
                   <strong>Project plans and files</strong>
@@ -522,74 +560,114 @@ export default function SalesOperations({
       )}
       {tab === "quotes" && (
         <>
-          <QuoteEditor
-            key={
-              revision?.id ||
-              selectedRfq?.id ||
-              `quote-editor-${editorRevision}`
-            }
-            inventory={products}
-            request={request}
-            initialRequest={selectedRfq}
-            revision={revision}
-            editing={editingDraft}
-            onCancel={() => setRevision(null)}
-            onSaved={async () => {
-              setSelectedRfq(null);
-              setRevision(null);
-              setEditorRevision((value) => value + 1);
-              await refresh();
-            }}
-          />
-          <section className="panel-card panel-body">
-            <h2>Saved quotations</h2>
-            {!quotes.length && <p>No quotations created yet.</p>}
+          <div ref={quoteEditorRef} className="sales-quote-editor-anchor">
+            <QuoteEditor
+              key={
+                revision?.id ||
+                selectedRfq?.id ||
+                `quote-editor-${editorRevision}`
+              }
+              inventory={products}
+              request={request}
+              initialRequest={selectedRfq}
+              revision={revision}
+              editing={editingDraft}
+              onCancel={() => setRevision(null)}
+              onSaved={async () => {
+                setSelectedRfq(null);
+                setRevision(null);
+                setEditorRevision((value) => value + 1);
+                await refresh();
+              }}
+            />
+          </div>
+          <section className="panel-card panel-body sales-saved-quotes">
+            <div className="sales-saved-quotes-heading">
+              <div>
+                <span className="sales-section-eyebrow">QUOTE WORKSPACE</span>
+                <h2>Saved quotations</h2>
+                <p>Review quote details, revise drafts, or download a PDF.</p>
+              </div>
+              <span className="sales-saved-quote-count">
+                {quotes.length} {quotes.length === 1 ? "quotation" : "quotations"}
+              </span>
+            </div>
+            {!quotes.length && (
+              <p className="sales-saved-quotes-empty">No quotations created yet.</p>
+            )}
+            <div className="sales-saved-quote-list">
             {quotes.map((q) => (
-              <article className="record-card" key={q.id}>
-                <h3>{q.customerName}</h3>
-                <p>
-                  {q.quoteNumber} · Revision {q.revisionNumber || 1} ·{" "}
-                  {q.status} · {money(q.totalAmount)}
-                </p>
+              <article className="record-card sales-saved-quote" key={q.id}>
+                <header className="sales-saved-quote-header">
+                  <div className="sales-saved-quote-identity">
+                    <span className="sales-quote-number">{q.quoteNumber}</span>
+                    <h3>{q.customerName}</h3>
+                    <span className="sales-quote-revision">
+                      Revision {q.revisionNumber || 1}
+                    </span>
+                  </div>
+                  <span
+                    className="sales-quote-status"
+                    data-status={q.status}
+                  >
+                    {q.status.replaceAll("_", " ")}
+                  </span>
+                  <div className="sales-quote-total">
+                    <span>Quote total</span>
+                    <strong>{money(q.totalAmount)}</strong>
+                  </div>
+                </header>
                 {q.requestId && (
-                  <p className="sales-request-link-copy">
-                    Linked to customer request #
-                    {q.requestId.slice(0, 8).toUpperCase()}
-                  </p>
+                  <div className="sales-request-link-copy">
+                    Linked request <strong>#{q.requestId.slice(0, 8).toUpperCase()}</strong>
+                  </div>
                 )}
-                <details>
-                  <summary>Review materials and totals</summary>
-                  {(q.items || []).map((item) => (
-                    <div key={item.id}>
-                      <p>
-                        <strong>
-                          {item.productName} · {item.brandName}
-                        </strong>
-                        <br />
-                        {item.specification} · {item.quantityMt} {item.unit} ×{" "}
-                        {money(item.unitPrice)} = {money(item.lineTotal)}
-                      </p>
+                <details className="sales-quote-breakdown">
+                  <summary>
+                    <span>Review materials and totals</span>
+                    <span className="sales-quote-line-count">
+                      {(q.items || []).length} {(q.items || []).length === 1 ? "line" : "lines"}
+                    </span>
+                  </summary>
+                  <div className="sales-quote-breakdown-content">
+                    <div className="sales-quote-item-list">
+                    {(q.items || []).map((item) => (
+                      <article className="sales-quote-item" key={item.id}>
+                        <div className="sales-quote-item-heading">
+                          <strong>{item.productName}</strong>
+                          <span>{item.brandName}</span>
+                        </div>
+                        <p>
+                          {item.specification && <span>{item.specification} · </span>}
+                          {item.quantityMt} {item.unit} × {money(item.unitPrice)}
+                          <strong className="sales-quote-line-total">{money(item.lineTotal)}</strong>
+                        </p>
                       {item.options?.map((option) => (
-                        <p key={option.id}>
-                          Brand option: <strong>{option.brandName}</strong> ·{" "}
-                          {option.productName}
-                          {option.specification
-                            ? ` · ${option.specification}`
-                            : ""}{" "}
-                          · {money(option.unitPrice)} per {option.unit}
+                        <p className="sales-quote-item-option" key={option.id}>
+                          <span>Alternative</span>
+                          <strong>{option.brandName} · {option.productName}</strong>
+                          <small>
+                            {option.specification ? `${option.specification} · ` : ""}
+                            {money(option.unitPrice)} per {option.unit}
+                          </small>
                         </p>
                       ))}
+                      </article>
+                    ))}
                     </div>
-                  ))}
-                  <p>
-                    Subtotal {money(q.subtotal)} · Discount{" "}
-                    {money(q.discountAmount)} · Margin {money(q.marginAmount)} ·
-                    Tax {money(q.taxAmount)} · Freight {money(q.freightAmount)}
-                  </p>
-                  <p>
-                    Valid until {new Date(q.validUntil).toLocaleString("en-IN")}
-                  </p>
+                    <dl className="sales-quote-breakdown-totals">
+                      <div><dt>Subtotal</dt><dd>{money(q.subtotal)}</dd></div>
+                      <div><dt>Discount</dt><dd>{money(q.discountAmount)}</dd></div>
+                      <div><dt>Margin</dt><dd>{money(q.marginAmount)}</dd></div>
+                      <div><dt>Tax</dt><dd>{money(q.taxAmount)}</dd></div>
+                      <div><dt>Freight</dt><dd>{money(q.freightAmount)}</dd></div>
+                    </dl>
+                    <p className="sales-quote-validity">
+                      Valid until {new Date(q.validUntil).toLocaleString("en-IN")}
+                    </p>
+                  </div>
                 </details>
+                <div className="sales-saved-quote-actions">
                 {["DRAFT", "PENDING_REVIEW", "MARGIN_ADJUSTED"].includes(
                   q.status,
                 ) && (
@@ -600,14 +678,13 @@ export default function SalesOperations({
                       setSelectedRfq(null);
                       setEditingDraft(true);
                       setRevision(q);
-                      window.scrollTo({ top: 0, behavior: "smooth" });
                     }}
                   >
                     Edit draft
                   </button>
                 )}
                 {q.revisedFromId && (
-                  <p>
+                  <p className="sales-quote-replaces">
                     Replaces{" "}
                     {quotes.find((original) => original.id === q.revisedFromId)
                       ?.quoteNumber || q.revisedFromId}
@@ -622,7 +699,6 @@ export default function SalesOperations({
                         setSelectedRfq(null);
                         setEditingDraft(false);
                         setRevision(q);
-                        window.scrollTo({ top: 0, behavior: "smooth" });
                       }}
                     >
                       Prepare revision
@@ -652,6 +728,7 @@ export default function SalesOperations({
                 >
                   Download PDF
                 </button>
+                </div>
                 {q.status === "QUOTE_SENT" && (
                   <>
                     <fieldset className="sales-external-acceptance">
@@ -759,6 +836,7 @@ export default function SalesOperations({
                 )}
               </article>
             ))}
+            </div>
           </section>
         </>
       )}
@@ -783,12 +861,13 @@ export default function SalesOperations({
               <OrderDetails order={o} />
               {["SUPER_ADMIN", "ADMIN", "ACCOUNTS_MANAGER"].includes(role) &&
                 o.manualPaymentStatus !== "PAID" && (
-                  <details className="sales-external-acceptance">
+                  <details className="sales-external-acceptance" key={o.manualPaymentStatus}>
                     <summary>Record offline payment</summary>
                     <p>
-                      Use this only after staff has received payment outside the
-                      website. This records the full order total as paid; it
-                      does not collect or verify funds.
+                      Record an offline cash, UPI, or card payment after staff
+                      confirms receipt. You can record an advance now and add
+                      later payments against the remaining balance. This does
+                      not collect or verify funds.
                     </p>
                     <form
                       onSubmit={(event) => {
@@ -796,18 +875,40 @@ export default function SalesOperations({
                         const values = new FormData(event.currentTarget);
                         const details = event.currentTarget.closest("details");
                         void mutate(`/orders/${o.id}/manual-payment`, "PATCH", {
+                          amountInr: Number(values.get("amountInr")),
                           method: values.get("method"),
                           reference: values.get("reference") || undefined,
+                          note: values.get("note") || undefined,
                         }).then((saved) => {
                           if (saved && details) details.open = false;
                         });
                       }}
                     >
                       <label>
-                        Payment received by
+                        Amount received (INR)
+                        <input
+                          name="amountInr"
+                          type="number"
+                          min="0.01"
+                          max="9999999999.99"
+                          step="0.01"
+                          required
+                          defaultValue={Math.max(
+                            0,
+                            Number(o.grandTotal || 0) -
+                              (o.payments || []).reduce(
+                                (sum, payment) => sum + Number(payment.amountInr),
+                                0,
+                              ),
+                          ).toFixed(2)}
+                        />
+                      </label>
+                      <label>
+                        Payment mode
                         <select name="method" required defaultValue="CASH">
                           <option value="CASH">Cash</option>
                           <option value="UPI">UPI</option>
+                          <option value="CARD">Card</option>
                           <option value="OTHER">Other offline method</option>
                         </select>
                       </label>
@@ -819,8 +920,16 @@ export default function SalesOperations({
                           placeholder="UPI reference or receipt number"
                         />
                       </label>
+                      <label>
+                        Note (optional)
+                        <input
+                          name="note"
+                          maxLength={500}
+                          placeholder="For example, advance received"
+                        />
+                      </label>
                       <button className="btn-sm btn-primary" disabled={busy}>
-                        Mark full order total paid
+                        Record offline payment
                       </button>
                     </form>
                   </details>
@@ -859,7 +968,7 @@ export default function SalesOperations({
         </section>
       )}
       {tab === "inventory" && (
-        <CatalogueManager token={token} role={role} onSignOut={onSignOut} />
+        <CatalogueManager token={token} role={role} onSignOut={onSignOut} customerUrl={customerUrl} />
       )}
       {tab === "inquiries" && (
         <section className="panel-card panel-body">

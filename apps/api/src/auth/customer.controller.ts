@@ -10,6 +10,7 @@ import {
   UseGuards,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   UseInterceptors,
 } from "@nestjs/common";
 import { FilesInterceptor } from "@nestjs/platform-express";
@@ -22,6 +23,7 @@ import { randomUUID } from "node:crypto";
 import { open, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { PrismaService } from "../prisma/prisma.service";
+import { createBusinessReferenceNumber } from "../business/procurement/procurement-number";
 import { PdfService } from "../pdf/pdf.service";
 import { validate } from "../common/validation";
 import {
@@ -50,6 +52,48 @@ const customerSelect = {
   city: true,
   pincode: true,
 } as const;
+
+type CustomerDispatch = {
+  currentStep: number;
+  estimatedArrival: Date | null;
+  currentLocation: string | null;
+  updatedAt: Date;
+  vehicleNumber?: string | null;
+  transporter?: string | null;
+} | null;
+
+function customerDispatchFromPlan(
+  dispatch: CustomerDispatch,
+  plan: {
+    status: string;
+    vehicleNumber: string | null;
+    transporter: string | null;
+    estimatedArrival: Date | null;
+    currentLocation: string | null;
+    updatedAt: Date;
+  } | null,
+): CustomerDispatch {
+  if (!plan) return dispatch;
+  const currentStep =
+    plan.status === "DELIVERED"
+      ? 5
+      : plan.status === "IN_TRANSIT" || plan.status === "OUT_FOR_DELIVERY"
+        ? 4
+        : plan.status === "DISPATCHED"
+          ? 3
+          : plan.status === "SCHEDULED"
+            ? 2
+            : 1;
+  return {
+    currentStep,
+    estimatedArrival: plan.estimatedArrival ?? dispatch?.estimatedArrival ?? null,
+    currentLocation: plan.currentLocation,
+    vehicleNumber: plan.vehicleNumber,
+    transporter: plan.transporter,
+    updatedAt: plan.updatedAt,
+  };
+}
+
 const profileSchema = z.object({
   name: z.string().trim().min(2).max(100),
   email: z
@@ -58,13 +102,15 @@ const profileSchema = z.object({
   companyName: z.string().trim().max(150).default(""),
   gstin: z.union([z.string().trim().max(15), z.literal("")]).default(""),
   billingAddress: z.string().trim().max(500).default(""),
-  shippingAddress: z.string().trim().max(500).default(""),
+  shippingAddress: z.string().trim().min(2).max(500),
   city: z.string().trim().max(100).default(""),
   pincode: z
     .union([z.string().regex(/^[1-9]\d{5}$/), z.literal("")])
     .default(""),
 });
-type CustomerRequest = Request & { customerId: string };
+type CustomerRequest = Request & {
+  customerId: string;
+};
 type RfqUpload = { path: string; originalname?: string; size?: number };
 
 async function inspectRfqUpload(file: RfqUpload) {
@@ -231,10 +277,11 @@ export class CustomerController {
     @Res({ passthrough: true }) res: Response,
   ) {
     res.setHeader("Cache-Control", "no-store");
-    return this.prisma.customer.findUniqueOrThrow({
+    const customer = await this.prisma.customer.findUniqueOrThrow({
       where: { id: req.customerId },
       select: customerSelect,
     });
+    return customer;
   }
 
   @Get("activity") async activity(
@@ -366,6 +413,16 @@ export class CustomerController {
               updatedAt: true,
             },
           },
+          transportationPlan: {
+            select: {
+              status: true,
+              vehicleNumber: true,
+              transporter: true,
+              estimatedArrival: true,
+              currentLocation: true,
+              updatedAt: true,
+            },
+          },
         },
       }),
       this.prisma.loyaltyAccount.findUnique({
@@ -388,7 +445,15 @@ export class CustomerController {
         },
       }),
     ]);
-    return { requests, quotations, orders, loyalty };
+    return {
+      requests,
+      quotations,
+      orders: orders.map(({ transportationPlan, ...order }) => ({
+        ...order,
+        dispatch: customerDispatchFromPlan(order.dispatch, transportationPlan),
+      })),
+      loyalty,
+    };
   }
 
   @Get("quotations/:id") async quotation(
@@ -497,10 +562,27 @@ export class CustomerController {
             updatedAt: true,
           },
         },
+        transportationPlan: {
+          select: {
+            status: true,
+            vehicleNumber: true,
+            transporter: true,
+            estimatedArrival: true,
+            currentLocation: true,
+            updatedAt: true,
+          },
+        },
       },
     });
     if (!order) throw new NotFoundException("Order not found");
-    return order;
+    const { transportationPlan, ...customerOrder } = order;
+    return {
+      ...customerOrder,
+      dispatch: customerDispatchFromPlan(
+        customerOrder.dispatch,
+        transportationPlan,
+      ),
+    };
   }
 
   @Post("rfqs")
@@ -627,6 +709,7 @@ export class CustomerController {
         });
         return db.rfq.create({
           data: {
+            requestNumber: await createBusinessReferenceNumber(db, "RF"),
             customerId: customer.id,
             customerName: input.customerName,
             customerPhone: customer.phone,
@@ -637,7 +720,7 @@ export class CustomerController {
             items: items as Prisma.InputJsonValue,
             attachments: { create: attachments },
           },
-          select: { id: true, status: true, createdAt: true },
+          select: { id: true, requestNumber: true, status: true, createdAt: true },
         });
       });
       return saved;
@@ -700,22 +783,36 @@ export class CustomerController {
     stream.pipe(response);
   }
 
-  @Put("profile") updateProfile(
+  @Put("profile") async updateProfile(
     @Req() req: CustomerRequest,
     @Body() body: unknown,
   ) {
     const data = validate(profileSchema, body);
-    return this.prisma.customer.update({
-      where: { id: req.customerId },
-      data: {
-        ...data,
-        email: data.email || null,
-        companyName: data.companyName || null,
-        gstin: data.gstin || null,
-        billingAddress: data.billingAddress || null,
-        shippingAddress: data.shippingAddress || null,
-      },
-      select: customerSelect,
+    return this.prisma.$transaction(async (tx) => {
+      if (data.email) {
+        const duplicate = await tx.customer.findFirst({
+          where: {
+            id: { not: req.customerId },
+            email: { equals: data.email.toLowerCase(), mode: "insensitive" },
+          },
+          select: { id: true },
+        });
+        if (duplicate)
+          throw new ConflictException("That email address is already in use");
+      }
+      const updated = await tx.customer.update({
+        where: { id: req.customerId },
+        data: {
+          ...data,
+          email: data.email.toLowerCase() || null,
+          companyName: data.companyName || null,
+          gstin: data.gstin || null,
+          billingAddress: data.billingAddress || null,
+          shippingAddress: data.shippingAddress || null,
+        },
+        select: customerSelect,
+      });
+      return updated;
     });
   }
 

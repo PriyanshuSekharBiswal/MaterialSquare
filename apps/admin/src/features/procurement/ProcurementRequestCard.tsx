@@ -2,6 +2,9 @@ import PurchaseOrderRevision, {
   type RevisablePurchaseOrder,
 } from "./PurchaseOrderRevision";
 import { useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
+import ServiceAreaPincodes from "../suppliers/ServiceAreaPincodes";
 
 type Material = {
   productName: string;
@@ -26,6 +29,9 @@ type Supplier = {
   deliveryPincodeMatch?: boolean;
   serviceCoverageMatch?: boolean;
   cityMatch: boolean;
+  stateMatch?: boolean;
+  locationMatchPercent: number;
+  locationMatchLabel: string;
   matchedProducts?: {
     productName: string;
     brand: string;
@@ -39,6 +45,7 @@ type Supplier = {
 };
 type SupplierQuote = {
   id: string;
+  supplierQuoteNumber: string;
   supplier: Pick<Supplier, "id" | "name" | "phone">;
   totalAmount: string;
   leadTimeDays: number | null;
@@ -50,10 +57,12 @@ type SupplierQuote = {
 };
 export type ProcurementRequest = {
   id: string;
+  orderId?: string | null;
   requestNumber: string;
   status: string;
   deliveryAddress: string;
   deliveryCity: string;
+  deliveryState?: string | null;
   deliveryPincode: string;
   items: Material[];
   supplierQuotes: SupplierQuote[];
@@ -76,6 +85,29 @@ const money = (value: string | number) =>
   `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const expired = (quote: SupplierQuote) =>
   Boolean(quote.validUntil && new Date(quote.validUntil) <= new Date());
+const procurementStages = [
+  "Find suppliers",
+  "Compare quotes",
+  "Approve purchase",
+  "PO issued",
+];
+const statusLabel: Record<string, string> = {
+  OPEN: "Needs supplier match",
+  COMPARING: "Compare supplier quotes",
+  APPROVAL_PENDING: "Awaiting PO approval",
+  APPROVED: "Purchase approved",
+  ORDERED: "PO issued",
+  RECEIVED: "Received",
+  CANCELLED: "Cancelled",
+};
+const stageForStatus: Record<string, number> = {
+  OPEN: 0,
+  COMPARING: 1,
+  APPROVAL_PENDING: 2,
+  APPROVED: 3,
+  ORDERED: 3,
+  RECEIVED: 4,
+};
 
 export default function ProcurementRequestCard({
   record,
@@ -87,6 +119,7 @@ export default function ProcurementRequestCard({
   const [candidates, setCandidates] = useState<Supplier[]>([]);
   const [matching, setMatching] = useState(false);
   const [matched, setMatched] = useState(false);
+  const [matchDialogOpen, setMatchDialogOpen] = useState(false);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<SupplierQuote | null>(null);
   const [sort, setSort] = useState("price");
@@ -97,7 +130,10 @@ export default function ProcurementRequestCard({
   );
   async function match() {
     setMatching(true);
+    setMatched(false);
+    setCandidates([]);
     setError("");
+    setMatchDialogOpen(true);
     try {
       const result = await request<{ candidates: Supplier[] }>(
         `/procurement/${record.id}/suppliers`,
@@ -155,153 +191,211 @@ export default function ProcurementRequestCard({
     if (saved) setSelected(null);
   }
   return (
-    <article className="business-record bc-record-block">
-      <div>
-        <h3>{record.requestNumber}</h3>
+    <article className="business-record bc-record-block procurement-request-card">
+      <div className="procurement-request-heading">
+        <div className="procurement-request-title-row">
+          <h3>{record.requestNumber}</h3>
+          <span className={`procurement-request-status procurement-status-${record.status.toLowerCase()}`}>
+            {statusLabel[record.status] || record.status.replaceAll("_", " ")}
+          </span>
+        </div>
         <p>
-          {record.deliveryAddress} · {record.deliveryCity} · PIN{" "}
+          {record.deliveryAddress} · {record.deliveryCity}{record.deliveryState ? `, ${record.deliveryState}` : ""} · PIN{" "}
           {record.deliveryPincode}
         </p>
-        <small>{record.status}</small>
+        <span className="procurement-request-origin">
+          {record.orderId ? "Linked to confirmed customer order" : "Manual purchase request"}
+        </span>
       </div>
-      <ul>
+      {record.status !== "CANCELLED" && (
+        <ol className="procurement-request-stages" aria-label="Procurement progress">
+          {procurementStages.map((stage, index) => {
+            const currentStage = stageForStatus[record.status] ?? 0;
+            return (
+              <li
+                key={stage}
+                className={index < currentStage ? "complete" : index === currentStage ? "current" : ""}
+              >
+                <span>{index < currentStage ? "✓" : index + 1}</span>{stage}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      <ul className="procurement-request-items">
         {record.items.map((item, index) => (
           <li key={index}>
-            {item.productName}
-            {item.brand ? ` · ${item.brand}` : ""} · {item.quantity} {item.unit}
-            {item.notes ? ` · ${item.notes}` : ""}
+            <strong>{item.productName}</strong>
+            <span>
+              {item.brand ? `${item.brand} · ` : ""}
+              {item.quantity} {item.unit}
+            </span>
+            {item.notes && <small>{item.notes}</small>}
           </li>
         ))}
       </ul>
-      {error && <p role="alert">{error}</p>}
       <button
-        className="bc-button"
+        className="bc-button procurement-match-button"
         disabled={busy || matching}
         onClick={() => void match()}
       >
         {matching ? "Finding suppliers…" : "Match suppliers"}
       </button>
-      {matched && !candidates.length && (
-        <p>
-          No active suppliers match these materials. Review the supplier
-          catalogue.
-        </p>
-      )}
-      {candidates.map((supplier) => (
-        <details key={supplier.id} className="procurement-candidate">
-          <summary>
-            {supplier.name} · {supplier.matchedItems.join(", ")} ·{" "}
-            {supplier.deliveryPincodeMatch || supplier.serviceAreaMatch && !supplier.serviceCoverageMatch
-              ? `Serves delivery PIN ${record.deliveryPincode}`
-              : supplier.serviceCoverageMatch
-                ? `Covers delivery PIN ${record.deliveryPincode}`
-              : supplier.cityMatch
-                ? `Same city · ${record.deliveryCity}`
-                : "Other city / service area"}{" "}
-            ·{" "}
-            {supplier.averageScore == null
-              ? "No ratings"
-              : `${supplier.averageScore.toFixed(1)}/5`}
-          </summary>
-          {(supplier.city || supplier.pincode || supplier.servicePincodes?.length) && (
-            <p>
-              Supplier location: {[supplier.city, supplier.state].filter(Boolean).join(", ") || "Not recorded"}
-              {supplier.pincode ? ` · PIN ${supplier.pincode}` : ""}
-              {supplier.servicePincodes?.length
-                ? ` · Serves PINs ${supplier.servicePincodes.join(", ")}`
-                : " · No service PINs recorded"}
-            </p>
-          )}
-          {supplier.matchedProducts?.map((product) => (
-            <p key={`${product.productName}-${product.brand}-${product.unit}`}>
-              Supplier listing: {product.productName} · {product.brand || "Brand unspecified"} · {product.category} · Available: {product.availableQuantity ?? "Not checked"} {product.unit}
-              {product.availabilityCheckedAt
-                ? ` · checked ${new Date(product.availabilityCheckedAt).toLocaleString("en-IN")}`
-                : ""}
-              {product.lastQuotedPrice != null
-                ? ` · last quote ₹${Number(product.lastQuotedPrice).toLocaleString("en-IN")}/${product.unit}`
-                : ""}
-            </p>
-          ))}
-          <form
-            className="bc-fields"
-            onSubmit={(event) => void saveQuote(event, supplier.id)}
+      {matchDialogOpen && createPortal(
+        <div className="procurement-match-overlay">
+          <section
+            className="procurement-match-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={`procurement-match-title-${record.id}`}
           >
-            <fieldset className="bc-fields">
-              <legend>Supplier's item prices and available quantities</legend>
-              {record.items.map((item, index) => (
-                <div
-                  className="business-candidate"
-                  key={`${item.productName}-${index}`}
-                >
-                  <strong>
-                    {item.productName}
-                    {item.brand ? ` · ${item.brand}` : ""} · source shortfall{" "}
-                    {item.quantity} {item.unit}
-                    {item.requiredQuantity != null && (
-                      <> · total need {item.requiredQuantity} {item.unit}</>
-                    )}
-                    {item.clientStockQuantity != null && (
-                      <> · client stock {item.clientStockQuantity} {item.unit}</>
-                    )}
-                  </strong>
-                  <label>
-                    Quantity offered ({item.unit})
-                    <input
-                      name={`quantity-${index}`}
-                      type="number"
-                      min="0"
-                      max={item.quantity}
-                      step="any"
-                      defaultValue={item.quantity}
-                    />
-                  </label>
-                  <label>
-                    Unit price (₹/{item.unit})
-                    <input
-                      name={`price-${index}`}
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      defaultValue="0"
-                    />
-                  </label>
+            <header className="procurement-match-header">
+              <div>
+                <span>SUPPLIER SOURCING</span>
+                <h2 id={`procurement-match-title-${record.id}`}>Match suppliers</h2>
+                <p>{record.requestNumber} · {record.deliveryCity} · PIN {record.deliveryPincode}</p>
+                <p className="procurement-match-explainer">
+                  Location percentages use recorded PIN, service area, city, and state details; they are not distance estimates.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="bc-button procurement-match-close"
+                aria-label="Close supplier matching"
+                onClick={() => setMatchDialogOpen(false)}
+              >
+                <X size={19} aria-hidden="true" />
+              </button>
+            </header>
+            <div className="procurement-match-body">
+              {matching && <p className="procurement-match-status" role="status">Finding active suppliers for these materials…</p>}
+              {error && <p className="procurement-match-error" role="alert">{error}</p>}
+              {!matching && matched && !candidates.length && (
+                <div className="procurement-match-empty">
+                  <strong>No active suppliers match these materials.</strong>
+                  <p>Review the supplier catalogue or update supplier product listings, then try matching again.</p>
                 </div>
+              )}
+              {candidates.map((supplier) => (
+                <details key={supplier.id} className="procurement-candidate">
+                  <summary>
+                    {supplier.name} · {supplier.matchedItems.join(", ")} ·{" "}
+                    {supplier.locationMatchPercent}% location match · {supplier.locationMatchLabel}{" "}
+                    ·{" "}
+                    {supplier.averageScore == null
+                      ? "No ratings"
+                      : `${supplier.averageScore.toFixed(1)}/5`}
+                  </summary>
+                  {(supplier.city || supplier.pincode || supplier.servicePincodes?.length) && (
+                    <p>
+                      Supplier location: {[supplier.city, supplier.state].filter(Boolean).join(", ") || "Not recorded"}
+                      {supplier.pincode ? ` · PIN ${supplier.pincode}` : ""}
+                    </p>
+                  )}
+                  {supplier.servicePincodes?.length ? (
+                    <div className="procurement-service-area-block">
+                      <strong>Service area</strong>
+                      <ServiceAreaPincodes pincodes={supplier.servicePincodes} className="procurement-service-areas" />
+                    </div>
+                  ) : <p>No service PINs recorded.</p>}
+                  {supplier.matchedProducts?.map((product) => (
+                    <p key={`${product.productName}-${product.brand}-${product.unit}`}>
+                      Supplier listing: {product.productName} · {product.brand || "Brand unspecified"} · {product.category} · Available: {product.availableQuantity ?? "Not checked"} {product.unit}
+                      {product.availabilityCheckedAt
+                        ? ` · checked ${new Date(product.availabilityCheckedAt).toLocaleString("en-IN")}`
+                        : ""}
+                      {product.lastQuotedPrice != null
+                        ? ` · last quote ₹${Number(product.lastQuotedPrice).toLocaleString("en-IN")}/${product.unit}`
+                        : ""}
+                    </p>
+                  ))}
+                  <form
+                    className="bc-fields"
+                    onSubmit={(event) => void saveQuote(event, supplier.id)}
+                  >
+                    <fieldset className="bc-fields">
+                      <legend>Supplier's item prices and available quantities</legend>
+                      {record.items.map((item, index) => (
+                        <div
+                          className="business-candidate"
+                          key={`${item.productName}-${index}`}
+                        >
+                          <strong>
+                            {item.productName}
+                            {item.brand ? ` · ${item.brand}` : ""} · source shortfall{" "}
+                            {item.quantity} {item.unit}
+                            {item.requiredQuantity != null && (
+                              <> · total need {item.requiredQuantity} {item.unit}</>
+                            )}
+                            {item.clientStockQuantity != null && (
+                              <> · client stock {item.clientStockQuantity} {item.unit}</>
+                            )}
+                          </strong>
+                          <label>
+                            Quantity offered ({item.unit})
+                            <input
+                              name={`quantity-${index}`}
+                              type="number"
+                              min="0"
+                              max={item.quantity}
+                              step="any"
+                              defaultValue={item.quantity}
+                            />
+                          </label>
+                          <label>
+                            Unit price (₹/{item.unit})
+                            <input
+                              name={`price-${index}`}
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              defaultValue="0"
+                            />
+                          </label>
+                        </div>
+                      ))}
+                      <small>
+                        Set quantity to zero for materials this supplier cannot provide.
+                        The quote total is calculated from these lines.
+                      </small>
+                    </fieldset>
+                    <label>
+                      Lead time (days)
+                      <input
+                        name="lead"
+                        type="number"
+                        min="0"
+                        max="365"
+                        step="1"
+                        required
+                      />
+                    </label>
+                    <label>
+                      Valid until
+                      <input name="validUntil" type="datetime-local" />
+                    </label>
+                    <label>
+                      Supplier quote notes
+                      <input name="notes" maxLength={5000} />
+                    </label>
+                    <label className="bc-check">
+                      <input name="available" type="checkbox" defaultChecked />
+                      Materials available
+                    </label>
+                    <button className="bc-button" disabled={busy}>
+                      Save supplier quote
+                    </button>
+                  </form>
+                </details>
               ))}
-              <small>
-                Set quantity to zero for materials this supplier cannot provide.
-                The quote total is calculated from these lines.
-              </small>
-            </fieldset>
-            <label>
-              Lead time (days)
-              <input
-                name="lead"
-                type="number"
-                min="0"
-                max="365"
-                step="1"
-                required
-              />
-            </label>
-            <label>
-              Valid until
-              <input name="validUntil" type="datetime-local" />
-            </label>
-            <label>
-              Supplier quote notes
-              <input name="notes" maxLength={5000} />
-            </label>
-            <label className="bc-check">
-              <input name="available" type="checkbox" defaultChecked />
-              Materials available
-            </label>
-            <button className="bc-button" disabled={busy}>
-              Save supplier quote
-            </button>
-          </form>
-        </details>
-      ))}
+            </div>
+            <footer className="procurement-match-footer">
+              <button type="button" className="bc-button" onClick={() => setMatchDialogOpen(false)}>Close</button>
+            </footer>
+          </section>
+        </div>,
+        document.body,
+      )}
       <h4>Supplier quote comparison</h4>
       {!quotes.length ? (
         <p>No supplier quotes recorded yet.</p>
@@ -332,7 +426,8 @@ export default function ProcurementRequestCard({
                 {quotes.map((quote) => (
                   <tr key={quote.id}>
                     <td>
-                      {quote.supplier.name}
+                      <strong>{quote.supplierQuoteNumber}</strong>
+                      <p>{quote.supplier.name}</p>
                       <ul>
                         {quote.items.map((item, index) => (
                           <li key={`${item.productName}-${index}`}>

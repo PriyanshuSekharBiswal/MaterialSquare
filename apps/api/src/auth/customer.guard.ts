@@ -34,7 +34,9 @@ export class CustomerGuard implements CanActivate {
   async canActivate(context: ExecutionContext) {
     const req = context
       .switchToHttp()
-      .getRequest<Request & { customerId?: string }>();
+      .getRequest<Request & {
+        customerId?: string;
+      }>();
     const res = context.switchToHttp().getResponse<Response>();
     if (!req.method || !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
       const multipartRfq =
@@ -57,7 +59,11 @@ export class CustomerGuard implements CanActivate {
     const session = sessionId
       ? await this.prisma.customerSession.findUnique({
           where: { id: sessionId },
-          select: { id: true, customerId: true, expiresAt: true },
+          select: {
+            id: true,
+            customerId: true,
+            expiresAt: true,
+          },
         })
       : null;
     if (!session || session.expiresAt <= new Date())

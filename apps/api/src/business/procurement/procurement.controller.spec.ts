@@ -9,12 +9,18 @@ describe("procurement audit history", () => {
   it("records a procurement request with the request in one transaction", async () => {
     const request = {
       id: "request-1",
-      requestNumber: "MS-PR-2026-unique",
       orderId: "order-1",
     };
     const auditCreate = jest.fn();
     const tx = {
-      procurementRequest: { create: jest.fn().mockResolvedValue(request) },
+      $queryRaw: jest.fn().mockResolvedValue([]),
+      procurementRequest: {
+        create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({
+          ...request,
+          ...data,
+        })),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       auditLog: { create: auditCreate },
     };
     const prisma = {
@@ -40,6 +46,10 @@ describe("procurement audit history", () => {
       ],
     });
 
+    const auditEntry = auditCreate.mock.calls[0][0];
+    const requestNumber = auditEntry.data.metadata.requestNumber as string;
+    expect(requestNumber).toMatch(/^MS-PR-\d{4}-[0a-i]{4}-[0a-i]{6}-[0a-i]{3}-[0a-i]{2}$/);
+    expect(requestNumber.replaceAll("-", "")).toHaveLength(23);
     expect(auditCreate).toHaveBeenCalledWith({
       data: {
         staffId: "staff-2",
@@ -47,7 +57,7 @@ describe("procurement audit history", () => {
         entityType: "PROCUREMENT_REQUEST",
         entityId: "request-1",
         metadata: {
-          requestNumber: "MS-PR-2026-unique",
+          requestNumber,
           orderId: "order-1",
           itemCount: 1,
         },
@@ -71,8 +81,11 @@ describe("procurement audit history", () => {
     };
     const auditCreate = jest.fn();
     const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
+      rfq: { findMany: jest.fn().mockResolvedValue([]) },
       supplierQuote: {
         findUnique: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
         upsert: jest.fn().mockResolvedValue({ id: "quote-1" }),
       },
       procurementRequest: { update: jest.fn() },
@@ -110,6 +123,11 @@ describe("procurement audit history", () => {
       available: true,
     });
 
+    const quoteNumber = tx.supplierQuote.upsert.mock.calls[0][0].create
+      .supplierQuoteNumber;
+    expect(quoteNumber).toMatch(/^MS-SQ-\d{4}-[0a-i]{4}-[0a-i]{6}-[0a-i]{3}-[0a-i]{2}$/);
+    expect(quoteNumber.replaceAll("-", "")).toHaveLength(23);
+
     expect(tx.procurementRequest.update).toHaveBeenCalledWith({
       where: { id: "request-1" },
       data: { status: "COMPARING" },
@@ -132,7 +150,7 @@ describe("procurement audit history", () => {
 });
 
 describe("supplier matching priority", () => {
-  it("ranks exact PIN, service coverage, city, then supplier rating", async () => {
+  it("scores and ranks exact PIN, service PIN, city, state, then other locations", async () => {
     const item = {
       productName: "Cement",
       brand: "BuildCo",
@@ -146,11 +164,13 @@ describe("supplier matching priority", () => {
       pincode: string,
       servicePincodes: string[],
       score: number,
+      state = "Uttar Pradesh",
     ) => ({
       id,
       name: id,
       phone: "9876543210",
       city,
+      state,
       pincode,
       servicePincodes,
       status: "ACTIVE",
@@ -175,7 +195,8 @@ describe("supplier matching priority", () => {
       ],
     });
     const suppliers = [
-      supplier("other-city-high-score", "Delhi", "110001", [], 5),
+      supplier("other-city-high-score", "Delhi", "110001", [], 5, "Delhi"),
+      supplier("same-state", "Lucknow", "226001", [], 5),
       supplier("same-city", "Noida", "201310", [], 1),
       supplier("pin-covered", "Ghaziabad", "201310", ["201301"], 1),
       supplier("exact-pin", "Faridabad", "201301", [], 1),
@@ -186,6 +207,7 @@ describe("supplier matching priority", () => {
           id: "request-1",
           deliveryPincode: "201301",
           deliveryCity: "  NOIDA  ",
+          deliveryState: " Uttar Pradesh ",
           items: [item],
         }),
       },
@@ -201,12 +223,14 @@ describe("supplier matching priority", () => {
       "exact-pin",
       "pin-covered",
       "same-city",
+      "same-state",
       "other-city-high-score",
     ]);
     expect(result.candidates.map((candidate) => candidate.cityMatch)).toEqual([
       false,
       false,
       true,
+      false,
       false,
     ]);
     expect(
@@ -219,6 +243,13 @@ describe("supplier matching priority", () => {
       [false, true],
       [false, false],
       [false, false],
+      [false, false],
+    ]);
+    expect(result.candidates.map((candidate) => candidate.locationMatchPercent)).toEqual([
+      100, 80, 60, 40, 0,
+    ]);
+    expect(result.candidates.map((candidate) => candidate.locationMatchLabel)).toEqual([
+      "Exact PIN", "Service PIN", "Same city", "Same state", "Other location",
     ]);
   });
 
@@ -292,6 +323,83 @@ describe("supplier matching priority", () => {
     });
   });
 
+  it("matches duplicate catalogue IDs only when the supplier's exact pack details agree", async () => {
+    const requestedVariantId = "requested-50kg-variant";
+    const supplierProduct = (
+      id: string,
+      label: string,
+      pack: string,
+    ) => ({
+      productName: "UltraTech PPC Cement",
+      brand: "UltraTech Cement",
+      category: "cement",
+      unit: "bag",
+      catalogVariantId: id,
+      catalogVariant: {
+        label,
+        attributes: { pack },
+        unit: "bag",
+        listing: {
+          name: "UltraTech PPC Cement",
+          brand: "UltraTech Cement",
+        },
+      },
+      availableQuantity: null,
+      availabilityCheckedAt: null,
+      lastQuotedPrice: null,
+      isActive: true,
+    });
+    const suppliers = [
+      {
+        id: "same-pack",
+        name: "Same pack supplier",
+        phone: "9876543210",
+        city: "Noida",
+        pincode: "201301",
+        servicePincodes: ["201301"],
+        products: [supplierProduct("duplicate-50kg-variant", "50 kg", "50 kg")],
+        ratings: [],
+      },
+      {
+        id: "wrong-pack",
+        name: "Different pack supplier",
+        phone: "9876543211",
+        city: "Noida",
+        pincode: "201301",
+        servicePincodes: ["201301"],
+        products: [supplierProduct("25kg-variant", "25 kg", "25 kg")],
+        ratings: [],
+      },
+    ];
+    const prisma = {
+      procurementRequest: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "request-1",
+          deliveryPincode: "201301",
+          deliveryCity: "Noida",
+          items: [
+            {
+              catalogVariantId: requestedVariantId,
+              productName: "UltraTech PPC Cement",
+              brand: "UltraTech Cement",
+              category: "cement",
+              quantity: 100,
+              unit: "bag",
+              notes: "50 kg · UltraTech PPC Cement · 50 kg",
+            },
+          ],
+        }),
+      },
+      supplier: { findMany: jest.fn().mockResolvedValue(suppliers) },
+    } as never;
+
+    const result = await new ProcurementController(prisma).candidates("request-1");
+
+    expect(result.candidates.map((candidate) => candidate.id)).toEqual([
+      "same-pack",
+    ]);
+  });
+
   it("excludes recoverably deleted suppliers and supplier products from matching", async () => {
     const item = {
       productName: "Cement",
@@ -330,7 +438,10 @@ describe("supplier matching priority", () => {
     expect(supplierFindMany).toHaveBeenCalledWith({
       where: { status: "ACTIVE", deletedAt: null },
       include: {
-        products: { where: { isActive: true, deletedAt: null } },
+        products: {
+          where: { isActive: true, deletedAt: null },
+          include: { catalogVariant: { include: { listing: true } } },
+        },
         ratings: true,
       },
     });

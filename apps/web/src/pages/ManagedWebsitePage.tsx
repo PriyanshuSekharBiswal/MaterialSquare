@@ -32,8 +32,10 @@ export default function ManagedWebsitePage() {
             {section.imageUrl && (
               <img
                 src={section.imageUrl}
-                alt={section.imageAlt}
+                alt={section.imageAlt || section.title}
                 loading={section.kind === "hero" ? "eager" : "lazy"}
+                fetchPriority={section.kind === "hero" ? "high" : "auto"}
+                decoding="async"
               />
             )}
             <div>

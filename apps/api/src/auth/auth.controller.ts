@@ -21,6 +21,7 @@ import { AuthService } from "./auth.service";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CUSTOMER_SESSION_TTL_MS } from "./customer-session";
+import { CUSTOMER_COOKIE } from "./customer.guard";
 
 import { StaffLoginSchema } from "@material-square/types";
 
@@ -60,6 +61,17 @@ export class AuthController {
     private readonly prisma: PrismaService,
   ) {}
 
+  private setCustomerSessionCookie(res: Response, sessionToken: string) {
+    res.cookie(CUSTOMER_COOKIE, sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/api",
+      maxAge: CUSTOMER_SESSION_TTL_MS,
+    });
+    res.setHeader("Cache-Control", "no-store");
+  }
+
   @Post("customer/otp/verify-msg91")
   @HttpCode(HttpStatus.OK)
   async verifyCustomerOtp(
@@ -69,14 +81,7 @@ export class AuthController {
     const session = await this.authService.verifyCustomerMsg91AccessToken(
       validate(customerVerifySchema, body),
     );
-    res.cookie("ms_customer_session", session.sessionToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/api",
-      maxAge: CUSTOMER_SESSION_TTL_MS,
-    });
-    res.setHeader("Cache-Control", "no-store");
+    this.setCustomerSessionCookie(res, session.sessionToken);
     return session.customer;
   }
 

@@ -29,6 +29,7 @@ import {
 import CatalogueVariantsEditor, {
   type EditableVariant,
 } from "./CatalogueVariantsEditor";
+import { generateVariantCodes } from "./product-codes";
 import MaterialSquareLogo from "../../components/MaterialSquareLogo";
 import { confirmAdminAction } from "../../components/confirmAdminAction";
 import PartnerBrandsManager from "./PartnerBrandsManager";
@@ -77,6 +78,25 @@ type ProductDraft = {
   variants: Variant[];
 };
 const PRODUCT_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const productCodePrefix = (value: string) => value.replace(/[^a-z0-9]/gi, "").slice(0, 3).toLocaleUpperCase();
+function nextProductCode(brand: string, category: string, listings: Listing[]) {
+  const brandPrefix = productCodePrefix(brand);
+  const categoryPrefix = productCodePrefix(category);
+  if (!brandPrefix || !categoryPrefix) return "";
+  const prefix = `MS-${brandPrefix}-${categoryPrefix}-`;
+  const usedCodes = new Set(listings.map((listing) => listing.code?.toLocaleUpperCase()).filter(Boolean) as string[]);
+  const serials = [...usedCodes]
+    .map((code) => code.match(new RegExp(`^${prefix}(\\d+)$`))?.[1])
+    .filter(Boolean)
+    .map(Number);
+  let serial = Math.max(0, ...serials) + 1;
+  let code = `${prefix}${String(serial).padStart(2, "0")}`;
+  while (usedCodes.has(code)) {
+    serial += 1;
+    code = `${prefix}${String(serial).padStart(2, "0")}`;
+  }
+  return code;
+}
 const productDraftKey = (id: string) =>
   `material-square:catalogue-draft:${id || "new"}`;
 
@@ -205,11 +225,13 @@ export default function CatalogueManager({
   role,
   onSignOut,
   initialSearch = "",
+  customerUrl,
 }: {
   token: string;
   role: string;
   onSignOut: () => void;
   initialSearch?: string;
+  customerUrl?: string;
 }) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [editing, setEditing] = useState<Listing | null>(null);
@@ -247,15 +269,11 @@ export default function CatalogueManager({
 
   useEffect(() => {
     if (!editing) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     const frame = window.requestAnimationFrame(() => {
-      window.scrollTo({ top: 0, behavior: "instant" });
       productForm.current?.scrollTo({ top: 0, behavior: "instant" });
     });
     return () => {
       window.cancelAnimationFrame(frame);
-      document.body.style.overflow = previousOverflow;
     };
   }, [editing]);
 
@@ -860,6 +878,11 @@ export default function CatalogueManager({
         else control.value = String(value);
       }
     }
+    setEditing((current) => current ? {
+      ...current,
+      brand: String(recoveredDraft.values.brand || current.brand),
+      category: String(recoveredDraft.values.category || current.category),
+    } : current);
     setDraftSavedAt(recoveredDraft.savedAt);
     setNotice(
       "Recovered this product’s unsaved changes. They remain private until you save the product.",
@@ -976,6 +999,7 @@ export default function CatalogueManager({
     const code = String(values.get("code") || "").trim();
     const rawPrice = String(values.get("price") || "").trim();
     const rawCompare = String(values.get("compareAtPrice") || "").trim();
+    const variantCodes = generateVariantCodes(code, formProduct.variants || []);
     const payload = {
       slug: slugify(String(values.get("slug") || code || name)),
       code: code || null,
@@ -1011,7 +1035,7 @@ export default function CatalogueManager({
       variants: (formProduct.variants || []).map((variant, sortOrder) => ({
         ...variant,
         isInStock: variant.availabilityStatus === "IN_STOCK",
-        code: variant.code || null,
+        code: variantCodes[sortOrder] || null,
         price:
           variant.price == null || variant.price === ""
             ? null
@@ -1173,6 +1197,9 @@ export default function CatalogueManager({
     setDraftSavedAt(recovery?.savedAt ?? null);
   };
   const formProduct = editing;
+  const generatedProductCode = formProduct && !formProduct.id
+    ? nextProductCode(formProduct.brand, formProduct.category, listings)
+    : formProduct?.code || "";
 
   const openProductPreview = () => {
     if (productForm.current) {
@@ -1190,6 +1217,7 @@ export default function CatalogueManager({
         role={role}
         onSignOut={onSignOut}
         onBack={() => setManagingBrands(false)}
+        customerUrl={customerUrl}
       />
     );
 
@@ -1308,9 +1336,11 @@ export default function CatalogueManager({
                 Brand
                 <input
                   name="brand"
+                  required
                   list="catalogue-partner-brand-options"
                   maxLength={120}
-                  defaultValue={formProduct.brand}
+                  value={formProduct.brand}
+                  onChange={(event) => setEditing((current) => current ? { ...current, brand: event.target.value } : current)}
                 />
                 <datalist id="catalogue-partner-brand-options">
                   {[
@@ -1331,8 +1361,16 @@ export default function CatalogueManager({
                 <input
                   name="code"
                   maxLength={80}
-                  defaultValue={formProduct.code || ""}
+                  value={generatedProductCode}
+                  readOnly={!formProduct.id}
+                  onChange={(event) =>
+                    setEditing((current) =>
+                      current ? { ...current, code: event.target.value } : current,
+                    )
+                  }
+                  aria-describedby={!formProduct.id ? "catalogue-product-code-hint" : undefined}
                 />
+                {!formProduct.id && <small id="catalogue-product-code-hint">Automatic format: MS-[brand 3]-[category 3]-[sequence], e.g. MS-ULT-CEM-01.</small>}
               </label>
               <label>
                 URL slug
@@ -1349,7 +1387,8 @@ export default function CatalogueManager({
                   name="category"
                   required
                   maxLength={80}
-                  defaultValue={formProduct.category}
+                  value={formProduct.category}
+                  onChange={(event) => setEditing((current) => current ? { ...current, category: event.target.value } : current)}
                 />
               </label>
               <label>
@@ -1551,6 +1590,7 @@ export default function CatalogueManager({
                 type="hidden"
                 name="galleryImages"
                 value={lines(formProduct.galleryImages || [])}
+                readOnly
               />
               <div className="catalogue-gallery-url-options catalogue-wide">
                 <div className="catalogue-gallery-url-heading">
@@ -1726,6 +1766,7 @@ export default function CatalogueManager({
               </div>
               <CatalogueVariantsEditor
                 variants={formProduct.variants || []}
+                productCode={generatedProductCode}
                 onChange={(variants) => {
                   const next = { ...formProduct, variants };
                   setEditing(next);

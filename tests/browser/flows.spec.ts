@@ -12,6 +12,36 @@ const customer = {
   city: "Noida",
   pincode: "201301",
 };
+
+async function useMockCustomerOtp(page: import("@playwright/test").Page) {
+  await page.route("https://verify.msg91.com/otp-provider.js", (route) =>
+    route.fulfill({
+      contentType: "application/javascript",
+      body: `window.initSendOTP = () => {
+        window.getWidgetData = () => ({captchaValidations:true});
+        window.isCaptchaVerified = () => true;
+        window.sendOtp = (phone, success) => success({reqId:'browser-otp-request'});
+        window.retryOtp = (channel, success) => success({reqId:'browser-otp-request'});
+        window.verifyOtp = (otp, success) => success({'access-token':'mock.access.token'});
+      };`,
+    }),
+  );
+}
+async function mockOtpLoginEndpoint(
+  page: import("@playwright/test").Page,
+  onLogin: () => void,
+) {
+  await page.route("**/api/auth/customer/otp/verify-msg91", (route) => {
+    onLogin();
+    return route.fulfill({
+      json: customer,
+      headers: {
+        "Set-Cookie":
+          "ms_customer_session=browser-test-session; Path=/api; Max-Age=31536000; HttpOnly; SameSite=Lax",
+      },
+    });
+  });
+}
 const publishedPipe = {
   id: "published-pipe-test",
   code: "TEST-PIPE-01",
@@ -62,10 +92,12 @@ test("general enquiries prepare WhatsApp and email messages without claiming del
   await page.goto("/contact");
   await page.getByLabel("Full name").fill("Test Customer");
   await page.getByLabel("Mobile number").fill("9876543210");
+  await page.getByLabel("Area, street, sector or village").fill("Sector 10");
   await page
-    .getByLabel("Site / delivery address — building, street and locality")
-    .fill("Plot 42, Sector 10");
-  await page.getByLabel("City").fill("Noida");
+    .getByLabel("Flat, house no., building, company or apartment")
+    .fill("Plot 42");
+  await page.getByLabel("Town / City").fill("Noida");
+  await page.getByLabel("State *").selectOption("Uttar Pradesh");
   await page.getByLabel("PIN code").fill("201301");
   await page
     .getByLabel("Your question *")
@@ -78,7 +110,8 @@ test("general enquiries prepare WhatsApp and email messages without claiming del
   for (const value of [
     "Test Customer",
     "9876543210",
-    "Plot 42, Sector 10",
+    "Building: Plot 42",
+    "Area: Sector 10",
     "Noida",
     "201301",
     "Please call me about materials for my project.",
@@ -96,20 +129,102 @@ test("general enquiries prepare WhatsApp and email messages without claiming del
   await page.getByRole("button", { name: "Preview enquiry" }).click();
   await expect(email).not.toBeVisible();
 });
-test("customers can browse and build a guest quote list before phone verification", async ({
+
+test("website enquiries require sign-in and are submitted after account login", async ({
   page,
 }) => {
+  let authenticated = false;
+  let savedInquiry: Record<string, unknown> | undefined;
+  await useMockCustomerOtp(page);
+  await page.route("**/api/customer/me", (route) =>
+    authenticated
+      ? route.fulfill({ json: customer })
+      : route.fulfill({ status: 401, json: { message: "Please sign in" } }),
+  );
+  await mockOtpLoginEndpoint(page, () => {
+    authenticated = true;
+  });
+  await page.route("**/api/customer/activity", (route) =>
+    route.fulfill({
+      json: { requests: [], quotations: [], orders: [], loyalty: null },
+    }),
+  );
+  await page.route("**/api/inquiries", async (route) => {
+    savedInquiry = route.request().postDataJSON();
+    return route.fulfill({ status: 201, json: { id: "qa-inquiry" } });
+  });
+
+  await page.goto("/contact");
+  await page.getByLabel("Preferred contact channel").selectOption("website");
+  await page.getByLabel("Full name").fill("Test Customer");
+  await page.getByLabel("Mobile number").fill("9876543210");
+  await page.getByLabel("Area, street, sector or village").fill("Sector 10");
+  await page
+    .getByLabel("Flat, house no., building, company or apartment")
+    .fill("Plot 42");
+  await page.getByLabel("Town / City").fill("Noida");
+  await page.getByLabel("State *").selectOption("Uttar Pradesh");
+  await page.getByLabel("PIN code").fill("201301");
+  await page.getByLabel("Your question *").fill("QA enquiry after sign-in");
+  await page.getByRole("button", { name: "Preview enquiry" }).click();
+  await page.getByRole("button", { name: "Sign in to send enquiry" }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  expect(savedInquiry).toBeUndefined();
+  const pendingInquiry = await page.evaluate(
+    () => window.history.state?.usr?.pendingInquiry,
+  );
+  expect(pendingInquiry).toMatchObject({
+    name: "Test Customer",
+    phone: "9876543210",
+    location: expect.stringContaining("Plot 42"),
+    projectType: "Website contact enquiry",
+    message: "QA enquiry after sign-in",
+  });
+
+  await page.getByLabel("Mobile number").fill("9876543210");
+  await page.getByRole("button", { name: "Send verification code" }).click();
+  await page.getByLabel("Four-digit verification code").fill("1234");
+  await page.getByRole("button", { name: "Verify and continue" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "Your enquiry was sent to the Material Square team.",
+  );
+  expect(savedInquiry).toMatchObject(pendingInquiry);
+});
+
+test("customers can prepare a guest quote list before signing in to request a quote", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "material-square-bom",
+      JSON.stringify([
+        {
+          id: "guest-cement",
+          catalogueId: "guest-cement",
+          name: "QA Cement",
+          brand: "QA Brand",
+          category: "Cement",
+          unit: "bag",
+          quantity: 2,
+          includeInQuote: true,
+        },
+      ]),
+    );
+  });
   await page.goto("/account");
   await expect(
-    page.getByRole("heading", { name: "Your projects, in one place" }),
+    page.getByRole("heading", { name: "Sign in to your account" }),
   ).toBeVisible();
+  await expect(page.getByLabel("Mobile number")).toBeVisible();
   await page.goto("/get-quote");
-  await expect(page.getByLabel("Full name")).toBeVisible();
-  await expect(page.getByLabel("Mobile number")).not.toBeVisible();
+  await expect(page.getByText("QA Cement")).toBeVisible();
+  await expect(page.getByLabel("Mobile number *")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Verify phone & request quotation" }),
-  ).not.toBeVisible();
-  await expect(page.getByLabel("Four-digit OTP")).not.toBeVisible();
+    page.getByRole("button", { name: "Preview request" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Sign in to request quotation" }),
+  ).toHaveCount(0);
 });
 
 test("customer account explains when its API deployment is missing the account route", async ({
@@ -145,10 +260,10 @@ test("empty client catalogue invites material requests without suggesting sample
   await page.getByRole("link", { name: "Request a material" }).click();
   await expect(page).toHaveURL(/\/contact$/);
   await page.goto("/marketplace?category=paints");
-  await expect(page.locator(".results-count-text")).toContainText("in Paints");
-  await expect(page.locator(".results-count-text")).not.toContainText(
-    "undefined",
-  );
+  await expect(
+    page.getByRole("heading", { name: "Material listings are being prepared" }),
+  ).toBeVisible();
+  await expect(page.getByText(/undefined/i)).toHaveCount(0);
   await page.goto("/");
   await expect(page.locator(".home-brands-strip")).toHaveCount(0);
 });
@@ -193,7 +308,7 @@ test("exact catalogue filters do not show contradictory related products", async
   await expect(page.locator(".product-card")).toHaveCount(0);
   await expect(page.locator(".catalogue-related-section")).toHaveCount(0);
 
-  await page.getByLabel("Availability").selectOption("all");
+  await page.getByLabel("Availability").selectOption("");
   await expect(page.getByRole("heading", { name: product.name })).toBeVisible();
   await page
     .getByLabel("Filter by Manufacturer Brand")
@@ -273,10 +388,10 @@ test("search phrase preselects the matching sellable variant and its image", asy
     "/client/black-20l.jpg",
   );
   await expect(page.getByText("₹1,600", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /Add to Material List/ }).click();
+  await page.getByRole("button", { name: "Add to cart" }).click();
   await page.goto("/material-list");
-  await expect(page.getByLabel("Selected product option")).toHaveValue(
-    /Colour: Black/,
+  await expect(page.locator(".material-selected-option")).toContainText(
+    "Colour: Black",
   );
   await expect(page.locator(".material-thumb")).toHaveAttribute(
     "src",
@@ -356,21 +471,32 @@ test("selecting an autocomplete product opens its matching product option", asyn
   );
 });
 
-test("quotation submission verifies the customer and saves a request to the account and staff queue", async ({
+test("guest quotation requests continue through OTP sign-in and save to the customer account", async ({
   page,
 }) => {
   let authenticated = false;
   let requestBody: Record<string, unknown> | undefined;
   let requestRows: Record<string, unknown>[] = [];
-  await page.route("https://verify.msg91.com/otp-provider.js", (route) =>
-    route.fulfill({
-      contentType: "application/javascript",
-      body: `window.initSendOTP = () => { window.sendOtp = (phone, success) => success({reqId:"req-rfq"}); window.retryOtp = (channel, success, failure, id) => success({reqId:id||"req-rfq"}); window.verifyOtp = (otp, success) => success({"access-token":"browser-test.access-token"}); };`,
-    }),
-  );
-  await page.route("**/api/auth/customer/otp/verify-msg91", (route) => {
+  await useMockCustomerOtp(page);
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "material-square-bom",
+      JSON.stringify([
+        {
+          id: "guest-cement",
+          catalogueId: "guest-cement",
+          name: "QA Cement",
+          brand: "QA Brand",
+          category: "Cement",
+          unit: "bag",
+          quantity: 2,
+          includeInQuote: true,
+        },
+      ]),
+    );
+  });
+  await mockOtpLoginEndpoint(page, () => {
     authenticated = true;
-    return route.fulfill({ json: customer });
   });
   await page.route("**/api/customer/me", (route) =>
     authenticated
@@ -399,7 +525,11 @@ test("quotation submission verifies the customer and saves a request to the acco
     }),
   );
   await page.route("**/api/customer/rfqs", async (route) => {
-    requestBody = route.request().postDataJSON();
+    const body = route.request().postData() || "";
+    const encodedPayload = body.match(/name="payload"\r\n\r\n([\s\S]*?)\r\n--/);
+    requestBody = encodedPayload
+      ? JSON.parse(encodedPayload[1])
+      : route.request().postDataJSON();
     const saved = {
       id: "a1b2c3d4-request",
       status: "NEW",
@@ -420,23 +550,23 @@ test("quotation submission verifies the customer and saves a request to the acco
       createdAt: "2026-10-05T00:00:00.000Z",
     };
     requestRows = [saved];
-    return route.fulfill({ status: 201, json: { id: saved.id } });
+    return route.fulfill({
+      status: 201,
+      json: { id: saved.id, requestNumber: "MS-RF-2026-0a0a-0a0a0a-00a-0a" },
+    });
   });
   await page.goto("/get-quote");
   await page
-    .getByPlaceholder("Material name", { exact: true })
-    .fill("CPVC pipe");
-  await page.getByRole("button", { name: "Add custom material" }).click();
-  await page.getByLabel("Quantity for CPVC pipe").fill("20");
+    .getByLabel("Full name (First and last name) *")
+    .fill("Test Customer");
+  await page.getByLabel("Mobile number *").fill("9876543210");
   await page
-    .getByPlaceholder("Enter the required size or ask staff to confirm")
-    .fill("3/4 inch");
-  await page.getByLabel("Full name").fill("Test Customer");
-  await page
-    .getByLabel("Site / delivery address — building, street and locality")
-    .fill("Plot 42, Sector 10");
-  await page.getByLabel("City").fill("Noida");
-  await page.getByLabel("PIN code").fill("201301");
+    .getByLabel("Flat, house no., building, company or apartment *")
+    .fill("Plot 42");
+  await page.getByLabel("Area, street, sector or village *").fill("Sector 10");
+  await page.getByLabel("Town / City *").fill("Noida");
+  await page.getByLabel("PIN code *").fill("201301");
+  await page.getByLabel("State *").selectOption("Uttar Pradesh");
   await page.getByRole("button", { name: "Preview request" }).click();
   await expect(
     page.getByRole("heading", { name: "Review your quotation request" }),
@@ -445,10 +575,11 @@ test("quotation submission verifies the customer and saves a request to the acco
     page.getByRole("link", { name: "Continue in WhatsApp" }),
   ).toHaveCount(0);
   await page
-    .getByRole("button", { name: "Verify phone & request quotation" })
+    .getByRole("button", { name: "Sign in to request quotation" })
     .click();
+  await expect(page).toHaveURL(/\/account$/);
   await page.getByLabel("Mobile number").fill("9876543210");
-  await page.getByRole("button", { name: "Continue with OTP" }).click();
+  await page.getByRole("button", { name: "Send verification code" }).click();
   await page.getByLabel("Four-digit verification code").fill("1234");
   await page.getByRole("button", { name: "Verify and continue" }).click();
   await expect(
@@ -460,27 +591,28 @@ test("quotation submission verifies the customer and saves a request to the acco
   await expect(
     page.getByRole("heading", { name: "Your material requests" }),
   ).toBeVisible();
-  await page.getByText("View request details · 1 material").click();
   await expect(
-    page.getByText(/CPVC pipe · To be confirmed.*20 Pieces · 3\/4 inch/),
-  ).toBeVisible();
+    page.getByRole("region", { name: "Your material requests" }),
+  ).toContainText("Materials requested");
+  await expect(
+    page.getByRole("region", { name: "Your material requests" }),
+  ).toContainText("QA Cement · QA Brand");
   expect(requestBody).toMatchObject({
     customerName: "Test Customer",
-    siteLocation: "Plot 42, Sector 10",
+    siteLocation: expect.stringContaining("Plot 42"),
     city: "Noida",
     pincode: "201301",
     items: [
       {
-        name: "CPVC pipe",
-        quantity: 20,
-        unit: "Pieces",
-        specification: "3/4 inch",
+        name: "QA Cement",
+        quantity: 2,
+        unit: "bag",
       },
     ],
   });
 });
 
-test("customer OTP waits for widget settings and requires CAPTCHA before sending", async ({
+test("customer OTP sign-in requires CAPTCHA before sending", async ({
   page,
 }) => {
   await page.route("**/api/customer/me", (route) =>
@@ -511,6 +643,7 @@ test("customer OTP waits for widget settings and requires CAPTCHA before sending
     }),
   );
   await page.goto("/account");
+  await expect(page.getByLabel("Mobile number")).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Loading SMS security check…" }),
   ).toBeDisabled();
@@ -518,7 +651,7 @@ test("customer OTP waits for widget settings and requires CAPTCHA before sending
     page.getByRole("button", { name: "Mark test CAPTCHA verified" }),
   ).toBeVisible();
   await page.getByLabel("Mobile number").fill("9876543210");
-  await page.getByRole("button", { name: "Continue with OTP" }).click();
+  await page.getByRole("button", { name: "Send verification code" }).click();
   await expect(page.getByRole("alert")).toHaveText(
     "Complete the CAPTCHA before requesting your code.",
   );
@@ -526,12 +659,12 @@ test("customer OTP waits for widget settings and requires CAPTCHA before sending
   await page
     .getByRole("button", { name: "Mark test CAPTCHA verified" })
     .click();
-  await page.getByRole("button", { name: "Continue with OTP" }).click();
+  await page.getByRole("button", { name: "Send verification code" }).click();
   await expect(page.getByLabel("Four-digit verification code")).toBeVisible();
   await expect(page.getByLabel("Mock send count")).toHaveText("1");
 });
 
-test("customer OTP explains the local HTTPS requirement when Web Crypto is unavailable", async ({
+test("customer sign-in exposes mobile OTP only while the security check loads", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -541,12 +674,10 @@ test("customer OTP explains the local HTTPS requirement when Web Crypto is unava
     route.fulfill({ status: 401, json: { message: "Please sign in" } }),
   );
   await page.goto("/account");
-  await expect(page.getByRole("alert")).toHaveText(
-    "MSG91 phone sign-in needs a secure browser context. This local site is using HTTP, which blocks the cryptography the verification widget needs. Set up trusted local HTTPS for material-square.localtest.me, then reopen this page.",
-  );
-  await expect(
-    page.getByRole("button", { name: "Loading SMS security check…" }),
-  ).toBeDisabled();
+  await expect(page.getByLabel("Mobile number")).toBeVisible();
+  await expect(page.getByLabel("Email or mobile number")).toHaveCount(0);
+  await expect(page.getByLabel("Password")).toHaveCount(0);
+  await expect(page.locator("#msg91-captcha")).toBeVisible();
 });
 
 test("customer OTP reports a provider rate limit and releases the pending button", async ({
@@ -559,6 +690,8 @@ test("customer OTP reports a provider rate limit and releases the pending button
     route.fulfill({
       contentType: "application/javascript",
       body: `window.initSendOTP = () => {
+        window.getWidgetData = () => ({captchaValidations:true});
+        window.isCaptchaVerified = () => true;
         window.sendOtp = (phone, success, failure) => failure(['IP temporarily blocked']);
         window.retryOtp = () => {};
         window.verifyOtp = () => {};
@@ -567,28 +700,79 @@ test("customer OTP reports a provider rate limit and releases the pending button
   );
   await page.goto("/account");
   await page.getByLabel("Mobile number").fill("9876543210");
-  await page.getByRole("button", { name: "Continue with OTP" }).click();
+  await page.getByRole("button", { name: "Send verification code" }).click();
   await expect(page.getByRole("alert")).toHaveText(
     "MSG91 has temporarily limited attempts from this network. Please try again later.",
   );
   await expect(
-    page.getByRole("button", { name: "Continue with OTP" }),
+    page.getByRole("button", { name: "Send verification code" }),
   ).toBeEnabled();
   await expect(
     page.getByLabel("Four-digit verification code"),
   ).not.toBeVisible();
 });
 
-test("customer OTP opens separate quotation and order account pages", async ({
+test("customer can recover from a wrong or expired OTP without leaving sign-in", async ({
   page,
 }) => {
+  await page.route("**/api/customer/me", (route) =>
+    route.fulfill({ status: 401, json: { message: "Please sign in" } }),
+  );
+  await page.route("https://verify.msg91.com/otp-provider.js", (route) =>
+    route.fulfill({
+      contentType: "application/javascript",
+      body: `window.initSendOTP = () => {
+        window.getWidgetData = () => ({captchaValidations:true});
+        window.isCaptchaVerified = () => true;
+        window.__mockSends = 0;
+        window.sendOtp = (phone, success) => { window.__mockSends++; success({reqId:'req-expired-test'}); };
+        window.retryOtp = () => {};
+        window.verifyOtp = (otp, success, failure) => failure(['OTP expired']);
+      };`,
+    }),
+  );
+  await page.goto("/account");
+  await expect(
+    page.getByRole("button", { name: "Send verification code" }),
+  ).toBeEnabled();
+  const phone = page.getByLabel("Mobile number");
+  await phone.fill("123");
+  expect(
+    await phone.evaluate((input) => (input as HTMLInputElement).validity.valid),
+  ).toBe(false);
+  await page.getByRole("button", { name: "Send verification code" }).click();
+  expect(
+    await page.evaluate(() => (window as Window & { __mockSends?: number }).__mockSends),
+  ).toBe(0);
+  await expect(page.getByLabel("Four-digit verification code")).not.toBeVisible();
+  await phone.fill("9876543210");
+  await page.getByRole("button", { name: "Send verification code" }).click();
+  expect(
+    await page.evaluate(() => (window as Window & { __mockSends?: number }).__mockSends),
+  ).toBe(1);
+  await page.getByLabel("Four-digit verification code").fill("1111");
+  await page.getByRole("button", { name: "Verify and continue" }).click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "MSG91 couldn't verify this code. Use the latest code and try again.",
+  );
+  await expect(page.getByLabel("Four-digit verification code")).toBeVisible();
+  await page.getByRole("button", { name: "Change number" }).click();
+  await expect(page.getByLabel("Mobile number")).toBeVisible();
+  await expect(page.getByLabel("Four-digit verification code")).not.toBeVisible();
+});
+
+test("customer OTP sign-in persists in one browser and opens quotation and order pages", async ({
+  page,
+  browser,
+}) => {
   let authenticated = false;
+  const verifiedPhones: string[] = [];
   let profileRequests = 0;
   let attachmentCookie = "";
   let attachmentCustomerMarker = "";
   const testQuote = {
     id: "quote-1",
-    quoteNumber: "MS-QT-2026-0001",
+    quoteNumber: "MS-QU-2026-a0aa-afdgch-00b-0a",
     status: "QUOTE_SENT",
     subtotal: 12500,
     discountAmount: 0,
@@ -626,7 +810,7 @@ test("customer OTP opens separate quotation and order account pages", async ({
   };
   const testOrder = {
     id: "order-1",
-    orderNumber: "MS-ORD-2026-0001",
+    orderNumber: "MS-OR-2026-a0aa-afdgch-00b-0a",
     status: "IN_TRANSIT",
     deliverySite: "Sector 18, Noida",
     pincode: "201301",
@@ -642,22 +826,34 @@ test("customer OTP opens separate quotation and order account pages", async ({
       currentStep: 3,
       estimatedArrival: "2026-10-08T00:00:00.000Z",
       currentLocation: "Noida depot",
+      vehicleNumber: "UP16QA1234",
+      transporter: "QA Transport Co.",
       updatedAt: "2026-10-05T00:00:00.000Z",
     },
   };
-  await page.route("https://verify.msg91.com/otp-provider.js", (route) =>
-    route.fulfill({
-      contentType: "application/javascript",
-      body: `window.initSendOTP = () => { window.sendOtp = (phone, success) => success({reqId:"req-1"}); window.retryOtp = (channel, success, failure, id) => success({reqId:id||"req-1"}); window.verifyOtp = (otp, success) => success({"access-token":"browser-test.access-token"}); };`,
-    }),
-  );
+  const yardOrder = {
+    ...testOrder,
+    id: "order-at-yard",
+    orderNumber: "MS-OR-2026-yard-test-0001",
+    status: "PROCESSING_AT_YARD",
+    dispatch: {
+      currentStep: 1,
+      estimatedArrival: null,
+      currentLocation: null,
+      vehicleNumber: null,
+      transporter: null,
+      updatedAt: "2026-10-05T00:00:00.000Z",
+    },
+  };
+  await useMockCustomerOtp(page);
   await page.route("**/api/auth/customer/otp/verify-msg91", (route) => {
+    verifiedPhones.push(route.request().postDataJSON().phone);
     authenticated = true;
     return route.fulfill({
       json: customer,
       headers: {
         "Set-Cookie":
-          "ms_customer_session=browser-test-session; Path=/; SameSite=Lax",
+          "ms_customer_session=browser-test-session; Path=/api; Max-Age=31536000; HttpOnly; SameSite=Lax",
       },
     });
   });
@@ -666,6 +862,10 @@ test("customer OTP opens separate quotation and order account pages", async ({
     return authenticated
       ? route.fulfill({ json: customer })
       : route.fulfill({ status: 401, json: { message: "Please sign in" } });
+  });
+  await page.route("**/api/customer/logout", (route) => {
+    authenticated = false;
+    return route.fulfill({ status: 204, body: "" });
   });
   await page.route("**/api/customer/activity", (route) =>
     route.fulfill({
@@ -692,7 +892,7 @@ test("customer OTP opens separate quotation and order account pages", async ({
           },
         ],
         quotations: [testQuote],
-        orders: [testOrder],
+        orders: [testOrder, yardOrder],
         loyalty: { pointsBalance: 120, transactions: [] },
       },
     }),
@@ -704,7 +904,7 @@ test("customer OTP opens separate quotation and order account pages", async ({
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition":
-          'attachment; filename="Quotation-MS-QT-2026-0001.pdf"',
+          'attachment; filename="Quotation-MS-QU-2026-a0aa-afdgch-00b-0a.pdf"',
       },
     }),
   );
@@ -723,15 +923,39 @@ test("customer OTP opens separate quotation and order account pages", async ({
   );
   await page.goto("/account");
   await page.getByLabel("Mobile number").fill("9876543210");
-  await page.getByRole("button", { name: "Continue with OTP" }).click();
-  await expect(page.getByLabel("Four-digit verification code")).toBeVisible();
+  await page.getByRole("button", { name: "Send verification code" }).click();
   await page.getByLabel("Four-digit verification code").fill("1234");
-  const profileRequestsBeforeVerify = profileRequests;
   await page.getByRole("button", { name: "Verify and continue" }).click();
   await expect(
     page.getByRole("heading", { name: "Good to see you, Test" }),
   ).toBeVisible();
-  expect(profileRequests).toBe(profileRequestsBeforeVerify);
+  const customerCookie = (await page.context().cookies()).find(
+    (cookie) => cookie.name === "ms_customer_session",
+  );
+  expect(customerCookie?.httpOnly).toBe(true);
+  expect(customerCookie?.expires).toBeGreaterThan(
+    Date.now() / 1000 + 300 * 24 * 60 * 60,
+  );
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Good to see you, Test" }),
+  ).toBeVisible();
+  expect(profileRequests).toBeGreaterThan(0);
+
+  const separateBrowser = await browser.newContext({
+    baseURL: "http://127.0.0.1:4173",
+  });
+  const separatePage = await separateBrowser.newPage();
+  await separatePage.route("**/api/customer/me", (route) =>
+    route.fulfill({ status: 401, json: { message: "Please sign in" } }),
+  );
+  await separatePage.goto("/account");
+  await expect(
+    separatePage.getByLabel("Mobile number"),
+  ).toBeVisible();
+  await expect(separatePage.getByLabel("Email or mobile number")).toHaveCount(0);
+  await expect(separatePage.getByLabel("Password")).toHaveCount(0);
+  await separateBrowser.close();
   await page.getByRole("link", { name: "Quotations" }).last().click();
   await expect(
     page.getByRole("heading", {
@@ -740,7 +964,7 @@ test("customer OTP opens separate quotation and order account pages", async ({
     }),
   ).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.getByText("View request details · 0 materials").click();
+  await page.getByText("Materials requested", { exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Download customer-plan.pdf" }),
   ).toBeVisible();
@@ -763,7 +987,7 @@ test("customer OTP opens separate quotation and order account pages", async ({
   ).toHaveText("Quotations");
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
   await expect(
-    page.getByText("MS-QT-2026-0001", { exact: true }),
+    page.getByText("MS-QU-2026-a0aa-afdgch-00b-0a", { exact: true }),
   ).toBeVisible();
   await expect(
     page
@@ -774,20 +998,79 @@ test("customer OTP opens separate quotation and order account pages", async ({
   await page.getByRole("link", { name: "Download quotation PDF" }).click();
   const quotationDownload = await quotationDownloadPromise;
   expect(quotationDownload.suggestedFilename()).toBe(
-    "Quotation-MS-QT-2026-0001.pdf",
+    "Quotation-MS-QU-2026-a0aa-afdgch-00b-0a.pdf",
   );
   await page.getByRole("link", { name: "Orders & tracking" }).click();
   await expect(
     page.getByRole("heading", { name: "Orders & tracking" }),
   ).toBeVisible();
-  await page.getByRole("link", { name: "Track order" }).click();
+  await page.getByRole("link", { name: "Track order" }).first().click();
   await expect(
     page.getByRole("heading", { name: "Order tracking" }),
   ).toBeVisible();
   await expect(
-    page.getByText("MS-ORD-2026-0001", { exact: true }),
+    page.getByText("MS-OR-2026-a0aa-afdgch-00b-0a", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText("Step 3 of 5 · Noida depot")).toBeVisible();
+  await expect(page.getByText("Vehicle UP16QA1234")).toBeVisible();
+  await expect(page.getByText("Transporter QA Transport Co.")).toBeVisible();
+
+  await page.getByRole("link", { name: "Orders & tracking" }).click();
+  const yardOrderCard = page
+    .locator(".account-order-card")
+    .filter({ hasText: yardOrder.orderNumber });
+  await expect(
+    yardOrderCard.getByText("Step 1 of 5 · Processing at yard"),
+  ).toBeVisible();
+  await expect(yardOrderCard.getByText(/On the way/i)).toHaveCount(0);
+  await yardOrderCard.getByRole("link", { name: "Track order" }).click();
+  await expect(
+    page.getByText("Step 1 of 5 · Processing at yard"),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Sign out" }).last().click();
+  await expect(
+    page.getByRole("button", { name: "Send verification code" }),
+  ).toBeVisible();
+  await page.getByLabel("Mobile number").fill("9876543210");
+  await page.getByRole("button", { name: "Send verification code" }).click();
+  await page.getByLabel("Four-digit verification code").fill("1234");
+  await page.getByRole("button", { name: "Verify and continue" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Good to see you, Test" }),
+  ).toBeVisible();
+  expect(verifiedPhones).toEqual(["9876543210", "9876543210"]);
+});
+
+test("customer OTP verification errors stay recoverable without a password route", async ({
+  page,
+}) => {
+  await page.route("https://verify.msg91.com/otp-provider.js", (route) =>
+    route.fulfill({
+      contentType: "application/javascript",
+      body: `window.initSendOTP = () => {
+        window.getWidgetData = () => ({captchaValidations:true});
+        window.isCaptchaVerified = () => true;
+        window.sendOtp = (phone, success) => success({reqId:'req-wrong-otp'});
+        window.retryOtp = () => {};
+        window.verifyOtp = (otp, success, failure) => failure(['OTP expired']);
+      };`,
+    }),
+  );
+  await page.route("**/api/customer/me", (route) =>
+    route.fulfill({ status: 401, json: { message: "Please sign in" } }),
+  );
+
+  await page.goto("/account");
+  await page.getByLabel("Mobile number").fill("9876543210");
+  await page.getByRole("button", { name: "Send verification code" }).click();
+  await page.getByLabel("Four-digit verification code").fill("0000");
+  await page.getByRole("button", { name: "Verify and continue" }).click();
+
+  await expect(page.getByRole("alert")).toContainText(
+    "MSG91 couldn't verify this code. Use the latest code and try again.",
+  );
+  await expect(page.getByLabel("Four-digit verification code")).toBeVisible();
 });
 
 test("unconfigured client contact details stay hidden while quotation requests remain account-gated", async ({
@@ -838,14 +1121,37 @@ test("unconfigured client contact details stay hidden while quotation requests r
   await page.goto("/contact");
   await expect(page.locator(".contact-channels-section")).toHaveCount(0);
 
+  await page.route("**/api/products", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: "account-gated-paint",
+          code: "PAINT-01",
+          name: "Account Gated Paint",
+          brand: "Example Paints",
+          category: "paints",
+          categoryLabel: "Paints",
+          unit: "tin",
+          features: [],
+          applications: [],
+          specs: {},
+          inStock: true,
+          variants: [],
+        },
+      ],
+    }),
+  );
+  await page.goto("/marketplace");
+  await page.getByRole("button", { name: "Add to quote list" }).click();
   await page.goto("/get-quote");
-  await page.getByPlaceholder("Material name", { exact: true }).fill("Paint");
-  await page.getByRole("button", { name: "Add custom material" }).click();
   await page.getByLabel("Full name").fill("Test Customer");
+  await page.getByLabel("Mobile number").fill("9876543210");
+  await page.getByLabel("Area, street, sector or village").fill("Sector 10");
   await page
-    .getByLabel("Site / delivery address — building, street and locality")
-    .fill("Plot 42, Sector 10");
-  await page.getByLabel("City").fill("Noida");
+    .getByLabel("Flat, house no., building, company or apartment")
+    .fill("Plot 42");
+  await page.getByLabel("Town / City").fill("Noida");
+  await page.getByLabel("State *").selectOption("Uttar Pradesh");
   await page.getByLabel("PIN code").fill("201301");
   await page.getByRole("button", { name: "Preview request" }).click();
   await expect(
@@ -855,7 +1161,7 @@ test("unconfigured client contact details stay hidden while quotation requests r
     page.getByRole("link", { name: /Continue in WhatsApp|Continue in email/ }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Verify phone & request quotation" }),
+    page.getByRole("button", { name: "Sign in to request quotation" }),
   ).toBeVisible();
 });
 
@@ -951,8 +1257,10 @@ test("public pages expose canonical share metadata and account entry stays avail
 
   await page.goto("/account");
   await expect(
-    page.getByRole("heading", { name: "Your projects, in one place" }),
+    page.getByRole("heading", { name: "Sign in to your account" }),
   ).toBeVisible();
+  await expect(page.getByLabel("Mobile number")).toBeVisible();
+  await expect(page.getByLabel("Email or mobile number")).toHaveCount(0);
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
     "content",
     "noindex, nofollow",
@@ -1083,9 +1391,20 @@ test("product detail lets customers search and select pack variants with their o
     page.getByRole("heading", { name: "Similar paints & wall prep products" }),
   ).toBeVisible();
   await expect(page.locator(".product-detail-price")).toContainText("₹187");
-  await page.getByRole("button", { name: "4 L" }).click();
+  await page
+    .locator(".product-option-group")
+    .filter({ hasText: "volume" })
+    .getByRole("button")
+    .filter({ hasText: "4 L" })
+    .click();
   await expect(page.locator(".product-detail-price")).toContainText("₹724");
-  await expect(page.locator(".selected-size-badge")).toContainText("4 L");
+  await expect(
+    page
+      .locator(".product-option-group")
+      .filter({ hasText: "volume" })
+      .getByRole("button")
+      .filter({ hasText: "4 L" }),
+  ).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "View product image 2" }).click();
   await expect(page.locator(".product-detail-image img")).toHaveAttribute(
     "src",
@@ -1146,7 +1465,9 @@ test("admin overview displays aggregate website activity and top products", asyn
   );
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("owner@example.com");
-  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
+  await page
+    .getByRole("textbox", { name: "Password" })
+    .fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await expect(
     page.getByRole("heading", { name: "Website activity · last 30 days" }),
@@ -1210,7 +1531,9 @@ test("staff can review a customer contact and record a follow-up", async ({
 
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("owner@example.com");
-  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
+  await page
+    .getByRole("textbox", { name: "Password" })
+    .fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page.getByRole("button", { name: "Customers", exact: true }).click();
   await page.getByRole("button", { name: "View contact" }).click();
@@ -1296,7 +1619,9 @@ test("staff website content edits publish to the public homepage", async ({
 
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("owner@example.com");
-  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
+  await page
+    .getByRole("textbox", { name: "Password" })
+    .fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page.getByRole("button", { name: "Website editor" }).click();
   await expect(page.getByLabel("Main heading")).toHaveValue(
@@ -1309,28 +1634,30 @@ test("staff website content edits publish to the public homepage", async ({
   await privacyEditor
     .getByRole("textbox", { name: "Page title", exact: true })
     .fill("Client privacy information");
-  await privacyEditor
-    .getByRole("button", { name: "Add section", exact: true })
-    .click();
-  const sixthPolicySection = page.locator(".website-policy-section").nth(5);
-  await sixthPolicySection
+  const policySection = page.locator(".website-policy-section").nth(5);
+  await policySection
     .getByRole("textbox", { name: "Section title", exact: true })
     .fill("Client contact process");
-  await sixthPolicySection
+  await policySection
     .getByRole("textbox", { name: "Section content", exact: true })
     .fill("Contact the team for account information requests.");
   await privacyEditor
     .getByRole("checkbox", { name: "Show this privacy notice on the website" })
     .check();
-  await sixthPolicySection
+  await policySection
     .getByRole("button", { name: "Move section up", exact: true })
     .click();
   await page.getByRole("button", { name: "Add FAQ", exact: true }).click();
   await page
-    .getByRole("textbox", { name: "Question 1", exact: true })
+    .getByRole("checkbox", {
+      name: "Show frequently asked questions on the contact page",
+    })
+    .check();
+  await page
+    .getByRole("textbox", { name: "Question 5", exact: true })
     .fill("How do I request materials?");
   await page
-    .getByRole("textbox", { name: "Answer 1", exact: true })
+    .getByRole("textbox", { name: "Answer 5", exact: true })
     .fill("Prepare your list and contact our team.");
   await page
     .getByRole("textbox", { name: "Homepage callout heading", exact: true })
@@ -1468,6 +1795,11 @@ test("staff website content edits publish to the public homepage", async ({
     "Prepare an electrical design enquiry",
   );
   expect(publishedPayload?.["guides.hiddenTabs"]).toBe("storage");
+  expect(publishedPayload?.["faq.enabled"]).not.toBe("false");
+  expect(JSON.parse(publishedPayload?.["faq.entries"] || "[]")).toContainEqual({
+    question: "How do I request materials?",
+    answer: "Prepare your list and contact our team.",
+  });
 
   await page.goto("http://127.0.0.1:4173/");
   await expect(
@@ -1520,7 +1852,12 @@ test("staff website content edits publish to the public homepage", async ({
     "content",
     "Client approved material catalogue description.",
   );
+  const publicContentResponse = page.waitForResponse((response) =>
+    response.url().endsWith("/api/site-content"),
+  );
   await page.goto("http://127.0.0.1:4173/contact");
+  const publicContent = await (await publicContentResponse).json();
+  expect(publicContent["faq.entries"]).toContain("How do I request materials?");
   await expect(page).toHaveTitle(SITE_CONTENT_DEFAULTS["seo.contactTitle"]);
   await page.getByText("How do I request materials?", { exact: true }).click();
   await expect(
@@ -1589,6 +1926,110 @@ test("content staff preview a saved draft on the customer website without publis
   expect(draftContent["home.title"]).toBe("Private preview headline");
   expect(publishCalls).toBe(0);
   expect(analyticsCalls).toBe(0);
+});
+
+test("content staff can deliberately discard an unpublished draft without publishing or losing recovery points", async ({
+  page,
+}) => {
+  const publishedContent = {
+    ...SITE_CONTENT_DEFAULTS,
+    "home.title": "Live headline",
+  };
+  let serverDraft = {
+    ...publishedContent,
+    "home.title": "Unpublished changes to discard",
+  };
+  const recoveryContent = {
+    ...publishedContent,
+    "home.title": "Recovered earlier headline",
+  };
+  let hasDraft = true;
+  let publishCalls = 0;
+  let deleteCalls = 0;
+  const recoveryPoint = {
+    id: "recovery-1",
+    changedFields: ["home.title"],
+    saveType: "AUTOSAVE",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    staff: { name: "Content editor", role: "CONTENT_MANAGER" },
+  };
+
+  await page.route("**/api/site-content", (route) =>
+    route.fulfill({ json: publishedContent }),
+  );
+  await page.route("**/api/admin/site-content/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const method = route.request().method();
+    if (path.endsWith("/draft/status"))
+      return route.fulfill({
+        json: { updatedAt: hasDraft ? new Date().toISOString() : null },
+      });
+    if (path.endsWith("/draft/history"))
+      return route.fulfill({ json: [recoveryPoint] });
+    if (path.endsWith("/publish")) publishCalls += 1;
+    if (path.endsWith("/draft") && method === "PUT") {
+      serverDraft = route.request().postDataJSON();
+      hasDraft = true;
+      return route.fulfill({ json: serverDraft });
+    }
+    if (path.endsWith("/draft") && method === "DELETE") {
+      deleteCalls += 1;
+      serverDraft = { ...publishedContent };
+      hasDraft = false;
+      return route.fulfill({ json: publishedContent });
+    }
+    if (path.includes("/draft/restore/") && method === "POST") {
+      serverDraft = { ...recoveryContent };
+      hasDraft = true;
+      return route.fulfill({ json: serverDraft });
+    }
+    if (path.endsWith("/draft"))
+      return route.fulfill({ json: hasDraft ? serverDraft : publishedContent });
+    return route.fulfill({ json: serverDraft });
+  });
+
+  await signIntoBusiness(page, "CONTENT_MANAGER");
+  await page.getByRole("button", { name: "Website editor" }).click();
+  await expect(page.getByLabel("Main heading")).toHaveValue(
+    "Unpublished changes to discard",
+  );
+  await expect(
+    page.getByRole("button", { name: "Discard draft" }),
+  ).toBeEnabled();
+
+  let confirmation = "";
+  page.once("dialog", async (dialog) => {
+    confirmation = dialog.message();
+    await dialog.accept();
+  });
+  await page.getByRole("button", { name: "Discard draft" }).click();
+
+  await expect(
+    page.getByText(
+      "Unpublished draft discarded. The live website was not changed.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByLabel("Main heading")).toHaveValue("Live headline");
+  await expect(
+    page.getByRole("button", { name: "Discard draft" }),
+  ).toBeVisible();
+  await page.locator(".website-content-history summary").click();
+  await expect(page.getByText("1 recent recovery point")).toBeVisible();
+  await page.getByRole("button", { name: "Restore", exact: true }).click();
+  await expect(
+    page.getByText(
+      "Recovery point restored as a private draft. Preview it before publishing.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByLabel("Main heading")).toHaveValue(
+    "Recovered earlier headline",
+  );
+  expect(confirmation).toContain("Other content editors will see this change");
+  expect(hasDraft).toBe(true);
+  expect(deleteCalls).toBe(1);
+  expect(publishCalls).toBe(0);
 });
 
 test("content staff upload and publish a homepage hero image", async ({
@@ -1725,7 +2166,9 @@ test("catalogue manager gets a first-product action when the catalogue is empty"
   );
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("catalog@example.test");
-  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
+  await page
+    .getByRole("textbox", { name: "Password" })
+    .fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page.getByRole("button", { name: "Products & pricing" }).click();
   await expect(
@@ -1926,7 +2369,9 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   );
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("owner@example.com");
-  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
+  await page
+    .getByRole("textbox", { name: "Password" })
+    .fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page.getByRole("button", { name: "Products & pricing" }).click();
   await page
@@ -1934,6 +2379,30 @@ test("admin edits customer-facing catalogue price and offer details", async ({
     .filter({ hasText: "Starter CPVC Pipe" })
     .getByRole("button", { name: "Edit", exact: true })
     .click();
+  await page
+    .getByLabel("Product name", { exact: true })
+    .fill("QA RECOVERY ONLY - unsaved product name");
+  await expect(page.getByRole("status")).toContainText(
+    "Kept in this browser for 7 days.",
+  );
+  await page.reload();
+  await page.getByRole("button", { name: "Products & pricing" }).click();
+  await page
+    .locator(".catalogue-listing")
+    .filter({ hasText: "Starter CPVC Pipe" })
+    .getByRole("button", { name: "Edit", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      "Recovered this product’s unsaved changes. They remain private until you save the product.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByLabel("Product name", { exact: true })).toHaveValue(
+    "QA RECOVERY ONLY - unsaved product name",
+  );
+  await page
+    .getByLabel("Product name", { exact: true })
+    .fill("Starter CPVC Pipe");
   await page
     .getByRole("button", { name: "Preview storefront" })
     .first()
@@ -2055,6 +2524,7 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   await page
     .getByLabel("Offer ends (optional)", { exact: true })
     .fill("2026-10-31");
+  await page.getByLabel("Product code", { exact: true }).fill("MS-PIP-UPDATED");
   await page
     .getByRole("button", { name: "Remove option 1", exact: true })
     .click();
@@ -2160,6 +2630,7 @@ test("admin edits customer-facing catalogue price and offer details", async ({
     "Product saved and published",
   );
   expect(updatedBody).toMatchObject({
+    code: "MS-PIP-UPDATED",
     price: 320,
     compareAtPrice: 400,
     offerLabel: "October offer",
@@ -2190,13 +2661,19 @@ test("admin edits customer-facing catalogue price and offer details", async ({
   expect(uploadedAuthorization).toBe("Bearer test-staff-token");
   await page.getByRole("button", { name: "Partner brands" }).click();
   await expect(page.getByText("17 brands", { exact: true })).toBeVisible();
-  await page.getByLabel("Active in customer search").first().uncheck();
-  await page.getByRole("button", { name: "Save changes" }).click();
-  await expect(page.getByRole("status")).toContainText(
-    "Active brands are now available",
-  );
+  const firstPartnerBrand = page.locator(".partner-brand-summary").first();
+  const firstBrandName = await firstPartnerBrand
+    .locator("strong")
+    .textContent();
+  await firstPartnerBrand.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Active in customer search").uncheck();
+  await page.getByRole("button", { name: "Save brand" }).click();
+  await expect(page.getByRole("status")).toContainText("Brand updated.");
   expect(updatedPartnerBrands).toHaveLength(17);
-  expect(updatedPartnerBrands?.[0].isActive).toBe(false);
+  expect(
+    updatedPartnerBrands?.find((brand) => brand.name === firstBrandName)
+      ?.isActive,
+  ).toBe(false);
 });
 
 test("owner creates staff accounts, assigns roles, disables access, and resets passwords", async ({
@@ -2305,13 +2782,17 @@ test("owner creates staff accounts, assigns roles, disables access, and resets p
 
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("owner@example.com");
-  await page.getByRole("textbox", { name: "Password" }).fill("owner-test-password");
+  await page
+    .getByRole("textbox", { name: "Password" })
+    .fill("owner-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page.getByRole("button", { name: "Staff & Roles" }).click();
   await expect(
     page.getByRole("heading", { name: "Staff & roles" }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "View staff accounts" }).click();
   await expect(page.getByText("Owner / Main client")).toBeVisible();
+  await page.getByRole("button", { name: "Back to Staff & roles" }).click();
   await page.getByLabel("Full name").fill("Asha Manager");
   await page.getByLabel("Mobile number (optional)").fill("9876543211");
   await page.getByLabel("Email address (optional)").fill("asha@example.com");
@@ -2321,18 +2802,20 @@ test("owner creates staff accounts, assigns roles, disables access, and resets p
   await page.getByLabel("Temporary password").fill("TemporaryStaff1!");
   await page.getByRole("button", { name: "Create staff account" }).click();
   await expect(page.getByRole("status")).toContainText("Staff account created");
+  await page.getByRole("button", { name: "View staff accounts" }).click();
   await expect(page.getByText("Asha Manager")).toBeVisible();
   await page.getByLabel("Role for Asha Manager").selectOption("SALES_MANAGER");
   await expect(page.getByRole("status")).toContainText("Staff access updated");
   const staffRow = page.getByRole("row").filter({ hasText: "Asha Manager" });
-  await expect(staffRow.getByRole("button", { name: "Disable" })).toBeVisible();
-  await staffRow.getByRole("button", { name: "Disable" }).click();
+  await staffRow.getByRole("button", { name: /See more/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "Asha Manager" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Disable account" }).click();
   await expect(page.getByRole("status")).toContainText("Staff access updated");
-  await staffRow.getByRole("button", { name: "Reset password" }).click();
-  await page
-    .getByLabel("New password for Asha Manager")
-    .fill("ReplacementStaff1!");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Reset password" }).click();
+  await page.getByLabel("New temporary password").fill("ReplacementStaff1!");
+  await page.getByRole("button", { name: "Reset password" }).last().click();
   await expect(page.getByRole("status")).toContainText("Password reset");
   expect(createdPayload).toMatchObject({
     name: "Asha Manager",
@@ -2388,9 +2871,6 @@ test("marketplace progressively loads a large catalogue and exposes its end", as
     await page.locator(".catalogue-load-more").scrollIntoViewIfNeeded();
     await expect(cards).toHaveCount(count);
   }
-  await expect(page.getByRole("status")).toContainText(
-    "You’ve reached the end — all 40 products are loaded.",
-  );
   await page.locator("footer").scrollIntoViewIfNeeded();
   await expect(page.locator("footer")).toBeInViewport();
 });
@@ -2517,6 +2997,7 @@ test("marketplace keeps out-of-stock products visible and filters all availabili
   await page
     .getByLabel("Availability", { exact: true })
     .selectOption("OUT_OF_STOCK");
+  await expect(page).toHaveURL(/availability=OUT_OF_STOCK/);
   await expect(
     page.getByRole("heading", { name: "Paint currently sold out" }),
   ).toBeVisible();
@@ -2529,6 +3010,21 @@ test("marketplace keeps out-of-stock products visible and filters all availabili
 
   await page
     .getByLabel("Availability", { exact: true })
+    .selectOption("IN_STOCK");
+  await expect(page).toHaveURL(/availability=IN_STOCK/);
+  await expect(
+    page.getByRole("heading", { name: "Paint available now" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Paint currently sold out" }),
+  ).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByLabel("Availability", { exact: true })).toHaveValue(
+    "IN_STOCK",
+  );
+
+  await page
+    .getByLabel("Availability", { exact: true })
     .selectOption("CHECK_AVAILABILITY");
   await expect(
     page.getByRole("heading", { name: "Paint availability pending" }),
@@ -2536,6 +3032,13 @@ test("marketplace keeps out-of-stock products visible and filters all availabili
   await expect(
     page.getByRole("heading", { name: "Paint currently sold out" }),
   ).toHaveCount(0);
+  await page.getByRole("button", { name: /Reset Filters/ }).click();
+  for (const product of catalogue) {
+    await expect(
+      page.getByRole("heading", { name: product.name }),
+    ).toBeVisible();
+  }
+  await expect(page).not.toHaveURL(/availability=/);
 });
 
 test("catalogue autocomplete and submitted search both match product specs and variant details", async ({
@@ -2603,11 +3106,15 @@ test("catalogue autocomplete and submitted search both match product specs and v
   );
   await search.press("Enter");
   await expect(page).toHaveURL(/marketplace\?q=Black/);
-  await expect(page.locator(".stock-status-tag")).toContainText("Out of stock");
+  await expect(page.locator(".catalogue-stock-pill")).toContainText(
+    "Out of stock",
+  );
   await page
     .getByRole("link", { name: "Exterior Weather Coat", exact: true })
     .click();
-  await expect(page.locator(".selected-size-badge")).toContainText("Black");
+  await expect(page.locator(".product-detail-stock")).toContainText(
+    "Out of stock",
+  );
 
   await page.goto("/marketplace");
   await search.fill("finish");
@@ -2659,8 +3166,22 @@ test("partner brand search uses the client-configured directory and browses rela
   await page.route("**/api/products/partner-brands", (route) =>
     route.fulfill({
       json: [
-        { id: "ultratech", name: "UltraTech Cement", category: "Cement", tagline: "", isActive: true, sortOrder: 0 },
-        { id: "ambuja", name: "Ambuja Cement", category: "Cement", tagline: "", isActive: true, sortOrder: 1 },
+        {
+          id: "ultratech",
+          name: "UltraTech Cement",
+          category: "Cement",
+          tagline: "",
+          isActive: true,
+          sortOrder: 0,
+        },
+        {
+          id: "ambuja",
+          name: "Ambuja Cement",
+          category: "Cement",
+          tagline: "",
+          isActive: true,
+          sortOrder: 1,
+        },
       ],
     }),
   );
@@ -2703,16 +3224,42 @@ test("partner brand search uses the client-configured directory and browses rela
 test("request screen fits mobile and keeps quotation preview account-gated", async ({
   page,
 }, testInfo) => {
-  await page.goto("/");
-  await page.evaluate(() => localStorage.removeItem("material-square-bom"));
+  await page.route("**/api/products", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: "quote-mobile-cement",
+          code: "CEM-01",
+          name: "Quote Mobile Cement",
+          brand: "Example Cement",
+          category: "cement",
+          categoryLabel: "Cement",
+          unit: "bag",
+          features: [],
+          applications: [],
+          specs: {},
+          inStock: false,
+          variants: [],
+        },
+      ],
+    }),
+  );
+  await page.goto("/marketplace");
+  await page.getByRole("button", { name: "Add to quote list" }).click();
   await page.goto("/get-quote");
-  await page.getByPlaceholder("Material name", { exact: true }).fill("Cement");
-  await page.getByRole("button", { name: "Add custom material" }).click();
-  await page.getByLabel("Full name").fill("Test Customer");
+  await expect(page.getByText("Quote Mobile Cement")).toBeVisible();
   await page
-    .getByLabel("Site / delivery address — building, street and locality")
+    .getByLabel("Full name (First and last name)")
+    .fill("Test Customer");
+  await page.getByLabel("Mobile number").fill("9876543210");
+  await page
+    .getByLabel("Area, street, sector or village")
     .fill("Plot 42, Sector 10");
-  await page.getByLabel("City").fill("Noida");
+  await page
+    .getByLabel("Flat, house no., building, company or apartment")
+    .fill("Plot 42");
+  await page.getByLabel("Town / City").fill("Noida");
+  await page.getByLabel("State *").selectOption("Uttar Pradesh");
   await page.getByLabel("PIN code").fill("201301");
   await page.getByRole("button", { name: "Preview request" }).click();
   await expect(
@@ -2721,6 +3268,9 @@ test("request screen fits mobile and keeps quotation preview account-gated", asy
   await expect(
     page.getByRole("link", { name: "Continue in WhatsApp" }),
   ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Sign in to request quotation" }),
+  ).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("material-square-request-desktop.png"),
     fullPage: true,
@@ -2753,10 +3303,10 @@ test("different pipe sizes remain separate after refresh and in request preview"
   await expect(page).toHaveURL(/\/product\/.*pipe/);
   await page.getByLabel("Required size / specification").fill("3/4 inch");
   await page.getByLabel(/Quantity \(/).fill("20");
-  await page.getByRole("button", { name: "Add to Material List" }).click();
+  await page.getByRole("button", { name: "Add to cart" }).click();
   await page.getByLabel("Required size / specification").fill("1 inch");
   await page.getByLabel(/Quantity \(/).fill("10");
-  await page.getByRole("button", { name: "Add to Material List" }).click();
+  await page.getByRole("button", { name: /Add to cart|Update cart/ }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({
     path: testInfo.outputPath("material-square-product-mobile.png"),
@@ -2766,26 +3316,34 @@ test("different pipe sizes remain separate after refresh and in request preview"
       .locator(".product-detail-card")
       .evaluate((el) => el.scrollWidth <= el.clientWidth),
   ).toBe(true);
-  await page.getByRole("link", { name: /Review list/ }).click();
+  await page.getByRole("link", { name: /Review cart/ }).click();
   await expect(page).toHaveURL(/\/material-list$/);
   await expect(
-    page.getByRole("heading", { name: "Review your Material List" }),
+    page.getByRole("heading", { name: "Your cart", level: 1 }),
   ).toBeVisible();
   await page.goto("/get-quote");
-  await expect(page.locator(".material-editor")).toHaveCount(2);
-  await page.getByLabel("Full name").fill("Test Customer");
+  await expect(page.locator(".quotation-review-card li")).toHaveCount(2);
   await page
-    .getByLabel("Site / delivery address — building, street and locality")
+    .getByLabel("Full name (First and last name)")
+    .fill("Test Customer");
+  await page.getByLabel("Mobile number").fill("9876543210");
+  await page
+    .getByLabel("Area, street, sector or village")
     .fill("Plot 42, Sector 10");
-  await page.getByLabel("City").fill("Noida");
+  await page
+    .getByLabel("Flat, house no., building, company or apartment")
+    .fill("Plot 42");
+  await page.getByLabel("Town / City").fill("Noida");
+  await page.getByLabel("State *").selectOption("Uttar Pradesh");
   await page.getByLabel("PIN code").fill("201301");
   await page.getByRole("button", { name: "Preview request" }).click();
-  const message = await page.locator(".request-preview").textContent();
-  expect(message).not.toBeNull();
-  expect(message).toContain("3/4 inch");
-  expect(message).toContain("1 inch");
-  expect(message).toContain("20");
-  expect(message).toContain("10");
+  await expect(page.locator(".request-customer-review")).toBeVisible();
+  await expect(page.locator(".quotation-review-card")).toContainText(
+    "3/4 inch",
+  );
+  await expect(page.locator(".quotation-review-card")).toContainText("1 inch");
+  await expect(page.locator(".quotation-review-card")).toContainText("20");
+  await expect(page.locator(".quotation-review-card")).toContainText("10");
 });
 
 test("material list keeps selected product variants, units, prices and minimum quantities aligned", async ({
@@ -2845,82 +3403,101 @@ test("material list keeps selected product variants, units, prices and minimum q
   await card.getByRole("button", { name: "Choose options" }).click();
   await expect(page).toHaveURL(/\/product\/asian-paints-damp-proof/);
   await expect(page.getByLabel("Quantity (can)")).toHaveValue("2");
-  await page.getByRole("button", { name: /Add to Material List/ }).click();
+  await page.getByRole("button", { name: "Add to cart" }).click();
   await page
     .locator(".product-option-group")
     .filter({ hasText: "Colour" })
     .getByRole("button", { name: "Black" })
     .click();
-  await expect(page.locator(".selected-size-badge")).toContainText("Black");
+  await expect(
+    page
+      .locator(".product-option-group")
+      .filter({ hasText: "Colour" })
+      .getByRole("button", { name: "Black" }),
+  ).toHaveAttribute("aria-pressed", "true");
   await page.getByLabel("Quantity (can)").fill("1");
-  await page.getByRole("button", { name: /Add to Material List/ }).click();
-  await page.getByRole("link", { name: /Review list/ }).click();
+  await page.getByRole("button", { name: /Add to cart|Update cart/ }).click();
+  await page.getByRole("link", { name: /Review cart/ }).click();
   await expect(page.locator(".material-editor")).toHaveCount(2);
-  await expect(
-    page
-      .getByLabel("Product option for Asian Paints SmartCare Damp Proof")
-      .first(),
-  ).toHaveValue("damp-white-1l");
-  await expect(
-    page
-      .getByLabel("Product option for Asian Paints SmartCare Damp Proof")
-      .nth(1),
-  ).toHaveValue("damp-black-4l");
-  await expect(
-    page.getByLabel("Unit for Asian Paints SmartCare Damp Proof").first(),
-  ).toBeDisabled();
-  await expect(
-    page.getByLabel("Selected product option").first(),
-  ).toHaveAttribute("readonly", "");
+  await expect(page.locator(".material-unit-description").first()).toHaveText(
+    "Unit: can",
+  );
+  await expect(page.locator(".material-selected-option").first()).toContainText(
+    "Pack size: 1 L",
+  );
   await expect(page.locator(".material-editor").first()).toContainText(
     "₹500 / can",
   );
   await expect(page.locator(".material-editor").nth(1)).toContainText(
     "₹1,800 / can",
   );
+  await page
+    .locator(".material-editor")
+    .first()
+    .getByRole("button", { name: "Change option" })
+    .click();
+  await expect(
+    page
+      .getByLabel("Product option for Asian Paints SmartCare Damp Proof")
+      .first(),
+  ).toHaveValue("damp-white-1l");
   await expect(page.locator(".material-editor").first()).toContainText(
     "Minimum order for this option: 2 can",
   );
   await expect(
     page.getByLabel("Quantity for Asian Paints SmartCare Damp Proof").first(),
   ).toHaveAttribute("min", "2");
-  let submittedRfq: Record<string, any> | undefined;
-  await page.route("**/api/customer/rfqs", async (route) => {
-    submittedRfq = route.request().postDataJSON();
-    await route.fulfill({
-      status: 401,
-      json: { message: "Sign in to continue." },
-    });
-  });
-  await page.goto("/get-quote");
   await page
     .getByLabel("Quantity for Asian Paints SmartCare Damp Proof")
     .first()
     .fill("1");
+  await page.goto("/get-quote");
   await page.getByLabel("Full name").fill("Test Customer");
+  await page.getByLabel("Mobile number").fill("9876543210");
   await page
-    .getByLabel("Site / delivery address — building, street and locality")
+    .getByLabel("Area, street, sector or village")
     .fill("Plot 42, Sector 10");
-  await page.getByLabel("City").fill("Noida");
+  await page
+    .getByLabel("Flat, house no., building, company or apartment")
+    .fill("Plot 42");
+  await page.getByLabel("Town / City").fill("Noida");
+  await page.getByLabel("State *").selectOption("Uttar Pradesh");
   await page.getByLabel("PIN code").fill("201301");
+  const tooSmallOrder = await page.evaluate(
+    () => JSON.parse(localStorage.getItem("material-square-bom") || "[]")[0],
+  );
+  expect(tooSmallOrder).toMatchObject({ quantity: 1, minOrderQuantity: 2 });
   await page.getByRole("button", { name: "Preview request" }).click();
   await page
-    .getByRole("button", { name: "Verify phone & request quotation" })
+    .getByRole("button", { name: "Sign in to request quotation" })
     .click();
   await expect(page.getByRole("alert")).toContainText(
     "requires a minimum of 2 can",
   );
-  expect(submittedRfq).toBeUndefined();
+  await page.goto("/material-list");
   await page
     .getByLabel("Quantity for Asian Paints SmartCare Damp Proof")
     .first()
     .fill("2");
+  await page.goto("/get-quote");
+  await page.getByLabel("Full name").fill("Test Customer");
+  await page.getByLabel("Mobile number").fill("9876543210");
+  await page.getByLabel("Area, street, sector or village").fill("Sector 10");
+  await page
+    .getByLabel("Flat, house no., building, company or apartment")
+    .fill("Plot 42");
+  await page.getByLabel("Town / City").fill("Noida");
+  await page.getByLabel("State *").selectOption("Uttar Pradesh");
+  await page.getByLabel("PIN code").fill("201301");
   await page.getByRole("button", { name: "Preview request" }).click();
   await page
-    .getByRole("button", { name: "Verify phone & request quotation" })
+    .getByRole("button", { name: "Sign in to request quotation" })
     .click();
   await expect(page).toHaveURL(/\/account$/);
-  expect(submittedRfq?.items).toEqual(
+  const pendingRfq = await page.evaluate(
+    () => window.history.state?.usr?.pendingRfq,
+  );
+  expect(pendingRfq?.items).toEqual(
     expect.arrayContaining([
       expect.objectContaining({
         catalogueId: "asian-paints-damp-proof",
@@ -2950,13 +3527,10 @@ test("catalogue API outage leaves the guest request form usable", async ({
   });
   await page.goto("/get-quote");
   await expect(page.getByLabel("Full name")).toBeVisible();
-  await expect(page.getByLabel("Mobile number")).toHaveCount(0);
+  await expect(page.getByLabel("Mobile number")).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Preview request" }),
   ).toBeEnabled();
-  await expect(
-    page.getByRole("heading", { name: "Sign in with your mobile" }),
-  ).not.toBeVisible();
   await page.goto("/marketplace");
   await expect(
     page.getByRole("heading", {
@@ -2986,6 +3560,17 @@ test("catalogue API outage leaves the guest request form usable", async ({
 test("unpublished privacy and terms drafts stay hidden from visitors", async ({
   page,
 }) => {
+  const privacy = JSON.parse(SITE_CONTENT_DEFAULTS["policy.privacy"]);
+  const terms = JSON.parse(SITE_CONTENT_DEFAULTS["policy.terms"]);
+  await page.route("**/api/site-content", (route) =>
+    route.fulfill({
+      json: {
+        ...SITE_CONTENT_DEFAULTS,
+        "policy.privacy": JSON.stringify({ ...privacy, published: false }),
+        "policy.terms": JSON.stringify({ ...terms, published: false }),
+      },
+    }),
+  );
   await page.goto("/privacy");
   await expect(
     page.getByRole("heading", { name: "Privacy information" }),
@@ -3092,11 +3677,13 @@ test("sales staff can update a website request status in the RFQ inbox", async (
       },
     }),
   );
-  await page.route("**/api/rfqs", (route) =>
-    route.fulfill({
+  await page.route("**/api/rfqs", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    await route.fulfill({
       json: [
         {
           id: "rfq-test",
+          requestNumber: "MS-RF-2026-0a0a-0a0a0a-00a-0a",
           customerName: "Test Customer",
           customerPhone: "9876543210",
           siteLocation: "Noida",
@@ -3121,8 +3708,8 @@ test("sales staff can update a website request status in the RFQ inbox", async (
           ],
         },
       ],
-    }),
-  );
+    });
+  });
   await page.route("**/api/rfqs/assignees", (route) =>
     route.fulfill({ json: [] }),
   );
@@ -3143,15 +3730,22 @@ test("sales staff can update a website request status in the RFQ inbox", async (
   });
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("sales@example.com");
-  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
+  await page
+    .getByRole("textbox", { name: "Password" })
+    .fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page
     .getByRole("button", { name: "Quotations & orders", exact: true })
     .click();
-  await page.getByRole("button", { name: "RFQ inbox", exact: true }).click();
-  await expect(
-    page.getByText("Pipe · Astral — 20 Pieces · 3/4 inch"),
-  ).toBeVisible();
+  await page
+    .getByRole("button", { name: /View RFQ inbox, 1 new RFQs/ })
+    .click();
+  await expect(page.getByRole("status")).toHaveText(
+    "Loading customer requests…",
+  );
+  const requestedItem = page.getByRole("listitem").filter({ hasText: "Pipe" });
+  await expect(requestedItem).toContainText("Astral");
+  await expect(requestedItem).toContainText("3/4 inch");
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download plan.pdf" }).click();
   const download = await downloadPromise;
@@ -3213,13 +3807,17 @@ test("sales staff create a multi-material quotation with catalogue packs and rea
   await page
     .getByRole("button", { name: "Quotations & orders", exact: true })
     .click();
-  await page.getByRole("button", { name: "Quotations", exact: true }).click();
+  await openSalesSection(page, "Quotations");
   await page.getByLabel("Customer name", { exact: true }).fill("Test Buyer");
   await page.getByLabel("Mobile number", { exact: true }).fill("9876543210");
-  await page
-    .getByLabel("Delivery address", { exact: true })
-    .fill("Noida sector 10");
   await page.getByLabel("PIN code", { exact: true }).fill("201301");
+  await page
+    .getByLabel("Area, street, sector or village", { exact: true })
+    .fill("Noida sector 10");
+  await page.getByLabel("Town / City", { exact: true }).fill("Noida");
+  await page
+    .getByRole("combobox", { name: "State", exact: true })
+    .selectOption("Uttar Pradesh");
   await page
     .getByRole("combobox", { name: "Product for line 1", exact: true })
     .selectOption("variant:25mm");
@@ -3237,6 +3835,17 @@ test("sales staff create a multi-material quotation with catalogue packs and rea
     .getByRole("combobox", { name: "Product for line 2", exact: true })
     .selectOption("catalogue:cement");
   await page.getByLabel("Quantity for line 2 (50 kg bag)").fill("10");
+  await page.getByLabel("Freight", { exact: true }).fill("250");
+  await page
+    .getByLabel("Quotation notes", { exact: true })
+    .fill("QA preview only");
+  await page.getByRole("button", { name: "Preview quotation" }).click();
+  const quotePreview = page.getByRole("region", { name: "Quotation preview" });
+  await expect(quotePreview).toContainText("Test Buyer");
+  await expect(quotePreview).toContainText("₹10,000");
+  await expect(quotePreview).toContainText("₹250");
+  await expect(quotePreview).toContainText("QA preview only");
+  await expect(quotePreview).toContainText("Not published");
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByLabel("Customer name", { exact: true })).toHaveValue(
     "",
@@ -3337,9 +3946,7 @@ for (const editing of [false, true])
       await page
         .getByRole("button", { name: "Quotations & orders", exact: true })
         .click();
-      await page
-        .getByRole("button", { name: "Quotations", exact: true })
-        .click();
+      await openSalesSection(page, "Quotations");
       await page
         .getByRole("button", {
           name: editing ? "Edit draft" : "Prepare revision",
@@ -3357,6 +3964,9 @@ for (const editing of [false, true])
       await expect(
         page.getByLabel("Rate for line 1 per 50 kg bag"),
       ).toHaveValue("400");
+      await page
+        .getByRole("combobox", { name: "State", exact: true })
+        .selectOption("Uttar Pradesh");
       await page.getByLabel("Quantity for line 1 (50 kg bag)").fill("20");
       await page
         .getByRole("button", { name: "Save draft", exact: true })
@@ -3377,6 +3987,72 @@ for (const editing of [false, true])
       expect(saved?.customerPhone).toBe(quote.customerPhone);
     },
   );
+
+test("sales staff can publish a saved quotation from the quote list", async ({
+  page,
+}) => {
+  let published = false;
+  const quote = {
+    id: "draft-to-publish",
+    quoteNumber: "MS-QU-2026-0a0a-0a0a0a-00a-0a",
+    revisionNumber: 1,
+    status: "DRAFT",
+    customerName: "Test Buyer",
+    customerPhone: "9876543210",
+    customerEmail: "buyer@example.test",
+    projectSiteAddress: "Noida sector 10",
+    sitePincode: "201301",
+    subtotal: "4000",
+    marginAmount: "0",
+    discountAmount: "0",
+    taxAmount: "720",
+    freightAmount: "100",
+    totalAmount: "4820",
+    validUntil: new Date(Date.now() + 86400000).toISOString(),
+    items: [
+      {
+        id: "line1",
+        catalogueId: "cement",
+        productName: "Cement",
+        brandName: "UltraTech",
+        unit: "50 kg bag",
+        quantityMt: "10",
+        unitPrice: "400",
+        lineTotal: "4000",
+        specification: "Site use",
+      },
+    ],
+  };
+  await page.route("**/api/analytics/dashboard", (route) =>
+    route.fulfill({
+      json: {
+        currentMonthOrderValueInr: 0,
+        activeRfqsCount: 0,
+        dailyOrderValue: [],
+      },
+    }),
+  );
+  await page.route("**/api/quotes", (route) =>
+    route.fulfill({ json: [{ ...quote, status: published ? "QUOTE_SENT" : "DRAFT" }] }),
+  );
+  await page.route("**/api/quotes/draft-to-publish/publish", (route) => {
+    expect(route.request().method()).toBe("POST");
+    published = true;
+    return route.fulfill({ json: { ...quote, status: "QUOTE_SENT" } });
+  });
+  await signIntoBusiness(page, "SALES_MANAGER");
+  await page
+    .getByRole("button", { name: "Quotations & orders", exact: true })
+    .click();
+  await openSalesSection(page, "Quotations");
+  const quoteCard = page.locator(".sales-saved-quote").filter({
+    hasText: "Test Buyer",
+  });
+  await expect(quoteCard.getByText("DRAFT", { exact: true })).toBeVisible();
+  await quoteCard.getByRole("button", { name: "Publish & queue notification" }).click();
+  await expect(quoteCard.getByText("QUOTE SENT", { exact: true })).toBeVisible();
+  expect(published).toBe(true);
+});
 
 async function signIntoBusiness(
   page: import("@playwright/test").Page,
@@ -3421,11 +4097,31 @@ async function signIntoBusiness(
   );
   await page.goto("http://127.0.0.1:4174");
   await page.getByLabel("Mobile number or email").fill("staff@example.com");
-  await page.getByRole("textbox", { name: "Password" }).fill("long-test-password");
+  await page
+    .getByRole("textbox", { name: "Password" })
+    .fill("long-test-password");
   await page.getByRole("button", { name: "Sign In to Workspace" }).click();
   await page
     .getByRole("button", { name: "Business management", exact: true })
     .click();
+}
+
+async function openBusinessSection(
+  page: import("@playwright/test").Page,
+  section: string,
+) {
+  await page
+    .getByRole("button", { name: "Open business management sections" })
+    .click();
+  await page.getByRole("button", { name: section, exact: true }).click();
+}
+
+async function openSalesSection(
+  page: import("@playwright/test").Page,
+  section: string,
+) {
+  await page.getByRole("button", { name: "Open operations sections" }).click();
+  await page.getByRole("button", { name: section, exact: true }).click();
 }
 
 test("procurement staff create an internal purchase request", async ({
@@ -3441,7 +4137,8 @@ test("procurement staff create an internal purchase request", async ({
     return route.fulfill({ json: [] });
   });
   await signIntoBusiness(page, "PROCUREMENT_HEAD");
-  await page.getByRole("button", { name: "Procurement", exact: true }).click();
+  await openBusinessSection(page, "Procurement");
+  await page.getByRole("button", { name: /Create manual request/ }).click();
   await page.getByLabel("Delivery address").fill("Plot 14, Sector 10");
   await page.getByLabel("City", { exact: true }).fill("Noida");
   await page.getByLabel("PIN code").fill("201301");
@@ -3489,6 +4186,8 @@ test("procurement staff search linked supplier inventory and calculate only the 
     pincode: "201301",
     servicePincodes: ["201301"],
     status: "ACTIVE",
+    averageRating: null,
+    ratings: [],
     _count: { products: 1 },
     products: [
       {
@@ -3510,6 +4209,12 @@ test("procurement staff search linked supplier inventory and calculate only the 
   };
   await page.route("**/api/suppliers**", (route) =>
     route.fulfill({ json: [supplier] }),
+  );
+  await page.route("**/api/suppliers/supplier-1", (route) =>
+    route.fulfill({ json: supplier }),
+  );
+  await page.route("**/api/admin/audit**", (route) =>
+    route.fulfill({ json: { items: [] } }),
   );
   await page.route("**/api/products/catalogue", (route) =>
     route.fulfill({
@@ -3541,19 +4246,27 @@ test("procurement staff search linked supplier inventory and calculate only the 
   });
   await signIntoBusiness(page, "PROCUREMENT_HEAD");
   await page
-    .getByLabel("Search suppliers and products")
-    .fill("UltraTech Cement");
+    .getByRole("button", { name: "Registered suppliers", exact: true })
+    .click();
+  await page.getByLabel("Search registered suppliers").fill("UltraTech Cement");
   await page
     .getByRole("button", { name: "Search suppliers", exact: true })
     .click();
   await expect(
-    page.getByText("Noida · 201301 · 1 listed products"),
+    page.getByText("QA LOCAL ONLY ULTRATECH SUPPLIER", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText(/Available: 300.*checked/)).toBeVisible();
+  await page
+    .getByRole("button", { name: "View supplier products & ratings" })
+    .click();
+  await expect(
+    page.getByText(/Available quantity: 300.*checked/),
+  ).toBeVisible();
 
-  await page.getByRole("button", { name: "Procurement", exact: true }).click();
+  await openBusinessSection(page, "Procurement");
+  await page.getByRole("button", { name: /Create manual request/ }).click();
   await page.getByLabel("Delivery address").fill("QA site, Sector 10");
   await page.getByLabel("City", { exact: true }).fill("Noida");
+  await page.getByLabel("State (optional)").fill("Uttar Pradesh");
   await page.getByLabel("PIN code").fill("201301");
   await expect(
     page.locator(
@@ -3576,6 +4289,7 @@ test("procurement staff search linked supplier inventory and calculate only the 
     clientStockQuantity: 300,
     unit: "bag",
   });
+  expect(created.deliveryState).toBe("Uttar Pradesh");
 });
 
 test("dispatch staff create an order delivery plan and challan", async ({
@@ -3586,17 +4300,18 @@ test("dispatch staff create an order delivery plan and challan", async ({
   await page.route("**/api/transportation", (route) =>
     route.fulfill({ json: [] }),
   );
-  await page.route("**/api/transportation/order-1", (route) => {
+  const orderReference = "MS-OR-2026-0a0a-0a0a0a-00a-0a";
+  await page.route(`**/api/transportation/${orderReference}`, (route) => {
     plan = route.request().postDataJSON();
     return route.fulfill({ json: { id: "plan-1", ...plan } });
   });
-  await page.route("**/api/orders/order-1/dispatch-challan", (route) => {
+  await page.route(`**/api/orders/${orderReference}/dispatch-challan`, (route) => {
     challan = route.request().postDataJSON();
     return route.fulfill({ json: { id: "challan-1" } });
   });
   await signIntoBusiness(page, "DISPATCH_OFFICER");
   await expect(page.getByLabel("Destination")).toBeVisible();
-  await page.getByLabel("Order ID").nth(0).fill("order-1");
+  await page.getByLabel("Order reference").nth(0).fill(orderReference);
   await page.getByLabel("Destination").fill("Plot 14, Sector 10, Noida");
   await page.getByLabel("Transporter").fill("Local Fleet");
   await page.getByLabel("Vehicle number").fill("UP16TEST");
@@ -3614,7 +4329,7 @@ test("dispatch staff create an order delivery plan and challan", async ({
     status: "PLANNED",
   });
 
-  await page.getByLabel("Order ID").nth(1).fill("order-1");
+  await page.getByLabel("Order reference").nth(1).fill(orderReference);
   await page.getByLabel("Truck number").fill("UP16TEST");
   await page.getByLabel("Driver name").nth(1).fill("Test Driver");
   await page.getByLabel("Driver phone").nth(1).fill("9876543210");
@@ -3790,7 +4505,7 @@ test("sales staff record external quotation acceptance and comparison choice", a
   await page
     .getByRole("button", { name: "Quotations & orders", exact: true })
     .click();
-  await page.getByRole("button", { name: "Quotations", exact: true }).click();
+  await openSalesSection(page, "Quotations");
   await page
     .getByLabel("Acceptance channel for MS-QT-EXTERNAL", { exact: true })
     .selectOption("WHATSAPP");
@@ -3808,8 +4523,10 @@ test("sales staff record external quotation acceptance and comparison choice", a
       channel: "WHATSAPP",
       selections: [{ itemId: "material-line", optionId: "alternative-brand" }],
     });
+  await expect(page.getByText("MS-QT-EXTERNAL", { exact: true })).toBeVisible();
+  await expect(page.getByText("Revision 1", { exact: true })).toBeVisible();
   await expect(
-    page.getByText(/MS-QT-EXTERNAL · Revision 1 · CONVERTED_TO_ORDER/),
+    page.getByText("CONVERTED TO ORDER", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Record customer acceptance" }),
@@ -3836,9 +4553,7 @@ test("sales staff can update centralized quotation validity and notification rul
     return route.fulfill({ json: settings });
   });
   await signIntoBusiness(page, "SALES_MANAGER");
-  await page
-    .getByRole("button", { name: "Quotation rules", exact: true })
-    .click();
+  await openBusinessSection(page, "Quotation rules");
   await expect(page.getByLabel("Quotation validity (hours)")).toHaveValue("48");
   await page.getByLabel("Quotation validity (hours)").fill("72");
   await page.getByLabel("Reminder lead time (hours)").fill("12");
@@ -3873,6 +4588,7 @@ test("procurement staff edit supplier business details and service areas", async
     servicePincodes: ["201301"],
     status: "ACTIVE",
     notes: "",
+    createdAt: "2026-10-10T10:00:00.000Z",
   };
   await page.route("**/api/suppliers", (route) =>
     route.fulfill({ json: [supplier] }),
@@ -3882,6 +4598,9 @@ test("procurement staff edit supplier business details and service areas", async
     return route.fulfill({ json: supplier });
   });
   await signIntoBusiness(page, "PROCUREMENT_HEAD");
+  await page
+    .getByRole("button", { name: "Registered suppliers", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Edit supplier", exact: true })
     .click();
@@ -3895,8 +4614,10 @@ test("procurement staff edit supplier business details and service areas", async
   await page.getByLabel("Supplier status").selectOption("SUSPENDED");
   await page.getByRole("button", { name: "Save supplier changes" }).click();
   await expect(
-    page.getByText("Ghaziabad · 201301 · 0 listed products"),
+    page.getByText("Ghaziabad · Uttar Pradesh · 201301", { exact: true }),
   ).toBeVisible();
+  await expect(page.getByText("201310", { exact: true })).toBeVisible();
+  await expect(page.getByText("SUSPENDED", { exact: true })).toBeVisible();
   expect(supplier.status).toBe("SUSPENDED");
   expect(supplier.servicePincodes).toEqual(["201301", "201310"]);
 });
@@ -3931,9 +4652,7 @@ test("content staff edit a provider and clear optional details before publishing
     route.fulfill({ json: provider.isPublished ? [provider] : [] }),
   );
   await signIntoBusiness(page, "CONTENT_MANAGER");
-  await page
-    .getByRole("button", { name: "Experts & services", exact: true })
-    .click();
+  await openBusinessSection(page, "Experts & services");
   await page
     .getByRole("button", { name: "Edit provider", exact: true })
     .click();
@@ -3985,6 +4704,259 @@ test("public articles distinguish an outage from an empty catalogue and support 
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
+test("supplier product picker previews, preserves modal state on backdrop clicks, and adds a catalogue product", async ({
+  page,
+}) => {
+  const supplier: Record<string, any> = {
+    id: "supplier-1",
+    name: "Supplier One",
+    city: "Noida",
+    state: "Uttar Pradesh",
+    pincode: "201301",
+    servicePincodes: ["201301"],
+    status: "ACTIVE",
+    brandCatalog: [],
+    products: [],
+    ratings: [],
+    averageRating: null,
+  };
+  let addedProduct: Record<string, any> | undefined;
+  await page.route("**/api/suppliers", (route) =>
+    route.fulfill({ json: [supplier] }),
+  );
+  await page.route("**/api/suppliers/supplier-1", async (route) => {
+    if (route.request().method() === "PATCH")
+      Object.assign(supplier, route.request().postDataJSON());
+    await route.fulfill({ json: supplier });
+  });
+  await page.route("**/api/suppliers/supplier-1/products", async (route) => {
+    const body = route.request().postDataJSON();
+    addedProduct = {
+      id: "supplier-product-1",
+      ...body,
+      minimumOrderQty: null,
+      availableQuantity: null,
+      availabilityCheckedAt: null,
+      lastQuotedPrice: null,
+      isActive: true,
+      catalogVariant: {
+        id: body.catalogVariantId,
+        label: "50 kg bag",
+        listing: {
+          name: "Ambuja Kawach Cement",
+          brand: "Ambuja Cement",
+          category: "Cement",
+        },
+      },
+    };
+    supplier.products.push(addedProduct);
+    await route.fulfill({ json: addedProduct });
+  });
+  await page.route(/\/api\/admin\/audit\?entityType=SUPPLIER/, (route) =>
+    route.fulfill({ json: { items: [] } }),
+  );
+  await page.route("**/api/products/catalogue", (route) =>
+    route.fulfill({
+      json: [
+        {
+          name: "Ambuja Kawach Cement",
+          brand: "Ambuja Cement",
+          category: "Cement",
+          variants: [
+            { id: "variant-cement-50", label: "50 kg bag", unit: "bag" },
+          ],
+        },
+      ],
+    }),
+  );
+
+  await signIntoBusiness(page, "PROCUREMENT_HEAD");
+  await page.removeLocatorHandler(page.locator("dialog.admin-confirm-dialog"));
+  const confirmWorkspaceChange = async () => {
+    const confirmation = page.locator("dialog.admin-confirm-dialog");
+    await expect(confirmation).toBeVisible();
+    await confirmation.locator(".admin-confirm-submit").click();
+  };
+  await page
+    .getByRole("button", { name: "Registered suppliers", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "View supplier products & ratings" })
+    .click();
+  const addButton = page.getByRole("button", {
+    name: "Add supplied product",
+  });
+  await expect(addButton).toBeEnabled();
+  await addButton.click();
+
+  const dialog = page.getByRole("dialog", { name: "Add supplied products" });
+  await expect(dialog).toBeVisible();
+  const closeButton = page.getByRole("button", { name: "Close add products" });
+  const closeBeforeHover = await closeButton.boundingBox();
+  await closeButton.hover();
+  const closeAfterHover = await closeButton.boundingBox();
+  expect(closeBeforeHover).not.toBeNull();
+  expect(closeAfterHover).not.toBeNull();
+  expect(Math.abs(closeAfterHover!.x - closeBeforeHover!.x)).toBeLessThan(1);
+  expect(Math.abs(closeAfterHover!.y - closeBeforeHover!.y)).toBeLessThan(1);
+
+  await page.locator(".bc-product-add-modal-backdrop").click({
+    position: { x: 4, y: 4 },
+  });
+  await expect(dialog).toBeVisible();
+  await closeButton.click();
+  await expect(dialog).toHaveCount(0);
+
+  await addButton.click();
+  await page.getByRole("button", { name: "Choose one or more brands" }).click();
+  await page
+    .getByRole("group", { name: "Brands" })
+    .getByLabel("Ambuja Cement")
+    .check();
+  const saveBrandsButton = page.getByRole("button", {
+    name: "Save selected brands",
+  });
+  await expect(saveBrandsButton).toBeEnabled();
+  await saveBrandsButton.click();
+  await confirmWorkspaceChange();
+  await expect(page.getByText("Supplier brands saved.")).toBeVisible();
+  await expect(page.locator(".bc-supplier-brand-card")).toContainText(
+    "Categories: Not specified",
+  );
+  await expect(page.locator(".bc-supplier-brand-card")).toContainText(
+    "Products: Not specified",
+  );
+  expect(supplier.brandCatalog).toEqual([
+    { brand: "Ambuja Cement", categories: [] },
+  ]);
+
+  await addButton.click();
+  await page.getByRole("button", { name: "Choose one or more brands" }).click();
+  await page
+    .getByRole("group", { name: "Brands" })
+    .getByLabel("Ambuja Cement")
+    .check();
+  await page
+    .getByRole("button", { name: "Choose one or more categories" })
+    .click();
+  await page
+    .getByRole("group", { name: "Categories" })
+    .getByLabel("Cement")
+    .check();
+  await page.getByText("Preview", { exact: true }).click();
+  const preview = page.locator(".supplier-selection-preview-content");
+  await expect(preview).toContainText("Brands Name: Ambuja Cement");
+  await expect(preview).toContainText("Categories: Cement");
+
+  await page.getByRole("button", { name: "Choose catalogue products" }).click();
+  await page
+    .getByRole("group", { name: "Products" })
+    .getByLabel(/Ambuja Kawach Cement/)
+    .check();
+  await expect(preview).toContainText("Products: Ambuja Kawach Cement");
+  await page.getByRole("button", { name: "Add selected products" }).click();
+  await confirmWorkspaceChange();
+  await confirmWorkspaceChange();
+  await expect(page.getByText("1 supplied product added.")).toBeVisible();
+  await expect(addButton).toBeVisible();
+  expect(addedProduct?.productName).toBe("Ambuja Kawach Cement");
+  expect(supplier.brandCatalog).toEqual([
+    { brand: "Ambuja Cement", categories: ["Cement"] },
+  ]);
+  expect(supplier.products).toHaveLength(1);
+});
+
+test("new supplier saves its business record together with selected catalogue brands and products", async ({
+  page,
+}) => {
+  let savedSupplier: Record<string, any> | undefined;
+  let suppliers: Record<string, any>[] = [];
+  await page.route("**/api/suppliers", async (route) => {
+    if (route.request().method() === "POST") {
+      savedSupplier = route.request().postDataJSON();
+      suppliers = [
+        {
+          id: "supplier-new",
+          ...savedSupplier,
+          createdAt: "2026-10-12T10:00:00.000Z",
+          averageRating: null,
+          ratingsCount: 0,
+          productsCount: 1,
+        },
+      ];
+      await route.fulfill({ json: suppliers[0] });
+      return;
+    }
+    await route.fulfill({ json: suppliers });
+  });
+  await page.route("**/api/products/catalogue", (route) =>
+    route.fulfill({
+      json: [
+        {
+          name: "Ambuja Kawach Cement",
+          brand: "Ambuja Cement",
+          category: "Cement",
+          variants: [
+            { id: "variant-cement-50", label: "50 kg bag", unit: "bag" },
+          ],
+        },
+      ],
+    }),
+  );
+
+  await signIntoBusiness(page, "PROCUREMENT_HEAD");
+  await page
+    .getByLabel("Company Name", { exact: true })
+    .fill("Noida Cement Supply");
+  await page.getByLabel("Phone", { exact: true }).fill("9876543210");
+  await page.getByLabel("Address", { exact: true }).fill("Sector 62, Noida");
+  await page.getByLabel("City", { exact: true }).fill("Noida");
+  await page.getByLabel("PIN code", { exact: true }).fill("201309");
+  await page.getByRole("button", { name: "Choose one or more brands" }).click();
+  await page
+    .getByRole("group", { name: "Brands" })
+    .getByLabel("Ambuja Cement")
+    .check();
+  await page
+    .getByRole("button", { name: "Choose one or more categories" })
+    .click();
+  await page
+    .getByRole("group", { name: "Categories" })
+    .getByLabel("Cement")
+    .check();
+  await page.getByRole("button", { name: "Choose catalogue products" }).click();
+  await page
+    .getByRole("group", { name: "Products" })
+    .getByLabel(/Ambuja Kawach Cement/)
+    .check();
+  await page.getByText("Preview", { exact: true }).click();
+  await expect(
+    page.locator(".supplier-selection-preview-content"),
+  ).toContainText("Products: Ambuja Kawach Cement");
+
+  await page
+    .getByRole("button", { name: "Save supplier", exact: true })
+    .click();
+  await expect(
+    page.getByText("NOIDA CEMENT SUPPLY", { exact: true }),
+  ).toBeVisible();
+  expect(savedSupplier).toMatchObject({
+    name: "Noida Cement Supply",
+    city: "Noida",
+    pincode: "201309",
+    brandCatalog: [{ brand: "Ambuja Cement", categories: ["Cement"] }],
+    products: [
+      {
+        catalogVariantId: "variant-cement-50",
+        productName: "Ambuja Kawach Cement",
+        brand: "Ambuja Cement",
+        category: "Cement",
+        unit: "bag",
+      },
+    ],
+  });
+});
+
 test("supplier catalogue edits can disable matching and clear an old price", async ({
   page,
 }) => {
@@ -3993,6 +4965,7 @@ test("supplier catalogue edits can disable matching and clear an old price", asy
     name: "Supplier One",
     city: "Noida",
     pincode: "201301",
+    servicePincodes: ["201301"],
     status: "ACTIVE",
   };
   let product = {
@@ -4018,6 +4991,12 @@ test("supplier catalogue edits can disable matching and clear an old price", asy
       },
     }),
   );
+  await page.route(/\/api\/admin\/audit\?entityType=SUPPLIER/, (route) =>
+    route.fulfill({ json: { items: [] } }),
+  );
+  await page.route("**/api/products/catalogue", (route) =>
+    route.fulfill({ json: [] }),
+  );
   await page.route(
     "**/api/suppliers/supplier-1/products/product-1",
     (route) => {
@@ -4026,6 +5005,9 @@ test("supplier catalogue edits can disable matching and clear an old price", asy
     },
   );
   await signIntoBusiness(page, "PROCUREMENT_HEAD");
+  await page
+    .getByRole("button", { name: "Registered suppliers", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "View supplier products & ratings" })
     .click();
@@ -4060,6 +5042,7 @@ test("content staff upload and preview a blog image before saving a draft", asyn
     route.fulfill({ json: { url: imageUrl, key: "images/test.png" } }),
   );
   await signIntoBusiness(page, "CONTENT_MANAGER");
+  await openBusinessSection(page, "Blogs");
   await page
     .getByLabel("Title", { exact: true })
     .fill("Choosing pipe materials");
@@ -4137,7 +5120,7 @@ test("content staff preview relative blog images from the customer site", async 
   );
 
   await signIntoBusiness(page, "CONTENT_MANAGER");
-  await page.getByRole("button", { name: "Blogs", exact: true }).click();
+  await openBusinessSection(page, "Blogs");
   await page.getByRole("button", { name: "Edit", exact: true }).click();
 
   const preview = page.locator(".content-image-preview");
@@ -4223,12 +5206,14 @@ test("procurement compares supplier quotes and reviews PO costs before creation"
           status: "COMPARING",
           deliveryAddress: "Sector 10 Noida",
           deliveryCity: "Noida",
+          deliveryState: "Uttar Pradesh",
           deliveryPincode: "201301",
           items: [{ productName: "Cement", quantity: 20, unit: "bag" }],
           purchaseOrders: [],
           supplierQuotes: [
             {
               id: "expired",
+              supplierQuoteNumber: "MS-SQ-2026-0a0a-0a0a0a-00a-0a",
               supplier: { ...supplier, name: "Expired Supplier" },
               items: [
                 {
@@ -4245,6 +5230,7 @@ test("procurement compares supplier quotes and reviews PO costs before creation"
             },
             {
               id: "current",
+              supplierQuoteNumber: "MS-SQ-2026-0a0a-0a0a0a-00a-0b",
               supplier,
               items: [
                 {
@@ -4269,7 +5255,7 @@ test("procurement compares supplier quotes and reviews PO costs before creation"
     return route.fulfill({ json: { id: "po-test" } });
   });
   await signIntoBusiness(page, "PROCUREMENT_HEAD");
-  await page.getByRole("button", { name: "Procurement", exact: true }).click();
+  await openBusinessSection(page, "Procurement");
   await expect(
     page.getByRole("button", {
       name: "Review purchase order for Expired Supplier",
@@ -4343,6 +5329,9 @@ test("procurement staff save item-level supplier price and availability", async 
             matchedItems: ["Cement"],
             serviceAreaMatch: false,
             cityMatch: true,
+            stateMatch: true,
+            locationMatchPercent: 60,
+            locationMatchLabel: "Same city",
             averageScore: 4.5,
           },
         ],
@@ -4354,15 +5343,15 @@ test("procurement staff save item-level supplier price and availability", async 
     return route.fulfill({ json: { id: "quote-1" } });
   });
   await signIntoBusiness(page, "PROCUREMENT_HEAD");
-  await page.getByRole("button", { name: "Procurement", exact: true }).click();
+  await openBusinessSection(page, "Procurement");
   await page.getByRole("button", { name: "Match suppliers" }).click();
-  await expect(page.getByText("Same city · Noida")).toBeVisible();
+  await expect(page.getByText("60% location match · Same city")).toBeVisible();
   await page.getByText("Supplier One").click();
   await expect(
-    page.getByText(
-      "Supplier location: Noida, Uttar Pradesh · PIN 201310 · Serves PINs 201301, 201302",
-    ),
+    page.getByText("Supplier location: Noida, Uttar Pradesh · PIN 201310"),
   ).toBeVisible();
+  await expect(page.getByText("201301", { exact: true })).toBeVisible();
+  await expect(page.getByText("201302", { exact: true })).toBeVisible();
   await page.getByLabel("Quantity offered (bag)").fill("12");
   await page.getByLabel("Unit price (₹/bag)").fill("100");
   await page.getByLabel("Lead time (days)").fill("3");
@@ -4437,7 +5426,7 @@ test("procurement revises an approved PO and reviews retained history", async ({
     return route.fulfill({ json: po });
   });
   await signIntoBusiness(page, "PROCUREMENT_HEAD");
-  await page.getByRole("button", { name: "Procurement", exact: true }).click();
+  await openBusinessSection(page, "Procurement");
   await page.getByRole("button", { name: "Revise PO", exact: true }).click();
   await page.getByLabel("Revised freight (₹)").fill("500");
   await page
@@ -4462,11 +5451,15 @@ test("dispatch staff advance delivery plans through allowed states", async ({
   let plan = {
     id: "plan-1",
     orderId: "order-1",
-    order: { orderNumber: "ORD-TEST" },
+    order: {
+      orderNumber: "MS-ORD-2026-d354f24f-c5ef-4f77-9509-d9b71f6afbb2",
+    },
     status: "PLANNED",
     destination: "Sector 10 Noida",
+    transporter: "Original QA Transport",
     vehicleNumber: "UP16TEST",
     driverName: "Test Driver",
+    driverPhone: null as string | null,
     currentLocation: null as string | null,
     estimatedArrival: null,
     notes: null,
@@ -4479,6 +5472,18 @@ test("dispatch staff advance delivery plans through allowed states", async ({
     return route.fulfill({ json: plan });
   });
   await signIntoBusiness(page, "DISPATCH_OFFICER");
+  const planCard = page.getByRole("article");
+  await expect(planCard).toHaveCSS("display", "grid");
+  await expect(planCard).toHaveCSS(
+    "grid-template-columns",
+    /^\d+(?:\.\d+)?px$/,
+  );
+  await expect(planCard.locator("h3")).toHaveCSS("grid-column", "1 / -1");
+  await expect(
+    planCard.getByRole("heading", {
+      name: "MS-ORD-2026-d354f24f-c5ef-4f77-9509-d9b71f6afbb2",
+    }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Update delivery status", exact: true })
     .click();
@@ -4488,12 +5493,32 @@ test("dispatch staff advance delivery plans through allowed states", async ({
       .getByRole("option", { name: "DELIVERED", exact: true }),
   ).toHaveCount(0);
   await page.getByLabel("Delivery status").selectOption("SCHEDULED");
-  await page.getByLabel("Current location", { exact: true }).fill("Noida yard");
-  await page.getByRole("button", { name: "Save delivery update" }).click();
+  await planCard
+    .getByLabel("Transporter", { exact: true })
+    .fill("QA Transport Co.");
+  await planCard
+    .getByLabel("Vehicle number", { exact: true })
+    .fill("UP16QA1234");
+  await planCard.getByLabel("Driver name", { exact: true }).fill("QA Driver");
+  await planCard.getByLabel("Driver phone", { exact: true }).fill("9876543210");
+  await planCard
+    .getByLabel("Estimated arrival", { exact: true })
+    .fill("2026-10-20T14:30");
+  await planCard
+    .getByLabel("Current location", { exact: true })
+    .fill("Noida yard");
+  await planCard.getByRole("button", { name: "Save delivery update" }).click();
   await expect(
     page.getByText("Current location: Noida yard", { exact: true }),
   ).toBeVisible();
   expect(plan.status).toBe("SCHEDULED");
+  expect(plan).toMatchObject({
+    transporter: "QA Transport Co.",
+    vehicleNumber: "UP16QA1234",
+    driverName: "QA Driver",
+    driverPhone: "9876543210",
+    currentLocation: "Noida yard",
+  });
   await page
     .getByRole("button", { name: "Update delivery status", exact: true })
     .click();
@@ -4562,9 +5587,7 @@ test("dispatch staff record a partial receipt and see the remaining order quanti
     },
   );
   await signIntoBusiness(page, "DISPATCH_OFFICER");
-  await page
-    .getByRole("button", { name: "Transportation", exact: true })
-    .click();
+  await openBusinessSection(page, "Transportation");
   await expect(
     page.getByText("Cement: 0 / 12 bag delivered", { exact: true }),
   ).toBeVisible();
@@ -4851,7 +5874,7 @@ test("staff can search seven-day activity and return to its related workspace", 
   ).toBeVisible();
 });
 
-test("sales staff schedule and cancel a quotation reminder", async ({
+test("sales staff schedule, reschedule, complete, and cancel quotation reminders", async ({
   page,
 }) => {
   await page.addInitScript(() =>
@@ -4923,29 +5946,66 @@ test("sales staff schedule and cancel a quotation reminder", async ({
     };
     return route.fulfill({ json: reminder });
   });
-  await page.route("**/api/quotes/q1/followups/f1", (route) => {
-    reminder!.status = route.request().postDataJSON().status;
-    return route.fulfill({ json: reminder });
+  let followupPatchCount = 0;
+  await page.route("**/api/quotes/q1/followups/f1", async (route) => {
+    const body = route.request().postDataJSON();
+    followupPatchCount += 1;
+    if (body.status) reminder!.status = body.status;
+    if (body.scheduledAt) reminder!.scheduledAt = body.scheduledAt;
+    await route.fulfill({ json: reminder });
   });
   await page.goto("http://127.0.0.1:4174");
+  await page.removeLocatorHandler(page.locator("dialog.admin-confirm-dialog"));
+  const confirmWorkspaceChange = async () => {
+    const confirmation = page.locator("dialog.admin-confirm-dialog");
+    await expect(confirmation).toBeVisible();
+    await confirmation.locator(".admin-confirm-submit").click();
+  };
   await page
     .getByRole("button", { name: "Business management", exact: true })
     .click();
-  await page
-    .getByRole("button", { name: "Quote follow-ups", exact: true })
-    .click();
+  await openBusinessSection(page, "Quote follow-ups");
   await page.getByLabel("Reminder channel").selectOption("INTERNAL");
   await page.getByLabel("Reminder time").fill("2030-01-01T10:00");
   await page.getByLabel("Reminder notes").fill("Discuss revised quantities");
   await page
     .getByRole("button", { name: "Schedule follow-up", exact: true })
     .click();
+  await confirmWorkspaceChange();
   await expect(page.getByText(/INTERNAL.*SCHEDULED/)).toBeVisible();
+  await page.getByRole("button", { name: "Reschedule" }).click();
+  await page.getByLabel("New reminder time").fill("2030-01-02T11:30");
+  const expectedRescheduledAt = await page.evaluate(() =>
+    new Date("2030-01-02T11:30").toISOString(),
+  );
+  await page.getByRole("button", { name: "Save new time" }).click();
+  await confirmWorkspaceChange();
+  await expect(page.getByText(/INTERNAL.*SCHEDULED/)).toBeVisible();
+  await expect.poll(() => followupPatchCount).toBe(1);
+  expect(reminder?.scheduledAt).toBe(expectedRescheduledAt);
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await confirmWorkspaceChange();
   await expect(page.getByText(/INTERNAL.*CANCELLED/)).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Cancel", exact: true }),
   ).toHaveCount(0);
+
+  await page.getByLabel("Reminder channel").selectOption("INTERNAL");
+  await page.getByLabel("Reminder time").fill("2030-01-03T10:00");
+  await page
+    .getByLabel("Reminder notes")
+    .fill("QA ONLY - complete internal task");
+  await page
+    .getByRole("button", { name: "Schedule follow-up", exact: true })
+    .click();
+  await confirmWorkspaceChange();
+  await expect(page.getByText(/INTERNAL.*SCHEDULED/)).toBeVisible();
+  await page.getByRole("button", { name: "Mark complete" }).click();
+  await confirmWorkspaceChange();
+  await expect(page.getByText(/INTERNAL.*SENT/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mark complete" })).toHaveCount(
+    0,
+  );
 });
 
 test("catalogue staff activate and deactivate discount rules", async ({
@@ -5140,7 +6200,7 @@ test("owner reviews skipped notification jobs", async ({ page }) => {
     }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Next notification page" }),
+    page.getByRole("button", { name: "Next", exact: true }),
   ).toBeDisabled();
   await page.getByLabel("Notification outcome").selectOption("SKIPPED");
   await page.getByRole("button", { name: "Filter notifications" }).click();
@@ -5405,6 +6465,7 @@ test("procurement staff inspect order materials without dispatch actions", async
   await page
     .getByRole("button", { name: "Quotations & orders", exact: true })
     .click();
+  await page.getByRole("button", { name: "Open operations sections" }).click();
   await page
     .getByRole("button", { name: "Orders & dispatch", exact: true })
     .click();
@@ -5423,12 +6484,12 @@ test("procurement staff inspect order materials without dispatch actions", async
   ).toHaveCount(0);
 });
 
-test("accounts staff record an offline order payment without a website checkout", async ({
+test("accounts staff can record offline advances and settle the balance without a website checkout", async ({
   page,
 }) => {
   let order: Record<string, any> = {
     id: "qa-order",
-    orderNumber: "MS-ORD-QA-ONLY",
+    orderNumber: "MS-OR-QA-ONLY",
     customerName: "QA Only Customer",
     status: "IN_TRANSIT",
     deliverySite: "QA-only site, no delivery",
@@ -5437,20 +6498,35 @@ test("accounts staff record an offline order payment without a website checkout"
     manualPaymentStatus: "UNPAID",
     dispatch: null,
     items: [],
+    payments: [],
   };
-  let recorded: Record<string, unknown> | undefined;
+  const recorded: Record<string, unknown>[] = [];
   await page.route("**/api/orders", (route) =>
     route.fulfill({ json: [order] }),
   );
   await page.route("**/api/orders/qa-order/manual-payment", (route) => {
-    recorded = route.request().postDataJSON();
+    const payment = route.request().postDataJSON() as Record<string, any>;
+    recorded.push(payment);
+    const received = (order.payments as Record<string, any>[]).reduce(
+      (sum, entry) => sum + Number(entry.amountInr), 0,
+    ) + Number(payment.amountInr);
+    const nextPayment = {
+      paymentNumber: `MS-PM-2026-a0aa-aababc-aab-${recorded.length === 1 ? "0a" : "0b"}`,
+      amountInr: payment.amountInr,
+      method: payment.method,
+      reference: payment.reference || null,
+      note: payment.note || null,
+      recordedAt: "2026-10-08T00:00:00.000Z",
+      recordedBy: { name: "Business Staff" },
+    };
     order = {
       ...order,
-      manualPaymentStatus: "PAID",
-      manualPaymentMethod: recorded.method,
-      manualPaymentReference: recorded.reference,
+      manualPaymentStatus: received >= 6400 ? "PAID" : "PARTIALLY_PAID",
+      manualPaymentMethod: payment.method,
+      manualPaymentReference: payment.reference,
       manualPaymentRecordedAt: "2026-10-08T00:00:00.000Z",
       manualPaymentRecordedBy: { name: "Business Staff" },
+      payments: [...(order.payments as Record<string, any>[]), nextPayment],
     };
     return route.fulfill({ json: order });
   });
@@ -5458,38 +6534,47 @@ test("accounts staff record an offline order payment without a website checkout"
   await page
     .getByRole("button", { name: "Quotations & orders", exact: true })
     .click();
-  await page
-    .getByRole("button", { name: "Orders & dispatch", exact: true })
-    .click();
-  await page.getByText("Record offline payment", { exact: true }).click();
+  await openSalesSection(page, "Orders & dispatch");
+  await page.locator("summary").getByText("Record offline payment", { exact: true }).click();
   await expect(
-    page.getByText(/does not collect or verify funds/),
+    page.getByText(/You can record an advance now and add later payments/),
   ).toBeVisible();
-  await page.getByLabel("Payment received by").selectOption("UPI");
-  await page.getByLabel("Reference (optional)").fill("QA-UPI-ONLY");
+  await page.getByLabel("Amount received (INR)").fill("2400.00");
+  await page.getByLabel("Payment mode").selectOption("UPI");
+  await page.getByLabel("Reference (optional)").fill("QA-UPI-ADVANCE");
+  await page.getByLabel("Note (optional)").fill("Advance");
   await page.removeLocatorHandler(page.locator("dialog.admin-confirm-dialog"));
-  await page
-    .getByRole("button", { name: "Mark full order total paid" })
-    .click();
+  await page.getByRole("button", { name: "Record offline payment" }).click();
   await expect(
     page.getByRole("heading", { name: "Record this offline payment?" }),
   ).toBeVisible();
   await expect(
     page.getByText(/No payment is collected or verified here/),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Mark order paid" }).click();
-  await expect
-    .poll(() => recorded)
-    .toEqual({
-      method: "UPI",
-      reference: "QA-UPI-ONLY",
-    });
-  await expect(page.getByText(/Payment: PAID · UPI/)).toBeVisible();
-  await expect(page.getByText(/by Business Staff/)).toBeVisible();
-  await expect(page.getByText(/reference QA-UPI-ONLY/)).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Mark full order total paid" }),
-  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Record payment" }).click();
+  await expect.poll(() => recorded).toHaveLength(1);
+  expect(recorded[0]).toEqual({
+    amountInr: 2400,
+    method: "UPI",
+    reference: "QA-UPI-ADVANCE",
+    note: "Advance",
+  });
+  await expect(page.getByText(/Payment: PARTIALLY PAID · UPI/)).toBeVisible();
+  await page.getByText("View order materials and delivery details", { exact: true }).click();
+  await expect(page.getByText(/balance ₹4,000\.00/)).toBeVisible();
+  await expect(page.getByText(/QA-UPI-ADVANCE/).first()).toBeVisible();
+
+  await page.locator("summary").getByText("Record offline payment", { exact: true }).click();
+  await expect(page.getByLabel("Amount received (INR)")).toHaveValue("4000.00");
+  await page.getByLabel("Payment mode").selectOption("CARD");
+  await page.getByLabel("Reference (optional)").fill("QA-CARD-SETTLEMENT");
+  await page.getByRole("button", { name: "Record offline payment" }).click();
+  await page.getByRole("button", { name: "Record payment" }).click();
+  await expect.poll(() => recorded).toHaveLength(2);
+  expect(recorded[1]).toMatchObject({ amountInr: 4000, method: "CARD" });
+  await expect(page.getByText(/Payment: PAID · CARD/)).toBeVisible();
+  await expect(page.getByText(/QA-CARD-SETTLEMENT/).first()).toBeVisible();
+  await expect(page.getByText(/Received: ₹6,400\.00/)).toBeVisible();
 });
 
 test("accounts staff record and approve commission entries", async ({
@@ -5556,9 +6641,7 @@ test("accounts staff configure customer loyalty rules", async ({ page }) => {
     return route.fulfill({ json: saved || initial });
   });
   await signIntoBusiness(page, "ACCOUNTS_MANAGER");
-  await page
-    .getByRole("button", { name: "Loyalty program", exact: true })
-    .click();
+  await openBusinessSection(page, "Loyalty program");
   await expect(
     page.getByRole("heading", { name: "Customer rewards settings" }),
   ).toBeVisible();

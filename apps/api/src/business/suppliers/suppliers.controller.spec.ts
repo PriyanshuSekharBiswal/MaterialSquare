@@ -38,7 +38,7 @@ describe("supplier audit history", () => {
         action: "SUPPLIER_CREATED",
         entityType: "SUPPLIER",
         entityId: "supplier-1",
-        metadata: { status: "PENDING" },
+        metadata: { status: "PENDING", productCount: 0 },
       },
     });
   });

@@ -46,7 +46,7 @@ export default function HomepageSectionControls({
     <section className="panel-card panel-body">
       <h2>Homepage sections</h2>
       <p>
-        Choose which sections appear and arrange their order on the homepage.
+        Choose which sections appear and arrange their order. The hero stays first and visible so the homepage keeps its main introduction and heading.
       </p>
       <ol className="homepage-section-list">
         {order.map((id, index) => {
@@ -59,8 +59,8 @@ export default function HomepageSectionControls({
                 <input
                   type="checkbox"
                   aria-label={`Show ${section.label}`}
-                  disabled={disabled}
-                  checked={!hidden.has(id)}
+                  disabled={disabled || id === "hero"}
+                  checked={id === "hero" || !hidden.has(id)}
                   onChange={(event) =>
                     setSectionVisibility(id, event.target.checked)
                   }
@@ -73,7 +73,7 @@ export default function HomepageSectionControls({
                   className="btn-sm btn-secondary"
                   aria-label={`Move ${section.label} up`}
                   title={`Move ${section.label} up`}
-                  disabled={disabled || index === 0}
+                  disabled={disabled || id === "hero" || index === 1}
                   onClick={() => moveSection(index, -1)}
                 >
                   Move up
@@ -83,7 +83,7 @@ export default function HomepageSectionControls({
                   className="btn-sm btn-secondary"
                   aria-label={`Move ${section.label} down`}
                   title={`Move ${section.label} down`}
-                  disabled={disabled || index === order.length - 1}
+                  disabled={disabled || id === "hero" || index === order.length - 1}
                   onClick={() => moveSection(index, 1)}
                 >
                   Move down

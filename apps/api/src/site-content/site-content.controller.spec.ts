@@ -23,6 +23,10 @@ describe("website content", () => {
   const prisma = {
     auditLog: { create: auditCreate },
     blogPost: { findMany: findPublishedArticles },
+    catalogListing: {
+      findMany: jest.fn(async () => [{ id: "catalogue-item", updatedAt: new Date() }]),
+    },
+    expertAdvisor: { findMany: jest.fn(async () => []) },
     $transaction: async (work: (tx: unknown) => Promise<unknown>) =>
       work(prisma),
     websiteContent: {
@@ -44,7 +48,7 @@ describe("website content", () => {
   });
 
   it("does not expose unpublished pages or include them in the sitemap", async () => {
-    const page = { id: "page", path: "/our-services", title: "Services", description: "", published: false, sections: [] };
+    const page = { id: "page", path: "/our-services", title: "Services", description: "Service details", published: false, sections: [] };
     stored = { "website.pages": JSON.stringify([page]) };
     const controller = new PublicSiteContentController(prisma);
     expect((await controller.get())["website.pages"]).toBe("[]");
@@ -297,6 +301,40 @@ describe("website content", () => {
     await expect(publicContent.get()).resolves.toEqual(edited);
   });
 
+  it("discards only the unpublished draft, preserves published content, and audits the actor", async () => {
+    const documents = new Map<string, { content: Record<string, string> }>();
+    const live = { ...SITE_CONTENT_DEFAULTS, "home.title": "Published headline" };
+    const draft = { ...live, "home.title": "Unpublished headline" };
+    documents.set("global", { content: live });
+    documents.set("draft", { content: draft });
+    const db = {
+      auditLog: { create: jest.fn() },
+      $transaction: async (work: (tx: unknown) => Promise<unknown>) => work(db),
+      websiteContent: {
+        findUnique: jest.fn(async ({ where }: { where: { id: string } }) => documents.get(where.id) || null),
+        deleteMany: jest.fn(async ({ where }: { where: { id: string } }) => {
+          const count = documents.delete(where.id) ? 1 : 0;
+          return { count };
+        }),
+      },
+    };
+    const admin = new AdminSiteContentController(db as never);
+    const published = await admin.discardDraft({ user: { userId: "content-editor" } } as never);
+
+    expect(published).toEqual(live);
+    expect(documents.has("draft")).toBe(false);
+    expect(documents.get("global")?.content).toEqual(live);
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        staffId: "content-editor",
+        action: "WEBSITE_CONTENT_DRAFT_DISCARDED",
+        entityType: "WEBSITE_CONTENT",
+        entityId: "draft",
+        metadata: { recoveryPointsPreserved: true },
+      },
+    });
+  });
+
   it("keeps actor-attributed autosave recovery points for seven days without publishing", async () => {
     const docs = new Map<string, { content: Record<string, string>; updatedAt: Date }>();
     const revisionCreate = jest.fn(async ({ data }: { data: Record<string, unknown> }) => data);
@@ -339,5 +377,34 @@ describe("website content", () => {
     expect(expiresAt).toBeLessThan(Date.now() + 8 * 24 * 60 * 60 * 1000);
     expect(db.auditLog.create).not.toHaveBeenCalled();
     await expect(new PublicSiteContentController(db as never).get()).resolves.toEqual(live);
+  });
+
+  it("removes expired recovery points and refuses to restore an expired point", async () => {
+    const active = { id: "active-recovery", expiresAt: new Date(Date.now() + 60_000) };
+    const deleteMany = jest.fn(async () => ({ count: 1 }));
+    const findMany = jest.fn(async () => [active]);
+    const findFirst = jest.fn(async () => null);
+    const db = {
+      websiteContentRevision: { deleteMany, findMany, findFirst },
+      websiteContent: { upsert: jest.fn() },
+      $transaction: async (work: (tx: unknown) => Promise<unknown>) => work(db),
+    };
+    const admin = new AdminSiteContentController(db as never);
+
+    await expect(admin.draftHistory()).resolves.toEqual([active]);
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: { expiresAt: { lte: expect.any(Date) } },
+    });
+    expect(findMany).toHaveBeenCalledWith({
+      where: { expiresAt: { gt: expect.any(Date) } },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      take: 100,
+      select: expect.any(Object),
+    });
+    await expect(admin.restoreDraft("expired-recovery")).rejects.toBeInstanceOf(BadRequestException);
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { id: "expired-recovery", expiresAt: { gt: expect.any(Date) } },
+    });
+    expect(db.websiteContent.upsert).not.toHaveBeenCalled();
   });
 });

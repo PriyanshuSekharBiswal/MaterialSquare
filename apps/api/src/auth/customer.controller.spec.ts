@@ -142,8 +142,9 @@ describe("customer RFQ plan uploads", () => {
       .fn()
       .mockResolvedValue({ id: "customer-1", phone: "9692804195" });
     const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
       customer: { update: customerUpdate },
-      rfq: { create: rfqCreate },
+      rfq: { create: rfqCreate, findMany: jest.fn().mockResolvedValue([]) },
     };
     const prisma = {
       $transaction: jest.fn(async (work) => work(tx)),
@@ -181,6 +182,7 @@ describe("customer RFQ plan uploads", () => {
       expect(rfqCreate).toHaveBeenCalledWith({
         data: expect.objectContaining({
           customerId: "customer-1",
+          requestNumber: expect.stringMatching(/^MS-RF-\d{4}-[0a-i]{4}-[0a-i]{6}-[0a-i]{3}-[0a-i]{2}$/),
           attachments: {
             create: [
               expect.objectContaining({
@@ -192,7 +194,7 @@ describe("customer RFQ plan uploads", () => {
             ],
           },
         }),
-        select: { id: true, status: true, createdAt: true },
+        select: { id: true, requestNumber: true, status: true, createdAt: true },
       });
       await expect(rm(path)).rejects.toMatchObject({ code: "ENOENT" });
     } finally {

@@ -6,9 +6,9 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { PdfService } from "../pdf/pdf.service";
-import { randomUUID } from "node:crypto";
 import { creditDeliveredOrderLoyalty } from "./order-loyalty";
 import { Prisma } from "@prisma/client";
+import { createBusinessReferenceNumber } from "../business/procurement/procurement-number";
 @Injectable()
 export class OrdersService {
   constructor(
@@ -20,6 +20,7 @@ export class OrdersService {
       include: {
         dispatch: true,
         manualPaymentRecordedBy: { select: { name: true } },
+        payments: { include: { recordedBy: { select: { name: true } } }, orderBy: { recordedAt: "asc" } },
         items: { include: { product: true, deliveries: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -31,6 +32,7 @@ export class OrdersService {
       include: {
         dispatch: true,
         manualPaymentRecordedBy: { select: { name: true } },
+        payments: { include: { recordedBy: { select: { name: true } } }, orderBy: { recordedAt: "asc" } },
         customer: { select: { city: true } },
         items: {
           include: { product: { include: { brand: true } }, deliveries: true },
@@ -42,31 +44,56 @@ export class OrdersService {
   }
   async recordManualPayment(
     id: string,
-    input: { method: "CASH" | "UPI" | "OTHER"; reference?: string },
+    input: { amountInr: number; method: "CASH" | "UPI" | "CARD" | "OTHER"; reference?: string; note?: string },
     staffId: string,
   ) {
     const order = await this.findById(id);
     if (order.manualPaymentStatus === "PAID")
       throw new ConflictException("This order is already marked paid");
     return this.prisma.$transaction(async (db) => {
-      const changed = await db.order.updateMany({
-        where: {
-          id: order.id,
-          manualPaymentStatus: "UNPAID",
-          updatedAt: order.updatedAt,
-        },
+      await db.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${order.id} FOR UPDATE`;
+      const current = await db.order.findUniqueOrThrow({
+        where: { id: order.id },
+        include: { payments: true },
+      });
+      if (current.manualPaymentStatus === "PAID")
+        throw new ConflictException("This order is already marked paid");
+      const totalPaid = current.payments.reduce(
+        (sum, payment) => sum.add(payment.amountInr),
+        new Prisma.Decimal(0),
+      );
+      const amount = new Prisma.Decimal(input.amountInr).toDecimalPlaces(2);
+      const orderTotal = new Prisma.Decimal(current.grandTotal);
+      const newTotalPaid = totalPaid.add(amount);
+      if (!amount.gt(0))
+        throw new BadRequestException("Payment amount must be greater than zero");
+      if (newTotalPaid.gt(orderTotal))
+        throw new BadRequestException("Payment amount cannot exceed the remaining order balance");
+      const recordedAt = new Date();
+      const paymentNumber = await createBusinessReferenceNumber(db, "PM", recordedAt);
+      await db.orderPayment.create({
         data: {
-          manualPaymentStatus: "PAID",
+          paymentNumber,
+          orderId: order.id,
+          amountInr: amount,
+          method: input.method,
+          reference: input.reference || null,
+          note: input.note || null,
+          recordedAt,
+          recordedById: staffId,
+        },
+      });
+      const nextStatus = newTotalPaid.eq(orderTotal) ? "PAID" : "PARTIALLY_PAID";
+      await db.order.update({
+        where: { id: order.id },
+        data: {
+          manualPaymentStatus: nextStatus,
           manualPaymentMethod: input.method,
           manualPaymentReference: input.reference || null,
-          manualPaymentRecordedAt: new Date(),
+          manualPaymentRecordedAt: recordedAt,
           manualPaymentRecordedById: staffId,
         },
       });
-      if (changed.count !== 1)
-        throw new ConflictException(
-          "Order changed; refresh before recording payment",
-        );
       await db.auditLog.create({
         data: {
           staffId,
@@ -74,15 +101,23 @@ export class OrdersService {
           entityType: "ORDER",
           entityId: order.id,
           metadata: {
+            paymentNumber,
             method: input.method,
             reference: input.reference || null,
-            amountInr: Number(order.grandTotal),
+            note: input.note || null,
+            amountInr: Number(amount),
+            totalPaidInr: Number(newTotalPaid),
+            remainingInr: Number(orderTotal.sub(newTotalPaid)),
+            status: nextStatus,
           },
         },
       });
       return db.order.findUniqueOrThrow({
         where: { id: order.id },
-        include: { manualPaymentRecordedBy: { select: { name: true } } },
+        include: {
+          manualPaymentRecordedBy: { select: { name: true } },
+          payments: { include: { recordedBy: { select: { name: true } } }, orderBy: { recordedAt: "asc" } },
+        },
       });
     });
   }
@@ -122,7 +157,7 @@ export class OrdersService {
       const challan = await db.dispatchChallan.create({
         data: {
           orderId: order.id,
-          challanNumber: `MS-DC-${new Date().getFullYear()}-${randomUUID()}`,
+          challanNumber: await createBusinessReferenceNumber(db, "DC"),
           truckNumber: input.truckNumber,
           driverName: input.driverName,
           driverPhone: input.driverPhone,
@@ -209,7 +244,7 @@ export class OrdersService {
           await db.orderDelivery.create({
             data: {
               orderId: order.id,
-              deliveryNumber: `MS-DLV-${new Date().getFullYear()}-${randomUUID()}`,
+              deliveryNumber: await createBusinessReferenceNumber(db, "DL"),
               deliveredAt: new Date(),
               notes: "Recorded from the completed delivery challan",
               items: { create: deliveryLines },

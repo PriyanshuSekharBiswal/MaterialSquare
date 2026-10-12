@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import QuotationResponse from "../features/customer-account/QuotationResponse";
 import { Link } from "react-router-dom";
 import {
@@ -32,11 +32,17 @@ export function AccountContent({
   activity: Activity;
   quote?: Quote;
   order?: Order;
-  onSaveProfile: (e: React.FormEvent<HTMLFormElement>) => void;
+  onSaveProfile: (
+    e: React.FormEvent<HTMLFormElement>,
+  ) => void | boolean | Promise<void | boolean>;
   busy: boolean;
 }) {
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState("");
   const [attachmentDownloadError, setAttachmentDownloadError] = useState("");
+  useEffect(() => {
+    if (path === "/account/profile") setIsEditingProfile(false);
+  }, [path]);
   const downloadRequestAttachment = async (
     requestId: string,
     attachment: Activity["requests"][number]["attachments"][number],
@@ -226,17 +232,29 @@ export function AccountContent({
                 />
               </div>
               <div className="account-progress-meta">
-                <span>
-                  Step {order.dispatch.currentStep} of 5
-                  {order.dispatch.currentLocation
-                    ? ` · ${order.dispatch.currentLocation}`
-                    : ""}
-                </span>
-                <span>
-                  Estimated arrival{" "}
-                  {formatDate(order.dispatch.estimatedArrival)}
-                </span>
+                <span>{orderProgressText(order)}</span>
+                {order.status !== "DELIVERED" && order.dispatch.estimatedArrival && (
+                  <span>
+                    Estimated arrival{" "}
+                    {formatDate(order.dispatch.estimatedArrival)}
+                  </span>
+                )}
               </div>
+              {(order.dispatch.vehicleNumber || order.dispatch.transporter) && (
+                <p className="account-tracking-vehicle">
+                  {order.dispatch.vehicleNumber && (
+                    <span>
+                      Vehicle <b>{order.dispatch.vehicleNumber}</b>
+                    </span>
+                  )}
+                  {order.dispatch.transporter && (
+                    <span>
+                      Transporter <b>{order.dispatch.transporter}</b>
+                    </span>
+                  )}
+                  <span>Last updated {formatDate(order.dispatch.updatedAt)}</span>
+                </p>
+              )}
             </div>
           )}
           {order.deliveries.length > 0 && (
@@ -287,91 +305,188 @@ export function AccountContent({
           title="Profile"
           subtitle="Manage the contact and project details used for your material requests."
         />
+        {!isEditingProfile ? (
+          <section className="account-panel account-profile-overview">
+            <div className="account-profile-overview-heading">
+              <div>
+                <h2>Contact and business details</h2>
+                <p>Your saved information for future material requests.</p>
+              </div>
+              <button
+                type="button"
+                className="account-profile-edit-button"
+                onClick={() => setIsEditingProfile(true)}
+              >
+                Edit profile
+              </button>
+            </div>
+            <div className="account-profile-summary-grid">
+              <ProfileSummary label="Full name" value={profile.name} />
+              <ProfileSummary
+                label="Verified mobile"
+                value={`+91 ${profile.phone}`}
+              />
+              <ProfileSummary label="Email address" value={profile.email} />
+              <ProfileSummary label="Company name" value={profile.companyName} />
+              <ProfileSummary label="GSTIN" value={profile.gstin} />
+            </div>
+            <div className="account-profile-overview-addresses">
+              <div className="account-profile-section-heading">
+                <h2>Saved addresses</h2>
+                <p>Used to prepare delivery details for your requests.</p>
+              </div>
+              <div className="account-profile-summary-grid">
+                <ProfileSummary
+                  label="Delivery address"
+                  value={profile.shippingAddress}
+                  wide
+                />
+                <ProfileSummary
+                  label="Billing address"
+                  value={profile.billingAddress}
+                  wide
+                />
+                <ProfileSummary label="City / town" value={profile.city} />
+                <ProfileSummary label="PIN code" value={profile.pincode} />
+              </div>
+            </div>
+          </section>
+        ) : (
         <form
           className="account-panel account-profile-form"
-          onSubmit={onSaveProfile}
+          onSubmit={async (event) => {
+            if ((await onSaveProfile(event)) === true)
+              setIsEditingProfile(false);
+          }}
         >
-          <div className="account-form-grid">
-            <label>
-              Full name
-              <input
-                name="name"
-                required
-                minLength={2}
-                maxLength={100}
-                defaultValue={profile.name}
-              />
-            </label>
-            <label>
-              Verified mobile
-              <input value={`+91 ${profile.phone}`} readOnly />
-            </label>
-            <label>
-              Email address
-              <input
-                name="email"
-                type="email"
-                maxLength={254}
-                defaultValue={profile.email || ""}
-              />
-            </label>
-            <label>
-              Company name
-              <input
-                name="companyName"
-                maxLength={150}
-                defaultValue={profile.companyName || ""}
-              />
-            </label>
-            <label>
-              GSTIN
-              <input
-                name="gstin"
-                maxLength={15}
-                defaultValue={profile.gstin || ""}
-              />
-            </label>
-            <label>
-              City
-              <input
-                name="city"
-                maxLength={100}
-                defaultValue={profile.city || ""}
-              />
-            </label>
-            <label>
-              PIN code
-              <input
-                name="pincode"
-                inputMode="numeric"
-                pattern="[1-9][0-9]{5}"
-                maxLength={6}
-                defaultValue={profile.pincode || ""}
-              />
-            </label>
-            <label className="account-wide-field">
-              Billing address
-              <textarea
-                name="billingAddress"
-                rows={3}
-                maxLength={500}
-                defaultValue={profile.billingAddress || ""}
-              />
-            </label>
-            <label className="account-wide-field">
-              Delivery address
-              <textarea
-                name="shippingAddress"
-                rows={3}
-                maxLength={500}
-                defaultValue={profile.shippingAddress || ""}
-              />
-            </label>
+          <div className="account-profile-sections">
+            <section className="account-profile-section">
+              <div className="account-profile-section-heading">
+                <h2>Contact and business details</h2>
+                <p>
+                  Your name and verified phone are required. The verified
+                  number can’t be changed here.
+                </p>
+              </div>
+              <div className="account-form-grid">
+                <label>
+                  Full name
+                  <input
+                    name="name"
+                    required
+                    minLength={2}
+                    maxLength={100}
+                    defaultValue={profile.name}
+                    autoComplete="name"
+                  />
+                </label>
+                <label>
+                  Verified mobile *
+                  <input value={`+91 ${profile.phone}`} readOnly required />
+                </label>
+                <label>
+                  Email address
+                  <input
+                    name="email"
+                    type="email"
+                    maxLength={254}
+                    defaultValue={profile.email || ""}
+                    autoComplete="email"
+                  />
+                </label>
+                <label>
+                  Company name
+                  <input
+                    name="companyName"
+                    maxLength={150}
+                    defaultValue={profile.companyName || ""}
+                    autoComplete="organization"
+                  />
+                </label>
+                <label>
+                  GSTIN
+                  <input
+                    name="gstin"
+                    maxLength={15}
+                    defaultValue={profile.gstin || ""}
+                  />
+                </label>
+              </div>
+            </section>
+            <section className="account-profile-section">
+              <div className="account-profile-section-heading">
+                <h2>Saved addresses</h2>
+                <p>
+                  A delivery address is required. Include the building, street,
+                  area and state; city and PIN code are shared across requests.
+                </p>
+              </div>
+              <div className="account-form-grid">
+                <label>
+                  City / town
+                  <input
+                    name="city"
+                    maxLength={100}
+                    defaultValue={profile.city || ""}
+                    autoComplete="address-level2"
+                  />
+                </label>
+                <label>
+                  PIN code
+                  <input
+                    name="pincode"
+                    inputMode="numeric"
+                    pattern="[1-9][0-9]{5}"
+                    maxLength={6}
+                    defaultValue={profile.pincode || ""}
+                    autoComplete="postal-code"
+                  />
+                </label>
+                <label className="account-profile-field--wide">
+                  Billing address
+                  <textarea
+                    name="billingAddress"
+                    rows={3}
+                    maxLength={500}
+                    placeholder="Flat or building, street, area, state"
+                    defaultValue={profile.billingAddress || ""}
+                    autoComplete="billing street-address"
+                  />
+                </label>
+                <label className="account-profile-field--wide">
+                  Delivery address *
+                  <textarea
+                    name="shippingAddress"
+                    required
+                    minLength={2}
+                    rows={3}
+                    maxLength={500}
+                    placeholder="Flat or building, street, area, landmark, state"
+                    defaultValue={profile.shippingAddress || ""}
+                    autoComplete="shipping street-address"
+                  />
+                </label>
+              </div>
+            </section>
           </div>
-          <button className="account-primary-button" disabled={busy}>
-            Save profile
-          </button>
+          <div className="account-profile-actions">
+            <span>Your information is used to manage your requests.</span>
+            <div>
+              <button
+                type="button"
+                className="account-profile-cancel-button"
+                disabled={busy}
+                onClick={() => setIsEditingProfile(false)}
+              >
+                Cancel
+              </button>
+              <button className="account-primary-button" disabled={busy}>
+                Save profile
+              </button>
+            </div>
+          </div>
         </form>
+        )}
       </>
     );
   if (path === "/account/quotations" || path.startsWith("/account/quotations"))
@@ -477,20 +592,29 @@ export function AccountContent({
                 key={request.id}
                 id={`request-${request.id}`}
               >
-                <div className="account-panel-title">
-                  <div>
-                    <span className="account-eyebrow">
-                      REQUEST #{request.id.slice(0, 8).toUpperCase()} ·{" "}
-                      {formatDate(request.createdAt)}
-                    </span>
-                    <h3>Delivery location · {request.siteLocation}</h3>
+                <div className="account-request-card-header">
+                  <div className="account-request-reference">
+                    <span className="account-eyebrow">MATERIAL REQUEST</span>
+                    <strong>
+                      #{request.id.slice(0, 8).toUpperCase()}
+                    </strong>
+                    <time dateTime={request.createdAt}>
+                      Submitted {formatDate(request.createdAt)}
+                    </time>
                   </div>
                   <StatusBadge status={request.status} />
                 </div>
+                <div className="account-request-location">
+                  <span>DELIVERY TO</span>
+                  <strong>{request.siteLocation}</strong>
+                </div>
                 <details className="account-request-details">
                   <summary>
-                    View request details · {request.items.length} material
-                    {request.items.length === 1 ? "" : "s"}
+                    <span>Materials requested</span>
+                    <span className="account-request-item-count">
+                      {request.items.length} item
+                      {request.items.length === 1 ? "" : "s"}
+                    </span>
                   </summary>
                   <ul>
                     {request.items.map((item, index) => (
@@ -597,10 +721,13 @@ export function AccountContent({
                       </p>
                     );
                   return (
-                    <p className="account-request-awaiting">
-                      No quotation has been issued for this request yet. We’ll
-                      add it here when it’s ready.
-                    </p>
+                    <div className="account-request-awaiting">
+                      <strong>Waiting for your quotation</strong>
+                      <span>
+                        The team’s prices and availability will appear here
+                        when they reply.
+                      </span>
+                    </div>
                   );
                 })()}
               </article>
@@ -719,32 +846,36 @@ export function AccountContent({
           <div className="account-order-list">
             {activity.orders.map((o) => (
               <div className="account-panel account-history-card" key={o.id}>
-                <div>
-                  <div>
-                    <span className="account-eyebrow">
-                      {formatDate(o.createdAt)}
-                    </span>
-                    <h2>{o.orderNumber}</h2>
+                <div className="account-history-card-header">
+                  <div className="account-history-reference">
+                    <span className="account-eyebrow">PURCHASE</span>
+                    <h2 title={o.orderNumber}>{o.orderNumber}</h2>
+                    <time dateTime={o.createdAt}>
+                      Placed {formatDate(o.createdAt)}
+                    </time>
                   </div>
                   <StatusBadge status={o.status} />
                 </div>
                 <div className="account-history-items">
                   {o.items.map((item) => (
-                    <p key={item.id}>
-                      <span>
-                        {item.productName} <small>· {item.brandName}</small>
-                      </span>
+                    <div className="account-history-item" key={item.id}>
+                      <div>
+                        <strong>{item.productName}</strong>
+                        <span>{item.brandName}</span>
+                      </div>
                       <b>
                         {item.quantityMt} {item.unit}
                       </b>
-                    </p>
+                    </div>
                   ))}
                 </div>
                 <div className="account-history-total">
-                  <span>
-                    {o.items.length} line item{o.items.length === 1 ? "" : "s"}
-                  </span>
-                  <strong>{money(o.grandTotal)}</strong>
+                  <div className="account-history-total-value">
+                    <span>
+                      {o.items.length} line item{o.items.length === 1 ? "" : "s"}
+                    </span>
+                    <strong>{money(o.grandTotal)}</strong>
+                  </div>
                   <Link
                     className="account-inline-link"
                     to={`/account/orders/${o.id}`}
@@ -992,6 +1123,24 @@ function PageHeading({
     </header>
   );
 }
+function ProfileSummary({
+  label,
+  value,
+  wide = false,
+}: {
+  label: string;
+  value: string | null | undefined;
+  wide?: boolean;
+}) {
+  return (
+    <div
+      className={`account-profile-summary-item${wide ? " account-profile-summary-item--wide" : ""}`}
+    >
+      <span>{label}</span>
+      <strong>{value?.trim() || "Not provided"}</strong>
+    </div>
+  );
+}
 function StatusBadge({ status }: { status: string }) {
   const labels: Record<string, string> = {
     NEW: "Request received",
@@ -1009,6 +1158,33 @@ function StatusBadge({ status }: { status: string }) {
     </span>
   );
 }
+
+const orderProgressLabels: Record<string, string> = {
+  PROCESSING_AT_YARD: "Processing at yard",
+  LOADED_ON_TRUCK: "Loaded on truck",
+  IN_TRANSIT: "In transit",
+  OUT_FOR_DELIVERY: "Out for delivery",
+  PARTIALLY_DELIVERED: "Partially delivered",
+  DELIVERED: "Delivered",
+  CANCELLED: "Order cancelled",
+};
+
+function orderProgressLabel(order: Order) {
+  return (
+    order.dispatch?.currentLocation?.trim() ||
+    orderProgressLabels[order.status] ||
+    order.status.replaceAll("_", " ").toLowerCase()
+  );
+}
+
+function orderProgressText(order: Order) {
+  if (order.status === "CANCELLED") return "Order cancelled";
+  if (order.status === "DELIVERED") {
+    return `Delivered${order.deliveries[0]?.deliveredAt ? ` · ${formatDate(order.deliveries[0].deliveredAt)}` : ""}`;
+  }
+  return `Step ${order.dispatch?.currentStep || 1} of 5 · ${orderProgressLabel(order)}`;
+}
+
 function StatCard({
   icon: Icon,
   label,
@@ -1054,19 +1230,26 @@ function EmptyState({
   );
 }
 function OrderCard({ order }: { order: Order }) {
+  const deliveryAddress = [
+    order.deliverySite,
+    order.pincode && !order.deliverySite.includes(order.pincode)
+      ? order.pincode
+      : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
   return (
     <div className="account-panel account-order-card">
       <div className="account-order-card-head">
-        <div>
-          <span className="account-eyebrow">
-            PLACED {formatDate(order.createdAt)}
-          </span>
-          <h2>{order.orderNumber}</h2>
+        <div className="account-order-reference">
+          <span className="account-eyebrow">ORDER · PLACED {formatDate(order.createdAt)}</span>
+          <h2 title={order.orderNumber}>{order.orderNumber}</h2>
         </div>
         <StatusBadge status={order.status} />
       </div>
       <div className="account-order-card-body">
-        <div>
+        <div className="account-order-items-summary">
+          <span className="account-order-field-label">ITEMS</span>
           <strong>
             {order.items.length} material{order.items.length === 1 ? "" : "s"}
           </strong>
@@ -1078,20 +1261,25 @@ function OrderCard({ order }: { order: Order }) {
             {order.items.length > 2 ? ` + ${order.items.length - 2} more` : ""}
           </span>
         </div>
-        <div>
-          <strong>{money(order.grandTotal)}</strong>
-          <span>
-            {order.deliverySite}, {order.pincode}
-          </span>
+        <div className="account-order-side-summary">
+          <div className="account-order-total-value">
+            <span className="account-order-field-label">ORDER TOTAL</span>
+            <strong>{money(order.grandTotal)}</strong>
+          </div>
+          <div className="account-order-delivery">
+            <span className="account-order-field-label">DELIVER TO</span>
+            <span>{deliveryAddress || "Address not provided"}</span>
+          </div>
         </div>
       </div>
       {order.dispatch && (
         <div className="account-mini-progress">
           <span>
-            <PackageCheck size={16} /> Step {order.dispatch.currentStep} of 5 ·{" "}
-            {order.dispatch.currentLocation || "On the way"}
+            <PackageCheck size={16} /> {orderProgressText(order)}
           </span>
-          <span>ETA {formatDate(order.dispatch.estimatedArrival)}</span>
+          {order.status !== "DELIVERED" && order.dispatch.estimatedArrival && (
+            <span>ETA {formatDate(order.dispatch.estimatedArrival)}</span>
+          )}
         </div>
       )}
       <Link to={`/account/orders/${order.id}`} className="account-inline-link">

@@ -17,6 +17,7 @@ import { StorageService } from "../storage/storage.service";
 import { z } from "zod";
 import { PrismaService } from "../prisma/prisma.service";
 import { StaffGuard } from "../auth/access.guard";
+import { CustomerGuard } from "../auth/customer.guard";
 import type { StaffRequest } from "../auth/staff-request";
 import { validate } from "../common/validation";
 @Controller("rfqs")
@@ -33,17 +34,19 @@ export class RfqsController {
     @Body() body: unknown,
   ) {
     const data = validate(
-      z.object({
-        status: z.enum(["NEW", "CONTACTED", "QUOTED", "CLOSED"]).optional(),
-        assignedStaffId: z.string().uuid().nullable().optional(),
-        staffNotes: z.string().trim().max(3000).nullable().optional(),
-      }).refine(
-        (value) =>
-          value.status !== undefined ||
-          value.assignedStaffId !== undefined ||
-          value.staffNotes !== undefined,
-        "Choose a request status, owner, or internal note to update",
-      ),
+      z
+        .object({
+          status: z.enum(["NEW", "CONTACTED", "QUOTED", "CLOSED"]).optional(),
+          assignedStaffId: z.string().uuid().nullable().optional(),
+          staffNotes: z.string().trim().max(3000).nullable().optional(),
+        })
+        .refine(
+          (value) =>
+            value.status !== undefined ||
+            value.assignedStaffId !== undefined ||
+            value.staffNotes !== undefined,
+          "Choose a request status, owner, or internal note to update",
+        ),
       body,
     );
     await this.prisma.$transaction(async (tx) => {
@@ -64,7 +67,9 @@ export class RfqsController {
         ...(data.assignedStaffId !== undefined
           ? { assignedStaffId: data.assignedStaffId }
           : {}),
-        ...(data.staffNotes !== undefined ? { staffNotes: data.staffNotes } : {}),
+        ...(data.staffNotes !== undefined
+          ? { staffNotes: data.staffNotes }
+          : {}),
       };
       const changed = await tx.rfq.updateMany({
         where: { id },
@@ -75,9 +80,10 @@ export class RfqsController {
       await tx.auditLog.create({
         data: {
           staffId: req.user.userId,
-          action: fields.length === 1 && fields[0] === "status"
-            ? "RFQ_STATUS_UPDATED"
-            : "RFQ_UPDATED",
+          action:
+            fields.length === 1 && fields[0] === "status"
+              ? "RFQ_STATUS_UPDATED"
+              : "RFQ_UPDATED",
           entityType: "RFQ",
           entityId: id,
           metadata: {
@@ -169,7 +175,9 @@ export class RfqsController {
 @Controller("inquiries")
 export class InquiriesController {
   constructor(private prisma: PrismaService) {}
-  @Post() async create(@Body() body: unknown) {
+  @Post()
+  @UseGuards(CustomerGuard)
+  async create(@Body() body: unknown) {
     const data = validate(
       z.object({
         name: z.string().trim().min(2).max(150),

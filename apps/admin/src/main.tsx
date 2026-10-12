@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './admin.css';
 import { confirmAdminAction } from './components/confirmAdminAction';
+import { installScrollPositionPersistence, restoreInitialScrollPosition } from './scroll-position';
 
 const apiUrl = new URL(import.meta.env.VITE_API_URL || "/api", window.location.href);
 const apiBasePath = apiUrl.pathname.replace(/\/$/, "");
@@ -59,8 +60,8 @@ function adminMutationConfirmation(input: RequestInfo | URL, init?: RequestInit)
   ) {
     title = "Record this offline payment?";
     message =
-      "This marks the full order total as paid after staff has received payment outside this website. No payment is collected or verified here.";
-    confirmLabel = "Mark order paid";
+      "This records an amount that staff has received outside this website. No payment is collected or verified here.";
+    confirmLabel = "Record payment";
   } else if (method === "DELETE") {
     title = "Delete this item?";
     message = "You can review this action before it is completed.";
@@ -82,6 +83,8 @@ function adminMutationConfirmation(input: RequestInfo | URL, init?: RequestInit)
   return { title, message, confirmLabel, tone };
 }
 
+installScrollPositionPersistence();
+
 window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const confirmation = adminMutationConfirmation(input, init);
   if (confirmation && !(await confirmAdminAction(confirmation)))
@@ -94,3 +97,4 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <App />
   </React.StrictMode>
 );
+restoreInitialScrollPosition();

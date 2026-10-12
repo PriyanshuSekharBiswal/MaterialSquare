@@ -8,7 +8,37 @@
     { "source": "/api/:path*", "destination": "/api/proxy?path=:path*" },
     { "source": "/robots.txt", "destination": "/api/robots" },
     { "source": "/sitemap.xml", "destination": "/api/sitemap" },
+    { "source": "/", "destination": "/api/homepage-index" },
+    { "source": "/blogs", "destination": "/api/blog-index" },
+    { "source": "/contact", "destination": "/api/contact-index" },
+    { "source": "/why-us", "destination": "/api/site-page-preview?path=/why-us" },
+    { "source": "/guides", "destination": "/api/site-page-preview?path=/guides" },
+    { "source": "/get-quote", "destination": "/api/site-page-preview?path=/get-quote" },
+    { "source": "/marketplace", "destination": "/api/marketplace-preview" },
+    { "source": "/experts", "destination": "/api/experts-index" },
+    { "source": "/locations/:slug", "destination": "/api/location-preview?slug=:slug" },
     { "source": "/blogs/:slug", "destination": "/api/blog-preview?slug=:slug" },
-    { "source": "/((?!api).*)", "destination": "/index.html" }
+    { "source": "/product/:productId", "destination": "/api/product-preview?productId=:productId" },
+    { "source": "/privacy", "destination": "/api/spa?path=/privacy" },
+    { "source": "/terms", "destination": "/api/spa?path=/terms" },
+    { "source": "/((?!api).*)", "destination": "/api/spa?path=/$1" }
+  ],
+  "headers": [
+    {
+      "source": "/__app-shell.html",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    },
+    {
+      "source": "/account",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    },
+    {
+      "source": "/account/:path*",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    },
+    {
+      "source": "/material-list",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    }
   ]
 }

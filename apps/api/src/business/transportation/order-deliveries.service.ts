@@ -5,9 +5,9 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { randomUUID } from "node:crypto";
 import { PrismaService } from "../../prisma/prisma.service";
 import { creditDeliveredOrderLoyalty } from "../../orders/order-loyalty";
+import { createBusinessReferenceNumber } from "../procurement/procurement-number";
 
 export type RecordOrderDeliveryInput = {
   items: Array<{ orderItemId: string; quantity: number }>;
@@ -18,10 +18,14 @@ export type RecordOrderDeliveryInput = {
 export class OrderDeliveriesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  record(orderId: string, input: RecordOrderDeliveryInput, staffId: string) {
+  record(
+    orderReference: string,
+    input: RecordOrderDeliveryInput,
+    staffId: string,
+  ) {
     return this.prisma.$transaction(async (db) => {
-      const order = await db.order.findUnique({
-        where: { id: orderId },
+      const order = await db.order.findFirst({
+        where: { OR: [{ id: orderReference }, { orderNumber: orderReference }] },
         include: {
           items: { include: { deliveries: true } },
         },
@@ -37,7 +41,7 @@ export class OrderDeliveriesService {
         );
 
       const plan = await db.transportationPlan.findUnique({
-        where: { orderId },
+        where: { orderId: order.id },
       });
       if (
         !plan ||
@@ -135,7 +139,7 @@ export class OrderDeliveriesService {
           data: { currentStep: 5 },
         });
 
-      const deliveryNumber = `MS-DLV-${new Date().getFullYear()}-${randomUUID()}`;
+      const deliveryNumber = await createBusinessReferenceNumber(db, "DL");
       const delivery = await db.orderDelivery.create({
         data: {
           orderId: order.id,

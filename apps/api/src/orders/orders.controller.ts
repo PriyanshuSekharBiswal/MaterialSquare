@@ -39,10 +39,17 @@ export class OrdersController {
     @Req() req: StaffRequest,
     @Body() body: unknown,
   ) {
+    if (!["SUPER_ADMIN", "ADMIN", "ACCOUNTS_MANAGER"].includes(req.user.role))
+      throw new ForbiddenException("Only accounts staff can record offline payments");
     const data = validate(
       z.object({
-        method: z.enum(["CASH", "UPI", "OTHER"]),
+        amountInr: z.number().positive().finite().max(9999999999.99).refine(
+          (amount) => Number.isInteger(amount * 100),
+          "Enter an amount with no more than two decimal places",
+        ),
+        method: z.enum(["CASH", "UPI", "CARD", "OTHER"]),
         reference: z.string().trim().max(120).optional(),
+        note: z.string().trim().max(500).optional(),
       }),
       body,
     );

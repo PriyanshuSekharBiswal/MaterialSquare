@@ -93,6 +93,49 @@
   border-radius: 8px;
   margin: 16px 0;
 }
+.client-confirmation-backdrop {
+  position: fixed;
+  z-index: 12000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, .56);
+  backdrop-filter: blur(3px);
+}
+.client-confirmation-dialog {
+  position: relative;
+  width: min(100%, 440px);
+  padding: 2rem;
+  border: 1px solid #dce5ef;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .24);
+  text-align: center;
+  animation: client-confirmation-enter 180ms ease-out;
+}
+.client-confirmation-close {
+  position: absolute;
+  top: .75rem;
+  right: .75rem;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #475569;
+  cursor: pointer;
+}
+.client-confirmation-icon { margin: .15rem auto .75rem; color: #168452; }
+.client-confirmation-dialog h2 { margin: 0 0 .5rem; color: #142033; font-size: 1.4rem; }
+.client-confirmation-dialog p { margin: 0 auto 1.25rem; color: #52647a; line-height: 1.6; }
+.client-confirmation-action { display: inline-flex; min-width: 150px; justify-content: center; text-decoration: none; }
+@keyframes client-confirmation-enter {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
 .account-card > .btn {
   margin: 8px 8px 8px 0;
 }
@@ -123,8 +166,63 @@
   font-family: inherit;
   font-size: 14px;
   line-height: 1.65;
-  max-height: 360px;
-  overflow: auto;
+  /* Keep the review in normal document flow so the page scrolls as one
+     surface instead of trapping the quotation inside a nested scroll box. */
+  max-height: none;
+  overflow: visible;
+}
+.request-fields.is-reviewing > :not(.request-preview-step) {
+  display: none;
+}
+.request-preview-step {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.request-preview-step h3 {
+  margin: 0 0 12px;
+  color: var(--ms-slate-900);
+  font-size: 1.25rem;
+}
+.request-customer-review {
+  margin: 0 0 18px;
+  overflow: hidden;
+  border: 1px solid var(--ms-slate-200);
+  border-radius: 12px;
+  background: var(--ms-slate-50);
+}
+.request-customer-review > div {
+  display: grid;
+  grid-template-columns: minmax(135px, 0.38fr) minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ms-slate-200);
+}
+.request-customer-review > div:last-child {
+  border-bottom: 0;
+}
+.request-customer-review dt {
+  color: var(--ms-slate-500);
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+.request-customer-review dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--ms-slate-900);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.request-submit-actions > .customer-help {
+  margin: 0 0 14px;
+}
+.request-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.request-preview-actions .btn {
+  margin: 0;
 }
 .account-sync-banner {
   padding: 10px 24px;
@@ -157,6 +255,52 @@
 .request-card + .request-card {
   margin-top: 20px;
 }
+.quotation-review-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.quotation-review-title > div > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ms-primary-hover);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .07em;
+}
+.quotation-review-title h2 { margin: 7px 0 0; color: var(--ms-slate-900); }
+.quotation-review-title > strong {
+  display: grid;
+  min-width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--ms-primary-light);
+  color: var(--ms-primary-hover);
+  font-size: 13px;
+}
+.quotation-review-list { display: grid; margin: 0 0 16px; padding: 0; list-style: none; }
+.quotation-review-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--ms-slate-200);
+}
+.quotation-review-list li > div { display: grid; min-width: 0; gap: 4px; }
+.quotation-review-list a,.quotation-review-list li > div > strong { overflow: hidden; color: var(--ms-slate-900); font-size: 14px; font-weight: 700; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.quotation-review-list a:hover { color: var(--ms-primary-hover); }
+.quotation-review-list small { overflow: hidden; color: var(--ms-slate-500); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.quotation-review-list li > b { max-width: 150px; color: var(--ms-slate-800); font-size: 12px; text-align: right; }
+.quotation-review-empty { display: flex; align-items: center; gap: 10px; margin: 12px 0; padding: 14px; border-radius: 10px; background: var(--ms-slate-50); color: var(--ms-slate-600); font-size: 13px; line-height: 1.45; }
+.quotation-review-empty svg { flex: 0 0 auto; color: var(--ms-slate-500); }
+.quotation-review-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding-top: 12px; border-top: 1px solid var(--ms-slate-200); }
+.quotation-review-actions .btn { display: inline-flex; align-items: center; gap: 7px; }
+.quotation-review-actions > a:last-child { display: inline-flex; align-items: center; gap: 5px; color: var(--ms-primary-hover); font-size: 13px; font-weight: 700; text-decoration: none; }
 
 .request-plan-guidance {
   display: grid;
@@ -240,6 +384,13 @@ button:disabled {
   }
   .material-fields {
     grid-template-columns: 90px 1fr;
+  }
+}
+@media (max-width: 480px) {
+  .request-customer-review > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 12px 14px;
   }
 }
 .product-image-note {
@@ -466,6 +617,14 @@ button:disabled {
   min-width: 0;
   display: grid;
   gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.request-fields > * { grid-column: 1 / -1; }
+.request-fields > .request-city-field { grid-column: 1; }
+.request-fields > .request-state-field { grid-column: 2; }
+@media (max-width: 480px) {
+  .request-fields > .request-city-field,
+  .request-fields > .request-state-field { grid-column: 1 / -1; }
 }
 .website-request-submit {
   padding: 20px 0;

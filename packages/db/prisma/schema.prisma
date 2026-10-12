@@ -44,12 +44,14 @@ enum OrderStatus {
 
 enum ManualPaymentStatus {
   UNPAID
+  PARTIALLY_PAID
   PAID
 }
 
 enum ManualPaymentMethod {
   CASH
   UPI
+  CARD
   OTHER
 }
 
@@ -124,6 +126,7 @@ model StaffUser {
   approvedPurchaseOrders     PurchaseOrder[]          @relation("PurchaseOrderApprover")
   approvedCommissions        CommissionRecord[]       @relation("CommissionApprover")
   recordedManualPayments     Order[]                  @relation("ManualPaymentRecorder")
+  recordedOrderPayments      OrderPayment[]           @relation("OrderPaymentRecorder")
 
   @@map("staff_users")
 }
@@ -347,7 +350,7 @@ model Quotation {
   request            Rfq?                @relation(fields: [requestId], references: [id], onDelete: SetNull)
   revisedFromId      String?             @unique
   revisionNumber     Int                 @default(1)
-  quoteNumber        String              @unique // MS-QT-2026-XXXX
+  quoteNumber        String              @unique // MS-QU-YYYY-MMDD-HHMMSS-mmm-ss; date/time digits use 0/a-i (23 chars excluding hyphens)
   customerId         String?
   customer           Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
   customerName       String
@@ -428,7 +431,7 @@ model QuotationItemOption {
 
 model Order {
   id                        String               @id @default(uuid())
-  orderNumber               String               @unique // MS-ORD-2026-XXXX
+  orderNumber               String               @unique // MS-OR-YYYY-MMDD-HHMMSS-mmm-ss; date/time digits use 0/a-i (23 chars excluding hyphens)
   quotationId               String?
   quotation                 Quotation?           @relation(fields: [quotationId], references: [id], onDelete: SetNull)
   customerId                String?
@@ -444,6 +447,7 @@ model Order {
   manualPaymentRecordedAt   DateTime?
   manualPaymentRecordedById String?
   manualPaymentRecordedBy   StaffUser?           @relation("ManualPaymentRecorder", fields: [manualPaymentRecordedById], references: [id], onDelete: SetNull)
+  payments                  OrderPayment[]
   subtotal                  Decimal              @db.Decimal(12, 2)
   taxAmount                 Decimal              @db.Decimal(12, 2)
   freightAmount             Decimal              @db.Decimal(12, 2)
@@ -463,6 +467,23 @@ model Order {
   updatedAt                 DateTime             @updatedAt
 
   @@map("orders")
+}
+
+model OrderPayment {
+  id            String              @id @default(uuid())
+  paymentNumber String              @unique
+  orderId       String
+  order         Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amountInr     Decimal             @db.Decimal(12, 2)
+  method        ManualPaymentMethod
+  reference     String?
+  note          String?
+  recordedAt    DateTime            @default(now())
+  recordedById  String?
+  recordedBy    StaffUser?          @relation("OrderPaymentRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([orderId, recordedAt])
+  @@map("order_payments")
 }
 
 model OrderItem {
@@ -491,7 +512,7 @@ model OrderDelivery {
   id             String              @id @default(uuid())
   orderId        String
   order          Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  deliveryNumber String              @unique
+  deliveryNumber String              @unique // MS-DL-YYYY-MMDD-HHMMSS-mmm-ss; date/time digits use 0/a-i (23 chars excluding hyphens)
   deliveredAt    DateTime            @default(now())
   notes          String?
   items          OrderDeliveryItem[]
@@ -518,7 +539,7 @@ model DispatchChallan {
   id                 String   @id @default(uuid())
   orderId            String   @unique
   order              Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  challanNumber      String   @unique // MS-DC-2026-XXXX
+  challanNumber      String   @unique // MS-DC-YYYY-MMDD-HHMMSS-mmm-ss; date/time digits use 0/a-i (23 chars excluding hyphens)
   truckNumber        String // OD-02-AK-7789
   driverName         String
   driverPhone        String
@@ -551,6 +572,7 @@ model Supplier {
   servicePincodes String[]          @default([])
   status          SupplierStatus    @default(PENDING)
   notes           String?
+  brandCatalog    Json              @default("[]")
   deletedAt       DateTime?
   products        SupplierProduct[]
   quotes          SupplierQuote[]
@@ -610,12 +632,13 @@ model SupplierRating {
 
 model ProcurementRequest {
   id              String            @id @default(uuid())
-  requestNumber   String            @unique
+  requestNumber   String            @unique // MS-PR-YYYY-MMDD-HHMMSS-mmm-ss; date/time digits use 0/a-i (23 chars excluding hyphens)
   orderId         String?           @unique
   order           Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
   status          ProcurementStatus @default(OPEN)
   deliveryAddress String
   deliveryCity    String
+  deliveryState   String?
   deliveryPincode String
   requiredBy      DateTime?
   items           Json
@@ -632,21 +655,22 @@ model ProcurementRequest {
 }
 
 model SupplierQuote {
-  id            String             @id @default(uuid())
-  requestId     String
-  request       ProcurementRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  supplierId    String
-  supplier      Supplier           @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  totalAmount   Decimal            @db.Decimal(14, 2)
-  items         Json               @default("[]")
-  leadTimeDays  Int?
-  available     Boolean            @default(true)
-  validUntil    DateTime?
-  notes         String?
-  status        String             @default("RECEIVED")
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-  purchaseOrder PurchaseOrder?
+  id                  String             @id @default(uuid())
+  supplierQuoteNumber String             @unique // MS-SQ-YYYY-MMDD-HHMMSS-mmm-ss; date/time digits use 0/a-i (23 chars excluding hyphens)
+  requestId           String
+  request             ProcurementRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  supplierId          String
+  supplier            Supplier           @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  totalAmount         Decimal            @db.Decimal(14, 2)
+  items               Json               @default("[]")
+  leadTimeDays        Int?
+  available           Boolean            @default(true)
+  validUntil          DateTime?
+  notes               String?
+  status              String             @default("RECEIVED")
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  purchaseOrder       PurchaseOrder?
 
   @@unique([requestId, supplierId])
   @@index([requestId, totalAmount])
@@ -657,7 +681,7 @@ model PurchaseOrder {
   revisionNumber      Int                 @default(1)
   revisionHistory     Json                @default("[]")
   id                  String              @id @default(uuid())
-  purchaseOrderNumber String              @unique
+  purchaseOrderNumber String              @unique // MS-PO-YYYY-MMDD-HHMMSS-mmm-ss; date/time digits use 0/a-i (23 chars excluding hyphens)
   requestId           String
   request             ProcurementRequest  @relation(fields: [requestId], references: [id], onDelete: Restrict)
   supplierId          String
@@ -904,23 +928,24 @@ model RecentlyDeletedRecord {
 }
 
 model Rfq {
-  id             String    @id @default(uuid())
-  customerId     String?
-  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  id              String          @id @default(uuid())
+  requestNumber   String          @unique // MS-RF-YYYY-MMDD-HHMMSS-mmm-ss; date/time digits use 0/a-i (23 chars excluding hyphens)
+  customerId      String?
+  customer        Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
   assignedStaffId String?
-  assignedStaff   StaffUser? @relation("RfqOwner", fields: [assignedStaffId], references: [id], onDelete: SetNull)
-  customerName   String
-  customerPhone  String
-  siteLocation   String
-  projectStage   String?
-  deliveryTiming String?
-  notes          String?
-  staffNotes     String?
-  items          Json
-  status         String    @default("NEW")
-  quotations     Quotation[]
-  attachments    RfqAttachment[]
-  createdAt      DateTime  @default(now())
+  assignedStaff   StaffUser?      @relation("RfqOwner", fields: [assignedStaffId], references: [id], onDelete: SetNull)
+  customerName    String
+  customerPhone   String
+  siteLocation    String
+  projectStage    String?
+  deliveryTiming  String?
+  notes           String?
+  staffNotes      String?
+  items           Json
+  status          String          @default("NEW")
+  quotations      Quotation[]
+  attachments     RfqAttachment[]
+  createdAt       DateTime        @default(now())
 
   @@index([customerId, createdAt])
   @@index([assignedStaffId, status, createdAt])
@@ -928,15 +953,15 @@ model Rfq {
 }
 
 model RfqAttachment {
-  id          String   @id @default(uuid())
-  rfqId       String
-  rfq         Rfq      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-  fileName    String
-  mimeType    String
-  byteSize    Int
-  storageKey  String?
-  content     Bytes?   @db.ByteA
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  rfqId      String
+  rfq        Rfq      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  fileName   String
+  mimeType   String
+  byteSize   Int
+  storageKey String?
+  content    Bytes?   @db.ByteA
+  createdAt  DateTime @default(now())
 
   @@index([rfqId, createdAt])
   @@map("rfq_attachments")

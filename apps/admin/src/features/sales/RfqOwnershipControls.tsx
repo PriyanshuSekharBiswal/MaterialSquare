@@ -53,7 +53,7 @@ export default function RfqOwnershipControls({
           ))}
         </select>
       </label>
-      <form onSubmit={saveNotes}>
+      <form className="rfq-staff-note-form" onSubmit={saveNotes}>
         <label>
           Internal staff note <span>(not shown to the customer)</span>
           <textarea

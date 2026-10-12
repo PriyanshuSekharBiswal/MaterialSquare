@@ -19,24 +19,23 @@ import {
   Truck,
   FileText,
   Users,
-  BookOpen,
+  Tags,
   BadgePercent,
   Coins,
   Clock3,
   Menu,
 } from "lucide-react";
 import "./business-console.css";
-import ProcurementRequestCard from "../procurement/ProcurementRequestCard";
+import ProcurementWorkspace from "../procurement/ProcurementWorkspace";
 import type { ProcurementRequest } from "../procurement/ProcurementRequestCard";
-import PurchaseRequestForm from "../procurement/PurchaseRequestForm";
 import TransportationPlanningForms from "../transportation/TransportationPlanningForms";
 import SupplierManagement, {
   type SupplierRecord,
 } from "../suppliers/SupplierManagement";
-import BlogManagementPanel from "../content/BlogManagementPanel";
-import type { BlogPost } from "../content/BlogManagementPanel";
+import PartnerBrandsManager from "../catalogue/PartnerBrandsManager";
 import ExpertDirectoryPanel from "../content/ExpertDirectoryPanel";
 import type { ExpertProfile } from "../content/ExpertDirectoryPanel";
+import BlogManagementPanel, { type BlogPost } from "../content/BlogManagementPanel";
 import CommissionManagement, {
   type CommissionRecord,
 } from "../commissions/CommissionManagement";
@@ -46,6 +45,7 @@ import LoyaltySettings, {
 import QuotationRules, {
   type QuotationRulesSettings,
 } from "../sales/QuotationRules";
+import "../catalogue/catalogue-manager.css";
 
 type Section =
   | "suppliers"
@@ -53,8 +53,9 @@ type Section =
   | "transport"
   | "discounts"
   | "followups"
-  | "blogs"
+  | "brands"
   | "experts"
+  | "blogs"
   | "commissions"
   | "loyalty"
   | "quote-rules";
@@ -89,12 +90,23 @@ const sections: {
     icon: FileText,
     endpoint: "/quotes",
   },
-  { id: "blogs", label: "Blogs", icon: BookOpen, endpoint: "/admin/blogs" },
+  {
+    id: "brands",
+    label: "Partner brands",
+    icon: Tags,
+    endpoint: "/products/catalogue/partner-brands",
+  },
   {
     id: "experts",
     label: "Experts & services",
     icon: Users,
     endpoint: "/admin/experts",
+  },
+  {
+    id: "blogs",
+    label: "Blogs",
+    icon: FileText,
+    endpoint: "/admin/blogs",
   },
   {
     id: "commissions",
@@ -130,8 +142,9 @@ const sectionRoles: Record<Section, string[]> = {
   transport: ["SUPER_ADMIN", "ADMIN", "DISPATCH_OFFICER"],
   discounts: ["SUPER_ADMIN", "ADMIN", "CATALOG_MANAGER"],
   followups: ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER"],
-  blogs: ["SUPER_ADMIN", "ADMIN", "CONTENT_MANAGER"],
+  brands: ["SUPER_ADMIN", "ADMIN", "CATALOG_MANAGER"],
   experts: ["SUPER_ADMIN", "ADMIN", "CONTENT_MANAGER"],
+  blogs: ["SUPER_ADMIN", "ADMIN", "CONTENT_MANAGER"],
   commissions: ["SUPER_ADMIN", "ADMIN", "ACCOUNTS_MANAGER"],
   loyalty: ["SUPER_ADMIN", "ADMIN", "ACCOUNTS_MANAGER"],
   "quote-rules": ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER"],
@@ -232,7 +245,12 @@ export default function BusinessConsole({
     setBusy(true);
     setError("");
     try {
-      if (section === "loyalty" || section === "quote-rules") {
+      if (section === "brands") {
+        if (sequence === loadSequence.current) {
+          setRecords([]);
+          setRecordsSection(section);
+        }
+      } else if (section === "loyalty" || section === "quote-rules") {
         const value = await request<ConsoleSettings>(active.endpoint);
         if (sequence === loadSequence.current) setSettings(value);
       } else {
@@ -327,20 +345,14 @@ export default function BusinessConsole({
         />
       )}
       {section === "procurement" && (
-        <>
-          <PurchaseRequestForm busy={busy} submit={submit} request={request} />
-          <h2>Purchase requests</h2>
-          {(visibleRecords as ProcurementRequest[]).map((record) => (
-            <ProcurementRequestCard
-              key={record.id}
-              record={record}
-              request={request}
-              busy={busy}
-              mutate={mutate}
-              download={download}
-            />
-          ))}
-        </>
+        <ProcurementWorkspace
+          records={visibleRecords as ProcurementRequest[]}
+          busy={busy}
+          request={request}
+          mutate={mutate}
+          submit={submit}
+          download={download}
+        />
       )}
       {section === "transport" && (
         <>
@@ -372,9 +384,19 @@ export default function BusinessConsole({
           busy={busy}
         />
       )}
-      {section === "blogs" && (
-        <BlogManagementPanel
-          records={visibleRecords as BlogPost[]}
+      {section === "brands" && (
+        <PartnerBrandsManager
+          token={token}
+          role={role}
+          onSignOut={onSignOut}
+          onBack={() => setSection("suppliers")}
+          customerUrl={customerUrl}
+          embedded
+        />
+      )}
+      {section === "experts" && (
+        <ExpertDirectoryPanel
+          records={visibleRecords as ExpertProfile[]}
           token={token}
           customerUrl={customerUrl}
           busy={busy}
@@ -385,9 +407,9 @@ export default function BusinessConsole({
           mutate={mutate}
         />
       )}
-      {section === "experts" && (
-        <ExpertDirectoryPanel
-          records={visibleRecords as ExpertProfile[]}
+      {section === "blogs" && (
+        <BlogManagementPanel
+          records={visibleRecords as BlogPost[]}
           token={token}
           customerUrl={customerUrl}
           busy={busy}

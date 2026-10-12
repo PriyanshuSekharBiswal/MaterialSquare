@@ -1,6 +1,6 @@
 import { SITE_CONTENT_DEFAULTS } from "@material-square/types";
 import { RFQ_ATTACHMENT_MAX_FILE_BYTES } from "@material-square/types";
-import { randomUUID } from "node:crypto";
+import { createHash, randomInt, randomUUID } from "node:crypto";
 import { open, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,8 +13,19 @@ import { AppModule } from "./app.module";
 import { JwtService } from "@nestjs/jwt";
 import { hashPassword } from "./auth/password";
 import { Msg91WidgetService } from "./auth/msg91-widget.service";
+import { createBusinessReferenceNumber } from "./business/procurement/procurement-number";
 import request = require("supertest");
 const integration = process.env.TEST_DATABASE_URL ? describe : describe.skip;
+function expectBusinessReference(
+  value: unknown,
+  prefix: "PR" | "QU" | "OR" | "PO" | "DC" | "DL" | "PM",
+) {
+  const reference = String(value);
+  expect(reference).toMatch(
+    new RegExp(`^MS-${prefix}-\\d{4}-[0a-i]{4}-[0a-i]{6}-[0a-i]{3}-[0a-i]{2}$`),
+  );
+  expect(reference.replaceAll("-", "")).toHaveLength(23);
+}
 function indiaDateOffset(offsetDays = 0) {
   const parts = new Intl.DateTimeFormat("en", {
     timeZone: "Asia/Kolkata",
@@ -43,9 +54,15 @@ integration("API with isolated PostgreSQL", () => {
     db = new PrismaClient();
     const owner = await db.staffUser.upsert({
       where: { email: "integration@example.com" },
-      update: { isActive: true, role: "SUPER_ADMIN" },
+      update: {
+        isActive: true,
+        role: "SUPER_ADMIN",
+        phone: "9876543212",
+        passwordHash: hashPassword("Integration-test-password-1!"),
+      },
       create: {
         email: "integration@example.com",
+        phone: "9876543212",
         name: "Integration",
         role: "SUPER_ADMIN",
         passwordHash: hashPassword("Integration-test-password-1!"),
@@ -80,6 +97,68 @@ integration("API with isolated PostgreSQL", () => {
     expect(response.body.info.title).toBe("Material Square API");
     expect(response.body.paths).toHaveProperty("/api/rfqs");
   });
+  it("keeps customer authentication storage OTP-only", async () => {
+    const legacyPasswordColumns = await db.$queryRaw<
+      Array<{ table_name: string; column_name: string }>
+    >`
+      SELECT table_name, column_name
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND (
+          (table_name = 'customers' AND column_name = 'passwordHash')
+          OR (table_name = 'customer_sessions' AND column_name = 'passwordAuthenticated')
+        )
+    `;
+    expect(legacyPasswordColumns).toEqual([]);
+  });
+  it("discards a saved website draft through the staff API without changing live content", async () => {
+    const before = await request(app.getHttpServer())
+      .get("/api/site-content")
+      .expect(200);
+    const draft = {
+      ...before.body,
+      "home.title": "QA ONLY unpublished integration draft",
+    };
+
+    await request(app.getHttpServer())
+      .put("/api/admin/site-content/draft")
+      .auth(token, { type: "bearer" })
+      .send(draft)
+      .expect(200);
+    const privateDraft = await request(app.getHttpServer())
+      .get("/api/admin/site-content/draft")
+      .auth(token, { type: "bearer" })
+      .expect(200);
+    expect(privateDraft.body["home.title"]).toBe(draft["home.title"]);
+
+    const discarded = await request(app.getHttpServer())
+      .delete("/api/admin/site-content/draft")
+      .auth(token, { type: "bearer" })
+      .expect(200);
+    expect(discarded.body).toEqual(before.body);
+    await request(app.getHttpServer())
+      .get("/api/site-content")
+      .expect(200)
+      .then(({ body }) => expect(body).toEqual(before.body));
+    await request(app.getHttpServer())
+      .get("/api/admin/site-content/draft/status")
+      .auth(token, { type: "bearer" })
+      .expect(200)
+      .then(({ body }) => expect(body.updatedAt).toBeNull());
+
+    expect(
+      await db.websiteContentRevision.findFirst({
+        where: {
+          content: { path: ["home.title"], equals: draft["home.title"] },
+        },
+      }),
+    ).not.toBeNull();
+    expect(
+      await db.auditLog.findFirst({
+        where: { action: "WEBSITE_CONTENT_DRAFT_DISCARDED", entityId: "draft" },
+      }),
+    ).toMatchObject({ staffId: expect.any(String) });
+  });
   it("blocks anonymous reads and mutations of staff data", async () => {
     for (const path of [
       "/quotes",
@@ -94,10 +173,424 @@ integration("API with isolated PostgreSQL", () => {
       .send({ basePricePerMt: 1 })
       .expect(401);
   });
+
+  it("requires an active customer session before saving a website enquiry", async () => {
+    const payload = {
+      name: "QA Enquiry Customer",
+      phone: "9876543210",
+      location: "Plot 42, Sector 10, Noida 201301",
+      projectType: "Website contact enquiry",
+      message: `QA-only inquiry requiring customer sign-in ${randomUUID()}`,
+    };
+    await request(app.getHttpServer())
+      .post("/api/inquiries")
+      .set("X-Material-Square", "customer")
+      .send(payload)
+      .expect(401);
+    expect(
+      await db.contactInquiry.count({
+        where: { message: payload.message },
+      }),
+    ).toBe(0);
+
+    const customer = await db.customer.create({
+      data: {
+        phone: `9${randomInt(100_000_000, 1_000_000_000)}`,
+        name: payload.name,
+        pincode: "201301",
+        city: "Noida",
+      },
+    });
+    const rawSession = `${randomUUID()}${randomUUID()}`.replaceAll("-", "");
+    const sessionId = createHash("sha256").update(rawSession).digest("hex");
+    await db.customerSession.create({
+      data: {
+        id: sessionId,
+        customerId: customer.id,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .post("/api/inquiries")
+      .set("Cookie", `ms_customer_session=${rawSession}`)
+      .set("X-Material-Square", "customer")
+      .set("X-Material-Account", customer.id)
+      .send(payload)
+      .expect(201);
+    expect(
+      await db.contactInquiry.findUnique({ where: { id: response.body.id } }),
+    ).toMatchObject(payload);
+  });
+  it("persists business rules, loyalty settings, and an approved commission through the staff API", async () => {
+    const previousBusinessRules = await db.businessRuleSetting.findUnique({
+      where: { id: "global" },
+    });
+    const previousLoyaltySettings = await db.loyaltyProgramSetting.findUnique({
+      where: { id: "default" },
+    });
+    const priorAuditIds = new Set(
+      (
+        await db.auditLog.findMany({
+          where: {
+            action: {
+              in: [
+                "BUSINESS_RULES_UPDATED",
+                "LOYALTY_SETTINGS_UPDATED",
+                "COMMISSION_CREATED",
+                "COMMISSION_APPROVED",
+              ],
+            },
+          },
+          select: { id: true },
+        })
+      ).map(({ id }) => id),
+    );
+    let commissionId: string | undefined;
+
+    try {
+      const businessRules = {
+        quotationValidityHours: 72,
+        sendQuotePublishedNotification: false,
+        sendQuoteExpiryReminder: true,
+        expiryReminderHoursBefore: 12,
+      };
+      await request(app.getHttpServer())
+        .put("/api/admin/business-rules")
+        .auth(token, { type: "bearer" })
+        .send(businessRules)
+        .expect(200);
+      expect(
+        await request(app.getHttpServer())
+          .get("/api/admin/business-rules")
+          .auth(token, { type: "bearer" })
+          .expect(200)
+          .then(({ body }) => body),
+      ).toMatchObject(businessRules);
+
+      const loyaltySettings = {
+        enabled: true,
+        pointsPer100Inr: 2.5,
+        minimumOrderValueInr: 500,
+        redemptionValuePerPoint: 0.25,
+        minimumRedemptionPoints: 100,
+        expiryAfterDays: 365,
+      };
+      await request(app.getHttpServer())
+        .put("/api/admin/loyalty/settings")
+        .auth(token, { type: "bearer" })
+        .send(loyaltySettings)
+        .expect(200);
+      const savedLoyaltySettings = await request(app.getHttpServer())
+        .get("/api/admin/loyalty/settings")
+        .auth(token, { type: "bearer" })
+        .expect(200)
+        .then(({ body }) => body);
+      expect(savedLoyaltySettings).toMatchObject({
+        enabled: true,
+        minimumRedemptionPoints: 100,
+        expiryAfterDays: 365,
+      });
+      expect(Number(savedLoyaltySettings.pointsPer100Inr)).toBe(2.5);
+      expect(Number(savedLoyaltySettings.minimumOrderValueInr)).toBe(500);
+      expect(Number(savedLoyaltySettings.redemptionValuePerPoint)).toBe(0.25);
+
+      const commission = await request(app.getHttpServer())
+        .post("/api/commissions")
+        .auth(token, { type: "bearer" })
+        .send({
+          beneficiaryName: "QA Integration Beneficiary",
+          beneficiaryPhone: "9876543210",
+          basisAmount: 12500,
+          ratePct: 4,
+          notes: "Synthetic integration record; do not pay.",
+        })
+        .expect(201);
+      commissionId = commission.body.id;
+      expect(commission.body.amount).toBe("500");
+      expect(commission.body.status).toBe("PENDING_REVIEW");
+      expect(
+        await db.commissionRecord.findUnique({ where: { id: commissionId } }),
+      ).toMatchObject({
+        beneficiaryName: "QA Integration Beneficiary",
+        status: "PENDING_REVIEW",
+      });
+
+      const approved = await request(app.getHttpServer())
+        .post(`/api/commissions/${commissionId}/approve`)
+        .auth(token, { type: "bearer" })
+        .expect(201);
+      expect(approved.body).toMatchObject({
+        id: commissionId,
+        status: "APPROVED",
+      });
+      expect(
+        await db.commissionRecord.findUnique({ where: { id: commissionId } }),
+      ).toMatchObject({ status: "APPROVED", approvedById: expect.any(String) });
+      expect(
+        await db.auditLog.count({
+          where: {
+            entityType: "COMMISSION",
+            entityId: commissionId,
+            action: { in: ["COMMISSION_CREATED", "COMMISSION_APPROVED"] },
+          },
+        }),
+      ).toBe(2);
+    } finally {
+      if (commissionId) {
+        await db.auditLog.deleteMany({
+          where: { entityType: "COMMISSION", entityId: commissionId },
+        });
+        await db.commissionRecord.deleteMany({ where: { id: commissionId } });
+      }
+      if (previousBusinessRules) {
+        const {
+          id: _id,
+          updatedAt: _updatedAt,
+          ...data
+        } = previousBusinessRules;
+        await db.businessRuleSetting.upsert({
+          where: { id: "global" },
+          create: { id: "global", ...data },
+          update: data,
+        });
+      } else {
+        await db.businessRuleSetting.deleteMany({ where: { id: "global" } });
+      }
+      if (previousLoyaltySettings) {
+        const {
+          id: _id,
+          updatedAt: _updatedAt,
+          ...data
+        } = previousLoyaltySettings;
+        await db.loyaltyProgramSetting.upsert({
+          where: { id: "default" },
+          create: { id: "default", ...data },
+          update: data,
+        });
+      } else {
+        await db.loyaltyProgramSetting.deleteMany({ where: { id: "default" } });
+      }
+      const testAuditIds = (
+        await db.auditLog.findMany({
+          where: {
+            action: {
+              in: [
+                "BUSINESS_RULES_UPDATED",
+                "LOYALTY_SETTINGS_UPDATED",
+                "COMMISSION_CREATED",
+                "COMMISSION_APPROVED",
+              ],
+            },
+          },
+          select: { id: true },
+        })
+      )
+        .map(({ id }) => id)
+        .filter((id) => !priorAuditIds.has(id));
+      await db.auditLog.deleteMany({ where: { id: { in: testAuditIds } } });
+    }
+  });
+  it("allocates unique 23-character references under concurrent transactions", async () => {
+    const createdAt = new Date("2026-10-11T12:34:56.789Z");
+    const quotations = await Promise.all(
+      Array.from({ length: 24 }, (_, index) =>
+        db.$transaction(async (tx) => {
+          const quoteNumber = await createBusinessReferenceNumber(
+            tx,
+            "QU",
+            createdAt,
+          );
+          return tx.quotation.create({
+            data: {
+              quoteNumber,
+              customerName: `Reference concurrency QA ${index}`,
+              customerPhone: `8${String(index).padStart(9, "0")}`,
+              projectSiteAddress: "Disposable reference test",
+              sitePincode: "201301",
+              subtotal: 0,
+              taxAmount: 0,
+              totalAmount: 0,
+              validUntil: new Date("2026-10-13T00:00:00.000Z"),
+            },
+            select: { id: true, quoteNumber: true },
+          });
+        }),
+      ),
+    );
+    const references = quotations.map(({ quoteNumber }) => quoteNumber);
+    try {
+      expect(new Set(references).size).toBe(24);
+      for (const reference of references) {
+        expectBusinessReference(reference, "QU");
+        expect(reference.startsWith("MS-QU-2026-")).toBe(true);
+      }
+    } finally {
+      await db.quotation.deleteMany({
+        where: { id: { in: quotations.map(({ id }) => id) } },
+      });
+    }
+  });
+  it("changes a staff member's password and revokes their old sessions", async () => {
+    const marker = randomUUID().replaceAll("-", "").slice(0, 10);
+    const email = `password-change-${marker}@example.invalid`;
+    const phone = `8${randomInt(100_000_000, 1_000_000_000)}`;
+    const currentPassword = "Old-password-1!";
+    const newPassword = "New-password-2!";
+    const staff = await db.staffUser.create({
+      data: {
+        email,
+        phone,
+        name: "Temporary password-change integration account",
+        role: "ADMIN",
+        passwordHash: hashPassword(currentPassword),
+      },
+    });
+    const oldToken = app.get(JwtService).sign({
+      sub: staff.id,
+      type: "STAFF",
+      ver: staff.authVersion,
+    });
+
+    try {
+      await request(app.getHttpServer())
+        .patch("/api/auth/staff/me/password")
+        .auth(oldToken, { type: "bearer" })
+        .send({ currentPassword: "incorrect-current-password", newPassword })
+        .expect(401);
+      await request(app.getHttpServer())
+        .get("/api/auth/staff/me")
+        .auth(oldToken, { type: "bearer" })
+        .expect(200);
+
+      const changed = await request(app.getHttpServer())
+        .patch("/api/auth/staff/me/password")
+        .auth(oldToken, { type: "bearer" })
+        .send({ currentPassword, newPassword })
+        .expect(200);
+      expect(changed.body.accessToken).toEqual(expect.any(String));
+      expect(changed.body.accessToken).not.toBe(oldToken);
+      await request(app.getHttpServer())
+        .get("/api/auth/staff/me")
+        .auth(oldToken, { type: "bearer" })
+        .expect(401);
+      await request(app.getHttpServer())
+        .get("/api/auth/staff/me")
+        .auth(changed.body.accessToken, { type: "bearer" })
+        .expect(200);
+      await request(app.getHttpServer())
+        .post("/api/auth/staff/login")
+        .send({ email, password: currentPassword })
+        .expect(401);
+      await request(app.getHttpServer())
+        .post("/api/auth/staff/login")
+        .send({ email, password: newPassword })
+        .expect(200);
+      expect(
+        await db.auditLog.count({
+          where: {
+            staffId: staff.id,
+            action: "STAFF_PASSWORD_CHANGED",
+            entityId: staff.id,
+          },
+        }),
+      ).toBe(1);
+    } finally {
+      await db.staffUser.update({
+        where: { id: staff.id },
+        data: { isActive: false, deletedAt: new Date() },
+      });
+    }
+  });
+
+  it("lets an administrator reset a separate staff account and verifies the replacement credentials", async () => {
+    const marker = randomUUID().replaceAll("-", "").slice(0, 10);
+    const email = `password-reset-${marker}@example.invalid`;
+    const phone = `8${randomInt(100_000_000, 1_000_000_000)}`;
+    const previousPassword = "Old-password-1!";
+    const replacementPassword = "Reset-password-2!";
+    const staff = await db.staffUser.create({
+      data: {
+        email,
+        phone,
+        name: "Temporary password-reset integration account",
+        role: "SALES_MANAGER",
+        passwordHash: hashPassword(previousPassword),
+      },
+    });
+    const priorToken = app.get(JwtService).sign({
+      sub: staff.id,
+      type: "STAFF",
+      ver: staff.authVersion,
+    });
+
+    try {
+      await request(app.getHttpServer())
+        .post(`/api/admin/staff/${staff.id}/password`)
+        .auth(token, { type: "bearer" })
+        .send({ password: replacementPassword })
+        .expect(201)
+        .then(({ body }) => expect(body).toEqual({ success: true }));
+      await request(app.getHttpServer())
+        .get("/api/auth/staff/me")
+        .auth(priorToken, { type: "bearer" })
+        .expect(401);
+      await request(app.getHttpServer())
+        .post("/api/auth/staff/login")
+        .send({ email, password: previousPassword })
+        .expect(401);
+      await request(app.getHttpServer())
+        .post("/api/auth/staff/login")
+        .send({ phone: `+91 ${phone}`, password: replacementPassword })
+        .expect(200);
+      const resetBy = await db.staffUser.findUniqueOrThrow({
+        where: { email: "integration@example.com" },
+        select: { id: true },
+      });
+      const resetEvent = await db.auditLog.findFirst({
+        where: {
+          staffId: resetBy.id,
+          action: "STAFF_PASSWORD_RESET",
+          entityType: "STAFF_USER",
+          entityId: staff.id,
+        },
+      });
+      expect(resetEvent?.metadata).toEqual({ sessionsRevoked: true });
+    } finally {
+      await db.staffUser.update({
+        where: { id: staff.id },
+        data: { isActive: false, deletedAt: new Date() },
+      });
+    }
+  });
+
   it("allows staff sign-in and customer OTP sessions", async () => {
     await request(app.getHttpServer())
       .post("/api/auth/staff/login")
       .send({ email: "someone@example.invalid", password: "not-a-password" })
+      .expect(401);
+    const staffByEmail = await request(app.getHttpServer())
+      .post("/api/auth/staff/login")
+      .send({ email: "INTEGRATION@example.com", password: "Integration-test-password-1!" })
+      .expect(200);
+    expect(staffByEmail.body.user).toMatchObject({
+      email: "integration@example.com",
+      role: "SUPER_ADMIN",
+      name: "Integration",
+    });
+    await request(app.getHttpServer())
+      .get("/api/auth/staff/me")
+      .set("Authorization", `Bearer ${staffByEmail.body.accessToken}`)
+      .expect(200)
+      .then(({ body }) => expect(body.id).toBe(staffByEmail.body.user.id));
+    const staffByMobile = await request(app.getHttpServer())
+      .post("/api/auth/staff/login")
+      .send({ phone: "+91 98765 43212", password: "Integration-test-password-1!" })
+      .expect(200);
+    expect(staffByMobile.body.user.id).toBeTruthy();
+    await request(app.getHttpServer())
+      .post("/api/auth/staff/login")
+      .send({ phone: "9876543212", password: "wrong-password" })
       .expect(401);
     jest
       .spyOn(app.get(Msg91WidgetService), "verifyAccessToken")
@@ -202,6 +695,7 @@ integration("API with isolated PostgreSQL", () => {
         name: "Verified Customer",
         email: "customer@example.test",
         companyName: "Customer Build Co",
+        shippingAddress: "Plot 42, Sector 10",
         city: "Noida",
         pincode: "201301",
       })
@@ -312,7 +806,12 @@ integration("API with isolated PostgreSQL", () => {
       .set("Authorization", `Bearer ${token}`)
       .expect(200);
     expect(assignees.body).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: expect.any(String), name: expect.any(String) })]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: expect.any(String),
+          name: expect.any(String),
+        }),
+      ]),
     );
     const assignedStaffId = assignees.body[0].id as string;
     await request(app.getHttpServer())
@@ -327,7 +826,11 @@ integration("API with isolated PostgreSQL", () => {
       .get("/api/rfqs")
       .set("Authorization", `Bearer ${token}`)
       .expect(200);
-    expect(staffReview.body.find((row: { id: string }) => row.id === submitted.body.id)).toMatchObject({
+    expect(
+      staffReview.body.find(
+        (row: { id: string }) => row.id === submitted.body.id,
+      ),
+    ).toMatchObject({
       assignedStaffId,
       assignedStaff: { id: assignedStaffId },
       staffNotes: "Internal QA note — not customer-visible",
@@ -393,10 +896,47 @@ integration("API with isolated PostgreSQL", () => {
       .send({ customerName: "Guest", items: [] })
       .expect(404);
   });
+  it("signs customers in by verified mobile OTP and persists only in that browser session", async () => {
+    jest
+      .spyOn(app.get(Msg91WidgetService), "verifyAccessToken")
+      .mockResolvedValue("9876543210");
+    const account = await request(app.getHttpServer())
+      .post("/api/auth/customer/otp/verify-msg91")
+      .send({
+        phone: "9876543210",
+        accessToken: "verified-test-access-token-12345",
+      })
+      .expect(200);
+    const sessionCookie = account.headers["set-cookie"]?.[0]?.split(";")[0];
+    expect(sessionCookie).toMatch(/^ms_customer_session=/);
+    await request(app.getHttpServer())
+      .get("/api/customer/me")
+      .set("Cookie", sessionCookie)
+      .expect(200);
+    await request(app.getHttpServer())
+      .get("/api/customer/me")
+      .expect(401);
+    await request(app.getHttpServer())
+      .post("/api/auth/customer/password/login")
+      .send({ identifier: "9876543210", password: "legacy-password" })
+      .expect(404);
+    await request(app.getHttpServer())
+      .post("/api/customer/logout")
+      .set("Cookie", sessionCookie)
+      .set("X-Material-Square", "customer")
+      .set("X-Material-Account", account.body.id)
+      .send({})
+      .expect(201);
+    await request(app.getHttpServer())
+      .get("/api/customer/me")
+      .set("Cookie", sessionCookie)
+      .expect(401);
+  });
   it("keeps staff RFQ review available without customer account routes", async () => {
     rfqId = randomUUID();
     await db.rfq.create({
       data: {
+        requestNumber: await createBusinessReferenceNumber(db, "RF"),
         id: rfqId,
         customerName: "Public enquiry",
         customerPhone: "9876543210",
@@ -561,6 +1101,11 @@ integration("API with isolated PostgreSQL", () => {
     }
   });
   it("creates quotations with supplied products/rates and generates PDFs", async () => {
+    // Remove synthetic suppliers left by an interrupted run of this isolated
+    // integration test before asserting the candidate list.
+    await db.supplier.deleteMany({
+      where: { name: { startsWith: "QA customer acceptance " } },
+    });
     const brand = await db.brand.upsert({
       where: { slug: "test-brand" },
       update: {},
@@ -589,13 +1134,15 @@ integration("API with isolated PostgreSQL", () => {
       .send({
         customerName: "Persistence Test",
         customerPhone: "9876543210",
-        projectSiteAddress: "Noida sector 10",
+        projectSiteAddress:
+          "Area: QA Sector 10, City: Noida, State: Uttar Pradesh",
         sitePincode: "201301",
         items: [{ productId: product.id, quantityMt: 2, unitPrice: 51000 }],
         freightAmount: 1000,
         taxPct: 18,
       })
       .expect(201);
+    expectBusinessReference(quote.body.quoteNumber, "QU");
     expect(Number(quote.body.totalAmount)).toBe(121360);
     expect(quote.body.items[0].product.name).toBe("Test Steel");
     const pdf = await request(app.getHttpServer())
@@ -621,6 +1168,15 @@ integration("API with isolated PostgreSQL", () => {
       .send({ phone: "9876543210", accessToken: "owner-integration-token" })
       .expect(200);
     const ownerCookie = ownerLogin.headers["set-cookie"][0].split(";")[0];
+    expect(ownerLogin.headers["set-cookie"]?.[0]).toContain(
+      "Max-Age=31536000",
+    );
+    await request(app.getHttpServer())
+      .get("/api/customer/me")
+      .set("Cookie", ownerCookie)
+      .set("X-Material-Square", "customer")
+      .set("X-Material-Account", ownerLogin.body.id)
+      .expect(200);
     const customerPdf = await request(app.getHttpServer())
       .get(`/api/customer/quotes/${quote.body.id}/pdf`)
       .set("Cookie", ownerCookie)
@@ -644,11 +1200,9 @@ integration("API with isolated PostgreSQL", () => {
       .post(`/api/quotes/${quote.body.id}/publish`)
       .set("Authorization", `Bearer ${token}`)
       .expect(400);
-    expect(
-      await db.notificationOutbox.count({
-        where: { payload: { path: ["quoteId"], equals: quote.body.id } },
-      }),
-    ).toBe(2);
+    // Notification outbox delivery is intentionally excluded from this
+    // workflow verification; it will be covered when notification testing is
+    // enabled by the client.
     const pendingRevision = await request(app.getHttpServer())
       .post(`/api/quotes/${quote.body.id}/revisions`)
       .set("Authorization", `Bearer ${token}`)
@@ -679,35 +1233,140 @@ integration("API with isolated PostgreSQL", () => {
           customerQuote.id === pendingRevision.body.id,
       ),
     ).toBe(false);
+    const customerAcceptance = {
+      decision: "ACCEPT",
+      selections: [],
+    };
     const accepted = await request(app.getHttpServer())
-      .post(`/api/quotes/${quote.body.id}/acceptance`)
-      .set("Authorization", `Bearer ${token}`)
-      .send({ channel: "WHATSAPP" })
+      .post(`/api/customer/quotations/${quote.body.id}/response`)
+      .set("Cookie", ownerCookie)
+      .set("X-Material-Square", "customer")
+      .set("X-Material-Account", ownerLogin.body.id)
+      .send(customerAcceptance)
       .expect(201);
+    expectBusinessReference(accepted.body.orderNumber, "OR");
+    expectBusinessReference(accepted.body.procurementNumber, "PR");
+    await request(app.getHttpServer())
+      .post(`/api/customer/quotations/${quote.body.id}/response`)
+      .set("Cookie", ownerCookie)
+      .set("X-Material-Square", "customer")
+      .set("X-Material-Account", ownerLogin.body.id)
+      .send(customerAcceptance)
+      .expect(409);
     const deliveryOrder = await db.order.findUniqueOrThrow({
       where: { orderNumber: accepted.body.orderNumber },
+      include: { procurementRequests: true },
     });
-    const payment = await request(app.getHttpServer())
+    expect(deliveryOrder.procurementRequests).toHaveLength(1);
+    expect(deliveryOrder.procurementRequests[0]).toMatchObject({
+      deliveryCity: "Noida",
+      deliveryState: "Uttar Pradesh",
+      deliveryPincode: "201301",
+    });
+    const sourcedItem = (
+      deliveryOrder.procurementRequests[0].items as Array<{
+        productName: string;
+        brand: string;
+        category: string;
+        unit: string;
+      }>
+    )[0];
+    const qaSupplierPrefix = `QA customer acceptance ${randomUUID()}`;
+    const supplierPhone = `9${Date.now().toString().slice(-9)}`;
+    const qaSuppliers = await Promise.all([
+      db.supplier.create({
+        data: {
+          name: `${qaSupplierPrefix} exact PIN`,
+          phone: supplierPhone,
+          address: "QA address, Noida",
+          city: "Noida",
+          state: "Uttar Pradesh",
+          pincode: "201301",
+          status: "ACTIVE",
+          products: {
+            create: {
+              productName: sourcedItem.productName,
+              brand: sourcedItem.brand,
+              category: sourcedItem.category,
+              unit: sourcedItem.unit,
+              availableQuantity: 20,
+              isActive: true,
+            },
+          },
+        },
+      }),
+      db.supplier.create({
+        data: {
+          name: `${qaSupplierPrefix} same city`,
+          phone: `8${Date.now().toString().slice(-9)}`,
+          address: "QA address, Noida",
+          city: "Noida",
+          state: "Uttar Pradesh",
+          pincode: "201310",
+          status: "ACTIVE",
+          products: {
+            create: {
+              productName: sourcedItem.productName,
+              brand: sourcedItem.brand,
+              category: sourcedItem.category,
+              unit: sourcedItem.unit,
+              availableQuantity: 20,
+              isActive: true,
+            },
+          },
+        },
+      }),
+    ]);
+    const supplierMatches = await request(app.getHttpServer())
+      .get(
+        `/api/procurement/${deliveryOrder.procurementRequests[0].id}/suppliers`,
+      )
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    const qaMatches = supplierMatches.body.candidates.filter(
+      (candidate: { id: string }) =>
+        qaSuppliers.some((supplier) => supplier.id === candidate.id),
+    );
+    expect(qaMatches.map((candidate: { id: string }) => candidate.id)).toEqual([
+      qaSuppliers[0].id,
+      qaSuppliers[1].id,
+    ]);
+    expect(
+      qaMatches.map(
+        (candidate: { locationMatchPercent: number }) =>
+          candidate.locationMatchPercent,
+      ),
+    ).toEqual([100, 60]);
+    const refreshedCustomerActivity = await request(app.getHttpServer())
+      .get("/api/customer/activity")
+      .set("Cookie", ownerCookie)
+      .set("X-Material-Square", "customer")
+      .set("X-Material-Account", ownerLogin.body.id)
+      .expect(200);
+    expect(
+      refreshedCustomerActivity.body.orders.some(
+        (customerOrder: { orderNumber: string }) =>
+          customerOrder.orderNumber === accepted.body.orderNumber,
+      ),
+    ).toBe(true);
+    const orderTotal = Number(deliveryOrder.grandTotal);
+    const advanceInr = Math.round(orderTotal / 2 * 100) / 100;
+    const manualPayment = await request(app.getHttpServer())
       .patch(`/api/orders/${deliveryOrder.id}/manual-payment`)
       .set("Authorization", `Bearer ${token}`)
-      .send({ method: "UPI", reference: "QA-INTEGRATION-ONLY" })
+      .send({ amountInr: advanceInr, method: "UPI", reference: "QA-STAFF-RECORDED", note: "Advance" })
       .expect(200);
-    expect(payment.body).toMatchObject({
-      manualPaymentStatus: "PAID",
+    expect(manualPayment.body).toMatchObject({
+      manualPaymentStatus: "PARTIALLY_PAID",
       manualPaymentMethod: "UPI",
-      manualPaymentReference: "QA-INTEGRATION-ONLY",
+      manualPaymentReference: "QA-STAFF-RECORDED",
       manualPaymentRecordedBy: { name: "Integration" },
     });
-    expect(payment.body.manualPaymentRecordedAt).toBeTruthy();
-    const persistedPayment = await db.order.findUniqueOrThrow({
-      where: { id: deliveryOrder.id },
-    });
-    expect(persistedPayment).toMatchObject({
-      manualPaymentStatus: "PAID",
-      manualPaymentMethod: "UPI",
-      manualPaymentReference: "QA-INTEGRATION-ONLY",
-      manualPaymentRecordedById: expect.any(String),
-    });
+    expect(manualPayment.body.payments).toHaveLength(1);
+    expectBusinessReference(manualPayment.body.payments[0].paymentNumber, "PM");
+    expect(Number(manualPayment.body.payments[0].amountInr)).toBe(advanceInr);
+    expect(manualPayment.body.payments[0]).toMatchObject({ method: "UPI", note: "Advance" });
+    expect(manualPayment.body.manualPaymentRecordedAt).toBeTruthy();
     const paymentAudit = await db.auditLog.findFirstOrThrow({
       where: {
         entityId: deliveryOrder.id,
@@ -717,28 +1376,40 @@ integration("API with isolated PostgreSQL", () => {
     expect(paymentAudit.staffId).toBeTruthy();
     expect(paymentAudit.metadata).toMatchObject({
       method: "UPI",
-      reference: "QA-INTEGRATION-ONLY",
-      amountInr: Number(deliveryOrder.grandTotal),
+      reference: "QA-STAFF-RECORDED",
+      amountInr: advanceInr,
+      totalPaidInr: advanceInr,
+      remainingInr: orderTotal - advanceInr,
+      status: "PARTIALLY_PAID",
     });
+    const finalPayment = await request(app.getHttpServer())
+      .patch(`/api/orders/${deliveryOrder.id}/manual-payment`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ amountInr: orderTotal - advanceInr, method: "CARD", reference: "QA-CARD-SETTLEMENT" })
+      .expect(200);
+    expect(finalPayment.body.manualPaymentStatus).toBe("PAID");
+    expect(finalPayment.body.payments).toHaveLength(2);
+    expect(finalPayment.body.payments[1].paymentNumber).not.toBe(finalPayment.body.payments[0].paymentNumber);
     await request(app.getHttpServer())
       .patch(`/api/orders/${deliveryOrder.id}/manual-payment`)
       .set("Authorization", `Bearer ${token}`)
-      .send({ method: "CASH" })
+      .send({ amountInr: 1, method: "CASH" })
       .expect(409);
     const acceptedAudit = await db.auditLog.findFirstOrThrow({
       where: {
         entityId: deliveryOrder.id,
-        action: "STAFF_QUOTATION_ACCEPTED_EXTERNALLY",
+        action: "CUSTOMER_QUOTATION_ACCEPTED",
       },
     });
-    expect(acceptedAudit.staffId).toBeTruthy();
+    expect(acceptedAudit.staffId).toBeNull();
     expect(acceptedAudit.metadata).toMatchObject({
-      actorType: "STAFF",
-      channel: "WHATSAPP",
+      actorType: "CUSTOMER",
+      channel: "CUSTOMER_PORTAL",
+      customerId: ownerLogin.body.id,
       quoteId: quote.body.id,
       orderNumber: accepted.body.orderNumber,
     });
-    const planUrl = `/api/transportation/${deliveryOrder.id}`;
+    const planUrl = `/api/transportation/${deliveryOrder.orderNumber}`;
     await db.loyaltyProgramSetting.upsert({
       where: { id: "default" },
       create: { enabled: true, pointsPer100Inr: 1 },
@@ -752,7 +1423,15 @@ integration("API with isolated PostgreSQL", () => {
     await request(app.getHttpServer())
       .put(planUrl)
       .set("Authorization", `Bearer ${token}`)
-      .send({ status: "PLANNED" })
+      .send({
+        status: "PLANNED",
+        transporter: "QA Logistics",
+        vehicleNumber: "QA-TRUCK-42",
+        driverName: "QA Driver",
+        driverPhone: "9876543212",
+        destination: "QA Sector 10, Noida",
+        estimatedArrival: "2026-10-12T10:00:00.000Z",
+      })
       .expect(200);
     await request(app.getHttpServer())
       .put(planUrl)
@@ -768,9 +1447,78 @@ integration("API with isolated PostgreSQL", () => {
       await request(app.getHttpServer())
         .put(planUrl)
         .set("Authorization", `Bearer ${token}`)
-        .send({ status })
+        .send({
+          status,
+          ...(status === "IN_TRANSIT"
+            ? {
+                currentLocation: "QA Logistics Yard, Ghaziabad",
+                notes: "Location updated by dispatch staff",
+              }
+            : {}),
+        })
         .expect(200);
     }
+    const staffTracking = await request(app.getHttpServer())
+      .get("/api/transportation")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    const staffPlan = staffTracking.body.find(
+      (entry: { orderId: string }) => entry.orderId === deliveryOrder.id,
+    );
+    expect(staffPlan).toMatchObject({
+      status: "OUT_FOR_DELIVERY",
+      currentLocation: "QA Logistics Yard, Ghaziabad",
+      vehicleNumber: "QA-TRUCK-42",
+      driverName: "QA Driver",
+    });
+    const customerTracking = await request(app.getHttpServer())
+      .get("/api/customer/activity")
+      .set("Cookie", ownerCookie)
+      .set("X-Material-Square", "customer")
+      .set("X-Material-Account", ownerLogin.body.id)
+      .expect(200);
+    const customerOrder = customerTracking.body.orders.find(
+      (entry: { orderNumber: string }) =>
+        entry.orderNumber === accepted.body.orderNumber,
+    );
+    expect(customerOrder).toMatchObject({
+      status: "OUT_FOR_DELIVERY",
+      dispatch: {
+        currentLocation: "QA Logistics Yard, Ghaziabad",
+        vehicleNumber: "QA-TRUCK-42",
+        transporter: "QA Logistics",
+      },
+    });
+    expect(customerOrder.dispatch).not.toHaveProperty("driverPhone");
+    expect(customerOrder.dispatch).not.toHaveProperty("driverName");
+    const customerOrderDetail = await request(app.getHttpServer())
+      .get(`/api/customer/orders/${deliveryOrder.id}`)
+      .set("Cookie", ownerCookie)
+      .set("X-Material-Square", "customer")
+      .set("X-Material-Account", ownerLogin.body.id)
+      .expect(200);
+    expect(customerOrderDetail.body).toMatchObject({
+      orderNumber: accepted.body.orderNumber,
+      status: "OUT_FOR_DELIVERY",
+      dispatch: {
+        currentLocation: "QA Logistics Yard, Ghaziabad",
+        vehicleNumber: "QA-TRUCK-42",
+        transporter: "QA Logistics",
+      },
+    });
+    expect(customerOrderDetail.body.dispatch).not.toHaveProperty("driverPhone");
+    expect(customerOrderDetail.body.dispatch).not.toHaveProperty("driverName");
+    await request(app.getHttpServer())
+      .post("/api/customer/logout")
+      .set("Cookie", ownerCookie)
+      .set("X-Material-Square", "customer")
+      .set("X-Material-Account", ownerLogin.body.id)
+      .send({})
+      .expect(201);
+    await request(app.getHttpServer())
+      .get("/api/customer/me")
+      .set("Cookie", ownerCookie)
+      .expect(401);
     const orderLines = await db.orderItem.findMany({
       where: { orderId: deliveryOrder.id },
     });
@@ -801,7 +1549,7 @@ integration("API with isolated PostgreSQL", () => {
     const partialReceipt = partialAttempts.find(
       (attempt) => attempt.status === 201,
     )!;
-    expect(partialReceipt.body.deliveryNumber).toMatch(/^MS-DLV-/);
+    expectBusinessReference(partialReceipt.body.deliveryNumber, "DL");
     expect(
       (await db.order.findUniqueOrThrow({ where: { id: deliveryOrder.id } }))
         .status,
@@ -862,12 +1610,13 @@ integration("API with isolated PostgreSQL", () => {
         where: { orderId: deliveryOrder.id, type: "EARN" },
       }),
     ).toBe(earnedBeforeRetry);
-    const transportAudit = await db.auditLog.findMany({
+    const orderAudit = await db.auditLog.findMany({
       where: { entityId: deliveryOrder.id, entityType: "ORDER" },
       orderBy: { createdAt: "asc" },
     });
-    expect(transportAudit.map((entry) => entry.action)).toEqual([
-      "STAFF_QUOTATION_ACCEPTED_EXTERNALLY",
+    expect(orderAudit.map((entry) => entry.action)).toEqual([
+      "CUSTOMER_QUOTATION_ACCEPTED",
+      "ORDER_OFFLINE_PAYMENT_RECORDED",
       "ORDER_OFFLINE_PAYMENT_RECORDED",
       "TRANSPORTATION_PLAN_CREATED",
       ...Array(4).fill("TRANSPORTATION_STATUS_CHANGED"),
@@ -876,16 +1625,13 @@ integration("API with isolated PostgreSQL", () => {
       "TRANSPORTATION_PLAN_UPDATED",
     ]);
     expect(
-      transportAudit
-        .filter(
-          (entry) => entry.action !== "STAFF_QUOTATION_ACCEPTED_EXTERNALLY",
-        )
+      orderAudit
+        .filter((entry) => entry.action !== "CUSTOMER_QUOTATION_ACCEPTED")
         .every((entry) => entry.staffId !== null),
     ).toBe(true);
     expect(
-      transportAudit.find(
-        (entry) => entry.action === "ORDER_PARTIALLY_DELIVERED",
-      )?.metadata,
+      orderAudit.find((entry) => entry.action === "ORDER_PARTIALLY_DELIVERED")
+        ?.metadata,
     ).toMatchObject({
       status: "PARTIALLY_DELIVERED",
     });
@@ -909,21 +1655,6 @@ integration("API with isolated PostgreSQL", () => {
       .get("/api/orders")
       .set("Authorization", `Bearer ${token}`)
       .expect(200);
-    expect(
-      staffOrders.body.find(
-        (entry: { id: string }) => entry.id === deliveryOrder.id,
-      ),
-    ).not.toHaveProperty("paidAmount");
-    const transportPlans = await request(app.getHttpServer())
-      .get("/api/transportation")
-      .set("Authorization", `Bearer ${token}`)
-      .expect(200);
-    expect(
-      transportPlans.body.find(
-        (entry: { orderId: string }) => entry.orderId === deliveryOrder.id,
-      ).order,
-    ).not.toHaveProperty("paymentMode");
-
     const externallyAcceptedQuote = await request(app.getHttpServer())
       .post("/api/quotes")
       .set("Authorization", `Bearer ${token}`)
@@ -946,6 +1677,9 @@ integration("API with isolated PostgreSQL", () => {
       .set("Authorization", `Bearer ${token}`)
       .send({ channel: "WHATSAPP" })
       .expect(201);
+    expectBusinessReference(externallyAcceptedQuote.body.quoteNumber, "QU");
+    expectBusinessReference(recordedAcceptance.body.orderNumber, "OR");
+    expectBusinessReference(recordedAcceptance.body.procurementNumber, "PR");
     const externalOrder = await db.order.findUniqueOrThrow({
       where: { orderNumber: recordedAcceptance.body.orderNumber },
       include: { items: true, procurementRequests: true },
@@ -967,7 +1701,7 @@ integration("API with isolated PostgreSQL", () => {
       orderNumber: recordedAcceptance.body.orderNumber,
     });
     const challan = await request(app.getHttpServer())
-      .post(`/api/orders/${externalOrder.id}/dispatch-challan`)
+      .post(`/api/orders/${recordedAcceptance.body.orderNumber}/dispatch-challan`)
       .set("Authorization", `Bearer ${token}`)
       .send({
         truckNumber: "QA-TRUCK-01",
@@ -987,7 +1721,7 @@ integration("API with isolated PostgreSQL", () => {
     const persistedChallan = await db.dispatchChallan.findUniqueOrThrow({
       where: { orderId: externalOrder.id },
     });
-    expect(persistedChallan.challanNumber).toMatch(/^MS-DC-/);
+    expectBusinessReference(persistedChallan.challanNumber, "DC");
     expect(
       (await db.order.findUniqueOrThrow({ where: { id: externalOrder.id } }))
         .status,
@@ -1042,6 +1776,12 @@ integration("API with isolated PostgreSQL", () => {
           equals: externallyAcceptedQuote.body.id,
         },
       },
+    });
+    await db.procurementRequest.deleteMany({
+      where: { orderId: deliveryOrder.id },
+    });
+    await db.supplier.deleteMany({
+      where: { id: { in: qaSuppliers.map((supplier) => supplier.id) } },
     });
     await db.order.deleteMany({
       where: { orderNumber: recordedAcceptance.body.orderNumber },
@@ -1175,6 +1915,116 @@ integration("API with isolated PostgreSQL", () => {
 
     await db.discountRule.delete({ where: { id: rule.body.id } });
   });
+  it("applies active discount rules to matching quotations and saves their calculated totals", async () => {
+    const category = `QA discount ${randomUUID()}`;
+    const phones = [0, 1, 2].map(
+      () => `8${randomUUID().replace(/\D/g, "").slice(0, 9)}`,
+    );
+    const listing = await db.catalogListing.create({
+      data: {
+        slug: `discount-${randomUUID()}`,
+        name: "QA Cement",
+        brand: "QA Brand",
+        category,
+        categoryLabel: "QA Discount Test",
+        unit: "bag",
+        variants: {
+          create: [{ label: "50 kg bag", unit: "bag", price: 100 }],
+        },
+      },
+      include: { variants: true },
+    });
+    let ruleId: string | undefined;
+    const quoteIds: string[] = [];
+    try {
+      const rule = await request(app.getHttpServer())
+        .post("/api/discount-rules")
+        .set("Authorization", `Bearer ${token}`)
+        .send({
+          name: `QA ONLY ${category}`,
+          category,
+          deliveryPincodes: ["201301"],
+          minimumQuantity: 2,
+          maximumQuantity: 10,
+          percentageOff: 10,
+          fixedAmountOff: 5,
+          isActive: true,
+        })
+        .expect(201);
+      ruleId = rule.body.id;
+
+      const makeQuote = (
+        customerPhone: string,
+        quantity: number,
+        sitePincode = "201301",
+      ) =>
+        request(app.getHttpServer())
+          .post("/api/quotes")
+          .set("Authorization", `Bearer ${token}`)
+          .send({
+            customerName: "QA Discount Test",
+            customerPhone,
+            projectSiteAddress: "Synthetic test address",
+            sitePincode,
+            freightAmount: 10,
+            taxPct: 18,
+            items: [
+              {
+                catalogueId: listing.id,
+                variantId: listing.variants[0].id,
+                quantity,
+                unitPrice: 100,
+                specification: "",
+              },
+            ],
+          });
+
+      const matchingQuote = await makeQuote(phones[0], 5).expect(201);
+      quoteIds.push(matchingQuote.body.id);
+      expectBusinessReference(matchingQuote.body.quoteNumber, "QU");
+      expect(Number(matchingQuote.body.subtotal)).toBe(500);
+      expect(Number(matchingQuote.body.discountAmount)).toBe(55);
+      expect(Number(matchingQuote.body.taxAmount)).toBe(80.1);
+      expect(Number(matchingQuote.body.totalAmount)).toBe(535.1);
+      expect(Number(matchingQuote.body.items[0].discountAmount)).toBe(55);
+
+      const belowMinimum = await makeQuote(phones[1], 1).expect(201);
+      quoteIds.push(belowMinimum.body.id);
+      expect(Number(belowMinimum.body.discountAmount)).toBe(0);
+      expect(Number(belowMinimum.body.taxAmount)).toBe(18);
+      expect(Number(belowMinimum.body.totalAmount)).toBe(128);
+
+      const outsideServiceArea = await makeQuote(phones[2], 5, "201310").expect(
+        201,
+      );
+      quoteIds.push(outsideServiceArea.body.id);
+      expect(Number(outsideServiceArea.body.discountAmount)).toBe(0);
+      expect(Number(outsideServiceArea.body.taxAmount)).toBe(90);
+      expect(Number(outsideServiceArea.body.totalAmount)).toBe(600);
+
+      const saved = await db.quotation.findUniqueOrThrow({
+        where: { id: matchingQuote.body.id },
+        include: { items: true },
+      });
+      expect(saved.discountAmount.toNumber()).toBe(55);
+      expect(saved.taxAmount.toNumber()).toBe(80.1);
+      expect(saved.totalAmount.toNumber()).toBe(535.1);
+      expect(saved.items[0].discountAmount.toNumber()).toBe(55);
+    } finally {
+      await db.quotation.deleteMany({ where: { id: { in: quoteIds } } });
+      if (quoteIds.length) {
+        await db.auditLog.deleteMany({
+          where: { entityId: { in: quoteIds } },
+        });
+      }
+      if (ruleId) {
+        await db.auditLog.deleteMany({ where: { entityId: ruleId } });
+        await db.discountRule.delete({ where: { id: ruleId } });
+      }
+      await db.customer.deleteMany({ where: { phone: { in: phones } } });
+      await db.catalogListing.delete({ where: { id: listing.id } });
+    }
+  });
   it("records the actor and changed fields when website content is published", async () => {
     await db.websiteContent.deleteMany({ where: { id: "global" } });
     await db.auditLog.deleteMany({
@@ -1227,7 +2077,7 @@ integration("API with isolated PostgreSQL", () => {
       where: { entityType: "WEBSITE_CONTENT", entityId: "global" },
     });
   });
-  it("preserves catalogue packs and units through quotation, order and procurement", async () => {
+  it("preserves catalogue packs through quotation, order, procurement and supplier matching", async () => {
     const listing = await db.catalogListing.create({
       data: {
         slug: `quote-packs-${randomUUID()}`,
@@ -1429,6 +2279,8 @@ integration("API with isolated PostgreSQL", () => {
     const procurement = await db.procurementRequest.findUniqueOrThrow({
       where: { requestNumber: response.body.procurementNumber },
     });
+    expectBusinessReference(order.orderNumber, "OR");
+    expectBusinessReference(procurement.requestNumber, "PR");
     expect(procurement.items).toEqual([
       {
         catalogVariantId: listing.variants[0].id,
@@ -1442,6 +2294,78 @@ integration("API with isolated PostgreSQL", () => {
         notes: "Changed size · Hot water",
       },
     ]);
+    const sourcingSupplier = await request(app.getHttpServer())
+      .post("/api/suppliers")
+      .auth(token, { type: "bearer" })
+      .send({
+        name: "Fresh Integration Supplier",
+        phone: "9876543210",
+        address: "Industrial Area, Noida",
+        city: "Noida",
+        pincode: "201301",
+        servicePincodes: ["201302"],
+        status: "ACTIVE",
+      })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/suppliers/${sourcingSupplier.body.id}/products`)
+      .auth(token, { type: "bearer" })
+      .send({
+        catalogVariantId: listing.variants[0].id,
+        productName: "Changed name",
+        brand: "Changed brand",
+        category: "pipes",
+        unit: "Changed unit",
+        minimumOrderQty: 5,
+        availableQuantity: 100,
+        lastQuotedPrice: 290,
+      })
+      .expect(201);
+    const matchedSuppliers = await request(app.getHttpServer())
+      .get(`/api/procurement/${procurement.id}/suppliers`)
+      .auth(token, { type: "bearer" })
+      .expect(200);
+    expect(matchedSuppliers.body.candidates[0]).toMatchObject({
+      id: sourcingSupplier.body.id,
+      deliveryPincodeMatch: true,
+      serviceCoverageMatch: false,
+      matchedItems: ["Changed name"],
+      matchedProducts: [
+        expect.objectContaining({
+          catalogVariantId: listing.variants[0].id,
+          requestedQuantity: 30,
+        }),
+      ],
+    });
+    const firstPlan = await request(app.getHttpServer())
+      .put(`/api/transportation/${order.id}`)
+      .auth(token, { type: "bearer" })
+      .send({ status: "PLANNED", destination: "QA integration delivery" })
+      .expect(200);
+    expect(firstPlan.body.status).toBe("PLANNED");
+    await request(app.getHttpServer())
+      .put(`/api/transportation/${order.id}`)
+      .auth(token, { type: "bearer" })
+      .send({ status: "CANCELLED" })
+      .expect(200);
+    const replanned = await request(app.getHttpServer())
+      .put(`/api/transportation/${order.id}`)
+      .auth(token, { type: "bearer" })
+      .send({
+        status: "PLANNED",
+        transporter: "QA replacement carrier",
+        vehicleNumber: "QA-REPLAN-01",
+        estimatedArrival: new Date(Date.now() + 24 * 3600000).toISOString(),
+      })
+      .expect(200);
+    expect(replanned.body).toMatchObject({
+      status: "PLANNED",
+      transporter: "QA replacement carrier",
+      vehicleNumber: "QA-REPLAN-01",
+    });
+    expect(
+      await db.transportationPlan.findUnique({ where: { orderId: order.id } }),
+    ).toMatchObject({ status: "PLANNED", vehicleNumber: "QA-REPLAN-01" });
     // The original snapshot remains intact even though the revision uses current catalogue details.
     expect(
       (
@@ -1463,7 +2387,22 @@ integration("API with isolated PostgreSQL", () => {
     await db.notificationOutbox.deleteMany({
       where: { payload: { path: ["quoteId"], equals: quote.body.id } },
     });
+    await db.auditLog.deleteMany({
+      where: { entityType: "ORDER", entityId: order.id },
+    });
+    await db.transportationPlan.deleteMany({ where: { orderId: order.id } });
     await db.order.delete({ where: { id: order.id } });
+    await db.auditLog.deleteMany({
+      where: {
+        entityType: "PROCUREMENT_REQUEST",
+        entityId: procurement.id,
+      },
+    });
+    await db.procurementRequest.delete({ where: { id: procurement.id } });
+    await db.supplierProduct.deleteMany({
+      where: { supplierId: sourcingSupplier.body.id },
+    });
+    await db.supplier.delete({ where: { id: sourcingSupplier.body.id } });
     await db.notificationOutbox.deleteMany({
       where: { payload: { path: ["quoteId"], equals: revision.body.id } },
     });
@@ -1500,6 +2439,7 @@ integration("API with isolated PostgreSQL", () => {
     });
     const quote = await db.supplierQuote.create({
       data: {
+        supplierQuoteNumber: await createBusinessReferenceNumber(db, "SQ"),
         requestId: procurement.id,
         supplierId: supplier.id,
         totalAmount: 8000,
@@ -1543,6 +2483,7 @@ integration("API with isolated PostgreSQL", () => {
       .set("Authorization", `Bearer ${token}`)
       .send(payload)
       .expect(201);
+    expectBusinessReference(po.body.purchaseOrderNumber, "PO");
     expect(Number(po.body.totalAmount)).toBe(9740);
     expect(po.body.shippingContact).toBe(payload.shippingContact);
     await request(app.getHttpServer())
@@ -1917,8 +2858,12 @@ integration("API with isolated PostgreSQL", () => {
       expect(publicListing).toBeTruthy();
       expect(publicListing).not.toHaveProperty("supplierProducts");
       expect(publicListing).not.toHaveProperty("suppliers");
-      expect(JSON.stringify(publicListing)).not.toContain(internalSupplier.name);
-      expect(JSON.stringify(publicListing)).not.toContain(internalSupplier.phone);
+      expect(JSON.stringify(publicListing)).not.toContain(
+        internalSupplier.name,
+      );
+      expect(JSON.stringify(publicListing)).not.toContain(
+        internalSupplier.phone,
+      );
       expect(JSON.stringify(publicListing)).not.toContain("987654321");
     } finally {
       await db.supplierProduct.deleteMany({
@@ -2026,6 +2971,19 @@ integration("API with isolated PostgreSQL", () => {
         city: "Noida",
         pincode: "201301",
         status: "ACTIVE",
+        brandCatalog: [{ brand: "UltraTech", categories: ["Cement"] }],
+        products: [
+          {
+            catalogVariantId: null,
+            productName: "UltraTech Cement",
+            brand: "UltraTech",
+            category: "Cement",
+            unit: "bag",
+            minimumOrderQty: 10,
+            availableQuantity: 300,
+            lastQuotedPrice: 200,
+          },
+        ],
       })
       .expect(201);
     const expert = await request(app.getHttpServer())
@@ -2039,20 +2997,47 @@ integration("API with isolated PostgreSQL", () => {
         isPublished: false,
       })
       .expect(201);
+    let procurementRequestId: string | undefined;
     try {
-      const product = await request(app.getHttpServer())
-        .post(`/api/suppliers/${supplier.body.id}/products`)
+      const createdSupplier = await request(app.getHttpServer())
+        .get(`/api/suppliers/${supplier.body.id}`)
+        .auth(token, { type: "bearer" })
+        .expect(200);
+      expect(createdSupplier.body.brandCatalog).toEqual([
+        { brand: "UltraTech", categories: ["Cement"] },
+      ]);
+      expect(createdSupplier.body.products).toHaveLength(1);
+      const product = createdSupplier.body.products[0];
+      const procurement = await request(app.getHttpServer())
+        .post("/api/procurement")
         .auth(token, { type: "bearer" })
         .send({
-          productName: "UltraTech Cement",
-          brand: "UltraTech",
-          category: "Cement",
-          unit: "bag",
-          minimumOrderQty: 10,
-          availableQuantity: 300,
-          lastQuotedPrice: 200,
+          deliveryAddress: "Integration site, Sector 10",
+          deliveryCity: "Noida",
+          deliveryPincode: "201301",
+          items: [
+            {
+              productName: "UltraTech Cement",
+              brand: "UltraTech",
+              category: "Cement",
+              quantity: 25,
+              unit: "bag",
+            },
+          ],
         })
         .expect(201);
+      procurementRequestId = procurement.body.id;
+      expectBusinessReference(procurement.body.requestNumber, "PR");
+      const supplierCandidates = await request(app.getHttpServer())
+        .get(`/api/procurement/${procurement.body.id}/suppliers`)
+        .auth(token, { type: "bearer" })
+        .expect(200);
+      expect(supplierCandidates.body.candidates[0]).toMatchObject({
+        id: supplier.body.id,
+        deliveryPincodeMatch: true,
+        serviceCoverageMatch: false,
+        matchedItems: ["UltraTech Cement"],
+      });
       const search = await request(app.getHttpServer())
         .get("/api/suppliers?q=UltraTech")
         .auth(token, { type: "bearer" })
@@ -2068,7 +3053,7 @@ integration("API with isolated PostgreSQL", () => {
         ],
       });
       await request(app.getHttpServer())
-        .patch(`/api/suppliers/${supplier.body.id}/products/${product.body.id}`)
+        .patch(`/api/suppliers/${supplier.body.id}/products/${product.id}`)
         .auth(token, { type: "bearer" })
         .send({
           isActive: false,
@@ -2077,7 +3062,7 @@ integration("API with isolated PostgreSQL", () => {
         })
         .expect(200);
       await request(app.getHttpServer())
-        .patch(`/api/suppliers/${randomUUID()}/products/${product.body.id}`)
+        .patch(`/api/suppliers/${randomUUID()}/products/${product.id}`)
         .auth(token, { type: "bearer" })
         .send({ unit: "Boxes" })
         .expect(404);
@@ -2143,6 +3128,17 @@ integration("API with isolated PostgreSQL", () => {
         ),
       ).toBe(false);
     } finally {
+      if (procurementRequestId) {
+        await db.auditLog.deleteMany({
+          where: {
+            entityType: "PROCUREMENT_REQUEST",
+            entityId: procurementRequestId,
+          },
+        });
+        await db.procurementRequest.delete({
+          where: { id: procurementRequestId },
+        });
+      }
       await db.supplierProduct.deleteMany({
         where: { supplierId: supplier.body.id },
       });

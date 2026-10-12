@@ -13,10 +13,10 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
-import { randomUUID } from "node:crypto";
 import { StaffGuard } from "../../auth/access.guard";
 import { PrismaService } from "../../prisma/prisma.service";
 import { PdfService } from "../../pdf/pdf.service";
+import { createBusinessReferenceNumber } from "../procurement/procurement-number";
 import { validate } from "../../common/validation";
 import type { Response } from "express";
 import type { StaffRequest } from "../../auth/staff-request";
@@ -122,7 +122,7 @@ export class PurchaseOrdersController {
         }
         const po = await tx.purchaseOrder.create({
           data: {
-            purchaseOrderNumber: `MS-PO-${new Date().getFullYear()}-${randomUUID()}`,
+            purchaseOrderNumber: await createBusinessReferenceNumber(tx, "PO"),
             requestId: quote.requestId,
             supplierId: quote.supplierId,
             supplierQuoteId: quote.id,
@@ -194,6 +194,26 @@ export class PurchaseOrdersController {
         throw new ConflictException(
           "Purchase order state changed; refresh and try again",
         );
+      const requestOrders = await tx.purchaseOrder.findMany({
+        where: { requestId: po.requestId },
+        select: { status: true },
+      });
+      const allOrdersApproved =
+        requestOrders.length > 0 &&
+        requestOrders.every((order) =>
+          ["APPROVED", "SENT", "PARTIALLY_RECEIVED", "RECEIVED"].includes(
+            order.status,
+          ),
+        );
+      const anyOrderSent = requestOrders.some((order) =>
+        ["SENT", "PARTIALLY_RECEIVED", "RECEIVED"].includes(order.status),
+      );
+      if (allOrdersApproved && !anyOrderSent) {
+        await tx.procurementRequest.update({
+          where: { id: po.requestId },
+          data: { status: "APPROVED" },
+        });
+      }
       await tx.auditLog.create({
         data: {
           staffId: req.user.userId,

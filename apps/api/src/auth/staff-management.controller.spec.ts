@@ -1,5 +1,6 @@
 import { ConflictException } from "@nestjs/common";
 import { StaffManagementController } from "./staff-management.controller";
+import { verifyPassword } from "./password";
 
 describe("staff access audit history", () => {
   it("records the old and new role and enabled state without personal data", async () => {
@@ -35,6 +36,15 @@ describe("staff access audit history", () => {
       { role: "CATALOG_MANAGER", isActive: true },
     );
 
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "qa-staff" },
+        data: expect.objectContaining({
+          isActive: true,
+          authVersion: { increment: 1 },
+        }),
+      }),
+    );
     expect(auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         staffId: "owner",
@@ -131,6 +141,59 @@ describe("primary-owner protection", () => {
     ).rejects.toThrow("Invalid request");
 
     expect(findFirst).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("staff password reset", () => {
+  it("hashes the new password, revokes existing sessions, and audits the reset", async () => {
+    const password = "QaPassword1!";
+    const update = jest.fn().mockResolvedValue(undefined);
+    const auditCreate = jest.fn().mockResolvedValue(undefined);
+    const prisma = {
+      staffUser: { findFirst: jest.fn().mockResolvedValue({ id: "qa-staff" }) },
+      $transaction: (work: (tx: unknown) => Promise<unknown>) =>
+        work({ staffUser: { update }, auditLog: { create: auditCreate } }),
+    };
+    const controller = new StaffManagementController(prisma as never);
+
+    await expect(
+      controller.resetPassword(
+        "qa-staff",
+        { user: { userId: "owner", role: "SUPER_ADMIN" } } as never,
+        { password },
+      ),
+    ).resolves.toEqual({ success: true });
+
+    const updateData = update.mock.calls[0][0].data;
+    expect(verifyPassword(password, updateData.passwordHash)).toBe(true);
+    expect(updateData.passwordHash).not.toBe(password);
+    expect(updateData.authVersion).toEqual({ increment: 1 });
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        staffId: "owner",
+        action: "STAFF_PASSWORD_RESET",
+        entityType: "STAFF_USER",
+        entityId: "qa-staff",
+        metadata: { sessionsRevoked: true },
+      }),
+    });
+    expect(JSON.stringify(auditCreate.mock.calls)).not.toContain(password);
+  });
+
+  it("prevents an administrator from resetting their own password through this route", async () => {
+    const transaction = jest.fn();
+    const controller = new StaffManagementController({
+      $transaction: transaction,
+    } as never);
+
+    await expect(
+      controller.resetPassword(
+        "owner",
+        { user: { userId: "owner", role: "SUPER_ADMIN" } } as never,
+        { password: "QaPassword1!" },
+      ),
+    ).rejects.toThrow("Use the account password-change flow for your own password");
     expect(transaction).not.toHaveBeenCalled();
   });
 });

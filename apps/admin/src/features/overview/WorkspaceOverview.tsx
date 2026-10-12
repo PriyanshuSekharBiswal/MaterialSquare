@@ -82,6 +82,10 @@ export default function WorkspaceOverview({
             .length,
     ]),
   );
+  const dailyPageViewPeak = Math.max(
+    0,
+    ...(websiteAnalytics?.daily.map((day) => day.pageViews) || []),
+  );
   if (!stats) return null;
 
   return (
@@ -110,7 +114,7 @@ export default function WorkspaceOverview({
                 not collected.
               </p>
             </div>
-            <span className="analytics-range">30 days</span>
+            <span className="analytics-range">Last {websiteAnalytics.days} days</span>
           </div>
           <div className="website-analytics-kpis">
             {[
@@ -130,31 +134,42 @@ export default function WorkspaceOverview({
           </div>
           <div className="website-analytics-details">
             <div className="analytics-chart-wrap">
-              <h3>Daily page views</h3>
+              <div className="analytics-chart-heading">
+                <h3>Daily page views</h3>
+                <span className="analytics-chart-summary">
+                  Peak {dailyPageViewPeak} in one day
+                </span>
+              </div>
               {websiteAnalytics.totals.pageViews ? (
                 <div
                   className="analytics-bars"
                   role="img"
                   aria-label="Daily page views over the last 30 days"
                 >
-                  {websiteAnalytics.daily.map((day) => {
-                    const max = Math.max(
-                      1,
-                      ...websiteAnalytics.daily.map((item) => item.pageViews),
-                    );
+                  {websiteAnalytics.daily.map((day, index) => {
+                    const dateLabel = new Date(
+                      `${day.date}T00:00:00`,
+                    ).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                    });
+                    const showDate =
+                      index === 0 ||
+                      (index + 1) % 7 === 0 ||
+                      index === websiteAnalytics.daily.length - 1;
                     return (
                       <div
                         className="analytics-bar-column"
                         key={day.date}
-                        title={`${day.date}: ${day.pageViews} page views`}
                       >
                         <span
+                          className="analytics-bar"
                           style={{
-                            height: `${Math.max(day.pageViews ? 4 : 0, (day.pageViews / max) * 100)}%`,
+                            height: `${Math.max(day.pageViews ? 3 : 0, (day.pageViews / Math.max(1, dailyPageViewPeak)) * 100)}%`,
                           }}
                         />
                         <small>
-                          {new Date(`${day.date}T00:00:00`).getDate()}
+                          {showDate && dateLabel}
                         </small>
                       </div>
                     );
@@ -169,8 +184,9 @@ export default function WorkspaceOverview({
             <div className="analytics-ranking">
               <h3>Popular pages</h3>
               {websiteAnalytics.topPages.length ? (
-                websiteAnalytics.topPages.map((item) => (
+                websiteAnalytics.topPages.map((item, index) => (
                   <div key={item.page}>
+                    <span className="analytics-rank">{index + 1}</span>
                     <span>{item.page.replace(/-/g, " ")}</span>
                     <strong>{item.views}</strong>
                   </div>
@@ -182,8 +198,9 @@ export default function WorkspaceOverview({
             <div className="analytics-ranking">
               <h3>Popular products</h3>
               {websiteAnalytics.topProducts.length ? (
-                websiteAnalytics.topProducts.map((item) => (
+                websiteAnalytics.topProducts.map((item, index) => (
                   <div key={item.id}>
+                    <span className="analytics-rank">{index + 1}</span>
                     <span>{item.name}</span>
                     <strong>{item.views}</strong>
                   </div>
@@ -371,36 +388,46 @@ export default function WorkspaceOverview({
                       <button
                         className="recent-change-open"
                         onClick={onOpenCatalogue}
+                        title="Open catalogue"
+                        aria-label={`Open catalogue — ${change.title}`}
                       >
-                        Open catalogue
+                        View <ArrowRight size={14} aria-hidden="true" />
                       </button>
                     ) : contentChange && canOpenContent ? (
                       <button
                         className="recent-change-open"
                         onClick={onOpenContent}
+                        title="Open website content"
+                        aria-label={`Open website content — ${change.title}`}
                       >
-                        Open website content
+                        View <ArrowRight size={14} aria-hidden="true" />
                       </button>
                     ) : salesChange && canOpenSales ? (
                       <button
                         className="recent-change-open"
                         onClick={onOpenSales}
+                        title="Open sales workspace"
+                        aria-label={`Open sales workspace — ${change.title}`}
                       >
-                        Open sales workspace
+                        View <ArrowRight size={14} aria-hidden="true" />
                       </button>
                     ) : businessChange && canOpenBusiness ? (
                       <button
                         className="recent-change-open"
                         onClick={onOpenBusiness}
+                        title="Open business management"
+                        aria-label={`Open business management — ${change.title}`}
                       >
-                        Open business management
+                        View <ArrowRight size={14} aria-hidden="true" />
                       </button>
                     ) : change.entityType === "STAFF_USER" && canOpenStaff ? (
                       <button
                         className="recent-change-open"
                         onClick={onOpenStaff}
+                        title="Open staff & roles"
+                        aria-label={`Open staff & roles — ${change.title}`}
                       >
-                        Open staff &amp; roles
+                        View <ArrowRight size={14} aria-hidden="true" />
                       </button>
                     ) : null}
                   </div>
@@ -413,12 +440,7 @@ export default function WorkspaceOverview({
           <span>
             Showing {recentItems.length} of{" "}
             {recentChanges?.total ?? normalizedRecentItems.length} recorded
-            changes from the past 7 days
-            {(recentChanges?.total ?? normalizedRecentItems.length) >
-            (recentChanges?.limit ?? 50)
-              ? ` · latest ${recentChanges?.limit ?? 50}`
-              : ""}
-            .
+            changes from the past 7 days.
           </span>
           {(staffRole === "SUPER_ADMIN" || staffRole === "ADMIN") && (
             <button className="recent-changes-link" onClick={onViewAudit}>

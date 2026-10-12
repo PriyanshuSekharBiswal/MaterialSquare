@@ -1,5 +1,4 @@
 /// <reference types="vite/client" />
-import type LocomotiveScroll from "locomotive-scroll";
 declare global {
   type Msg91WidgetResponse = {
     type?: string;
@@ -10,8 +9,6 @@ declare global {
   };
   type Msg91WidgetCallback = (result: Msg91WidgetResponse) => void;
   interface Window {
-    __lenis?: LocomotiveScroll["lenisInstance"];
-    __locomotiveScroll?: LocomotiveScroll;
     getWidgetData?: () => { captchaValidations?: boolean } | null;
     isCaptchaVerified?: () => boolean;
     initSendOTP?: (configuration: {
@@ -41,3 +38,5 @@ declare global {
     ) => void;
   }
 }
+
+export {};

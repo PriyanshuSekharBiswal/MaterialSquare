@@ -27,7 +27,10 @@ TEST_DATABASE_URL=postgresql://material_square:local-development-only@127.0.0.1:
 
 Use committed migrations to update an existing database. Do not reset a database
 to apply changes. The migrations preserve staff credentials, customer CRM
-records, and quote/order links. The phone-verified customer portal stores
-hashed, revocable account sessions; customer quote lists remain browser-local.
+records, and quote/order links. Customers sign in with a mobile number and
+verified OTP only. The hashed, revocable server-side session persists in the
+same browser across restarts until logout; another browser/device requires a
+new OTP. Staff accounts continue to use mobile/email and password. Customer
+quote lists remain browser-local.
 Remove temporary developer staff accounts as a separate handover operation
 after testing.

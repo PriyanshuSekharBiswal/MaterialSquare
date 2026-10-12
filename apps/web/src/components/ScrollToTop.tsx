@@ -1,25 +1,23 @@
-import { useEffect } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import { cancelInitialScrollRestore, isInitialReloadForCurrentLocation } from '../scroll-position';
 
 export default function ScrollToTop() {
   const { pathname, search } = useLocation();
+  const previousLocation = useRef({ pathname, search });
 
-  useEffect(() => {
-    try {
-      if (typeof window.__locomotiveScroll?.scrollTo === 'function') {
-        window.__locomotiveScroll.scrollTo(0, { immediate: true });
-      } else if (typeof window.__lenis?.scrollTo === 'function') {
-        window.__lenis.scrollTo(0, { immediate: true });
-      } else {
-        window.scrollTo({
-          top: 0,
-          left: 0,
-          behavior: 'instant',
-        });
-      }
-    } catch {
-      window.scrollTo(0, 0);
-    }
+  useLayoutEffect(() => {
+    const previous = previousLocation.current;
+    previousLocation.current = { pathname, search };
+    if (isInitialReloadForCurrentLocation()) return;
+    cancelInitialScrollRestore();
+    const focusMarkerWasConsumed = pathname === '/material-list'
+      && previous.pathname === pathname
+      && new URLSearchParams(previous.search).has('item')
+      && !new URLSearchParams(search).has('item');
+    if (focusMarkerWasConsumed) return;
+    if (pathname === '/material-list' && new URLSearchParams(search).has('item')) return;
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [pathname, search]);
 
   return null;

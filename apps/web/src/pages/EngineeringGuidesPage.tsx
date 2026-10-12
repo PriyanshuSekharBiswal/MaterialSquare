@@ -583,7 +583,7 @@ export default function EngineeringGuidesPage({
           {/* CTA Footer */}
           <div className="guide-bottom-dispatch-card reveal-card">
             <div>
-              <h3>{siteContent["guides.callout.title"]}</h3>
+              <h2>{siteContent["guides.callout.title"]}</h2>
               <p>{siteContent["guides.callout.description"]}</p>
             </div>
             <Link to="/get-quote" className="btn btn-primary btn-lg">

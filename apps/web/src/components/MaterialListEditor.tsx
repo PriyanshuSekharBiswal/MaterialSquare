@@ -1,19 +1,100 @@
-import { materialId } from "../ids";
-import type { CatalogueProduct, CatalogueVariant } from "../types";
-import React, { useState } from "react";
+import type { CatalogueProduct, CatalogueVariant, MaterialItem } from "../types";
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useCustomer } from "../customer";
 import ProductImage from "./ProductImage";
 import { customerPriceNote } from "../catalogue/customer-display";
+import { BookmarkPlus, Check, ChevronDown, RotateCcw, Trash2 } from "lucide-react";
+
+const savedItemsStorageKey = "material-square-bom-saved";
+
+function readSavedItems(): MaterialItem[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(savedItemsStorageKey) || "[]");
+    return Array.isArray(value) ? value.filter((item) => item && typeof item.id === "string").slice(0, 100) : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function MaterialListEditor({ products = [] }: { products?: CatalogueProduct[] }) {
-  const { items, updateItems, canEdit } = useCustomer();
-  const [custom, setCustom] = useState("");
+  const { items, updateItems } = useCustomer();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const focusItemId = searchParams.get("item");
+  const [savedItems, setSavedItems] = useState<MaterialItem[]>(readSavedItems);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(() => new Set());
+  const [focusedItemId, setFocusedItemId] = useState("");
+  const focusItemAvailable = items.some((item) => item.id === focusItemId);
+  const uniqueProductCount = new Set(items.map((item) => item.catalogueId || item.id)).size;
+  const selectedQuoteCount = items.filter((item) => item.includeInQuote !== false).length;
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(savedItemsStorageKey, JSON.stringify(savedItems));
+    } catch {
+      // Saved-for-later is a convenience; the active quote list remains available.
+    }
+  }, [savedItems]);
+
+  useEffect(() => {
+    if (!focusItemId || !focusItemAvailable) return;
+    setFocusedItemId(focusItemId);
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    const alignTarget = () => {
+      const target = document.getElementById(`material-item-${focusItemId}`);
+      if (!target) return;
+      const top = target.getBoundingClientRect().top + window.scrollY - 150;
+      window.scrollTo({ top: Math.max(0, top), left: 0, behavior: "auto" });
+    };
+    const frame = window.requestAnimationFrame(() => window.requestAnimationFrame(alignTarget));
+    // A hard reload can restore the browser's previous scroll position after the
+    // initial render. Re-align briefly while layout and scroll restoration settle.
+    const realignTimers = [80, 250].map((delay) => window.setTimeout(alignTarget, delay));
+    const cancelRealignment = () => realignTimers.forEach(window.clearTimeout);
+    window.addEventListener("wheel", cancelRealignment, { once: true, passive: true });
+    window.addEventListener("touchstart", cancelRealignment, { once: true, passive: true });
+    window.addEventListener("keydown", cancelRealignment, { once: true });
+    const consumeFocusMarker = window.setTimeout(() => navigate("/material-list", { replace: true }), 300);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(consumeFocusMarker);
+      realignTimers.forEach(window.clearTimeout);
+      window.removeEventListener("wheel", cancelRealignment);
+      window.removeEventListener("touchstart", cancelRealignment);
+      window.removeEventListener("keydown", cancelRealignment);
+      window.history.scrollRestoration = previousScrollRestoration;
+    };
+  }, [focusItemId, focusItemAvailable, navigate]);
+
+  useEffect(() => {
+    if (!focusedItemId) return;
+    const clearHighlight = window.setTimeout(() => setFocusedItemId(""), 5000);
+    return () => window.clearTimeout(clearHighlight);
+  }, [focusedItemId]);
+
+  const saveForLater = (item: MaterialItem) => {
+    if (!updateItems((old) => old.filter((row) => row.id !== item.id))) return;
+    setSavedItems((old) => [item, ...old.filter((row) => row.id !== item.id)]);
+  };
+
+  const restoreSavedItem = (item: MaterialItem) => {
+    if (!updateItems((old) => [...old, item])) return;
+    setSavedItems((old) => old.filter((row) => row.id !== item.id));
+  };
+
   return (
     <div>
-      <h2>
-        Your quote list <small>({items.length})</small>
-      </h2>
+      <div className="material-list-heading-row">
+        <h2>Your cart</h2>
+        <div className="material-list-counts" aria-label={`${items.length} quote lines across ${uniqueProductCount} products`}>
+          <span><strong>{items.length}</strong> cart line{items.length === 1 ? "" : "s"}</span>
+          <span><strong>{selectedQuoteCount}</strong> quote line{selectedQuoteCount === 1 ? "" : "s"} selected</span>
+        </div>
+      </div>
       <p>
-        Select quantities and variants, then send the list to the team for a confirmed quote.
+        Keep items here for later. Select only the products or options you want included in a quotation now.
       </p>
       {!items.length && (
         <p>
@@ -23,6 +104,8 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
       {items.map((item) => {
         const product = products.find((candidate) => candidate.id === (item.catalogueId || item.id));
         const selectedVariant = product?.variants?.find((variant) => variant.id === item.variantId);
+        const productHref = product ? `/product/${encodeURIComponent(product.id)}` : undefined;
+        const optionsExpanded = expandedItems.has(item.id);
         const optionLabel = (variant: CatalogueVariant) => [
           variant.label,
           ...Object.entries(variant.attributes || {}).map(([key, value]) => `${key}: ${value}`),
@@ -32,6 +115,7 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
           updateItems((old) => old.map((row) => row.id === item.id ? {
             ...row,
             variantId: variant?.id,
+            code: variant?.code || product?.code || row.code,
             specification: variant ? optionLabel(variant) : "",
             unit: variant?.unit || product?.unit || row.unit,
             price: variant?.price ?? undefined,
@@ -44,21 +128,43 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
             quantity: variant?.minOrderQuantity && Number(row.quantity || 1) < Number(variant.minOrderQuantity) ? Number(variant.minOrderQuantity) : row.quantity,
           } : row));
         };
+        const productDescription = <div className="material-item-description">
+            <h3>{item.name}</h3>
+            <span className="material-item-brand">{item.brand}{product?.code ? ` · ${product.code}` : !item.variantId && item.code ? ` · ${item.code}` : ""}</span>
+            {selectedVariant && <span className="material-selected-option"><Check size={14} aria-hidden="true" /> Selected option: {optionLabel(selectedVariant)}</span>}
+            {!selectedVariant && item.specification && <span className="material-selected-option">Specification: {item.specification}</span>}
+            {item.price != null && <p className="catalogue-price-caveat">
+              Indicative estimate: ₹{Number(item.price).toLocaleString("en-IN")} / {item.unit}
+              {customerPriceNote(item.priceNote) ? ` · ${customerPriceNote(item.priceNote)}` : " · Confirm current price with staff"}
+            </p>}
+          </div>;
         return (
-        <div className="material-editor" key={item.id}>
-          {(product || item.image) && <ProductImage className="material-thumb" src={item.image || product?.image} alt={`${item.name} product`} />}
-          <h3>{item.name}</h3>
-          <span>
-            {item.brand}
-            {item.code ? ` · ${item.code}` : ""}
-          </span>
-          {item.price != null && <p className="catalogue-price-caveat">
-            Indicative estimate: ₹{Number(item.price).toLocaleString("en-IN")} / {item.unit}
-            {customerPriceNote(item.priceNote) ? ` · ${customerPriceNote(item.priceNote)}` : " · Confirm current price with staff"}
-          </p>}
+        <article
+          id={`material-item-${item.id}`}
+          className={`material-editor${productHref ? " material-editor-linked" : ""}`}
+          data-focused={focusedItemId === item.id || undefined}
+          key={item.id}
+          onClick={(event) => {
+            const target = event.target;
+            if (!productHref || !(target instanceof Element) || target.closest("a,button,input,select,label,.material-fields,.material-item-actions,.material-option-editor")) return;
+            navigate(productHref);
+          }}
+        >
+          <div className="material-item-heading">
+            {(product || item.image) && (productHref
+              ? <Link className="material-thumb-link" to={productHref}><ProductImage className="material-thumb" src={item.image || product?.image} alt={`${item.name} product`} /></Link>
+              : <ProductImage className="material-thumb" src={item.image || product?.image} alt={`${item.name} product`} />)}
+            <div className="material-item-content">
+              {productHref ? <Link className="material-product-link" to={productHref}>{productDescription}</Link> : productDescription}
+              <span className="material-unit-description">Unit: {selectedVariant?.unit || item.unit}</span>
+            </div>
+          </div>
           <div className="material-fields">
-            <label>
-              Quantity
+            <label className="material-quantity-field">
+              <span className="material-quantity-label">
+                <span>Quantity</span>
+                <small>{Number(item.quantity ?? 1).toLocaleString("en-IN")} × {selectedVariant?.unit || item.unit}</small>
+              </span>
               <input
                 aria-label={`Quantity for ${item.name}`}
                 type="number"
@@ -78,110 +184,90 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
                 }}
               />
             </label>
-            <label>
-              Unit
-              <select
-                aria-label={`Unit for ${item.name}`}
-                value={item.unit}
-                disabled={Boolean(selectedVariant)}
-                onChange={(e) =>
-                  updateItems((old) =>
-                    old.map((i) =>
-                      i.id === item.id ? { ...i, unit: e.target.value } : i,
-                    ),
-                  )
-                }
-              >
-                {Array.from(
-                  new Set([
-                    item.unit,
-                    "Pieces",
-                    "Metres",
-                    "Bags",
-                    "Kg",
-                    "MT",
-                    "Litres",
-                    "Boxes",
-                    "Rolls",
-                  ]),
-                ).map((unit) => (
-                  <option key={unit}>{unit}</option>
-                ))}
-              </select>
-            </label>
-            <label className="material-spec">
-              {selectedVariant ? "Selected product option" : "Size / specification / preferred variant"}
-              <input
-                maxLength={500}
-                placeholder="Enter the required size or ask staff to confirm"
-                value={item.specification || ""}
-                readOnly={Boolean(selectedVariant)}
-                onChange={(e) =>
-                  updateItems((old) =>
-                    old.map((i) =>
-                      i.id === item.id
-                        ? { ...i, specification: e.target.value }
-                        : i,
-                    ),
-                  )
-                }
-              />
-            </label>
-            {product?.variants?.length ? <label className="material-spec">
-              Product option
-              <select aria-label={`Product option for ${item.name}`} value={selectedVariant?.id || ""} onChange={(event) => changeVariant(event.target.value)}>
-                <option value="">Custom size or confirm with team</option>
-                {product.variants.map((variant) => {
-                  const status = variant.availabilityStatus || (variant.inStock ? "IN_STOCK" : "CHECK_AVAILABILITY");
-                  return <option key={variant.id} value={variant.id}>{optionLabel(variant)}{variant.price != null ? ` · ₹${Number(variant.price).toLocaleString("en-IN")}/${variant.unit}` : ""}{status === "OUT_OF_STOCK" ? " · Out of stock" : ""}</option>;
-                })}
-              </select>
-              {selectedVariant?.minOrderQuantity && <small>Minimum order for this option: {selectedVariant.minOrderQuantity} {selectedVariant.unit}</small>}
-            </label> : null}
           </div>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={()=>updateItems(old=>[...old,{...item,id:`variant-${materialId()}`,catalogueId:item.catalogueId||item.id,variantId:undefined,minOrderQuantity:undefined,price:undefined,compareAtPrice:undefined,priceNote:undefined,specification:'',quantity:1}])}>{product?.variants?.length ? "Add another option" : "Add another size"}</button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() =>
-              updateItems((old) => old.filter((i) => i.id !== item.id))
-            }
-          >
-            Remove {item.name}
-          </button>
-        </div>
+          <div className="material-item-actions">
+            <label className="material-quote-toggle">
+              <input
+                type="checkbox"
+                checked={item.includeInQuote !== false}
+                aria-label={`Include ${item.name} in this quotation`}
+                onChange={(event) => updateItems((old) => old.map((row) => row.id === item.id ? { ...row, includeInQuote: event.target.checked } : row))}
+              />
+              Include in quote
+            </label>
+            <button
+              type="button"
+              className="material-edit-option"
+              aria-expanded={optionsExpanded}
+              onClick={() => setExpandedItems((old) => {
+                const next = new Set(old);
+                if (next.has(item.id)) next.delete(item.id);
+                else next.add(item.id);
+                return next;
+              })}
+            >
+              {optionsExpanded ? "Hide options" : selectedVariant || item.specification ? "Change option" : "Choose option"}
+              <ChevronDown size={15} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="material-save-action"
+              onClick={() => saveForLater(item)}
+            >
+              <BookmarkPlus size={15} aria-hidden="true" /> Save for later
+            </button>
+            <button
+              type="button"
+              className="material-remove-action"
+              aria-label={`Remove ${item.name} from quote list`}
+              onClick={() => updateItems((old) => old.filter((row) => row.id !== item.id))}
+            >
+              <Trash2 size={15} aria-hidden="true" /> Delete
+            </button>
+          </div>
+          {optionsExpanded && <div className="material-option-editor">
+            {product?.variants && product.variants.length > 1 ? <label className="material-spec">
+              Choose product option
+              <div className="material-select-wrap">
+                <select aria-label={`Product option for ${item.name}`} value={selectedVariant?.id || ""} onChange={(event) => changeVariant(event.target.value)}>
+                  <option value="">Custom size or confirm with team</option>
+                  {product.variants.map((variant) => {
+                    const status = variant.availabilityStatus || (variant.inStock ? "IN_STOCK" : "CHECK_AVAILABILITY");
+                    return <option key={variant.id} value={variant.id}>{optionLabel(variant)}{variant.price != null ? ` · ₹${Number(variant.price).toLocaleString("en-IN")}/${variant.unit}` : ""}{status === "OUT_OF_STOCK" ? " · Out of stock" : ""}</option>;
+                  })}
+                </select>
+                <ChevronDown size={18} aria-hidden="true" />
+              </div>
+              {selectedVariant?.minOrderQuantity && <small>Minimum order for this option: {selectedVariant.minOrderQuantity} {selectedVariant.unit}</small>}
+            </label> : <>
+              <p className="material-option-note">
+                {product?.variants?.length === 1
+                  ? `This product has one listed option: ${optionLabel(product.variants[0])}. For other sizes or requirements, `
+                  : "This product has no listed options. For sizes or specifications, "}
+                <Link to="/contact">contact our team</Link>.
+              </p>
+              <label className="material-spec">
+                {product?.variants?.length === 1 ? "Different size or requirement (optional)" : "Size / specification (optional)"}
+                <input
+                  maxLength={500}
+                  placeholder="Tell us what you need"
+                  value={item.specification || ""}
+                  onChange={(event) => updateItems((old) => old.map((row) => row.id === item.id ? { ...row, specification: event.target.value } : row))}
+                />
+              </label>
+            </>}
+          </div>}
+        </article>
       );})}
-      <div className="customer-form" style={{ marginTop: 20 }}>
-        <label>
-          Can't find a material?
-          <input
-            value={custom}
-            maxLength={300}
-            placeholder="Material name"
-            onChange={(e) => setCustom(e.target.value)}
-          />
-        </label>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          disabled={!canEdit || !custom.trim()}
-          onClick={() => {
-            const accepted = updateItems((old) => [
-              ...old,
-              {
-                id: `custom-${materialId()}`,
-                name: custom.trim(),
-                brand: "To be confirmed",
-                unit: "Pieces",
-                quantity: 1,
-              },
-            ]);
-            if (accepted) setCustom("");
-          }}
-        >
-          Add custom material
-        </button>
-      </div>
+      {savedItems.length > 0 && <section className="material-saved-section" aria-labelledby="material-saved-title">
+        <h3 id="material-saved-title">Saved for later <span>{savedItems.length}</span></h3>
+        <p>These items stay saved on this device and won’t be included in your quote until you move them back.</p>
+        {savedItems.map((item) => <div className="material-saved-row" key={item.id}>
+          <div><strong>{item.name}</strong><span>{item.brand}{item.specification ? ` · ${item.specification}` : ""}</span></div>
+          <button type="button" onClick={() => restoreSavedItem(item)}><RotateCcw size={14} aria-hidden="true" /> Move to quote list</button>
+          <button type="button" className="material-remove-action" aria-label={`Delete saved ${item.name}`} onClick={() => setSavedItems((old) => old.filter((row) => row.id !== item.id))}><Trash2 size={14} aria-hidden="true" /> Delete</button>
+        </div>)}
+      </section>}
     </div>
   );
 }

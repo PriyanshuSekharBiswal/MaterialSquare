@@ -56,6 +56,7 @@ export type MaterialItem = Pick<
     Pick<CatalogueProduct, "code" | "category" | "wholesaleRate" | "inStock">
   > & {
     catalogueId?: string;
+    includeInQuote?: boolean;
     quantity?: number;
     specification?: string;
     variantId?: string;

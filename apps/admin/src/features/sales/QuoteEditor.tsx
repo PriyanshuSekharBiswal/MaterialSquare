@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 type Listing = {
   id: string;
@@ -93,6 +93,7 @@ const blank = (): Line => ({
   alternatives: [],
 });
 const serviceStates = ["Delhi", "Haryana", "Uttar Pradesh"];
+const formatMoney = (value: number) => `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
 export default function QuoteEditor({
   inventory,
@@ -116,6 +117,19 @@ export default function QuoteEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewSnapshot, setPreviewSnapshot] = useState<{
+    customerName: string;
+    customerPhone: string;
+    customerEmail: string;
+    siteAddress: string;
+    notes: string;
+    freight: number;
+    taxPct: number;
+    subtotal: number;
+    items: { name: string; specification: string; quantity: number; unit: string; rate: number; alternatives: string[] }[];
+  } | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const [lines, setLines] = useState<Line[]>(
     () =>
       revision
@@ -170,9 +184,21 @@ export default function QuoteEditor({
     initialRequest?.siteLocation.match(/\b[1-9][0-9]{5}\b/)?.[0] ||
     initialSiteAddress.match(/\b[1-9][0-9]{5}\b/)?.[0] ||
     "";
-  const initialState = getAddressPart("State") || serviceStates.find((state) =>
-    initialSiteAddress.toLocaleLowerCase().includes(state.toLocaleLowerCase()),
-  ) || "";
+  const structuredState = getAddressPart("State");
+  const initialState =
+    serviceStates.find((state) =>
+      structuredState
+        .toLocaleLowerCase()
+        .startsWith(state.toLocaleLowerCase()),
+    ) ||
+    (!structuredState
+      ? serviceStates.find((state) =>
+          initialSiteAddress
+            .toLocaleLowerCase()
+            .includes(state.toLocaleLowerCase()),
+        )
+      : "") ||
+    "";
   const initialCity = getAddressPart("City") || [
     "Greater Noida", "Ghaziabad", "Faridabad", "Gurugram", "Gurgaon", "Noida", "New Delhi", "Delhi",
   ].find((city) =>
@@ -397,7 +423,7 @@ export default function QuoteEditor({
           {error}
         </p>
       )}
-      <form className="operation-form" onSubmit={save}>
+      <form ref={formRef} className="operation-form" onSubmit={save}>
         <fieldset disabled={busy || loading} className="quote-editor-fields">
           <div className="quote-customer-details">
             <label>
@@ -752,6 +778,79 @@ export default function QuoteEditor({
               )
               .toLocaleString("en-IN", { maximumFractionDigits: 2 })}
           </p>
+          <button
+            type="button"
+            className="btn-sm btn-secondary sales-quote-preview-toggle"
+            aria-expanded={previewOpen}
+            aria-controls="sales-quotation-preview"
+            onClick={() => {
+              if (!formRef.current) return;
+              const form = new FormData(formRef.current);
+              const items = lines.map((line) => {
+                const product = options.find((option) => option.key === line.selection);
+                return {
+                  name: product?.name || "Choose a product / pack",
+                  specification: line.specification,
+                  quantity: Number(line.quantity) || 0,
+                  unit: product?.unit || "",
+                  rate: Number(line.rate) || 0,
+                  alternatives: line.alternatives.flatMap((alternative) => {
+                    const option = options.find((candidate) => candidate.key === alternative.selection);
+                    return option ? [`${option.name} · ${formatMoney(Number(alternative.rate) || 0)} per ${option.unit}`] : [];
+                  }),
+                };
+              });
+              const siteAddress = ["building", "street", "landmark", "city", "state", "pincode"]
+                .map((name) => String(form.get(name) || "").trim())
+                .filter(Boolean)
+                .join(", ");
+              setPreviewSnapshot({
+                customerName: String(form.get("name") || "").trim(),
+                customerPhone: String(form.get("phone") || "").trim(),
+                customerEmail: String(form.get("email") || "").trim(),
+                siteAddress,
+                notes: String(form.get("notes") || "").trim(),
+                freight: Number(form.get("freight")) || 0,
+                taxPct: Number(form.get("tax")) || 0,
+                subtotal: items.reduce((sum, item) => sum + item.quantity * item.rate, 0),
+                items,
+              });
+              setPreviewOpen(true);
+            }}
+          >
+            {previewOpen ? "Refresh preview" : "Preview quotation"}
+          </button>
+          {previewOpen && previewSnapshot && (
+            <section id="sales-quotation-preview" className="sales-quotation-preview" aria-label="Quotation preview">
+              <div className="sales-quotation-preview-heading">
+                <div>
+                  <span>PRIVATE DRAFT PREVIEW</span>
+                  <h3>Quotation for {previewSnapshot.customerName || "Customer"}</h3>
+                </div>
+                <span>Not published</span>
+              </div>
+              <p>{previewSnapshot.customerPhone}{previewSnapshot.customerEmail ? ` · ${previewSnapshot.customerEmail}` : ""}</p>
+              <p>{previewSnapshot.siteAddress || "Delivery address not entered"}</p>
+              <div className="sales-quotation-preview-items">
+                {previewSnapshot.items.map((item, index) => (
+                  <article key={`${item.name}-${index}`}>
+                    <strong>{item.name}</strong>
+                    {item.specification && <span>{item.specification}</span>}
+                    <span>{item.quantity} {item.unit} × {formatMoney(item.rate)} = {formatMoney(item.quantity * item.rate)}</span>
+                    {item.alternatives.map((alternative) => <small key={alternative}>Alternative: {alternative}</small>)}
+                  </article>
+                ))}
+              </div>
+              <dl>
+                <div><dt>Line subtotal</dt><dd>{formatMoney(previewSnapshot.subtotal)}</dd></div>
+                <div><dt>Freight entered</dt><dd>{formatMoney(previewSnapshot.freight)}</dd></div>
+                <div><dt>Tax rate entered</dt><dd>{previewSnapshot.taxPct}%</dd></div>
+              </dl>
+              {previewSnapshot.notes && <p>Notes: {previewSnapshot.notes}</p>}
+              <p className="sales-quotation-preview-note">Final discount, margin and total are calculated when the draft is saved. This preview stays private until a staff member publishes the quotation.</p>
+            </section>
+          )}
+          {previewOpen && <button type="button" className="btn-sm btn-secondary" onClick={() => setPreviewOpen(false)}>Hide preview</button>}
           <button className="btn-sm btn-primary" disabled={!options.length}>
             Save draft
           </button>

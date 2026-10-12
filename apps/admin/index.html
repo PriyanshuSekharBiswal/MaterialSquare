@@ -4,7 +4,28 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow, noarchive" />
     <title>Material Square — Operations & Executive Admin Center</title>
+    <style>
+      .boot-loading { position: fixed; z-index: 9999; inset: 0; display: grid; grid-template-columns: 250px minmax(0,1fr); min-height: 100vh; overflow: hidden; background: #f8fafc; color: #e8edf2; }
+      .boot-sidebar { padding: 25px 18px; background: #101827; }
+      .boot-main { min-width: 0; padding: 30px clamp(18px,4vw,56px); }
+      .boot-mark,.boot-nav,.boot-line,.boot-card,.boot-search,.boot-pill { background: linear-gradient(100deg,#e8edf2 25%,#f6f8fa 45%,#e8edf2 65%); background-size: 220% 100%; animation: boot-shimmer 1.15s ease-in-out infinite; }
+      .boot-mark { width: 155px; height: 35px; margin-bottom: 30px; border-radius: 8px; }
+      .boot-nav { height: 39px; margin: 12px 0; border-radius: 9px; opacity: .28; }
+      .boot-main-head { display: flex; justify-content: space-between; gap: 22px; margin-bottom: 28px; }
+      .boot-heading { display: grid; width: min(440px,55%); gap: 12px; }
+      .boot-line { height: 12px; border-radius: 6px; }
+      .boot-line:first-child { width: 60%; height: 24px; }
+      .boot-search { width: min(330px,40%); height: 44px; border-radius: 10px; }
+      .boot-cards { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+      .boot-card { min-height: 140px; border: 1px solid #e2e8f0; border-radius: 14px; background: white; }
+      .boot-table { margin-top: 18px; padding: 18px; border: 1px solid #e2e8f0; border-radius: 14px; background: white; }
+      .boot-table .boot-line { height: 42px; margin: 8px 0; }
+      @keyframes boot-shimmer { to { background-position: -220% 0; } }
+      @media(max-width:760px) { .boot-loading { grid-template-columns: 1fr; } .boot-sidebar { display:none; } .boot-cards { grid-template-columns: 1fr 1fr; } }
+      @media(prefers-reduced-motion:reduce) { .boot-mark,.boot-nav,.boot-line,.boot-card,.boot-search,.boot-pill { animation:none; } }
+    </style>
     <!-- Brand typography: Plus Jakarta Sans, Inter, JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -14,7 +35,12 @@
     />
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-loading" aria-hidden="true">
+        <aside class="boot-sidebar"><div class="boot-mark"></div><div class="boot-nav"></div><div class="boot-nav"></div><div class="boot-nav"></div><div class="boot-nav"></div><div class="boot-nav"></div></aside>
+        <main class="boot-main"><header class="boot-main-head"><div class="boot-heading"><i class="boot-line"></i><i class="boot-line"></i></div><div class="boot-search"></div></header><section class="boot-cards"><div class="boot-card"></div><div class="boot-card"></div><div class="boot-card"></div></section><section class="boot-table"><i class="boot-line"></i><i class="boot-line"></i><i class="boot-line"></i><i class="boot-line"></i></section></main>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

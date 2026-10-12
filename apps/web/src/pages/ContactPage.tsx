@@ -21,7 +21,7 @@ export default function ContactPage() {
             <span className="badge-pill badge-orange-pill">Contact Material Square</span>
             <h1 className="page-title">{siteContent["contact.title"]}</h1>
             <p className="page-subtitle">
-              {siteContent["contact.description"]}
+              {`${siteContent["contact.description"]} Website submissions require customer sign-in.`}
             </p>
           </div>
         </div>
@@ -77,7 +77,8 @@ export default function ContactPage() {
               <span className="badge-pill badge-orange-pill">Prepare a message</span>
               <h2>Include the details the team needs.</h2>
               <p>
-                Add your contact details, site location, materials, quantities, and preferred timing. The site prepares a message for you to review and send; it does not send it automatically.
+                Add your contact details and site location, then review the enquiry. Website submissions
+                require sign-in. WhatsApp and email open a message for you to send yourself.
               </p>
             </div>
             <div className="form-box-col">

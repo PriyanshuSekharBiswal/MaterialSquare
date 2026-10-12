@@ -39,7 +39,6 @@ export class AuditController {
       this.prisma.auditLog.findMany({
         where,
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        take: 50,
         select: {
           id: true,
           action: true,
@@ -117,7 +116,6 @@ export class AuditController {
         };
       }),
       total,
-      limit: 50,
     };
   }
 
@@ -190,13 +188,19 @@ function redactAuditSecrets(value: unknown): unknown {
   const fieldName = typeof record.field === "string" ? record.field : "";
   const sensitiveChange = sensitiveAuditField.test(fieldName);
   return Object.fromEntries(
-    Object.entries(record).map(([key, child]) => [
-      key,
-      sensitiveAuditField.test(key) ||
-      (sensitiveChange && ["before", "after", "value"].includes(key))
-        ? redactedAuditValue
-        : redactAuditSecrets(child),
-    ]),
+    Object.entries(record).map(([key, child]) => {
+      // This fixed boolean is audit context, not a session credential or ID.
+      const safeSessionRevocationFlag =
+        key === "sessionsRevoked" && typeof child === "boolean";
+      return [
+        key,
+        !safeSessionRevocationFlag &&
+        (sensitiveAuditField.test(key) ||
+          (sensitiveChange && ["before", "after", "value"].includes(key)))
+          ? redactedAuditValue
+          : redactAuditSecrets(child),
+      ];
+    }),
   );
 }
 

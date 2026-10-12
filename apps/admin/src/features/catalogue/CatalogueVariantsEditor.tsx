@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, Search, Trash2, Upload } from "lucide-react";
+import { generateVariantCodes } from "./product-codes";
 
 const customerPriceNote = (note: string | null | undefined) => {
   const value = String(note || "").trim();
@@ -81,12 +82,14 @@ function parseOptionValues(value: string) {
 export default function CatalogueVariantsEditor({
   variants,
   onChange,
+  productCode = "",
   onUploadImage,
   defaultUnit = "",
   busy = false,
 }: {
   variants: EditableVariant[];
   onChange: (variants: EditableVariant[]) => void;
+  productCode?: string;
   onUploadImage?: (file: File, input: HTMLInputElement, index: number) => void;
   defaultUnit?: string;
   busy?: boolean;
@@ -106,6 +109,7 @@ export default function CatalogueVariantsEditor({
       ...Object.entries(variant.attributes || {}).flatMap(([key, value]) => [key, value]),
     ].join(" ").toLocaleLowerCase().includes(variantSearch.trim().toLocaleLowerCase()));
   const pageCount = Math.max(1, Math.ceil(filteredVariants.length / VARIANTS_PER_PAGE));
+  const generatedCodes = generateVariantCodes(productCode, variants);
   const currentPage = Math.min(page, pageCount - 1);
   const visibleVariants = filteredVariants.slice(
     currentPage * VARIANTS_PER_PAGE,
@@ -256,7 +260,7 @@ export default function CatalogueVariantsEditor({
               ))}
               <button type="button" className="btn-sm btn-secondary" onClick={() => addAttribute(index)}><Plus size={13} /> Add custom field</button>
             </fieldset>
-            <label>Product code<input value={variant.code || ""} maxLength={80} placeholder="Optional client code" onChange={(event) => update(index, { code: event.target.value || null })} /></label>
+            <label>PD CODE<input value={generatedCodes[index] || ""} maxLength={80} readOnly placeholder="Set brand and category first" /><small>Short unique code for this option. Its pack size, colour and other details are shown separately.</small></label>
             <label>Offer label<input value={variant.offerLabel || ""} maxLength={120} placeholder="Optional" onChange={(event) => update(index, { offerLabel: event.target.value || null })} /></label>
             <label>Offer starts<input type="date" value={(variant.offerStartsAt || "").slice(0, 10)} onChange={(event) => update(index, { offerStartsAt: event.target.value || null })} /></label>
             <label>Offer ends<input type="date" value={(variant.offerEndsAt || "").slice(0, 10)} onChange={(event) => update(index, { offerEndsAt: event.target.value || null })} /></label>

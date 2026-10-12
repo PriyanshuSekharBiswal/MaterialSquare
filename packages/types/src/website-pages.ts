@@ -90,6 +90,25 @@ export const WebsitePagesSchema = z
   );
 export type WebsitePage = z.infer<typeof WebsitePagesSchema>[number];
 export type PageSection = z.infer<typeof PageSectionSchema>;
+
+/** Prefer an editor-written description; otherwise summarize visible page copy. */
+export function websitePageDescription(page: {
+  description?: string | null;
+  sections?: Array<Pick<PageSection, "body" | "visible">> | null;
+}, maximum = 160) {
+  const source = page.description?.trim().replace(/\s+/g, " ") ||
+    (page.sections || [])
+      .filter((section) => section.visible)
+      .map((section) => section.body.trim())
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+  if (source.length <= maximum) return source;
+  const shortened = source.slice(0, maximum - 1).replace(/\s+\S*$/, "").trim();
+  return `${shortened || source.slice(0, maximum - 1).trim()}…`;
+}
+
 export function websitePages(value: string): WebsitePage[] {
   try {
     const result = WebsitePagesSchema.safeParse(JSON.parse(value || "[]"));

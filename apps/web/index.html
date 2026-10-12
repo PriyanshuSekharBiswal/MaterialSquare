@@ -1,20 +1,51 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-IN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Browse construction materials from the Material Square catalogue and send a product enquiry." />
+    <meta property="og:locale" content="en_IN" />
     <title>Material Square — Construction Materials</title>
+    <style>
+      .boot-loading { position: fixed; inset: 0; z-index: 9999; overflow: hidden; padding: 20px clamp(16px, 4vw, 64px); background: #f8fafc; }
+      .boot-header { display: flex; align-items: center; gap: 22px; height: 72px; margin-bottom: 28px; border-bottom: 1px solid #e2e8f0; }
+      .boot-mark,.boot-nav,.boot-search,.boot-card-image,.boot-line,.boot-button { background: linear-gradient(100deg,#e8edf2 25%,#f6f8fa 45%,#e8edf2 65%); background-size: 220% 100%; animation: boot-shimmer 1.15s ease-in-out infinite; }
+      .boot-mark { width: 155px; height: 32px; border-radius: 8px; }
+      .boot-nav { width: min(40vw,500px); height: 42px; border-radius: 24px; }
+      .boot-search { width: min(22vw,250px); height: 42px; margin-left: auto; border-radius: 10px; }
+      .boot-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+      .boot-card { display: grid; grid-template-columns: minmax(0,1fr) 92px; gap: 14px; min-height: 230px; padding: 16px; border: 1px solid #e2e8f0; border-radius: 16px; background: white; }
+      .boot-card-image { grid-column: 1/-1; height: 112px; border-radius: 11px; }
+      .boot-card-copy { display: grid; align-content: start; gap: 11px; }
+      .boot-line { height: 11px; border-radius: 6px; }
+      .boot-line:nth-child(2) { width: 78%; }
+      .boot-button { align-self: end; height: 35px; border-radius: 8px; }
+      @keyframes boot-shimmer { to { background-position: -220% 0; } }
+      @media (max-width: 680px) { .boot-nav { display: none; } .boot-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; } .boot-card { grid-template-columns: 1fr; min-height: 190px; padding: 11px; } .boot-card-image { height: 90px; } .boot-button { width: 100%; } }
+      @media (prefers-reduced-motion: reduce) { .boot-mark,.boot-nav,.boot-search,.boot-card-image,.boot-line,.boot-button { animation: none; } }
+    </style>
     
     <!-- Clean, high-end typography: Plus Jakarta Sans & Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
-    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" /></noscript>
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..900&family=Plus+Jakarta+Sans:wght@500..800&family=JetBrains+Mono:wght@400..700&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..900&family=Plus+Jakarta+Sans:wght@500..800&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet" /></noscript>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-loading" aria-hidden="true">
+        <header class="boot-header"><span class="boot-mark"></span><span class="boot-nav"></span><span class="boot-search"></span></header>
+        <main class="boot-grid">
+          <article class="boot-card"><span class="boot-card-image"></span><span class="boot-card-copy"><i class="boot-line"></i><i class="boot-line"></i></span><span class="boot-button"></span></article>
+          <article class="boot-card"><span class="boot-card-image"></span><span class="boot-card-copy"><i class="boot-line"></i><i class="boot-line"></i></span><span class="boot-button"></span></article>
+          <article class="boot-card"><span class="boot-card-image"></span><span class="boot-card-copy"><i class="boot-line"></i><i class="boot-line"></i></span><span class="boot-button"></span></article>
+          <article class="boot-card"><span class="boot-card-image"></span><span class="boot-card-copy"><i class="boot-line"></i><i class="boot-line"></i></span><span class="boot-button"></span></article>
+          <article class="boot-card"><span class="boot-card-image"></span><span class="boot-card-copy"><i class="boot-line"></i><i class="boot-line"></i></span><span class="boot-button"></span></article>
+          <article class="boot-card"><span class="boot-card-image"></span><span class="boot-card-copy"><i class="boot-line"></i><i class="boot-line"></i></span><span class="boot-button"></span></article>
+        </main>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

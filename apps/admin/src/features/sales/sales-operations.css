@@ -128,6 +128,7 @@
 
 .rfq-staff-controls select,
 .rfq-staff-controls textarea {
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
   border: 1px solid #ccd7e4;
@@ -139,13 +140,460 @@
 }
 
 .rfq-staff-controls textarea {
+  display: block;
+  min-height: 136px;
   resize: vertical;
 }
 
-.rfq-staff-controls form {
+.admin-main .rfq-staff-controls form {
   display: grid;
+  width: 100%;
+  min-width: 0;
   justify-items: start;
   gap: 8px;
+}
+
+.admin-main .rfq-staff-controls form > label {
+  width: 100%;
+  min-width: 0;
+}
+
+.admin-main .rfq-request-card {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  margin: 16px 0 0;
+  padding: 18px;
+  border: 1px solid #dbe4ee;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 4%);
+}
+
+.rfq-request-heading {
+  min-width: 0;
+}
+
+.rfq-request-heading h3 {
+  margin: 0;
+  color: #18263d;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.rfq-request-heading p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.rfq-item-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rfq-item-list > li {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e5ebf3;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.rfq-item-heading {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.rfq-item-heading strong {
+  color: #18263d;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.rfq-item-heading > span {
+  color: #64748b;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.rfq-item-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #53647a;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.rfq-item-quantity {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #fff0e8;
+  color: #a9400e;
+  font-weight: 750;
+}
+
+.rfq-customer-note {
+  min-width: 0;
+  margin: 0;
+  padding: 11px 13px;
+  border-left: 3px solid #f26722;
+  border-radius: 0 8px 8px 0;
+  background: #fff8f3;
+  color: #53647a;
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.sales-saved-quotes > .sales-saved-quotes-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.sales-section-eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: #c44c0b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.sales-saved-quotes-heading h2 {
+  margin: 0;
+}
+
+.sales-saved-quotes-heading p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.sales-saved-quote-count {
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sales-saved-quote-list {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-main .sales-saved-quote {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+  margin: 0;
+  padding: clamp(16px, 2vw, 22px);
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #fff 0%, #fbfcfe 100%);
+  box-shadow: 0 3px 12px rgb(15 23 42 / 4%);
+}
+
+.sales-saved-quote-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.sales-saved-quote-identity {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.sales-quote-number {
+  color: #c44c0b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .055em;
+  overflow-wrap: anywhere;
+}
+
+.sales-saved-quote-identity h3 {
+  margin: 0;
+  color: #17243a;
+  font-size: 17px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.sales-quote-revision {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.sales-quote-status {
+  justify-self: start;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .045em;
+  text-align: center;
+}
+
+.sales-quote-status[data-status="QUOTE_SENT"],
+.sales-quote-status[data-status="PUBLISHED"] {
+  background: #ecfdf3;
+  color: #167044;
+}
+
+.sales-quote-status[data-status="CONVERTED_TO_ORDER"] {
+  background: #fff5e5;
+  color: #94500a;
+}
+
+.sales-quote-status[data-status="EXPIRED"],
+.sales-quote-status[data-status="REJECTED"] {
+  background: #fff1f0;
+  color: #b42318;
+}
+
+.sales-quote-total {
+  display: grid;
+  gap: 2px;
+  min-width: 110px;
+  text-align: right;
+}
+
+.sales-quote-total span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.sales-quote-total strong {
+  color: #17243a;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sales-saved-quote .sales-request-link-copy {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: #f1f5f9;
+  color: #526176;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.sales-quote-breakdown {
+  min-width: 0;
+  border: 1px solid #e4eaf2;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.sales-quote-breakdown summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 46px;
+  padding: 11px 14px;
+  color: #344258;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+  list-style: none;
+}
+
+.sales-quote-breakdown summary::-webkit-details-marker {
+  display: none;
+}
+
+.sales-quote-breakdown summary::after {
+  content: "+";
+  order: 1;
+  color: #c44c0b;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.sales-quote-breakdown[open] summary::after {
+  content: "−";
+}
+
+.sales-quote-line-count {
+  margin-left: auto;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sales-quote-breakdown-content {
+  display: grid;
+  gap: 14px;
+  padding: 0 14px 14px;
+}
+
+.sales-quote-item-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sales-quote-item {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #edf1f6;
+  border-radius: 9px;
+  background: #fbfcfe;
+}
+
+.sales-quote-item-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.sales-quote-item-heading strong {
+  color: #1e293b;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.sales-quote-item-heading span {
+  color: #64748b;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.sales-quote-item > p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.sales-quote-item .sales-quote-line-total {
+  margin-left: auto;
+  color: #1e293b;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sales-quote-item .sales-quote-item-option {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-left: 2px solid #f4a261;
+  border-radius: 0 6px 6px 0;
+  background: #fff7ed;
+}
+
+.sales-quote-item-option > span,
+.sales-quote-item-option small {
+  color: #7c6a5b;
+  font-size: 11px;
+}
+
+.sales-quote-item-option > strong {
+  color: #334155;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.sales-quote-breakdown-totals {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+  border-radius: 9px;
+  background: #f8fafc;
+}
+
+.sales-quote-breakdown-totals > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sales-quote-breakdown-totals dt {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.sales-quote-breakdown-totals dd {
+  margin: 0;
+  color: #26354b;
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.sales-quote-validity {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.sales-saved-quote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.sales-saved-quote-actions .sales-quote-replaces {
+  flex: 1 1 100%;
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.sales-saved-quotes-empty {
+  margin: 0;
+  padding: 18px;
+  border: 1px dashed #d7dfeb;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #64748b;
 }
 
 .sales-request-link-copy {
@@ -155,4 +603,134 @@
 
 .sales-external-acceptance button {
   justify-self: start;
+}
+.sales-quote-editor-anchor {
+  scroll-margin-top: 24px;
+}
+
+.sales-quotation-preview {
+  display: grid;
+  gap: 12px;
+  margin: 14px 0;
+  padding: 18px;
+  border: 1px solid #dce5ef;
+  border-radius: 14px;
+  background: #f7f9fc;
+  color: #34445c;
+}
+
+.sales-quotation-preview > p,
+.sales-quotation-preview-items article > span,
+.sales-quotation-preview-items article > small {
+  color: #687b96;
+}
+
+.sales-quotation-preview-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sales-quotation-preview-heading > div > span {
+  color: #e84e08;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.sales-quotation-preview-heading h3 {
+  margin: 4px 0 0;
+  color: #182438;
+}
+
+.sales-quotation-preview-items {
+  display: grid;
+  gap: 8px;
+}
+
+.sales-quotation-preview-items article {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #e3eaf2;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.sales-quotation-preview dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.sales-quotation-preview dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sales-quotation-preview dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.sales-quotation-preview-note {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 760px) {
+  .rfq-item-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-main .rfq-request-card {
+    padding: 14px;
+  }
+
+  .sales-saved-quotes > .sales-saved-quotes-heading {
+    align-items: flex-start;
+  }
+
+  .sales-saved-quote-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  .sales-quote-status {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .sales-quote-total {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    text-align: left;
+  }
+
+  .sales-quote-breakdown-totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .sales-saved-quotes > .sales-saved-quotes-heading {
+    flex-direction: column;
+  }
+
+  .sales-saved-quote-count {
+    align-self: flex-start;
+  }
+
+  .sales-saved-quote-actions > button {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .sales-quote-breakdown summary {
+    flex-wrap: wrap;
+  }
 }

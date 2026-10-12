@@ -1,5 +1,18 @@
 import { z } from "zod";
 
+export const supplierProductInput = z.object({
+  catalogVariantId: z.string().trim().min(1).max(120).nullable().optional(),
+  productName: z.string().trim().min(1).max(200),
+  brand: z.string().max(100).default(""),
+  category: z.string().trim().min(1).max(100),
+  supplierSku: z.string().max(100).optional(),
+  unit: z.string().trim().min(1).max(50),
+  minimumOrderQty: z.number().positive().optional(),
+  availableQuantity: z.number().nonnegative().nullable().optional(),
+  lastQuotedPrice: z.number().nonnegative().optional(),
+  isActive: z.boolean().default(true),
+});
+
 export const supplierInput = z.object({
   name: z.string().trim().min(2).max(150),
   legalName: z.string().trim().max(200).optional(),
@@ -20,17 +33,24 @@ export const supplierInput = z.object({
   status: z.enum(["PENDING", "ACTIVE", "SUSPENDED"]).default("PENDING"),
   notes: z.string().max(5000).optional(),
 });
-export const supplierProductInput = z.object({
-  catalogVariantId: z.string().trim().min(1).max(120).nullable().optional(),
-  productName: z.string().trim().min(1).max(200),
-  brand: z.string().max(100).default(""),
-  category: z.string().trim().min(1).max(100),
-  supplierSku: z.string().max(100).optional(),
-  unit: z.string().trim().min(1).max(50),
-  minimumOrderQty: z.number().positive().optional(),
-  availableQuantity: z.number().nonnegative().nullable().optional(),
-  lastQuotedPrice: z.number().nonnegative().optional(),
-  isActive: z.boolean().default(true),
+export const supplierCatalogueProductInput = supplierProductInput.pick({
+  catalogVariantId: true,
+  productName: true,
+  brand: true,
+  category: true,
+  unit: true,
+});
+export const supplierBrandCatalogInput = z.array(z.object({
+  brand: z.string().trim().min(1).max(100),
+  categories: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
+})).max(200);
+export const supplierCreateInput = supplierInput.extend({
+  products: z.array(supplierProductInput).max(200).optional(),
+  brandCatalog: supplierBrandCatalogInput.optional(),
+});
+export const supplierUpdateInput = supplierInput.partial().extend({
+  catalogueProducts: z.array(supplierCatalogueProductInput).max(200).optional(),
+  brandCatalog: supplierBrandCatalogInput.optional(),
 });
 export const procurementItem = z.object({
   catalogVariantId: z.string().trim().min(1).max(120).optional(),
@@ -47,6 +67,7 @@ export const procurementInput = z.object({
   orderId: z.string().optional(),
   deliveryAddress: z.string().trim().min(2).max(500),
   deliveryCity: z.string().trim().min(2).max(100),
+  deliveryState: z.string().trim().min(2).max(100).optional(),
   deliveryPincode: z.string().regex(/^[1-9]\d{5}$/),
   requiredBy: z.string().datetime().optional(),
   items: z.array(procurementItem).min(1).max(200),

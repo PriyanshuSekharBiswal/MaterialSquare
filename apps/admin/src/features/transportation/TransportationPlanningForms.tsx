@@ -41,8 +41,12 @@ export default function TransportationPlanningForms({
         <h2>Plan an order delivery</h2>
         <div className="bc-fields">
           <label>
-            Order ID
-            <input name="orderId" required />
+            Order reference
+            <input
+              name="orderId"
+              placeholder="MS-OR-… or internal order ID"
+              required
+            />
           </label>
           <label>
             Destination
@@ -98,8 +102,12 @@ export default function TransportationPlanningForms({
         <h2>Create customer delivery challan</h2>
         <div className="bc-fields">
           <label>
-            Order ID
-            <input name="orderId" required />
+            Order reference
+            <input
+              name="orderId"
+              placeholder="MS-OR-… or internal order ID"
+              required
+            />
           </label>
           <label>
             Truck number

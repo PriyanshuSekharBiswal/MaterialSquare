@@ -13,6 +13,78 @@ function auditText(value: unknown): string {
   return (serialized || String(value)).slice(0, 500);
 }
 
+type PartnerBrandRecord = {
+  id: string;
+  name: string;
+  category: string;
+  categories: string[];
+  tagline: string;
+  logoUrl?: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  [key: string]: unknown;
+};
+
+function normalizePartnerBrand(brand: Record<string, unknown>): PartnerBrandRecord {
+  const categories = Array.isArray(brand.categories)
+    ? Array.from(new Set(brand.categories.filter((value): value is string => typeof value === "string" && Boolean(value.trim())).map((value) => value.trim())))
+    : typeof brand.category === "string" && Boolean(brand.category.trim()) ? [brand.category.trim()] : [];
+  return {
+    ...brand,
+    id: String(brand.id || ""),
+    name: String(brand.name || ""),
+    category: categories[0] || "",
+    categories,
+    tagline: String(brand.tagline || ""),
+    logoUrl: typeof brand.logoUrl === "string" ? brand.logoUrl : null,
+    isActive: brand.isActive !== false,
+    sortOrder: Number(brand.sortOrder || 0),
+  } as PartnerBrandRecord;
+}
+
+type CatalogueCodeSource = {
+  id: string;
+  code: string | null;
+  brand: string;
+  category: string;
+  sortOrder: number;
+  name: string;
+};
+
+function firstThreeCodeLetters(value: string) {
+  return value.replace(/[^a-z0-9]/gi, "").slice(0, 3).toLocaleUpperCase();
+}
+
+function updatedLegacyCatalogueCodes(listings: CatalogueCodeSource[]) {
+  const legacyCode = /^MS-[A-Z0-9]{3}-\d{2,}$/i;
+  const used = new Set(
+    listings
+      .filter((listing) => !listing.code || !legacyCode.test(listing.code))
+      .map((listing) => listing.code?.toLocaleUpperCase())
+      .filter((code): code is string => Boolean(code)),
+  );
+  const nextByPrefix = new Map<string, number>();
+  const updated = new Map<string, string>();
+
+  for (const listing of listings) {
+    if (!listing.code || !legacyCode.test(listing.code)) continue;
+    const brandPrefix = firstThreeCodeLetters(listing.brand || "");
+    const categoryPrefix = firstThreeCodeLetters(listing.category || "");
+    if (!brandPrefix || !categoryPrefix) continue;
+    const prefix = `MS-${brandPrefix}-${categoryPrefix}-`;
+    let serial = nextByPrefix.get(prefix) || 1;
+    let code = `${prefix}${String(serial).padStart(2, "0")}`;
+    while (used.has(code)) {
+      serial += 1;
+      code = `${prefix}${String(serial).padStart(2, "0")}`;
+    }
+    used.add(code);
+    updated.set(listing.id, code);
+    nextByPrefix.set(prefix, serial + 1);
+  }
+  return updated;
+}
+
 function stableVariantIdentity(variant: {
   label: string;
   unit: string;
@@ -144,7 +216,7 @@ export type CatalogListingInput = {
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private readonly initialPartnerBrands = [
+  private readonly initialPartnerBrands: PartnerBrandRecord[] = [
     ["ultratech", "UltraTech Cement", "Cement", "The Engineer's Choice"],
     ["ambuja", "Ambuja Cement", "Cement", "Giant Compressive Strength"],
     ["jk-cement", "JK Cement", "Cement", "Build Safe & Strong"],
@@ -176,6 +248,7 @@ export class ProductsService {
     id,
     name,
     category,
+    categories: [category],
     tagline,
     isActive: true,
     sortOrder,
@@ -192,7 +265,9 @@ export class ProductsService {
         ? (saved.content as Record<string, unknown>)
         : {};
     const brands = content["brands.directory"];
-    return Array.isArray(brands) ? brands : this.initialPartnerBrands;
+    return Array.isArray(brands)
+      ? brands.map((brand) => normalizePartnerBrand(brand as Record<string, unknown>))
+      : this.initialPartnerBrands;
   }
 
   async getPublicPartnerBrands() {
@@ -206,7 +281,9 @@ export class ProductsService {
         ? (saved.content as Record<string, unknown>)
         : {};
     const brands = content["brands.directory"];
-    return Array.isArray(brands) ? brands : this.initialPartnerBrands;
+    return Array.isArray(brands)
+      ? brands.map((brand) => normalizePartnerBrand(brand as Record<string, unknown>))
+      : this.initialPartnerBrands;
   }
 
   async savePartnerBrands(
@@ -214,7 +291,9 @@ export class ProductsService {
       id: string;
       name: string;
       category: string;
+      categories?: string[];
       tagline: string;
+      logoUrl?: string | null;
       isActive: boolean;
       sortOrder: number;
     }>,
@@ -270,6 +349,7 @@ export class ProductsService {
       include: { variants: { orderBy: { sortOrder: "asc" } } },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
+    const updatedCodes = updatedLegacyCatalogueCodes(listings);
     return listings.map(
       ({
         specifications,
@@ -302,7 +382,7 @@ export class ProductsService {
         return {
           ...listing,
           availabilityStatus: publicAvailability,
-          code: listing.code || listing.slug,
+          code: updatedCodes.get(listing.id) || listing.code || listing.slug,
           brand: listing.brand || "",
           image: image || null,
           galleryImages: galleryImages.length
@@ -354,12 +434,17 @@ export class ProductsService {
     );
   }
 
-  findCatalogue() {
-    return this.prisma.catalogListing.findMany({
+  async findCatalogue() {
+    const listings = await this.prisma.catalogListing.findMany({
       where: { deletedAt: null },
       include: { variants: { orderBy: { sortOrder: "asc" } } },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
+    const updatedCodes = updatedLegacyCatalogueCodes(listings);
+    return listings.map((listing) => ({
+      ...listing,
+      code: updatedCodes.get(listing.id) || listing.code,
+    }));
   }
 
   findInventory() {

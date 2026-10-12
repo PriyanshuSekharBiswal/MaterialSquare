@@ -113,14 +113,15 @@ export class TransportationController {
 
   @Put(":orderId")
   async upsert(
-    @Param("orderId") orderId: string,
+    @Param("orderId") orderReference: string,
     @Body() body: unknown,
     @Req() req: StaffRequest,
   ) {
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
+    const order = await this.prisma.order.findFirst({
+      where: { OR: [{ id: orderReference }, { orderNumber: orderReference }] },
     });
     if (!order) throw new NotFoundException("Order not found");
+    const orderId = order.id;
     const data = validate(transportationInput, body);
     const mapped = {
       ...data,

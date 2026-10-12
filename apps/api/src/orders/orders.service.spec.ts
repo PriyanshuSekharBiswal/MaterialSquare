@@ -12,8 +12,10 @@ describe("order dispatch workflow", () => {
   };
   it("dispatches an order that is ready for processing", async () => {
     const transaction = {
+      $queryRaw: jest.fn().mockResolvedValue([{ locked: 1 }]),
       dispatchChallan: {
         create: jest.fn().mockResolvedValue({ id: "challan" }),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       order: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       auditLog: { create: jest.fn() },
@@ -140,117 +142,109 @@ describe("order dispatch workflow", () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it("records offline payment once and audits the received amount and method", async () => {
-    const updatedAt = new Date("2026-10-08T00:00:00.000Z");
+  it("records an offline advance with an audit trail", async () => {
     const order = {
       id: "qa-order",
-      orderNumber: "MS-ORD-QA-1",
+      orderNumber: "MS-OR-QA-1",
       grandTotal: "15250.00",
-      updatedAt,
       manualPaymentStatus: "UNPAID",
+      payments: [],
     };
-    const paidOrder = {
+    const savedOrder = {
       ...order,
-      manualPaymentStatus: "PAID",
+      manualPaymentStatus: "PARTIALLY_PAID",
       manualPaymentMethod: "UPI",
       manualPaymentReference: "QA-UPI-ONLY",
       manualPaymentRecordedBy: { name: "QA Accounts" },
+      payments: [{ paymentNumber: "MS-PM-2026-a0aa-aababc-aab-a", amountInr: "5000.00", method: "UPI" }],
     };
     const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ locked: 1 }]),
       order: {
-        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-        findUniqueOrThrow: jest.fn().mockResolvedValue(paidOrder),
+        findUniqueOrThrow: jest.fn().mockResolvedValueOnce(order).mockResolvedValueOnce(savedOrder),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      orderPayment: {
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockResolvedValue({}),
       },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
     };
     const prisma = {
       order: { findFirst: jest.fn().mockResolvedValue(order) },
-      $transaction: jest.fn(async (work: (db: unknown) => Promise<unknown>) =>
-        work(tx),
-      ),
+      $transaction: jest.fn(async (work: (db: unknown) => Promise<unknown>) => work(tx)),
     };
     const service = new OrdersService(prisma as never, {} as never);
 
-    await expect(
-      service.recordManualPayment(
-        "qa-order",
-        { method: "UPI", reference: "QA-UPI-ONLY" },
-        "staff-accounts",
-      ),
-    ).resolves.toEqual(paidOrder);
-    expect(tx.order.updateMany).toHaveBeenCalledWith({
-      where: {
-        id: "qa-order",
-        manualPaymentStatus: "UNPAID",
-        updatedAt,
-      },
-      data: {
-        manualPaymentStatus: "PAID",
-        manualPaymentMethod: "UPI",
-        manualPaymentReference: "QA-UPI-ONLY",
-        manualPaymentRecordedAt: expect.any(Date),
-        manualPaymentRecordedById: "staff-accounts",
-      },
+    await expect(service.recordManualPayment(
+      "qa-order",
+      { amountInr: 5000, method: "UPI", reference: "QA-UPI-ONLY", note: "Advance" },
+      "staff-accounts",
+    )).resolves.toEqual(savedOrder);
+    expect(tx.orderPayment.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        paymentNumber: expect.stringMatching(/^MS-PM-/),
+        orderId: "qa-order",
+        method: "UPI",
+        reference: "QA-UPI-ONLY",
+        note: "Advance",
+        recordedById: "staff-accounts",
+      }),
+    });
+    expect(tx.order.update).toHaveBeenCalledWith({
+      where: { id: "qa-order" },
+      data: expect.objectContaining({ manualPaymentStatus: "PARTIALLY_PAID" }),
     });
     expect(tx.auditLog.create).toHaveBeenCalledWith({
-      data: {
+      data: expect.objectContaining({
         staffId: "staff-accounts",
         action: "ORDER_OFFLINE_PAYMENT_RECORDED",
-        entityType: "ORDER",
         entityId: "qa-order",
-        metadata: {
+        metadata: expect.objectContaining({
+          paymentNumber: expect.stringMatching(/^MS-PM-/),
           method: "UPI",
           reference: "QA-UPI-ONLY",
-          amountInr: 15250,
-        },
-      },
+          amountInr: 5000,
+          totalPaidInr: 5000,
+          remainingInr: 10250,
+          status: "PARTIALLY_PAID",
+        }),
+      }),
     });
+  });
+
+  it("prevents overpayment and does not create a ledger or audit record", async () => {
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ locked: 1 }]),
+      order: { findUniqueOrThrow: jest.fn().mockResolvedValue({
+        id: "qa-order", grandTotal: "100.00", manualPaymentStatus: "UNPAID", payments: [],
+      }) },
+      orderPayment: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn() },
+      auditLog: { create: jest.fn() },
+    };
+    const prisma = {
+      order: { findFirst: jest.fn().mockResolvedValue({ id: "qa-order", manualPaymentStatus: "UNPAID" }) },
+      $transaction: jest.fn(async (work: (db: unknown) => Promise<unknown>) => work(tx)),
+    };
+    const service = new OrdersService(prisma as never, {} as never);
+
+    await expect(service.recordManualPayment("qa-order", { amountInr: 101, method: "CARD" }, "staff"))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.orderPayment.create).not.toHaveBeenCalled();
+    expect(tx.auditLog.create).not.toHaveBeenCalled();
   });
 
   it("prevents recording an already paid order twice", async () => {
     const prisma = {
-      order: {
-        findFirst: jest.fn().mockResolvedValue({
-          id: "qa-order",
-          manualPaymentStatus: "PAID",
-        }),
-      },
+      order: { findFirst: jest.fn().mockResolvedValue({ id: "qa-order", manualPaymentStatus: "PAID" }) },
       $transaction: jest.fn(),
     };
     const service = new OrdersService(prisma as never, {} as never);
 
-    await expect(
-      service.recordManualPayment("qa-order", { method: "CASH" }, "staff"),
-    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.recordManualPayment(
+      "qa-order", { amountInr: 1, method: "CASH" }, "staff",
+    )).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it("does not audit payment when the order changes before the write", async () => {
-    const tx = {
-      order: {
-        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-        findUniqueOrThrow: jest.fn(),
-      },
-      auditLog: { create: jest.fn() },
-    };
-    const prisma = {
-      order: {
-        findFirst: jest.fn().mockResolvedValue({
-          id: "qa-order",
-          updatedAt: new Date("2026-10-08T00:00:00.000Z"),
-          manualPaymentStatus: "UNPAID",
-        }),
-      },
-      $transaction: jest.fn(async (work: (db: unknown) => Promise<unknown>) =>
-        work(tx),
-      ),
-    };
-    const service = new OrdersService(prisma as never, {} as never);
-
-    await expect(
-      service.recordManualPayment("qa-order", { method: "CASH" }, "staff"),
-    ).rejects.toBeInstanceOf(ConflictException);
-    expect(tx.auditLog.create).not.toHaveBeenCalled();
-    expect(tx.order.findUniqueOrThrow).not.toHaveBeenCalled();
-  });
 });

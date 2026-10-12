@@ -4,12 +4,21 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";
+import { createBusinessReferenceNumber } from "../business/procurement/procurement-number";
 import type {
   ExternalAcceptanceChannel,
   QuotationSelection,
 } from "./quotation-acceptance.schema";
+
+export function quoteSiteAddressPart(address: string, label: string) {
+  return address.match(
+    new RegExp(
+      `(?:^|,\\s*)${label}:\\s*(.*?)(?=,\\s*(?:Building|Area|Landmark|City|State):|$)`,
+      "i",
+    ),
+  )?.[1]?.trim();
+}
 
 @Injectable()
 export class QuotationAcceptanceService {
@@ -140,6 +149,14 @@ export class QuotationAcceptanceService {
       });
       if (!customer)
         throw new ConflictException("Customer contact record is unavailable");
+      const siteCity =
+        quoteSiteAddressPart(quote.projectSiteAddress, "City") ||
+        customer.city ||
+        "Customer site";
+      const siteState = quoteSiteAddressPart(
+        quote.projectSiteAddress,
+        "State",
+      );
 
       const selectedAlternative = selections.length > 0;
       const subtotal = selectedAlternative
@@ -219,7 +236,7 @@ export class QuotationAcceptanceService {
         : orderMaterialTotal.div(subtotal);
       const order = await tx.order.create({
         data: {
-          orderNumber: `MS-ORD-${new Date().getFullYear()}-${randomUUID()}`,
+          orderNumber: await createBusinessReferenceNumber(tx, "OR"),
           quotationId: quote.id,
           customerId,
           customerName: customer.name || quote.customerName,
@@ -286,10 +303,11 @@ export class QuotationAcceptanceService {
       const procurement = sourcingItems.length
         ? await tx.procurementRequest.create({
             data: {
-              requestNumber: `MS-PR-${new Date().getFullYear()}-${randomUUID()}`,
+              requestNumber: await createBusinessReferenceNumber(tx, "PR"),
               orderId: order.id,
               deliveryAddress: quote.projectSiteAddress,
-              deliveryCity: customer.city || "Customer site",
+              deliveryCity: siteCity,
+              deliveryState: siteState,
               deliveryPincode: quote.sitePincode,
               items: sourcingItems,
               notes: `Created from quotation accepted through ${channel} (${quote.quoteNumber})`,

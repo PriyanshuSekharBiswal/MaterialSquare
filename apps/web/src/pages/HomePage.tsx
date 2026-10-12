@@ -19,14 +19,14 @@ import {
   Droplet,
   Package,
 } from "lucide-react";
-import { BrandLogo, getBrandMeta } from "../components/icons/BrandBadges";
+import PartnerBrandLogo from "../components/PartnerBrandLogo";
 import DeferredHeroBuildingCanvas from "../components/DeferredHeroBuildingCanvas";
 import SearchSuggestions from "../components/SearchSuggestions";
 import WhatsAppIcon from "../components/icons/WhatsAppIcon";
 import ArchitecturalTicker from "../components/ArchitecturalTicker";
 import { useSiteContent } from "../site-content";
 import { whatsappLink } from "../messages";
-import { usePartnerBrands } from "../partner-brands";
+import { partnerBrandCategoryLabel, partnerBrandCategories, usePartnerBrands } from "../partner-brands";
 import DeferredDirectionGoogleMaps from "../components/DeferredDirectionGoogleMaps";
 import RotatingSearchPlaceholder from "../components/RotatingSearchPlaceholder";
 import { buildSearchExamples } from "../search/search-examples";
@@ -110,8 +110,9 @@ export default function HomePage({
   }));
   const listedBrands = partnerBrands.map((brand) => ({
     name: brand.name,
-    category: brand.category,
-    meta: getBrandMeta(brand.id),
+    category: partnerBrandCategoryLabel(brand),
+    categories: partnerBrandCategories(brand),
+    logoUrl: brand.logoUrl,
   }));
   const searchExamples = buildSearchExamples(products);
   const customContentBlocks = homeContentBlocks(
@@ -128,6 +129,9 @@ export default function HomePage({
               src={siteContent["home.heroImage"]}
               alt=""
               aria-hidden="true"
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
             />
           )}
           {/* Desktop: Full-bleed 3D Isometric Building Simulation (borderless, full scale) */}
@@ -295,7 +299,7 @@ export default function HomePage({
               <ShieldCheck size={20} />
             </div>
             <div>
-              <h4>Browse by category</h4>
+              <h2 className="trust-card-title">Browse by category</h2>
               <p>
                 Explore construction materials and review listed product
                 details.
@@ -308,7 +312,7 @@ export default function HomePage({
               <Clock size={20} />
             </div>
             <div>
-              <h4>Save a material list</h4>
+              <h2 className="trust-card-title">Save a material list</h2>
               <p>
                 Your selected materials stay in this browser while you browse.
               </p>
@@ -320,7 +324,7 @@ export default function HomePage({
               <Layers size={20} />
             </div>
             <div>
-              <h4>Review listed prices</h4>
+              <h2 className="trust-card-title">Review listed prices</h2>
               <p>
                 Prices show the unit and any staff-provided tax or offer note.
               </p>
@@ -332,7 +336,7 @@ export default function HomePage({
               <CheckCircle2 size={20} />
             </div>
             <div>
-              <h4>Contact the team</h4>
+              <h2 className="trust-card-title">Contact the team</h2>
               <p>
                 Prepare a request and continue the conversation by WhatsApp or
                 email.
@@ -422,9 +426,9 @@ export default function HomePage({
         <div className="container">
           <div className="brands-intro">
             <span className="badge-pill">Browse by brand</span>
-            <h3 className="brands-title reveal-title">
+            <h2 className="brands-title reveal-title">
               Find products from familiar brands.
-            </h3>
+            </h2>
           </div>
 
           <div className="brands-logos-grid reveal-stagger">
@@ -436,10 +440,7 @@ export default function HomePage({
                 title={`Browse ${brand.name} Products`}
               >
                 <div className="brand-logo-frame" aria-label={brand.name}>
-                  <BrandLogo
-                    id={brand.meta?.id || brand.name}
-                    className="brand-logo-svg"
-                  />
+                  <PartnerBrandLogo brand={brand} className="brand-logo-svg" />
                 </div>
                 <div className="brand-card-meta">
                   <span className="brand-tagline-text">{brand.name}</span>
@@ -487,7 +488,7 @@ export default function HomePage({
               <Zap size={22} />
             </div>
             <div>
-              <h4>Wire Selection Checklist</h4>
+              <h2 className="tool-callout-title">Wire Selection Checklist</h2>
               <p>
                 Use our wire selection checklist to discuss your requirements
                 with a qualified electrician.
@@ -503,7 +504,7 @@ export default function HomePage({
               <Droplet size={22} />
             </div>
             <div>
-              <h4>Pipe Types & Fittings</h4>
+              <h2 className="tool-callout-title">Pipe Types & Fittings</h2>
               <p>
                 Explore common PVC, CPVC and uPVC systems. Confirm compatibility
                 with manufacturer information.
@@ -519,7 +520,7 @@ export default function HomePage({
               <Package size={22} />
             </div>
             <div>
-              <h4>Site Material Handling</h4>
+              <h2 className="tool-callout-title">Site Material Handling</h2>
               <p>
                 Read material storage examples and follow the product
                 instructions for your site.
@@ -593,7 +594,7 @@ export default function HomePage({
   return (
     <div className="home-page-container">
       {homepageSectionOrder(siteContent["home.sectionOrder"])
-        .filter((id) => !hidden.has(id))
+        .filter((id) => id === "hero" || !hidden.has(id))
         .map((id) => (
           <div key={id} style={{ display: "contents" }}>
             {sections[id]}

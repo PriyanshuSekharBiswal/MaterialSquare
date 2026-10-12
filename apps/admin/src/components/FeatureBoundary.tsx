@@ -25,9 +25,9 @@ export default class FeatureBoundary extends Component<
     return (
       <Suspense
         fallback={
-          <p className="empty" role="status">
-            Loading screen…
-          </p>
+          <div className="admin-feature-skeleton" role="status" aria-label="Loading screen">
+            <i /><i /><i /><i />
+          </div>
         }
       >
         {this.props.children}

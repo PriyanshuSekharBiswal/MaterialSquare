@@ -58,11 +58,31 @@ that account entry point in production.
 
 ## Release checks
 
+- After the website scope and client-approved content are complete, repeat the
+  full SEO/AEO/GEO review on the approved canonical domain. Check rendered page
+  titles and descriptions, canonical and robots directives, sitemap coverage,
+  structured data against visible page content, internal links, mobile
+  performance, and public business details/service areas. Once the domain is
+  live, verify it in Google Search Console, inspect representative URLs, and
+  submit the sitemap.
 - `/api/health/ready` returns healthy on the production domain.
 - Admin and staff sign-in, role permissions, and staff provisioning work.
-- Customer OTP verification is action-gated for quotation submission and
-  account history; ownership boundaries, RFQ visibility, quotation views,
-  brand comparisons, order tracking, loyalty, and profile updates work.
+- Customers can browse without signing in. Mobile OTP sign-in gates quotation
+  requests and account history, and the session persists in that browser until
+  logout. Admin/staff use mobile/email and password. Verify account ownership, quotation revisions,
+  multiple line items, order history, and profile updates.
+- Accepting a quotation creates the order and any required procurement request.
+  Staff can match suppliers using product coverage and service-area/location
+  data, compare supplier quotes, approve purchase orders, and track partial or
+  complete receipts.
+- Payments are recorded manually by staff after offline cash/UPI/card receipt,
+  including advances and balance settlements; there is no customer payment
+  gateway. Notification delivery remains deferred until a provider is selected.
+  Staff-entered vehicle and delivery updates appear in the customer's order
+  tracking view.
+- New quotation, order, procurement, purchase-order, dispatch, and delivery
+  references retain the agreed 23-character compact format (excluding
+  hyphens) and remain unique when generated concurrently.
 - Search suggestions, filters, and product pages show only approved client
   catalogue data.
 - Privacy and terms pages show only client-approved, explicitly published copy.
@@ -71,3 +91,8 @@ that account entry point in production.
 - The browser-local quote list preserves selected products and quantities.
 - WhatsApp and email handoffs open with a correct, reviewable request summary.
 - Backups and an isolated restore have been verified.
+
+Notification delivery is deferred until the client provisions and approves a
+provider. Do not treat SMS, email, or webhook delivery as a launch acceptance
+criterion while that work is deferred; confirm notification state is visible
+to staff where applicable.

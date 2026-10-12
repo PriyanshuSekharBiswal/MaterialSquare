@@ -5,6 +5,7 @@ type PurchaseRequestFormProps = {
   busy: boolean;
   submit: FormSubmit;
   request: <T>(path: string) => Promise<T>;
+  onSaved?: () => void;
 };
 type CatalogueVariantOption = {
   id: string;
@@ -23,6 +24,7 @@ export default function PurchaseRequestForm({
   busy,
   submit,
   request,
+  onSaved,
 }: PurchaseRequestFormProps) {
   const [catalogueVariants, setCatalogueVariants] = useState<CatalogueVariantOption[]>([]);
   const [selectedVariant, setSelectedVariant] = useState<CatalogueVariantOption | null>(null);
@@ -55,10 +57,11 @@ export default function PurchaseRequestForm({
   return (
     <form
       className="bc-form"
-      onSubmit={(event) =>
-        submit(event, (form) => ({
+      onSubmit={async (event) => {
+        const saved = await submit(event, (form) => ({
           deliveryAddress: field(form, "address"),
           deliveryCity: field(form, "city"),
+          deliveryState: field(form, "state") || undefined,
           deliveryPincode: field(form, "pincode"),
           items: [
             {
@@ -78,8 +81,9 @@ export default function PurchaseRequestForm({
               unit: field(form, "unit"),
             },
           ],
-        }))
-      }
+        }));
+        if (saved) onSaved?.();
+      }}
     >
       <h2>Open a purchase request</h2>
       <div className="bc-fields">
@@ -90,6 +94,10 @@ export default function PurchaseRequestForm({
         <label>
           City
           <input name="city" required />
+        </label>
+        <label>
+          State (optional)
+          <input name="state" />
         </label>
         <label>
           PIN code

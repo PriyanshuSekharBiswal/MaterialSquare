@@ -1,8 +1,19 @@
 import { ConflictException, NotFoundException } from "@nestjs/common";
-import { QuotationAcceptanceService } from "./quotation-acceptance.service";
+import {
+  QuotationAcceptanceService,
+  quoteSiteAddressPart,
+} from "./quotation-acceptance.service";
 import { CustomerQuotationResponseSchema } from "./quotation-acceptance.schema";
 
 describe("customer quotation responses", () => {
+  it("reads the structured delivery city and state saved on a quotation", () => {
+    const address =
+      "Building: Tower 1, Area: Sector 10, City: Noida, State: Uttar Pradesh";
+    expect(quoteSiteAddressPart(address, "City")).toBe("Noida");
+    expect(quoteSiteAddressPart(address, "State")).toBe("Uttar Pradesh");
+    expect(quoteSiteAddressPart("Plot 8, Noida", "State")).toBeUndefined();
+  });
+
   function setup(
     quote: unknown = { id: "quote", customerId: "customer" },
     count = 1,

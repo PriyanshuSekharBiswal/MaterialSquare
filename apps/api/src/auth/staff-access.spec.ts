@@ -65,6 +65,23 @@ describe("predefined staff access", () => {
     ).toThrow(ForbiddenException);
   });
 
+  it("limits unpublished website draft discard to content management roles", () => {
+    expect(() =>
+      assertStaffRoutePermission(
+        "DELETE",
+        "/api/admin/site-content/draft",
+        "CONTENT_MANAGER",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertStaffRoutePermission(
+        "DELETE",
+        "/api/admin/site-content/draft",
+        "SALES_MANAGER",
+      ),
+    ).toThrow(ForbiddenException);
+  });
+
   it("allows catalogue managers to update partner brands through the catalogue endpoint", () => {
     expect(() => assertStaffRoutePermission("GET", "/api/products/catalogue/partner-brands", "CATALOG_MANAGER")).not.toThrow();
     expect(() => assertStaffRoutePermission("PUT", "/api/products/catalogue/partner-brands", "CATALOG_MANAGER")).not.toThrow();
@@ -236,6 +253,7 @@ describe("predefined staff access", () => {
       "/api/suppliers/id/products",
       "/api/suppliers/id/products/product",
       "/api/suppliers/id/ratings",
+      "/api/suppliers/id/ratings/rating",
     ]) {
       expect(() =>
         assertStaffRoutePermission("POST", path, "PROCUREMENT_HEAD"),

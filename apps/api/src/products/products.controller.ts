@@ -53,12 +53,22 @@ const partnerBrandsSchema = z
           .max(80)
           .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
         name: z.string().trim().min(2).max(120),
-        category: z.string().trim().min(2).max(80),
+        category: z.string().trim().max(80).optional(),
+        categories: z.array(z.string().trim().min(2).max(80)).max(20).optional(),
         tagline: z.string().trim().max(160),
+        logoUrl: imagePath.nullable().optional(),
         isActive: z.boolean(),
         sortOrder: z.number().int().min(0).max(100000),
       })
-      .strict(),
+      .strict()
+      .refine((brand) => Boolean(brand.categories?.length || brand.category), {
+        message: "Add at least one brand category",
+        path: ["categories"],
+      })
+      .transform((brand) => {
+        const categories = Array.from(new Set([...(brand.categories || []), ...(brand.category ? [brand.category] : [])]));
+        return { ...brand, category: categories[0] || "", categories };
+      }),
   )
   .max(200)
   .refine(

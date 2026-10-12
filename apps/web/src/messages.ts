@@ -27,6 +27,9 @@ export interface RequestDetails {
   email: string;
   company: string;
   address: string;
+  building: string;
+  landmark: string;
+  state: string;
   city: string;
   pincode: string;
   delivery: string;

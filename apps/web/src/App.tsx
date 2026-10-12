@@ -7,11 +7,11 @@ import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import './App.css';
 import useScrollReveal from './hooks/useScrollReveal';
-import useSmoothScroll from './hooks/useSmoothScroll';
 import { trackWebsiteEvent } from './analytics';
 import { SiteContentProvider, useSiteContent } from './site-content';
 import { whatsappLink } from './messages';
 import { prefetchPublicContent } from './public-content-cache';
+import { isInitialReloadForCurrentLocation } from './scroll-position';
 
 // Global Shell Components
 import Header from './components/Header';
@@ -43,7 +43,6 @@ function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   useScrollReveal();
-  useSmoothScroll();
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("draftPreview") === "1")
@@ -64,6 +63,21 @@ function AppShell() {
   const [catalogueLoaded, setCatalogueLoaded] = useState(false);
   const [catalogueUnavailable, setCatalogueUnavailable] = useState(false);
   const [catalogueRetry, setCatalogueRetry] = useState(0);
+  const [showReloadSkeleton, setShowReloadSkeleton] = useState(isInitialReloadForCurrentLocation);
+
+  useEffect(() => {
+    document.documentElement.dataset.msScrollReady = catalogueLoaded ? "true" : "false";
+    if (!catalogueLoaded) return;
+    const completeReload = () => {
+      document.getElementById("root")?.style.removeProperty("min-height");
+      setShowReloadSkeleton(false);
+    };
+    if (isInitialReloadForCurrentLocation()) {
+      window.addEventListener("ms-scroll-restored", completeReload, { once: true });
+      return () => window.removeEventListener("ms-scroll-restored", completeReload);
+    }
+    completeReload();
+  }, [catalogueLoaded]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -99,6 +113,7 @@ function AppShell() {
   }, [catalogueRetry]);
 
   const retryCatalogue = () => {
+    setShowReloadSkeleton(true);
     setCatalogueLoaded(false);
     setCatalogueRetry((attempt) => attempt + 1);
   };
@@ -126,9 +141,15 @@ function AppShell() {
   return (
     <>
       <ScrollToTop />
+      {showReloadSkeleton && !catalogueLoaded && (
+        <div className="ms-reload-skeleton" role="status" aria-label="Loading materials">
+          <div className="ms-reload-skeleton-head"><i /><i /></div>
+          <div className="ms-reload-skeleton-grid">{Array.from({ length: 6 }, (_, index) => <i key={index} />)}</div>
+        </div>
+      )}
       <div className="ms-construction-app">
         {/* Navigation and client-configured contact actions */}
-        <PageMetadata/>
+        <PageMetadata products={catalogue} catalogueLoaded={catalogueLoaded} />
         <Header
           bomCount={bomList.length}
         />
@@ -136,7 +157,7 @@ function AppShell() {
         {/* Dedicated Route Views with smooth transition on section change */}
         <main id="main-content" className="app-main-content">
           <div key={location.pathname} className="ms-page-transition-wrapper">
-            <Suspense fallback={<p className="page-loading-state" role="status">Loading page…</p>}>
+            <Suspense fallback={<div className="page-loading-skeleton" role="status" aria-label="Loading page"><i /><i /><i /><i /></div>}>
             <Routes>
               {/* 1. Home Page */}
               <Route
@@ -159,6 +180,7 @@ function AppShell() {
                 element={
                   <MarketplacePage
                     products={catalogue}
+                    catalogueLoading={!catalogueLoaded}
                     catalogueUnavailable={catalogueUnavailable}
                     onRetryCatalogue={retryCatalogue}
                     bomList={bomList}
@@ -170,7 +192,7 @@ function AppShell() {
               />
 
               <Route path="/product/:productId" element={<ProductDetailPage products={catalogue} loading={!catalogueLoaded} catalogueUnavailable={catalogueUnavailable} onRetryCatalogue={retryCatalogue} />} />
-              <Route path="/material-list" element={<MaterialListPage products={catalogue} />} />
+              <Route path="/material-list" element={<MaterialListPage products={catalogue} catalogueLoading={!catalogueLoaded} />} />
               <Route path="/account/*" element={<CustomerAccountPage />} />
 
               {/* 3. Why Material Square (5 Calls vs 1 Call) */}

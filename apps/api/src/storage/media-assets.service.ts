@@ -17,7 +17,7 @@ export type UploadedMedia = {
   staffId?: string;
 };
 export type MediaUsage = {
-  type: "Product" | "Blog post" | "Expert profile" | "Website content";
+  type: "Product" | "Blog post" | "Expert profile" | "Partner brand" | "Website content";
   label: string;
   location: string;
 };
@@ -94,7 +94,7 @@ export class MediaAssetsService {
         select: { name: true, imageUrl: true, isPublished: true },
       }),
       this.prisma.websiteContent.findMany({
-        where: { id: { in: ["global", "draft"] } },
+        where: { id: { in: ["global", "draft", "partner-brands"] } },
         select: { id: true, content: true },
       }),
     ]);
@@ -145,7 +145,25 @@ export class MediaAssetsService {
         );
       }
     };
-    for (const page of websiteContent) visit(page.content, page.id, []);
+    for (const page of websiteContent) {
+      if (page.id === "partner-brands") {
+        const content = page.content && typeof page.content === "object" && !Array.isArray(page.content)
+          ? page.content as Record<string, unknown>
+          : {};
+        const directory = content["brands.directory"];
+        if (Array.isArray(directory)) directory.forEach((value, index) => {
+          if (!value || typeof value !== "object" || Array.isArray(value)) return;
+          const brand = value as Record<string, unknown>;
+          add(typeof brand.logoUrl === "string" ? brand.logoUrl : null, {
+            type: "Partner brand",
+            label: typeof brand.name === "string" ? brand.name : "Brand logo",
+            location: `brands.directory.${index}.logoUrl`,
+          });
+        });
+      } else {
+        visit(page.content, page.id, []);
+      }
+    }
     return usageByUrl;
   }
 

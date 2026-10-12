@@ -3,6 +3,7 @@ import {
   Body,
   BadRequestException,
   Controller,
+  Delete,
   Get,
   Header,
   Put,
@@ -13,7 +14,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { websitePages, sanitizePublicSiteContent, SITE_CONTENT_DEFAULTS } from "@material-square/types";
+import { SEO_INDEXABLE_SERVICE_AREA_SLUGS, serviceAreaSlugs, websitePageDescription, websitePages, parsePolicy, sanitizePublicSiteContent, SITE_CONTENT_DEFAULTS } from "@material-square/types";
 import { SITE_CONTENT_KEYS, SiteContentSchema } from "./site-content.schema";
 import { StaffGuard } from "../auth/access.guard";
 import { validate } from "../common/validation";
@@ -64,39 +65,64 @@ export class PublicSiteContentController {
       );
     }
 
-    const publishedArticles = await this.prisma.blogPost.findMany({
-      where: { status: "PUBLISHED", publishedAt: { lte: new Date() } },
-      orderBy: { publishedAt: "desc" },
-      select: { slug: true, updatedAt: true },
-    });
+    const [publishedArticles, publishedProducts, publishedExperts] = await Promise.all([
+      this.prisma.blogPost.findMany({
+        where: { status: "PUBLISHED", publishedAt: { lte: new Date() } },
+        orderBy: { publishedAt: "desc" },
+        select: { slug: true, updatedAt: true },
+      }),
+      this.prisma.catalogListing.findMany({
+        where: { isPublished: true },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        select: { id: true, updatedAt: true },
+      }),
+      this.prisma.expertAdvisor.findMany({
+        where: { isPublished: true },
+        select: { id: true },
+      }),
+    ]);
+    const savedPages = await this.prisma.websiteContent.findUnique({ where: { id: "global" } });
+    const savedContent = sanitizePublicSiteContent(
+      savedPages?.content && typeof savedPages.content === "object" && !Array.isArray(savedPages.content)
+        ? (savedPages.content as Record<string, unknown>)
+        : {},
+    );
     const staticPaths = [
       "/",
-      "/marketplace",
+      ...(publishedProducts.length ? ["/marketplace"] : []),
       "/why-us",
       "/guides",
       "/get-quote",
       "/contact",
-      "/blogs",
-      "/experts",
-      "/locations/noida",
-      "/locations/greater-noida",
-      "/locations/delhi",
-      "/locations/gurugram",
-      "/locations/ghaziabad",
-      "/locations/faridabad",
-      "/privacy",
-      "/terms",
+      ...(publishedArticles.length ? ["/blogs"] : []),
+      ...(publishedExperts.length ? ["/experts"] : []),
+      ...(parsePolicy(savedContent["policy.privacy"], "privacy").published ? ["/privacy"] : []),
+      ...(parsePolicy(savedContent["policy.terms"], "terms").published ? ["/terms"] : []),
     ];
-    const savedPages = await this.prisma.websiteContent.findUnique({ where: { id: "global" } });
-    const managedPages = websitePages((savedPages?.content as Record<string, string> | undefined)?.["website.pages"] || "[]").filter(page => page.published);
+    const managedPages = websitePages(savedContent["website.pages"])
+      .filter((page) => page.published && websitePageDescription(page));
+    const configuredLocationPaths = serviceAreaSlugs(savedContent["contact.location"])
+      .filter((slug) => SEO_INDEXABLE_SERVICE_AREA_SLUGS.includes(slug))
+      .map((slug) => `/locations/${slug}`);
     const urls = [
-      ...managedPages.map(page => ({ loc: `${origin}${page.path}`, lastmod: undefined })),
+      ...managedPages.map(page => ({
+        loc: `${origin}${page.path}`,
+        lastmod: undefined,
+      })),
       ...staticPaths.map((path) => ({
         loc: `${origin}${path === "/" ? "/" : path}`,
         lastmod: undefined,
       })),
+      ...configuredLocationPaths.map((path) => ({
+        loc: `${origin}${path}`,
+        lastmod: undefined,
+      })),
       ...publishedArticles.map(({ slug, updatedAt }) => ({
         loc: `${origin}/blogs/${encodeURIComponent(slug)}`,
+        lastmod: updatedAt,
+      })),
+      ...publishedProducts.map(({ id, updatedAt }) => ({
+        loc: `${origin}/product/${encodeURIComponent(id)}`,
         lastmod: updatedAt,
       })),
     ]
@@ -168,6 +194,27 @@ export class AdminSiteContentController {
   async draftStatus() {
     const saved = await this.prisma.websiteContent.findUnique({ where: { id: "draft" } });
     return { updatedAt: saved?.updatedAt || null };
+  }
+
+  @Delete("draft")
+  async discardDraft(@Req() req?: StaffRequest) {
+    await this.prisma.$transaction(async (db) => {
+      const deleted = await db.websiteContent.deleteMany({
+        where: { id: "draft" },
+      });
+      if (deleted.count > 0) {
+        await db.auditLog.create({
+          data: {
+            staffId: req?.user.userId,
+            action: "WEBSITE_CONTENT_DRAFT_DISCARDED",
+            entityType: "WEBSITE_CONTENT",
+            entityId: "draft",
+            metadata: { recoveryPointsPreserved: true },
+          },
+        });
+      }
+    });
+    return new PublicSiteContentController(this.prisma).get();
   }
 
   @Get("draft/history")
