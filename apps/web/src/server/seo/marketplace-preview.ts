@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { publicFaqEntries, SEO_ROUTE_DESCRIPTIONS, type FaqEntry, type SiteContent } from "@material-square/types";
-import { customerProductDescription } from "../src/catalogue/customer-display.js";
+import { customerProductDescription } from "../../catalogue/customer-display.js";
 import { canonicalSiteOrigin } from "./seo-origin.js";
 import { isPreviewDeployment } from "./seo-environment.js";
 import { setPageStructuredData } from "./structured-data.js";

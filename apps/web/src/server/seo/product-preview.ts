@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { customerProductDescription, customerProductTitle, customerSpecifications } from "../src/catalogue/customer-display.js";
+import { customerProductDescription, customerProductTitle, customerSpecifications } from "../../catalogue/customer-display.js";
 import { canonicalSiteOrigin } from "./seo-origin.js";
 import { isPreviewDeployment } from "./seo-environment.js";
 import { retainSharedStructuredData } from "./structured-data.js";

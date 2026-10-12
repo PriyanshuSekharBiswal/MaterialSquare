@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { canonicalSiteOrigin } from "./seo-origin.js";
-import { isPreviewDeployment } from "./seo-environment.js";
+import { canonicalSiteOrigin } from "../src/server/seo/seo-origin.js";
+import { isPreviewDeployment } from "../src/server/seo/seo-environment.js";
 import { parsePolicy, SEO_ROUTE_DESCRIPTIONS, websitePageDescription } from "@material-square/types";
-import { setPageStructuredData } from "./structured-data.js";
-import { setSocialCardMetadata } from "./social-metadata.js";
-import { setSiteIdentityStructuredData } from "./site-identity.js";
+import { setPageStructuredData } from "../src/server/seo/structured-data.js";
+import { setSocialCardMetadata } from "../src/server/seo/social-metadata.js";
+import { setSiteIdentityStructuredData } from "../src/server/seo/site-identity.js";
 
 type PublishedPage = {
   path: string;
