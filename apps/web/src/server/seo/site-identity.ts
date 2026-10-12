@@ -2,7 +2,7 @@ import {
   parseSocialLinks,
   SEO_SERVICE_AREA_PAGES,
   serviceAreaSlugs,
-} from "@material-square/types";
+} from "./runtime-types.js";
 
 type SiteContentValues = Record<string, unknown>;
 type SchemaEntry = Record<string, unknown>;

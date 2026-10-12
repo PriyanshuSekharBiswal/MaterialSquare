@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { canonicalSiteOrigin } from "../src/server/seo/seo-origin.js";
 import { isPreviewDeployment } from "../src/server/seo/seo-environment.js";
-import { parsePolicy, SEO_ROUTE_DESCRIPTIONS, websitePageDescription } from "@material-square/types";
+import { parsePolicy, SEO_ROUTE_DESCRIPTIONS, websitePageDescription } from "../src/server/seo/runtime-types.js";
 import { setPageStructuredData } from "../src/server/seo/structured-data.js";
 import { setSocialCardMetadata } from "../src/server/seo/social-metadata.js";
 import { setSiteIdentityStructuredData } from "../src/server/seo/site-identity.js";

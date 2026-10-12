@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { SiteContent } from "@material-square/types";
 import {
   guideTabContent,
   SEO_ROUTE_DESCRIPTIONS,
   visibleGuideTabs,
-  type SiteContent,
-} from "@material-square/types";
+} from "./runtime-types.js";
 import { canonicalSiteOrigin } from "./seo-origin.js";
 import { isPreviewDeployment } from "./seo-environment.js";
 import { retainSharedStructuredData, setPageStructuredData } from "./structured-data.js";

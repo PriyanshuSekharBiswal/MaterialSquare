@@ -1,11 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { SiteContent } from "@material-square/types";
 import {
   SEO_ROUTE_DESCRIPTIONS,
   SEO_SERVICE_AREA_PAGES,
   parseSocialLinks,
   serviceAreaSlugs,
-  type SiteContent,
-} from "@material-square/types";
+} from "./runtime-types.js";
 import { canonicalSiteOrigin } from "./seo-origin.js";
 import { isPreviewDeployment } from "./seo-environment.js";
 import { setPageStructuredData } from "./structured-data.js";

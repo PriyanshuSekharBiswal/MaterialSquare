@@ -1,9 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import {
-  publicFaqEntries,
-  SEO_ROUTE_DESCRIPTIONS,
-  type SiteContent,
-} from "@material-square/types";
+import type { SiteContent } from "@material-square/types";
+import { publicFaqEntries, SEO_ROUTE_DESCRIPTIONS } from "./runtime-types.js";
 import { canonicalSiteOrigin } from "./seo-origin.js";
 import { isPreviewDeployment } from "./seo-environment.js";
 import { setPageStructuredData } from "./structured-data.js";

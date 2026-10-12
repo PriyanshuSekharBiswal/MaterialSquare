@@ -4,7 +4,7 @@ import {
   SEO_SERVICE_AREA_PAGES,
   SEO_ROUTE_DESCRIPTIONS,
   serviceAreaSlugs,
-} from "@material-square/types";
+} from "./runtime-types.js";
 import { canonicalSiteOrigin } from "./seo-origin.js";
 import { isPreviewDeployment } from "./seo-environment.js";
 import { setPageStructuredData } from "./structured-data.js";
