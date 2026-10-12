@@ -1,4 +1,5 @@
 import { RfqsController } from "./rfqs.module";
+import { ProcurementController } from "../business/procurement/procurement.controller";
 
 const requestId = "a410d118-1435-4c70-abeb-877ee40fa000";
 
@@ -113,6 +114,54 @@ describe("staff request status audit history", () => {
     ).rejects.toThrow("Active staff owner not found");
     expect(rfq.updateMany).not.toHaveBeenCalled();
     expect(auditLog.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("procurement view of incoming customer requests", () => {
+  it("automatically returns a catalogue comparison summary without changing the RFQ", async () => {
+    const request = {
+      id: requestId,
+      requestNumber: "MS-RF-2026-a0ab-af0edb-hib-0a",
+      siteLocation: "42 Test Road, Noida 201301",
+      status: "NEW",
+      createdAt: new Date("2026-10-12T10:00:00.000Z"),
+      items: [{ material: "PPC Cement", brand: "BuildCo", category: "cement", quantity: 100, unit: "bag", specification: "", source: "customer_request" }],
+    };
+    const supplier = {
+      id: "supplier-1",
+      name: "Supplier 1",
+      phone: "9000000000",
+      city: "Noida",
+      state: "Uttar Pradesh",
+      pincode: "201301",
+      servicePincodes: [],
+      ratings: [],
+      products: [{
+        productName: "PPC Cement", brand: "BuildCo", category: "cement", unit: "bag",
+        catalogVariantId: null, catalogVariant: null, availableQuantity: null,
+        availabilityCheckedAt: null, minimumOrderQty: null, lastQuotedPrice: null,
+        updatedAt: new Date("2026-10-01T00:00:00.000Z"),
+      }],
+    };
+    const rfqFindMany = jest.fn().mockResolvedValue([request]);
+    const supplierFindMany = jest.fn().mockResolvedValue([supplier]);
+    const prisma = { rfq: { findMany: rfqFindMany }, supplier: { findMany: supplierFindMany } };
+    const controller = new ProcurementController(prisma as never);
+
+    const result = await controller.customerRfqs();
+
+    expect(result[0]).toMatchObject({
+      locationParsed: true,
+      deliveryCity: "Noida",
+      deliveryPincode: "201301",
+      matchSummary: {
+        matchedSupplierCount: 1,
+        requestedItems: [{ coverage: "unknown", matchedSupplierCount: 1 }],
+      },
+    });
+    expect(supplierFindMany).toHaveBeenCalledTimes(1);
+    expect(rfqFindMany).toHaveBeenCalledWith(expect.objectContaining({ take: 100 }));
+    expect(prisma).not.toHaveProperty("$transaction");
   });
 });
 

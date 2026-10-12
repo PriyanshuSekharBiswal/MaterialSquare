@@ -4,6 +4,7 @@ import ProcurementRequestCard, {
   type ProcurementRequest,
 } from "./ProcurementRequestCard";
 import PurchaseRequestForm from "./PurchaseRequestForm";
+import CustomerRfqSourcing from "./CustomerRfqSourcing";
 import type { FormSubmit, Mutate } from "../business/form-contracts";
 
 type Filter = "all" | "matching" | "quotes" | "approval" | "ordered";
@@ -117,6 +118,8 @@ export default function ProcurementWorkspace({
           />
         </div>
       )}
+
+      <CustomerRfqSourcing request={request} />
 
       <section ref={queueRef} className="procurement-queue" aria-labelledby="procurement-queue-title">
         <div className="procurement-queue-heading">

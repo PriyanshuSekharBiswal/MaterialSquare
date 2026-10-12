@@ -24,6 +24,7 @@ import {
   createBusinessReferenceNumber,
   createProcurementRequestNumber,
 } from "./procurement-number";
+import { loadMatchingSuppliers, matchSupplierCatalogue } from "./supplier-matching";
 
 @Controller("procurement")
 @UseGuards(StaffGuard)
@@ -80,136 +81,69 @@ export class ProcurementController {
     });
     if (!request) throw new NotFoundException("Procurement request not found");
     const items = z.array(procurementItem).parse(request.items);
-    const suppliers = await this.prisma.supplier.findMany({
-      where: { status: "ACTIVE", deletedAt: null },
-      include: {
-        products: {
-          where: { isActive: true, deletedAt: null },
-          include: { catalogVariant: { include: { listing: true } } },
-        },
-        ratings: true,
-      },
+    return matchSupplierCatalogue(this.prisma, { ...request, items });
+  }
+
+  @Get("customer-rfqs")
+  async customerRfqs() {
+    const requests = await this.prisma.rfq.findMany({
+      where: { status: { in: ["NEW", "CONTACTED", "QUOTED"] } },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: { id: true, requestNumber: true, siteLocation: true, items: true, status: true, createdAt: true },
     });
-    const candidates = suppliers
-      .map((supplier) => {
-        const matchedProducts = items.flatMap((item) => {
-          const product = supplier.products.find(
-            (candidate) => {
-              if (
-                item.catalogVariantId &&
-                candidate.catalogVariantId === item.catalogVariantId
-              )
-                return true;
+    const suppliers = requests.length ? await loadMatchingSuppliers(this.prisma) : [];
+    return Promise.all(requests.map(async (request) => {
+      const location = request.siteLocation.match(/,\s*(.*?)\s+([1-9]\d{5})$/);
+      const items = z.array(z.object({
+        material: z.string(), brand: z.string().optional(), category: z.string().optional(),
+        quantity: z.number(), unit: z.string(), specification: z.string().optional(),
+        variantId: z.string().nullable().optional(),
+      })).safeParse(request.items);
+      const matchSummary = location && items.success
+        ? await matchSupplierCatalogue(this.prisma, {
+            deliveryCity: location[1], deliveryPincode: location[2],
+            items: items.data.map((item) => ({
+              productName: item.material, brand: item.brand, category: item.category,
+              unit: item.unit, quantity: item.quantity, notes: item.specification,
+              catalogVariantId: item.variantId,
+            })),
+          }, suppliers)
+        : null;
+      return {
+        ...request,
+        deliveryCity: location?.[1] || "",
+        deliveryPincode: location?.[2] || "",
+        locationParsed: Boolean(location),
+        items: items.success ? items.data : [],
+        matchSummary: matchSummary ? {
+          matchedSupplierCount: matchSummary.candidates.length,
+          requestedItems: matchSummary.requestedItems,
+        } : null,
+      };
+    }));
+  }
 
-              const sameProduct =
-                candidate.productName.trim().toLowerCase() ===
-                  item.productName.trim().toLowerCase() &&
-                candidate.brand.trim().toLowerCase() ===
-                  (item.brand || "").trim().toLowerCase() &&
-                (!item.category ||
-                  candidate.category.trim().toLowerCase() ===
-                    item.category.trim().toLowerCase()) &&
-                (!item.unit ||
-                  candidate.unit.trim().toLowerCase() ===
-                    item.unit.trim().toLowerCase());
-              if (!sameProduct) return false;
-
-              if (!item.catalogVariantId || !candidate.catalogVariantId)
-                return true;
-
-              // Different catalogue records can represent the same sellable
-              // variant. Only treat them as equivalent when the identifying
-              // listing fields and every pack/spec attribute also agree.
-              const requestedNotes = (item.notes || "").toLowerCase();
-              const supplierVariant = candidate.catalogVariant;
-              if (!supplierVariant || !requestedNotes) return false;
-              const attributes = supplierVariant.attributes;
-              const attributeValues =
-                attributes && typeof attributes === "object"
-                  ? Object.values(attributes as Record<string, unknown>)
-                      .filter((value): value is string | number =>
-                        typeof value === "string" || typeof value === "number",
-                      )
-                      .map((value) => String(value).trim().toLowerCase())
-                      .filter(Boolean)
-                  : [];
-              const label = supplierVariant.label.trim().toLowerCase();
-              const variantDetails = [...new Set([label, ...attributeValues])];
-              return (
-                supplierVariant.listing.name.trim().toLowerCase() ===
-                  item.productName.trim().toLowerCase() &&
-                supplierVariant.listing.brand.trim().toLowerCase() ===
-                  (item.brand || "").trim().toLowerCase() &&
-                supplierVariant.unit.trim().toLowerCase() ===
-                  item.unit.trim().toLowerCase() &&
-                variantDetails.length > 0 &&
-                variantDetails.every((detail) => requestedNotes.includes(detail))
-              );
-            },
-          );
-          return product ? [{ ...product, requestedQuantity: item.quantity }] : [];
-        });
-        const deliveryPincodeMatch =
-          supplier.pincode === request.deliveryPincode;
-        const serviceCoverageMatch = supplier.servicePincodes.includes(
-          request.deliveryPincode,
-        );
-        const cityMatch =
-          supplier.city.trim().toLowerCase() ===
-          request.deliveryCity.trim().toLowerCase();
-        const stateMatch = Boolean(
-          request.deliveryState &&
-            supplier.state.trim().toLowerCase() ===
-              request.deliveryState.trim().toLowerCase(),
-        );
-        const locationMatchPercent = deliveryPincodeMatch
-          ? 100
-          : serviceCoverageMatch
-            ? 80
-            : cityMatch
-              ? 60
-              : stateMatch
-                ? 40
-                : 0;
-        const locationMatchLabel = deliveryPincodeMatch
-          ? "Exact PIN"
-          : serviceCoverageMatch
-            ? "Service PIN"
-            : cityMatch
-              ? "Same city"
-              : stateMatch
-                ? "Same state"
-                : "Other location";
-        const scores = supplier.ratings.flatMap((rating) => [
-          rating.priceScore,
-          rating.deliveryScore,
-          rating.availabilityScore,
-          rating.qualityScore,
-          rating.serviceScore,
-        ]);
-        return {
-          ...supplier,
-          matchedItems: matchedProducts.map((product) => product.productName),
-          matchedProducts,
-          deliveryPincodeMatch,
-          serviceCoverageMatch,
-          serviceAreaMatch: deliveryPincodeMatch || serviceCoverageMatch,
-          cityMatch,
-          stateMatch,
-          locationMatchPercent,
-          locationMatchLabel,
-          averageScore: scores.length
-            ? scores.reduce((sum, value) => sum + value, 0) / scores.length
-            : null,
-        };
-      })
-      .filter((supplier) => supplier.matchedProducts.length > 0)
-      .sort(
-        (a, b) =>
-          b.locationMatchPercent - a.locationMatchPercent ||
-          (b.averageScore || 0) - (a.averageScore || 0),
-      );
-    return { deliveryPincode: request.deliveryPincode, candidates };
+  @Get("customer-rfqs/:id/suppliers")
+  async customerRfqCandidates(@Param("id") id: string) {
+    const rfq = await this.prisma.rfq.findUnique({ where: { id }, select: { id: true, siteLocation: true, items: true } });
+    if (!rfq) throw new NotFoundException("Customer request not found");
+    const location = rfq.siteLocation.match(/,\s*(.*?)\s+([1-9]\d{5})$/);
+    const parsedItems = z.array(z.object({
+      material: z.string(), brand: z.string().optional(), category: z.string().optional(),
+      quantity: z.number().positive(), unit: z.string(), specification: z.string().optional(),
+      variantId: z.string().nullable().optional(),
+    })).safeParse(rfq.items);
+    if (!location || !parsedItems.success)
+      throw new BadRequestException("This request is missing a usable delivery PIN or product details");
+    return matchSupplierCatalogue(this.prisma, {
+      deliveryCity: location[1], deliveryPincode: location[2],
+      items: parsedItems.data.map((item) => ({
+        productName: item.material, brand: item.brand, category: item.category,
+        quantity: item.quantity, unit: item.unit, notes: item.specification,
+        catalogVariantId: item.variantId,
+      })),
+    });
   }
 
   @Post(":id/quotes")

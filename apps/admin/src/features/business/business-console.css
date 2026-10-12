@@ -383,6 +383,35 @@ fieldset.bc-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 .procurement-match-dialog .procurement-candidate .bc-fields{gap:14px}
 .procurement-match-footer{display:flex;justify-content:flex-end;gap:10px;padding:14px 24px;border-top:1px solid #e7edf5;background:#f8fafc}
 .procurement-match-footer .bc-button{margin:0}
+.customer-rfq-sourcing{display:grid;gap:14px;margin:20px 0;padding:20px;border:1px solid #dfe6ef;border-radius:14px;background:#fff}
+.customer-rfq-sourcing .procurement-subsection-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.customer-rfq-sourcing .procurement-subsection-heading h3{margin:0;color:#17243a}
+.customer-rfq-sourcing .procurement-subsection-heading p{margin:5px 0 0;color:#687991}
+.customer-rfq-sourcing-list{display:grid;gap:10px}
+.customer-rfq-sourcing-card{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}
+.customer-rfq-sourcing-card>div{min-width:0}
+.customer-rfq-sourcing-card strong{color:#18263d}
+.customer-rfq-sourcing-card .procurement-request-status{display:inline-flex;margin-left:10px;padding:3px 8px;border-radius:999px;background:#eef2f7;color:#64748b;font-size:11px;font-weight:750}
+.customer-rfq-sourcing-card p{margin:5px 0;color:#687991;font-size:13px;overflow-wrap:anywhere}
+.customer-rfq-sourcing-card ul{display:flex;flex-wrap:wrap;gap:6px 18px;margin:8px 0 0;padding-left:18px;color:#34445d;font-size:13px}
+.customer-rfq-match-summary{display:block;margin-top:9px;color:#687991;font-size:12px;line-height:1.5}
+.customer-rfq-sourcing-card .bc-button{flex:0 0 auto}
+.procurement-rfq-disclaimer{display:grid;gap:4px;padding:13px 15px;border:1px solid #fed7aa;border-radius:10px;background:#fff7ed;color:#9a3412;font-size:13px;line-height:1.5}
+.procurement-rfq-disclaimer strong{font-size:14px}
+.procurement-rfq-coverage{display:grid;gap:8px}
+.procurement-rfq-coverage h3{margin:0;color:#26354b;font-size:16px}
+.procurement-rfq-coverage>p{display:grid;grid-template-columns:minmax(160px,1fr) auto auto;align-items:center;gap:12px;margin:0;padding:10px 12px;border:1px solid #e2e8f0;border-radius:9px;color:#53627a;font-size:13px}
+.procurement-rfq-coverage strong{color:#26354b}
+.procurement-rfq-coverage em{font-style:normal;font-weight:700}
+.coverage-covered{color:#167044}.coverage-partial{color:#a15b11}.coverage-unknown,.coverage-no-listing{color:#687991}
+.procurement-rfq-coverage small{grid-column:1/-1;color:#a15b11;font-weight:650}
+.procurement-rfq-candidate{display:grid;gap:12px;padding:15px;border:1px solid #dfe6ef;border-radius:12px;background:#fff}
+.procurement-rfq-candidate>header{display:flex;justify-content:space-between;gap:14px}
+.procurement-rfq-location-data{margin:0;color:#687991;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.procurement-rfq-candidate>header div{display:grid;gap:4px}.procurement-rfq-candidate>header strong{color:#26354b;font-size:15px}.procurement-rfq-candidate>header span{color:#687991;font-size:12px}.procurement-rfq-product{display:grid;gap:5px;padding:10px;border-radius:8px;background:#f8fafc;color:#53627a;font-size:12px;line-height:1.5;overflow-wrap:anywhere}.procurement-rfq-product strong{color:#34445d;font-size:13px}.freshness-unknown,.freshness-outdated{color:#a15b11}.freshness-recently-checked{color:#167044}.procurement-rfq-error{padding:12px;border:1px solid #fecaca;border-radius:9px;background:#fff5f5;color:#9f2925}
+.customer-rfq-suggestions-dialog{width:min(1160px,100%)}
+.procurement-confirmation-note{margin:0;padding:10px 12px;border:1px solid #fed7aa;border-radius:8px;background:#fff7ed;color:#9a3412;font-size:12px;line-height:1.5}
+@media(max-width:700px){.customer-rfq-sourcing-card{align-items:stretch;flex-direction:column}.customer-rfq-sourcing-card .bc-button{align-self:flex-start}.procurement-rfq-coverage>p{grid-template-columns:1fr;gap:5px}.procurement-rfq-candidate>header{flex-direction:column;gap:5px}}
 
 .procurement-workspace{display:grid;gap:22px;min-width:0}
 .procurement-workspace-header,.procurement-queue-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;min-width:0}

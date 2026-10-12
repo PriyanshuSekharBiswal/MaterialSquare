@@ -313,6 +313,9 @@ export default function ProcurementRequestCard({
                     className="bc-fields"
                     onSubmit={(event) => void saveQuote(event, supplier.id)}
                   >
+                    <p className="procurement-confirmation-note">
+                      Record a supplier quote only after your team has contacted the supplier and confirmed the details. Saving here does not contact the supplier or confirm an order.
+                    </p>
                     <fieldset className="bc-fields">
                       <legend>Supplier's item prices and available quantities</legend>
                       {record.items.map((item, index) => (
@@ -379,8 +382,8 @@ export default function ProcurementRequestCard({
                       <input name="notes" maxLength={5000} />
                     </label>
                     <label className="bc-check">
-                      <input name="available" type="checkbox" defaultChecked />
-                      Materials available
+                      <input name="available" type="checkbox" />
+                      Supplier confirmed these materials are available
                     </label>
                     <button className="bc-button" disabled={busy}>
                       Save supplier quote
