@@ -76,6 +76,16 @@ const catalogueBrandLabel = (brand: string) =>
     : brand.trim();
 const supplierBrandGroups = (supplier: SupplierRecord) => {
   const groups = new Map<string, { brand: string; categories: Map<string, string>; products: Map<string, string> }>();
+  for (const entry of supplier.brandCatalog ?? []) {
+    const brand = entry.brand.trim() || "Not specified";
+    const key = brand.toLocaleLowerCase();
+    const group = groups.get(key) ?? { brand, categories: new Map(), products: new Map() };
+    for (const category of entry.categories ?? []) {
+      const normalizedCategory = category.trim();
+      if (normalizedCategory) group.categories.set(normalizedCategory.toLocaleLowerCase(), normalizedCategory);
+    }
+    groups.set(key, group);
+  }
   for (const product of supplier.products ?? []) {
     const brand = product.brand.trim() || "Not specified";
     const key = brand.toLocaleLowerCase();
