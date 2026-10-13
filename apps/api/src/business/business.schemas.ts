@@ -74,12 +74,13 @@ export const procurementInput = z.object({
   notes: z.string().max(5000).optional(),
 });
 export const supplierQuoteItem = z.object({
+  catalogVariantId: z.string().trim().min(1).max(120).optional(),
   productName: z.string().trim().min(1).max(200),
   brand: z.string().max(100).default(""),
   category: z.string().max(100),
   quantity: z.number().finite().positive(),
   unit: z.string().trim().min(1).max(50),
-  unitPrice: z.number().finite().nonnegative(),
+  unitPrice: z.number().finite().positive(),
 });
 export const supplierQuoteInput = z.object({
   supplierId: z.string().uuid(),

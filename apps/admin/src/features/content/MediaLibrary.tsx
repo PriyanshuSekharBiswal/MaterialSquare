@@ -35,9 +35,9 @@ export default function MediaLibrary({
     pageSize: 24,
     total: 0,
   });
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(() => Math.max(1, Number(new URLSearchParams(window.location.search).get("mediaPage")) || 1));
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("mediaSearch") || "");
+  const [query, setQuery] = useState(() => new URLSearchParams(window.location.search).get("mediaSearch") || "");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [copiedId, setCopiedId] = useState("");
@@ -75,6 +75,15 @@ export default function MediaLibrary({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (page > 1) url.searchParams.set("mediaPage", String(page));
+    else url.searchParams.delete("mediaPage");
+    if (query) url.searchParams.set("mediaSearch", query);
+    else url.searchParams.delete("mediaSearch");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [page, query]);
 
   function applySearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

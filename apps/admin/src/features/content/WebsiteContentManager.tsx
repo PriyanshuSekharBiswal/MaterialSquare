@@ -9,6 +9,7 @@ import MediaLibrary from "./MediaLibrary";
 import SocialLinksEditor from "./SocialLinksEditor";
 import "./media-library.css";
 import ContentImageField from "../../components/ContentImageField";
+import HomepageCategoryImages from "./HomepageCategoryImages";
 import { useCallback, useEffect, useRef, useState, type SetStateAction } from "react";
 import { Clock3, RotateCcw, Save, RotateCw, Trash2 } from "lucide-react";
 import {
@@ -519,11 +520,11 @@ export default function WebsiteContentManager({
         </p>
       )}
       <nav className="website-content-jump-nav" aria-label="Website settings">
-        <span className="website-content-jump-current">Viewing <strong>{({ "content-pages": "Pages & menus", "content-homepage": "Homepage", "content-guides": "Guides & FAQs", "content-contact": "Contact & office", "content-images": "Images", "content-privacy": "Privacy & terms", "content-social": "Social links", "content-metadata": "Search & SEO", "content-footer": "Footer" } as Record<string, string>)[activeContentSection] || "Pages & menus"}</strong></span>
+        <span className="website-content-jump-current">Viewing <strong>{({ "content-pages": "Pages & menus", "content-homepage": "Homepage", "content-guides": "Guides & FAQs", "content-contact": "Contact & office", "content-images": "Images", "content-privacy": "Policies", "content-social": "Social links", "content-metadata": "Search & SEO", "content-footer": "Footer" } as Record<string, string>)[activeContentSection] || "Pages & menus"}</strong></span>
         <div className="website-content-jump-links">
           {[
             ["content-pages", "Pages & menus"], ["content-homepage", "Homepage"], ["content-guides", "Guides & FAQs"],
-            ["content-contact", "Contact & office"], ["content-images", "Images"], ["content-privacy", "Privacy & terms"],
+            ["content-contact", "Contact & office"], ["content-images", "Images"], ["content-privacy", "Policies"],
             ["content-social", "Social links"], ["content-metadata", "Search & SEO"], ["content-footer", "Footer"],
           ].map(([id, label]) => <a key={id} href={`#${id}`} onClick={() => setActiveContentSection(id)} aria-current={activeContentSection === id ? "location" : undefined}>{label}</a>)}
         </div>
@@ -537,6 +538,18 @@ export default function WebsiteContentManager({
         />
         <PolicyEditor
           kind="terms"
+          content={content}
+          disabled={contentDisabled}
+          onChange={updateContent}
+        />
+        <PolicyEditor
+          kind="shipping"
+          content={content}
+          disabled={contentDisabled}
+          onChange={updateContent}
+        />
+        <PolicyEditor
+          kind="returns"
           content={content}
           disabled={contentDisabled}
           onChange={updateContent}
@@ -576,6 +589,19 @@ export default function WebsiteContentManager({
           content={content}
           disabled={contentDisabled}
           onChange={updateContent}
+        />
+        <HomepageCategoryImages
+          token={token}
+          content={content}
+          customerUrl={customerUrl}
+          onChange={(images) =>
+            updateContent((old) => ({
+              ...old,
+              "home.categoryImages": JSON.stringify(images),
+            }))
+          }
+          onBusyChange={setMediaBusy}
+          onSignOut={onSignOut}
         />
       </div>
       <div id="content-social" className="website-content-anchor">

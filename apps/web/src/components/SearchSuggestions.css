@@ -202,6 +202,7 @@
 .suggest-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.4rem;
   font-size: 0.78rem;
   color: #64748b;
@@ -220,6 +221,7 @@
   font-weight: 700;
   color: #ea580c;
 }
+.suggest-code { max-width: 38%; overflow: hidden; color: #64748b; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
 .suggest-detail { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 3px; color: #64748b; font-size: 11px; }
 .suggest-stock { flex-shrink: 0; color: #a16207; font-size: 10px; font-weight: 700; }
 .suggest-stock.is-stock { color: #15803d; }

@@ -73,6 +73,7 @@ export const SiteContentSchema = z
         key !== "website.pages" &&
         key !== "faq.entries" &&
         key !== "home.contentBlocks" &&
+        key !== "home.categoryImages" &&
         key !== "navigation.custom" &&
         !key.startsWith("policy."),
     ))
@@ -82,7 +83,7 @@ export const SiteContentSchema = z
           path: [key],
           message: "Text must be at most 2000 characters",
         });
-    for (const key of ["policy.privacy", "policy.terms"]) {
+    for (const key of SITE_CONTENT_KEYS.filter((key) => key.startsWith("policy."))) {
       try {
         if (!PolicySchema.safeParse(JSON.parse(content[key] || "")).success)
           ctx.addIssue({
@@ -254,6 +255,29 @@ export const SiteContentSchema = z
             message: `Enter between 1 and ${maximum} characters`,
           });
       }
+    }
+    try {
+      const categoryImages = JSON.parse(content["home.categoryImages"] || "{}");
+      if (!categoryImages || typeof categoryImages !== "object" || Array.isArray(categoryImages)) {
+        throw new Error("Expected category image map");
+      }
+      for (const [category, image] of Object.entries(categoryImages)) {
+        if (!category || category.length > 160 || typeof image !== "string" || image.length > 2000) {
+          throw new Error("Invalid category image entry");
+        }
+        if (!image) continue;
+        if (/^\/images\/categories\/[A-Za-z0-9._-]+\.(?:png|jpe?g|webp)$/i.test(image)) continue;
+        const parsed = z.string().url().safeParse(image);
+        if (!parsed.success || new URL(image).protocol !== "https:") {
+          throw new Error("Use a valid HTTPS image URL or leave blank");
+        }
+      }
+    } catch {
+      ctx.addIssue({
+        code: "custom",
+        path: ["home.categoryImages"],
+        message: "Provide a valid category-to-image map with HTTPS image URLs",
+      });
     }
     if (content["contact.mapUrl"]) {
       const result = z.string().url().safeParse(content["contact.mapUrl"]);

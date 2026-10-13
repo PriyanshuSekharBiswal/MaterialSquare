@@ -1,5 +1,6 @@
 import {
   DEFAULT_POLICIES,
+  type PolicyKind,
   type SiteContent,
   type WebsitePolicy,
 } from "@material-square/types";
@@ -9,7 +10,7 @@ export default function PolicyEditor({
   disabled,
   onChange,
 }: {
-  kind: "privacy" | "terms";
+  kind: PolicyKind;
   content: SiteContent;
   disabled: boolean;
   onChange: (content: SiteContent) => void;
@@ -50,7 +51,7 @@ export default function PolicyEditor({
       <header className="website-policy-header">
         <div>
           <span className="eyebrow">POLICIES</span>
-          <h2>{kind === "privacy" ? "Privacy notice" : "Website terms"}</h2>
+          <h2>{{ privacy: "Privacy notice", terms: "Website terms", shipping: "Shipping policy", returns: "Return policy" }[kind]}</h2>
           <p>
             Edit the copy shown to visitors. Use {"{{contactEmail}}"} to insert
             the published contact email.
@@ -178,7 +179,7 @@ export default function PolicyEditor({
               save({ ...policy, published: event.target.checked })
             }
           />
-          Show this {kind === "privacy" ? "privacy notice" : "website terms"} on the website
+          Show this {{ privacy: "privacy notice", terms: "website terms", shipping: "shipping policy", returns: "return policy" }[kind]} on the website
         </label>
         <small>Only publish copy approved by the client. Draft content stays private.</small>
         <label className="website-policy-review-note">

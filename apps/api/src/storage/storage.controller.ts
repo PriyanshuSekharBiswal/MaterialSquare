@@ -19,7 +19,7 @@ import { validate } from "../common/validation";
 import { MediaAssetsService } from "./media-assets.service";
 import { detectSupportedImage } from "./image-file";
 
-const MAX_IMAGE_UPLOAD_BYTES = 30 * 1024 * 1024;
+const MAX_IMAGE_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 @Controller("storage")
 @UseGuards(StaffGuard)

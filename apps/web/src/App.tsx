@@ -30,6 +30,9 @@ const ExpertsPage = lazy(() => import('./pages/BusinessContentPages').then((m) =
 const ServiceAreaPage = lazy(() => import('./pages/BusinessContentPages').then((m) => ({ default: m.ServiceAreaPage })));
 const PrivacyPage = lazy(() => import('./pages/LegalPages').then((m) => ({ default: m.PrivacyPage })));
 const TermsPage = lazy(() => import('./pages/LegalPages').then((m) => ({ default: m.TermsPage })));
+const ShippingPage = lazy(() => import('./pages/LegalPages').then((m) => ({ default: m.ShippingPage })));
+const ReturnPolicyPage = lazy(() => import('./pages/LegalPages').then((m) => ({ default: m.ReturnPolicyPage })));
+const FaqPage = lazy(() => import('./pages/LegalPages').then((m) => ({ default: m.FaqPage })));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
 const MaterialListPage = lazy(() => import('./pages/MaterialListPage'));
 const CustomerAccountPage = lazy(() => import('./pages/CustomerAccountPage'));
@@ -185,7 +188,12 @@ function AppShell() {
                     onRetryCatalogue={retryCatalogue}
                     bomList={bomList}
                     onToggleBOM={handleToggleBOM}
-                    onOpenProduct={(product, query) => navigate(`/product/${encodeURIComponent(product.id)}${query?.trim() ? `?q=${encodeURIComponent(query.trim())}` : ""}`)}
+                    onOpenProduct={(product, query, variantId) => {
+                      const params = new URLSearchParams();
+                      if (query?.trim()) params.set("q", query.trim());
+                      if (variantId) params.set("variant", variantId);
+                      navigate(`/product/${encodeURIComponent(product.id)}${params.size ? `?${params.toString()}` : ""}`);
+                    }}
                     onOpenBOMDrawer={openBOMDrawer}
                   />
                 }
@@ -238,6 +246,9 @@ function AppShell() {
               <Route path="/locations/:slug" element={<ServiceAreaPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/terms" element={<TermsPage />} />
+              <Route path="/shipping" element={<ShippingPage />} />
+              <Route path="/return-policy" element={<ReturnPolicyPage />} />
+              <Route path="/faq" element={<FaqPage />} />
 
               {/* Fallback to Home */}
               <Route path="*" element={<ManagedWebsitePage />} />
@@ -247,7 +258,7 @@ function AppShell() {
         </main>
 
         {/* Brand Footer */}
-        <Footer products={catalogue} />
+        <Footer />
 
         {/* Keep the floating dock off pages with their own controls and forms. */}
         {location.pathname !== "/marketplace" &&

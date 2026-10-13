@@ -9,6 +9,8 @@ import ServiceAreaPincodes from "../suppliers/ServiceAreaPincodes";
 type Material = {
   productName: string;
   brand?: string;
+  category?: string;
+  catalogVariantId?: string;
   quantity: number;
   requiredQuantity?: number;
   clientStockQuantity?: number;
@@ -32,15 +34,41 @@ type Supplier = {
   stateMatch?: boolean;
   locationMatchPercent: number;
   locationMatchLabel: string;
+  supplierUpdatedAt?: string | null;
+  missingServiceArea?: boolean;
   matchedProducts?: {
+    requestedItemIndex: number;
     productName: string;
     brand: string;
     category: string;
     unit: string;
     availableQuantity: string | number | null;
     availabilityCheckedAt: string | null;
+    availabilityStatus: "unknown" | "outdated" | "recently-checked";
+    availableFreshQuantity: number | null;
+    suggestedAllocationQuantity: number;
+    minimumOrderQty: string | number | null;
+    listingUpdatedAt: string | null;
     lastQuotedPrice: string | number | null;
+    lastQuotedPriceAt: string | null;
     requestedQuantity: number;
+  }[];
+};
+type MatchSummary = {
+  disclaimer: string;
+  requestedItems: {
+    productName: string;
+    brand?: string;
+    unit: string;
+    quantity: number;
+    matchedSupplierCount: number;
+    knownFreshCapacity: number;
+    allocationQuantity?: number;
+    outsideRecordedAreaCount?: number;
+    minimumOrderBlockedCount?: number;
+    minimumOrderUnknownCount?: number;
+    coverage: "no-listing" | "unknown" | "none" | "minimum-order" | "partial" | "covered";
+    allocationSuggestions: { supplierName: string; quantity: number }[];
   }[];
 };
 type SupplierQuote = {
@@ -117,6 +145,7 @@ export default function ProcurementRequestCard({
   download,
 }: Props) {
   const [candidates, setCandidates] = useState<Supplier[]>([]);
+  const [matchSummary, setMatchSummary] = useState<MatchSummary | null>(null);
   const [matching, setMatching] = useState(false);
   const [matched, setMatched] = useState(false);
   const [matchDialogOpen, setMatchDialogOpen] = useState(false);
@@ -132,13 +161,15 @@ export default function ProcurementRequestCard({
     setMatching(true);
     setMatched(false);
     setCandidates([]);
+    setMatchSummary(null);
     setError("");
     setMatchDialogOpen(true);
     try {
-      const result = await request<{ candidates: Supplier[] }>(
+      const result = await request<{ candidates: Supplier[] } & MatchSummary>(
         `/procurement/${record.id}/suppliers`,
       );
       setCandidates(result.candidates);
+      setMatchSummary(result);
       setMatched(true);
     } catch (cause) {
       setError((cause as Error).message);
@@ -153,6 +184,21 @@ export default function ProcurementRequestCard({
     event.preventDefault();
     const element = event.currentTarget;
     const data = new FormData(element);
+    const invalidPrice = record.items.find((item, index) => {
+      const quantity = Number(data.get(`quantity-${index}`));
+      const unitPrice = Number(data.get(`price-${index}`));
+      return quantity > 0 && (!Number.isFinite(unitPrice) || unitPrice <= 0);
+    });
+    if (invalidPrice) {
+      setError(`Enter a confirmed price greater than ₹0 for ${invalidPrice.productName}, or set its offered quantity to zero.`);
+      return;
+    }
+    const hasQuotedLine = record.items.some((_, index) => Number(data.get(`quantity-${index}`)) > 0);
+    if (!hasQuotedLine) {
+      setError("Enter a positive quantity for at least one product this supplier carries.");
+      return;
+    }
+    setError("");
     const items = record.items.flatMap((item, index) => {
       const quantity = Number(data.get(`quantity-${index}`));
       const unitPrice = Number(data.get(`price-${index}`));
@@ -175,6 +221,12 @@ export default function ProcurementRequestCard({
         : undefined,
     });
     if (saved) element.reset();
+  }
+  function quoteQuantityForLine(quote: SupplierQuote, item: Material) {
+    return quote.items.reduce(
+      (sum, quotedItem) => sum + (sameMaterialLine(quotedItem, item) ? Number(quotedItem.quantity) : 0),
+      0,
+    );
   }
   async function createPo(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -270,6 +322,28 @@ export default function ProcurementRequestCard({
             <div className="procurement-match-body">
               {matching && <p className="procurement-match-status" role="status">Finding active suppliers for these materials…</p>}
               {error && <p className="procurement-match-error" role="alert">{error}</p>}
+              {matchSummary && !matching && (
+                <>
+                  <div className="procurement-rfq-disclaimer">
+                    <strong>Suggestions from saved records only</strong>
+                    <span>{matchSummary.disclaimer}</span>
+                  </div>
+                  <section className="procurement-rfq-coverage" aria-label="Recorded quantity coverage">
+                    <h3>Requested quantity coverage</h3>
+                    {matchSummary.requestedItems.map((item, index) => (
+                      <p key={`${item.productName}-${index}`}>
+                        <strong>{item.productName}{item.brand ? ` · ${item.brand}` : ""}</strong>
+                        <span>{item.knownFreshCapacity > 0 ? `${item.knownFreshCapacity} ${item.unit} in records checked within 30 days · ${item.quantity} ${item.unit} requested` : `${item.quantity} ${item.unit} requested · no recent nearby stock quantity recorded`}</span>
+                        <em className={`coverage-${item.coverage}`}>{item.coverage === "covered" ? "Recorded allocation possible" : item.coverage === "partial" ? "Partial recorded allocation" : item.coverage === "minimum-order" ? "No quantity meets recorded minimums" : item.coverage === "none" ? "No recent available quantity recorded" : item.coverage === "unknown" ? "Availability unknown or outdated" : "No matching supplier listing"}</em>
+                        {item.allocationSuggestions.length > 0 && <small>Possible split, for staff to confirm: {item.allocationSuggestions.map((allocation) => `${allocation.supplierName} ${allocation.quantity} ${item.unit}`).join(" + ")}</small>}
+                        {item.outsideRecordedAreaCount ? <small>{item.outsideRecordedAreaCount} matching listing(s) are outside recorded nearby/service-area coverage and excluded from this coverage estimate.</small> : null}
+                        {item.minimumOrderBlockedCount ? <small>{item.minimumOrderBlockedCount} potential listing(s) could not be allocated because the remaining amount is below their recorded minimum order.</small> : null}
+                        {item.minimumOrderUnknownCount ? <small>{item.minimumOrderUnknownCount} matching listing(s) have no minimum-order quantity recorded; verify before allocating.</small> : null}
+                      </p>
+                    ))}
+                  </section>
+                </>
+              )}
               {!matching && matched && !candidates.length && (
                 <div className="procurement-match-empty">
                   <strong>No active suppliers match these materials.</strong>
@@ -280,7 +354,7 @@ export default function ProcurementRequestCard({
                 <details key={supplier.id} className="procurement-candidate">
                   <summary>
                     {supplier.name} · {supplier.matchedItems.join(", ")} ·{" "}
-                    {supplier.locationMatchPercent}% location match · {supplier.locationMatchLabel}{" "}
+                    {supplier.locationMatchPercent}% recorded location score · {supplier.locationMatchLabel}{supplier.locationMatchPercent < 60 ? " · outside nearby coverage estimate" : ""}{" "}
                     ·{" "}
                     {supplier.averageScore == null
                       ? "No ratings"
@@ -292,6 +366,7 @@ export default function ProcurementRequestCard({
                       {supplier.pincode ? ` · PIN ${supplier.pincode}` : ""}
                     </p>
                   )}
+                  <p>Supplier record last updated: {supplier.supplierUpdatedAt ? new Date(supplier.supplierUpdatedAt).toLocaleString("en-IN") : "Not recorded"}{supplier.missingServiceArea ? " · Service PINs are not recorded" : ""}</p>
                   {supplier.servicePincodes?.length ? (
                     <div className="procurement-service-area-block">
                       <strong>Service area</strong>
@@ -300,13 +375,14 @@ export default function ProcurementRequestCard({
                   ) : <p>No service PINs recorded.</p>}
                   {supplier.matchedProducts?.map((product) => (
                     <p key={`${product.productName}-${product.brand}-${product.unit}`}>
-                      Supplier listing: {product.productName} · {product.brand || "Brand unspecified"} · {product.category} · Available: {product.availableQuantity ?? "Not checked"} {product.unit}
-                      {product.availabilityCheckedAt
-                        ? ` · checked ${new Date(product.availabilityCheckedAt).toLocaleString("en-IN")}`
-                        : ""}
+                      Supplier listing: {product.productName} · {product.brand || "Brand unspecified"} · {product.category} · Available: {product.availableQuantity == null ? "Unknown" : `${product.availableQuantity} ${product.unit}`}
+                      {product.availabilityStatus === "outdated" ? " · STOCK DATA OUTDATED (over 30 days)" : product.availabilityStatus === "unknown" ? " · Stock not checked / quantity unknown" : ` · checked ${new Date(product.availabilityCheckedAt!).toLocaleString("en-IN")}`}
+                      {product.minimumOrderQty != null ? ` · Minimum order ${product.minimumOrderQty} ${product.unit}` : " · Minimum order not recorded"}
+                      {product.availabilityStatus === "recently-checked" ? ` · Suggested amount from recorded stock: ${product.suggestedAllocationQuantity} ${product.unit}` : " · Not included in stock allocation because availability is not current"}
                       {product.lastQuotedPrice != null
-                        ? ` · last quote ₹${Number(product.lastQuotedPrice).toLocaleString("en-IN")}/${product.unit}`
-                        : ""}
+                        ? ` · Last recorded price ₹${Number(product.lastQuotedPrice).toLocaleString("en-IN")}/${product.unit} · ${priceRecency(product.lastQuotedPriceAt)} (verify directly; not a current quote)`
+                        : " · Price not recorded"}
+                      {product.listingUpdatedAt ? ` · Listing updated ${new Date(product.listingUpdatedAt).toLocaleDateString("en-IN")}` : ""}
                     </p>
                   ))}
                   <form
@@ -318,48 +394,46 @@ export default function ProcurementRequestCard({
                     </p>
                     <fieldset className="bc-fields">
                       <legend>Supplier's item prices and available quantities</legend>
-                      {record.items.map((item, index) => (
-                        <div
-                          className="business-candidate"
-                          key={`${item.productName}-${index}`}
-                        >
-                          <strong>
-                            {item.productName}
-                            {item.brand ? ` · ${item.brand}` : ""} · source shortfall{" "}
-                            {item.quantity} {item.unit}
-                            {item.requiredQuantity != null && (
-                              <> · total need {item.requiredQuantity} {item.unit}</>
-                            )}
-                            {item.clientStockQuantity != null && (
-                              <> · client stock {item.clientStockQuantity} {item.unit}</>
-                            )}
-                          </strong>
-                          <label>
-                            Quantity offered ({item.unit})
-                            <input
-                              name={`quantity-${index}`}
-                              type="number"
-                              min="0"
-                              max={item.quantity}
-                              step="any"
-                              defaultValue={item.quantity}
-                            />
-                          </label>
-                          <label>
-                            Unit price (₹/{item.unit})
-                            <input
-                              name={`price-${index}`}
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              defaultValue="0"
-                            />
-                          </label>
-                        </div>
-                      ))}
+                      {(supplier.matchedProducts ?? []).map((product) => {
+                        const index = product.requestedItemIndex;
+                        const item = record.items[index];
+                        if (!item) return null;
+                        const committedQuotes = quotes
+                          .filter((quote) => quote.supplier.id !== supplier.id && quote.available && !expired(quote) && !quote.purchaseOrder)
+                          .reduce((sum, quote) => sum + quoteQuantityForLine(quote, item), 0);
+                        const committedOrders = record.purchaseOrders
+                          .filter((order) => order.status !== "CANCELLED")
+                          .reduce((sum, order) => sum + (order.items ?? []).reduce((lineTotal, line) =>
+                            lineTotal + (sameMaterialLine(line, item) ? Number(line.quantity) : 0), 0), 0);
+                        const otherCommitted = committedQuotes + committedOrders;
+                        const ownQuote = quotes.find((quote) => quote.supplier.id === supplier.id);
+                        const remaining = Math.max(0, item.quantity - otherCommitted);
+                        const ownQuantity = ownQuote ? quoteQuantityForLine(ownQuote, item) : 0;
+                        const initialQuantity = ownQuantity > 0
+                          ? Math.min(ownQuantity, remaining)
+                          : Math.min(product.suggestedAllocationQuantity, remaining);
+                        return (
+                          <div className="business-candidate" key={`${item.catalogVariantId || item.productName}-${index}`}>
+                            <strong>
+                              {item.productName}
+                              {item.brand ? ` · ${item.brand}` : ""} · source shortfall {item.quantity} {item.unit}
+                              {item.requiredQuantity != null && <> · total need {item.requiredQuantity} {item.unit}</>}
+                              {item.clientStockQuantity != null && <> · client stock {item.clientStockQuantity} {item.unit}</>}
+                            </strong>
+                            <small>{otherCommitted > 0 ? `${otherCommitted} ${item.unit} already quoted by other suppliers · ` : ""}{remaining} {item.unit} remaining for this supplier quote</small>
+                            <label>
+                              Quantity offered ({item.unit})
+                              <input name={`quantity-${index}`} type="number" min="0" max={remaining} step="any" defaultValue={initialQuantity} />
+                            </label>
+                            <label>
+                              Confirmed unit price (₹/{item.unit})
+                              <input name={`price-${index}`} type="number" min="0.01" step="0.01" defaultValue="" />
+                            </label>
+                          </div>
+                        );
+                      })}
                       <small>
-                        Set quantity to zero for materials this supplier cannot provide.
-                        The quote total is calculated from these lines.
+                        Only matching listed products are included. Stock-based quantities are suggestions; confirm them with the supplier. Combined supplier quotes cannot exceed the customer’s requested quantity.
                       </small>
                     </fieldset>
                     <label>
@@ -610,4 +684,20 @@ export default function ProcurementRequestCard({
       ))}
     </article>
   );
+}
+
+function sameMaterialLine(a: Material, b: Material) {
+  const normalize = (value?: string) => (value || "").trim().toLocaleLowerCase("en-IN");
+  return normalize(a.productName) === normalize(b.productName) &&
+    normalize(a.brand) === normalize(b.brand) &&
+    normalize(a.category) === normalize(b.category) &&
+    normalize(a.unit) === normalize(b.unit) &&
+    (!a.catalogVariantId || !b.catalogVariantId || a.catalogVariantId === b.catalogVariantId);
+}
+
+function priceRecency(timestamp: string | null) {
+  if (!timestamp) return "price record date unknown";
+  const days = Math.floor((Date.now() - new Date(timestamp).getTime()) / (24 * 60 * 60 * 1000));
+  if (!Number.isFinite(days) || days < 0) return "price record date invalid";
+  return days > 30 ? `price data outdated (${days} days old)` : `price recorded ${days} days ago`;
 }

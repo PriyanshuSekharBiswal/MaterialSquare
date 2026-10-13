@@ -12,7 +12,10 @@ export function prefetchRoute(path: string): void {
     case "/experts":
     case "/locations": void import("./pages/BusinessContentPages"); break;
     case "/privacy":
-    case "/terms": void import("./pages/LegalPages"); break;
+    case "/terms":
+    case "/shipping":
+    case "/return-policy":
+    case "/faq": void import("./pages/LegalPages"); break;
     case "/material-list": void import("./pages/MaterialListPage"); break;
     case "/account": void import("./pages/CustomerAccountPage"); break;
     default:

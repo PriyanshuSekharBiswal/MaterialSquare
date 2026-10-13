@@ -18,6 +18,10 @@ export type SupplierMatchLocation = {
 };
 
 const FRESHNESS_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+// Exact PIN, recorded service PIN, and same-city matches are sufficiently
+// specific to describe as nearby coverage. State-only and unknown locations
+// remain visible to staff but cannot inflate the recorded coverage estimate.
+const MINIMUM_LOCATION_SCORE_FOR_COVERAGE = 60;
 
 export async function loadMatchingSuppliers(prisma: PrismaService) {
   return prisma.supplier.findMany({
@@ -42,17 +46,18 @@ export async function matchSupplierCatalogue(
     ...item,
     matchedSupplierCount: 0,
     knownFreshCapacity: 0,
-    coverage: "no-listing" as "no-listing" | "unknown" | "partial" | "covered",
+    allocationQuantity: 0,
+    outsideRecordedAreaCount: 0,
+    minimumOrderBlockedCount: 0,
+    minimumOrderUnknownCount: 0,
+    coverage: "no-listing" as "no-listing" | "unknown" | "none" | "minimum-order" | "partial" | "covered",
     allocationSuggestions: [] as { supplierName: string; quantity: number }[],
   }));
   const candidates = suppliers
     .map((supplier) => {
       const matchedProducts = request.items.flatMap((item, requestedItemIndex) => {
         const product = supplier.products.find((candidate) => {
-          if (
-            item.catalogVariantId &&
-            candidate.catalogVariantId === item.catalogVariantId
-          ) return true;
+          if (item.catalogVariantId && candidate.catalogVariantId === item.catalogVariantId) return true;
 
           const sameProduct =
             candidate.productName.trim().toLowerCase() === item.productName.trim().toLowerCase() &&
@@ -81,7 +86,7 @@ export async function matchSupplierCatalogue(
         if (!product) return [];
         const checkedAt = product.availabilityCheckedAt;
         const ageMs = checkedAt ? Date.now() - checkedAt.getTime() : null;
-        const availabilityStatus = !checkedAt
+        const availabilityStatus = !checkedAt || !Number.isFinite(ageMs) || ageMs! < 0
           ? "unknown"
           : ageMs! > FRESHNESS_WINDOW_MS
             ? "outdated"
@@ -97,7 +102,8 @@ export async function matchSupplierCatalogue(
           availableFreshQuantity: availabilityStatus === "recently-checked" && product.availableQuantity != null
             ? Number(product.availableQuantity)
             : null,
-          quantityCoverage: product.availableQuantity == null
+          suggestedAllocationQuantity: 0,
+          quantityCoverage: availabilityStatus !== "recently-checked" || product.availableQuantity == null
             ? "unknown"
             : Number(product.availableQuantity) >= item.quantity
               ? "enough-recorded"
@@ -120,31 +126,64 @@ export async function matchSupplierCatalogue(
         serviceAreaMatch: deliveryPincodeMatch || serviceCoverageMatch,
         cityMatch,
         stateMatch,
+        eligibleForRecordedCoverage: locationMatchPercent >= MINIMUM_LOCATION_SCORE_FOR_COVERAGE,
         locationMatchPercent,
         locationMatchLabel,
+        supplierUpdatedAt: supplier.updatedAt ?? null,
+        missingServiceArea: supplier.servicePincodes.length === 0,
+        recentAvailabilityItemCount: matchedProducts.filter((product) => product.availabilityStatus === "recently-checked").length,
+        recentAvailableQuantity: matchedProducts.reduce((sum, product) => sum + (product.availableFreshQuantity ?? 0), 0),
         averageScore: scores.length ? scores.reduce((sum, value) => sum + value, 0) / scores.length : null,
       };
     })
     .filter((supplier) => supplier.matchedProducts.length > 0)
-    .sort((a, b) => b.locationMatchPercent - a.locationMatchPercent || (b.averageScore || 0) - (a.averageScore || 0));
+    .sort((a, b) =>
+      b.locationMatchPercent - a.locationMatchPercent ||
+      b.recentAvailabilityItemCount - a.recentAvailabilityItemCount ||
+      b.recentAvailableQuantity - a.recentAvailableQuantity ||
+      (b.averageScore || 0) - (a.averageScore || 0),
+    );
 
   for (const [requestedItemIndex, requested] of requestedItems.entries()) {
     const listings = candidates.flatMap((supplier) => supplier.matchedProducts.filter((product) => product.requestedItemIndex === requestedItemIndex));
     requested.matchedSupplierCount = listings.length;
-    const knownFreshCapacity = listings.reduce((sum, product) => sum + (product.availableFreshQuantity ?? 0), 0);
+    const nearbyListings = candidates
+      .filter((supplier) => supplier.eligibleForRecordedCoverage)
+      .flatMap((supplier) => supplier.matchedProducts.filter((product) => product.requestedItemIndex === requestedItemIndex));
+    requested.outsideRecordedAreaCount = listings.length - nearbyListings.length;
+    const knownFreshCapacity = nearbyListings.reduce((sum, product) => sum + (product.availableFreshQuantity ?? 0), 0);
     requested.knownFreshCapacity = knownFreshCapacity;
-    requested.coverage = !listings.length ? "no-listing" : listings.every((product) => product.availableFreshQuantity == null) ? "unknown" : knownFreshCapacity >= requested.quantity ? "covered" : "partial";
+    requested.minimumOrderUnknownCount = nearbyListings.filter((product) => product.minimumOrderQty == null).length;
     let remaining = requested.quantity;
+    let minimumOrderBlocked = 0;
     for (const supplier of candidates) {
+      if (!supplier.eligibleForRecordedCoverage) continue;
       const product = supplier.matchedProducts.find((candidate) => candidate.requestedItemIndex === requestedItemIndex);
       if (!product || product.availableFreshQuantity == null || remaining <= 0) continue;
       const capacity = Math.min(remaining, product.availableFreshQuantity);
       const minimum = product.minimumOrderQty == null ? 0 : Number(product.minimumOrderQty);
-      if (capacity <= 0 || (minimum > 0 && capacity < minimum)) continue;
+      if (capacity <= 0) continue;
+      if (minimum > 0 && capacity < minimum) {
+        minimumOrderBlocked += 1;
+        continue;
+      }
       requested.allocationSuggestions.push({ supplierName: supplier.name, quantity: capacity });
+      product.suggestedAllocationQuantity = capacity;
       remaining -= capacity;
     }
-    if (requested.coverage === "covered" && remaining > 0) requested.coverage = "partial";
+    requested.allocationQuantity = requested.allocationSuggestions.reduce((sum, allocation) => sum + allocation.quantity, 0);
+    requested.minimumOrderBlockedCount = minimumOrderBlocked;
+    requested.coverage = !listings.length
+      ? "no-listing"
+      : !nearbyListings.length || nearbyListings.every((product) => product.availableFreshQuantity == null)
+        ? "unknown"
+        : requested.allocationQuantity >= requested.quantity
+          ? "covered"
+          : requested.allocationQuantity > 0
+            ? "partial"
+            : minimumOrderBlocked > 0
+              ? "minimum-order"
+              : "none";
   }
   return {
     deliveryPincode: request.deliveryPincode,

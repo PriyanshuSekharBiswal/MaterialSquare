@@ -156,6 +156,8 @@ export class ProcurementController {
       where: { id },
     });
     if (!request) throw new NotFoundException("Procurement request not found");
+    if (request.status === "CANCELLED")
+      throw new ConflictException("Supplier quotes cannot be added to a cancelled request");
     const data = validate(supplierQuoteInput, body);
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: data.supplierId },
@@ -173,7 +175,7 @@ export class ProcurementController {
         "Supplier total must match the item quantities and unit prices",
       );
     for (const item of data.items) {
-      const key = `${item.productName.toLowerCase()}|${(item.brand || "").toLowerCase()}|${item.unit.toLowerCase()}`;
+      const key = supplierQuoteLineKey(item);
       if (lineKeys.has(key))
         throw new BadRequestException(
           "Each requested material can appear only once in a supplier quote",
@@ -181,11 +183,7 @@ export class ProcurementController {
       lineKeys.add(key);
       const requestedItem = requested.find(
         (candidate) =>
-          candidate.productName.toLowerCase() ===
-            item.productName.toLowerCase() &&
-          (candidate.brand || "").toLowerCase() ===
-            (item.brand || "").toLowerCase() &&
-          candidate.unit.toLowerCase() === item.unit.toLowerCase(),
+          sameProcurementLine(candidate, item),
       );
       if (!requestedItem || item.quantity > requestedItem.quantity)
         throw new BadRequestException(
@@ -193,6 +191,75 @@ export class ProcurementController {
         );
     }
     return this.prisma.$transaction(async (db) => {
+      // Serialize quote writes for this request so two staff members cannot
+      // both consume the same remaining quantity at the same time.
+      await db.procurementRequest.update({
+        where: { id },
+        data: { updatedAt: new Date() },
+      });
+      const lockedRequest = await db.procurementRequest.findUnique({ where: { id } });
+      if (!lockedRequest) throw new NotFoundException("Procurement request not found");
+      if (lockedRequest.status === "CANCELLED")
+        throw new ConflictException("Supplier quotes cannot be added to a cancelled request");
+      const currentRequested = z.array(procurementItem).parse(lockedRequest.items);
+      for (const item of data.items) {
+        const requestedItem = currentRequested.find((candidate) => sameProcurementLine(candidate, item));
+        if (!requestedItem || item.quantity > requestedItem.quantity)
+          throw new BadRequestException(`Quoted quantity for ${item.productName} exceeds or does not match the current request`);
+      }
+      const [otherQuotes, purchaseOrders] = await Promise.all([
+        db.supplierQuote.findMany({
+          where: {
+            requestId: id,
+            supplierId: { not: supplier.id },
+            available: true,
+            purchaseOrder: { is: null },
+            OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+          },
+          select: { items: true },
+        }),
+        db.purchaseOrder.findMany({
+          where: { requestId: id, status: { not: "CANCELLED" } },
+          select: { items: true },
+        }),
+      ]);
+      const committedByLine = new Map<number, number>();
+      for (const allocation of otherQuotes) {
+        const items = z.array(supplierQuoteInput.shape.items.element).safeParse(allocation.items);
+        if (!items.success) continue;
+        for (const quoteItem of items.data) {
+          const requestedIndex = currentRequested.findIndex((candidate) => sameProcurementLine(candidate, quoteItem));
+          if (requestedIndex < 0) continue;
+          committedByLine.set(
+            requestedIndex,
+            (committedByLine.get(requestedIndex) ?? 0) + quoteItem.quantity,
+          );
+        }
+      }
+      for (const allocation of purchaseOrders) {
+        const items = z.array(procurementItem).safeParse(allocation.items);
+        if (!items.success) continue;
+        for (const quoteItem of items.data) {
+          const requestedIndex = currentRequested.findIndex((candidate) => sameProcurementLine(candidate, quoteItem));
+          if (requestedIndex < 0) continue;
+          committedByLine.set(
+            requestedIndex,
+            (committedByLine.get(requestedIndex) ?? 0) + quoteItem.quantity,
+          );
+        }
+      }
+      for (const item of data.items) {
+        const requestedIndex = currentRequested.findIndex((candidate) => sameProcurementLine(candidate, item));
+        const committed = committedByLine.get(requestedIndex) ?? 0;
+        const requestedItem = currentRequested[requestedIndex];
+        if (committed + item.quantity > requestedItem.quantity + 0.000001) {
+          const remaining = Math.max(0, requestedItem.quantity - committed);
+          throw new BadRequestException(
+            `Only ${remaining} ${requestedItem.unit} remain for ${requestedItem.productName} after other supplier quotes`,
+          );
+        }
+        committedByLine.set(requestedIndex, committed + item.quantity);
+      }
       const existingQuote = await db.supplierQuote.findUnique({
         where: {
           requestId_supplierId: { requestId: id, supplierId: supplier.id },
@@ -230,6 +297,27 @@ export class ProcurementController {
           status: "RECEIVED",
         },
       });
+      if (data.available) {
+        const supplierProducts = await db.supplierProduct.findMany({
+          where: { supplierId: supplier.id, isActive: true, deletedAt: null },
+          select: {
+            id: true,
+            productName: true,
+            brand: true,
+            category: true,
+            unit: true,
+            catalogVariantId: true,
+          },
+        });
+        for (const item of data.items) {
+          const listing = supplierProducts.find((candidate) => sameProcurementLine(candidate, item));
+          if (!listing) continue;
+          await db.supplierProduct.updateMany({
+            where: { id: listing.id, supplierId: supplier.id, isActive: true, deletedAt: null },
+            data: { lastQuotedPrice: item.unitPrice, lastQuotedPriceAt: new Date() },
+          });
+        }
+      }
       await db.procurementRequest.update({
         where: { id },
         data: { status: "COMPARING" },
@@ -253,4 +341,28 @@ export class ProcurementController {
       return supplierQuote;
     });
   }
+}
+
+function normalized(value: string | null | undefined) {
+  return (value || "").trim().toLocaleLowerCase("en-IN");
+}
+
+type ProcurementLine = {
+  productName: string;
+  brand?: string;
+  category: string;
+  unit: string;
+  catalogVariantId?: string | null;
+};
+
+function sameProcurementLine(requested: ProcurementLine, quoted: ProcurementLine) {
+  return normalized(requested.productName) === normalized(quoted.productName) &&
+    normalized(requested.brand) === normalized(quoted.brand) &&
+    normalized(requested.category) === normalized(quoted.category) &&
+    normalized(requested.unit) === normalized(quoted.unit) &&
+    (!requested.catalogVariantId || !quoted.catalogVariantId || requested.catalogVariantId === quoted.catalogVariantId);
+}
+
+function supplierQuoteLineKey(item: z.infer<typeof supplierQuoteInput.shape.items.element>) {
+  return [item.catalogVariantId || "", normalized(item.productName), normalized(item.brand), normalized(item.category), normalized(item.unit)].join("|");
 }

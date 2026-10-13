@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import { confirmAdminAction } from "../../components/confirmAdminAction";
-import SupplierCataloguePicker, { type SupplierBrandCatalogEntry, type SupplierCatalogueVariant } from "./SupplierCataloguePicker";
+import SupplierCataloguePicker, { type SupplierBrandCatalogEntry, type SupplierBrandOption, type SupplierCatalogueVariant } from "./SupplierCataloguePicker";
 
 type Product = {
   id: string;
@@ -19,10 +19,13 @@ type Product = {
   availableQuantity: string | number | null;
   availabilityCheckedAt: string | null;
   lastQuotedPrice: string | null;
+  lastQuotedPriceAt: string | null;
   isActive: boolean;
+  updatedAt?: string;
 };
 type Supplier = {
   name: string;
+  updatedAt?: string;
   averageRating: number | null;
   brandCatalog?: SupplierBrandCatalogEntry[];
   products: Product[];
@@ -61,6 +64,7 @@ export default function SupplierProducts({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [catalogueVariants, setCatalogueVariants] = useState<SupplierCatalogueVariant[]>([]);
+  const [catalogueBrandOptions, setCatalogueBrandOptions] = useState<SupplierBrandOption[]>([]);
   const [adding, setAdding] = useState(false);
   const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([]);
   const [selectedBrandCatalog, setSelectedBrandCatalog] = useState<SupplierBrandCatalogEntry[]>([]);
@@ -151,6 +155,14 @@ export default function SupplierProducts({
       .catch(() => setCatalogueVariants([]));
   }, [request]);
   useEffect(() => {
+    void request<{ name: string; category?: string; categories?: string[] }[]>("/products/catalogue/partner-brands")
+      .then((directory) => setCatalogueBrandOptions(directory.map((brand) => ({
+        name: brand.name,
+        categories: [...new Set([...(brand.categories || []), ...(brand.category ? [brand.category] : [])])],
+      }))))
+      .catch(() => setCatalogueBrandOptions([]));
+  }, [request]);
+  useEffect(() => {
     if (!adding && !editing) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -171,6 +183,14 @@ export default function SupplierProducts({
     event.preventDefault();
     if (!editing) return;
     const form = new FormData(event.currentTarget);
+    const nextAvailability = form.get("availableQuantity") === ""
+      ? null
+      : Number(form.get("availableQuantity"));
+    const availabilityChanged = nextAvailability !== (editing.availableQuantity == null ? null : Number(editing.availableQuantity));
+    const confirmAvailability = form.get("confirmAvailability") === "on" && nextAvailability != null;
+    const nextPrice = form.get("price") === "" ? null : Number(form.get("price"));
+    const priceChanged = nextPrice !== (editing.lastQuotedPrice == null ? null : Number(editing.lastQuotedPrice));
+    const confirmPrice = form.get("confirmPrice") === "on" && nextPrice != null;
     setBusy(true);
     setError("");
     setNotice("");
@@ -182,11 +202,9 @@ export default function SupplierProducts({
           minimumOrderQty: form.get("minimum")
             ? Number(form.get("minimum"))
             : null,
-          availableQuantity:
-            form.get("availableQuantity") === ""
-              ? null
-              : Number(form.get("availableQuantity")),
-          lastQuotedPrice: form.get("price") ? Number(form.get("price")) : null,
+          ...(availabilityChanged || confirmAvailability ? { availableQuantity: nextAvailability } : {}),
+          ...(confirmAvailability ? { confirmAvailability: true } : {}),
+          ...(priceChanged || confirmPrice ? { lastQuotedPrice: nextPrice } : {}),
           isActive: form.get("active") === "on",
         },
       );
@@ -244,7 +262,7 @@ export default function SupplierProducts({
         <div>
           <span className="bc-supplier-detail-eyebrow">Supplier overview</span>
           <h2>{supplier?.name || "Supplier details"}</h2>
-          <p>Products carried and feedback recorded for this supplier.</p>
+          <p>Products carried and feedback recorded for this supplier.{supplier?.updatedAt ? ` Supplier record updated ${new Date(supplier.updatedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}.` : " Supplier record update time is unavailable."}</p>
         </div>
       </header>
       {error && <p role="alert" className="bc-error">{error}</p>}
@@ -286,6 +304,7 @@ export default function SupplierProducts({
                     <form className="bc-supplier-product-add-form" onSubmit={addProduct}>
                       <SupplierCataloguePicker
                         variants={catalogueVariants.filter((variant) => !(supplier.products ?? []).some((product) => product.catalogVariantId === variant.id))}
+                        brandOptions={catalogueBrandOptions}
                         selectedIds={selectedVariantIds}
                         onChange={setSelectedVariantIds}
                         onBrandCatalogChange={setSelectedBrandCatalog}
@@ -310,8 +329,9 @@ export default function SupplierProducts({
                     <p><strong>Unit:</strong> {product.unit || "Not specified"}</p>
                     <p><strong>Status:</strong> <span className={product.isActive ? "is-active" : "is-inactive"}>{product.isActive ? "Active" : "Inactive"}</span></p>
                     <p><strong>Minimum order:</strong> {product.minimumOrderQty ?? "Not specified"}</p>
-                    <p><strong>Last quoted price:</strong> {product.lastQuotedPrice ?? "Not recorded"}</p>
-                    <p><strong>Available quantity:</strong> {product.availableQuantity ?? "Not checked"}{product.availabilityCheckedAt ? ` · checked ${new Date(product.availabilityCheckedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}` : ""}</p>
+                    <p><strong>Last quoted price:</strong> {product.lastQuotedPrice ?? "Not recorded"}{product.lastQuotedPrice != null ? product.lastQuotedPriceAt ? ` · recorded ${new Date(product.lastQuotedPriceAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}` : " · record date unknown" : ""}</p>
+                    <p><strong>Available quantity:</strong> {product.availableQuantity ?? "Not checked"}{product.availabilityCheckedAt ? ` · checked ${new Date(product.availabilityCheckedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}${Date.now() - Date.parse(product.availabilityCheckedAt) > 30 * 24 * 60 * 60 * 1000 ? " · OUTDATED (over 30 days)" : ""}` : " · Unknown until checked"}</p>
+                    <p><strong>Product record updated:</strong> {product.updatedAt ? new Date(product.updatedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "Not recorded"}</p>
                     <p className="bc-supplier-product-linked"><strong>Linked client pack:</strong> {product.catalogVariant ? `${product.catalogVariant.listing.name} · ${product.catalogVariant.label}` : "Not linked"}</p>
                   </div>
                 </div>
@@ -358,6 +378,10 @@ export default function SupplierProducts({
                         defaultValue={editing.lastQuotedPrice || ""}
                       />
                     </label>
+                    <label className="bc-check">
+                      <input name="confirmPrice" type="checkbox" />
+                      I confirmed this price is current
+                    </label>
                     <label>
                       Available quantity (leave blank if unknown)
                       <input
@@ -367,6 +391,10 @@ export default function SupplierProducts({
                         step="0.001"
                         defaultValue={editing.availableQuantity ?? ""}
                       />
+                    </label>
+                    <label className="bc-check">
+                      <input name="confirmAvailability" type="checkbox" />
+                      I confirmed this available quantity is current
                     </label>
                     <label className="bc-check bc-supplier-matching-check">
                       <input

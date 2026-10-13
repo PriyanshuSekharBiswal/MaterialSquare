@@ -14,14 +14,27 @@ type Readiness = {
   webhookTokenConfigured: boolean;
 };
 export default function NotificationStatus({ token, revision }: { token: string; revision: number }) {
-  const [filters, setFilters] = useState({ status: "", type: "" });
-  const [page, setPage] = useState(1);
+  const [filters, setFilters] = useState(() => ({
+    status: new URLSearchParams(window.location.search).get("notificationStatus") || "",
+    type: new URLSearchParams(window.location.search).get("notificationType") || "",
+  }));
+  const [page, setPage] = useState(() => Math.max(1, Number(new URLSearchParams(window.location.search).get("notificationPage")) || 1));
   const [result, setResult] = useState<Page | null>(null);
   const [error, setError] = useState("");
   const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [readinessError, setReadinessError] = useState("");
   const [readinessRevision, setReadinessRevision] = useState(0);
   const [checkingReadiness, setCheckingReadiness] = useState(true);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (filters.status) url.searchParams.set("notificationStatus", filters.status);
+    else url.searchParams.delete("notificationStatus");
+    if (filters.type) url.searchParams.set("notificationType", filters.type);
+    else url.searchParams.delete("notificationType");
+    if (page > 1) url.searchParams.set("notificationPage", String(page));
+    else url.searchParams.delete("notificationPage");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [filters, page]);
   useEffect(() => {
     const controller = new AbortController();
     async function loadReadiness() {

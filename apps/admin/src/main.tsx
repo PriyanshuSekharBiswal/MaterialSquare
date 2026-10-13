@@ -4,6 +4,7 @@ import App from './App';
 import './admin.css';
 import { confirmAdminAction } from './components/confirmAdminAction';
 import { installScrollPositionPersistence, restoreInitialScrollPosition } from './scroll-position';
+import { installUnsavedChangesGuard, runAdminAction } from './unsaved-changes';
 
 const apiUrl = new URL(import.meta.env.VITE_API_URL || "/api", window.location.href);
 const apiBasePath = apiUrl.pathname.replace(/\/$/, "");
@@ -84,12 +85,23 @@ function adminMutationConfirmation(input: RequestInfo | URL, init?: RequestInit)
 }
 
 installScrollPositionPersistence();
+installUnsavedChangesGuard();
 
 window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  const method = (init?.method || (input instanceof Request ? input.method : "GET")).toUpperCase();
+  const isMutation = !["GET", "HEAD", "OPTIONS"].includes(method);
+  const form = isMutation && document.activeElement instanceof Element
+    ? document.activeElement.closest("form")
+    : null;
   const confirmation = adminMutationConfirmation(input, init);
   if (confirmation && !(await confirmAdminAction(confirmation)))
     throw new DOMException("No changes were made.", "AbortError");
-  return originalFetch(input, init);
+  if (!isMutation) return originalFetch(input, init);
+  return runAdminAction(
+    form,
+    () => originalFetch(input, init),
+    (response) => response instanceof Response && response.ok,
+  );
 }) as typeof window.fetch;
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(

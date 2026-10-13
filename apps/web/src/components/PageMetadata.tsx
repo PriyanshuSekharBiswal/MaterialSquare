@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { SEO_INDEXABLE_SERVICE_AREA_SLUGS, SEO_ROUTE_DESCRIPTIONS, SEO_SERVICE_AREA_PAGES, serviceAreaSlugs, websitePageDescription, websitePages, parsePolicy, parseSocialLinks, publicFaqEntries, type SiteContentKey } from "@material-square/types";
+import { SEO_INDEXABLE_SERVICE_AREA_SLUGS, SEO_ROUTE_DESCRIPTIONS, SEO_SERVICE_AREA_PAGES, serviceAreaSlugs, websitePageDescription, websitePages, parsePolicy, parseSocialLinks, publicFaqEntries, type PolicyKind, type SiteContentKey } from "@material-square/types";
 import { useSiteContent } from "../site-content";
 import type { CatalogueProduct } from "../types";
 import { customerProductDescription, customerProductTitle, customerSpecifications } from "../catalogue/customer-display";
@@ -282,14 +282,17 @@ export default function PageMetadata({ products = [], catalogueLoaded = false }:
     const defaultImage = new URL("/social-card.png", metadataOrigin).href;
     const defaultImageAlt = "Material Square social card about construction materials, material lists and project quotations.";
     const defaultDescription = content["seo.description"];
-    const isPrivacy = pathname === "/privacy";
-    const isTerms = pathname === "/terms";
-    const privacyPolicy = isPrivacy ? parsePolicy(content["policy.privacy"], "privacy") : null;
-    const termsPolicy = isTerms ? parsePolicy(content["policy.terms"], "terms") : null;
-    const isUnpublishedPolicy = Boolean(
-      (privacyPolicy && !privacyPolicy.published) ||
-      (termsPolicy && !termsPolicy.published),
-    );
+    const policyPaths: Record<string, PolicyKind> = {
+      "/privacy": "privacy",
+      "/terms": "terms",
+      "/shipping": "shipping",
+      "/return-policy": "returns",
+    };
+    const policyKind = policyPaths[pathname];
+    const pagePolicy = policyKind
+      ? parsePolicy(content[`policy.${policyKind}`], policyKind)
+      : null;
+    const isUnpublishedPolicy = Boolean(pagePolicy && !pagePolicy.published);
     const isAccount = pathname === "/account" || pathname.startsWith("/account/");
     const isMaterialList = pathname === "/material-list";
     const marketplaceParams = new URLSearchParams(search);
@@ -335,15 +338,13 @@ export default function PageMetadata({ products = [], catalogueLoaded = false }:
     const blogMatch = pathname.match(/^\/blogs\/([^/]+)$/);
     const isBlogDetail = Boolean(blogMatch);
     const isKnownRoute = Boolean(
-      titleKeys[pathname] || isPrivacy || isTerms || isAccount || isMaterialList ||
+      titleKeys[pathname] || policyKind || pathname === "/faq" || isAccount || isMaterialList ||
       area || (productId && product) || pathname === "/blogs" || isBlogDetail || managedPage,
     );
     const title = product
       ? customerProductTitle(product.name, product.brand, content["seo.siteTitle"])
-      : managedPage ? managedPage.title : isPrivacy
-      ? `${privacyPolicy!.title} | ${content["seo.siteTitle"]}`
-          : isTerms
-        ? `${termsPolicy!.title} | ${content["seo.siteTitle"]}`
+      : managedPage ? managedPage.title : pagePolicy
+      ? `${pagePolicy.title} | ${content["seo.siteTitle"]}`
           : area
             ? `${isConfiguredArea ? "Construction materials in" : "Check material delivery in"} ${area.name} | ${content["seo.siteTitle"]}`
             : isAccount

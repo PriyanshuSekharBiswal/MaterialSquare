@@ -1,6 +1,7 @@
 import {
   homeContentBlocks,
   homepageSectionOrder,
+  resolveCatalogueCategoryId,
 } from "@material-square/types";
 import type { MaterialItem, CatalogueProduct } from "../types";
 import React, { useState, useRef, useEffect } from "react";
@@ -26,15 +27,14 @@ import WhatsAppIcon from "../components/icons/WhatsAppIcon";
 import ArchitecturalTicker from "../components/ArchitecturalTicker";
 import { useSiteContent } from "../site-content";
 import { whatsappLink } from "../messages";
-import { partnerBrandCategoryLabel, partnerBrandCategories, usePartnerBrands } from "../partner-brands";
+import { partnerBrandCategories, usePartnerBrands } from "../partner-brands";
+import { useCatalogueCategories } from "../catalogue/useCatalogueCategories";
 import DeferredDirectionGoogleMaps from "../components/DeferredDirectionGoogleMaps";
 import RotatingSearchPlaceholder from "../components/RotatingSearchPlaceholder";
 import { buildSearchExamples } from "../search/search-examples";
 
 export default function HomePage({
   products,
-  catalogueUnavailable = false,
-  onRetryCatalogue,
   onOpenBOMDrawer,
   bomList = [],
   onToggleBOM,
@@ -49,6 +49,7 @@ export default function HomePage({
   const [searchQuery, setSearchQuery] = useState("");
   const siteContent = useSiteContent();
   const partnerBrands = usePartnerBrands();
+  const managedCategories = useCatalogueCategories();
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isMobileView, setIsMobileView] = useState(() => {
@@ -86,32 +87,32 @@ export default function HomePage({
     }
   };
 
-  const categoryImages: Record<string, string> = {
-    cement: "/images/categories/cement-category.webp",
-    pipes: "/images/categories/pipes-category.webp",
-    wires: "/images/categories/wires-category.webp",
-    paints: "/images/categories/paints-category.webp",
-    sanitary: "/images/categories/sanitary-category.webp",
-  };
-  const editableCategoryImages: Record<string, string> = {
-    steel: siteContent["home.categoryImage.steel"],
-    adhesives: siteContent["home.categoryImage.adhesives"],
-  };
-  const categoryCards = Array.from(
-    new Map(
-      products.map((product) => [product.category, product.categoryLabel]),
-    ).entries(),
-  ).map(([id, title]) => ({
-    id,
-    title,
-    subtitle: `Browse ${title.toLowerCase()} available in the catalogue.`,
-    image: editableCategoryImages[id] || categoryImages[id],
-    badge: title,
+  let configuredCategoryImages: Record<string, string> = {};
+  try {
+    const parsed: unknown = JSON.parse(siteContent["home.categoryImages"] || "{}");
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      configuredCategoryImages = Object.fromEntries(
+        Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+      );
+    }
+  } catch {
+    configuredCategoryImages = {};
+  }
+  const categoryCards = managedCategories.map((category) => ({
+    ...category,
+    title: category.label,
+    image: Object.prototype.hasOwnProperty.call(configuredCategoryImages, category.id)
+      ? configuredCategoryImages[category.id]
+      : category.id === "steel"
+        ? siteContent["home.categoryImage.steel"]
+        : category.id === "adhesives"
+          ? siteContent["home.categoryImage.adhesives"]
+          : category.image,
   }));
   const listedBrands = partnerBrands.map((brand) => ({
     name: brand.name,
-    category: partnerBrandCategoryLabel(brand),
-    categories: partnerBrandCategories(brand),
+    category: partnerBrandCategories(brand).map((value) => managedCategories.find((item) => item.id === resolveCatalogueCategoryId(value, managedCategories))?.label || value).join(" · "),
+    categories: partnerBrandCategories(brand).map((value) => managedCategories.find((item) => item.id === resolveCatalogueCategoryId(value, managedCategories))?.label || value),
     logoUrl: brand.logoUrl,
   }));
   const searchExamples = buildSearchExamples(products);
@@ -369,23 +370,7 @@ export default function HomePage({
             </Link>
           </div>
 
-          {catalogueUnavailable ? (
-            <div className="catalogue-load-state" role="alert">
-              <strong>Published inventory is temporarily unavailable.</strong>
-              <span>
-                Please try again in a moment. No sample products are shown.
-              </span>
-              {onRetryCatalogue && (
-                <button
-                  className="btn btn-secondary"
-                  type="button"
-                  onClick={onRetryCatalogue}
-                >
-                  Retry inventory
-                </button>
-              )}
-            </div>
-          ) : categoryCards.length ? (
+          {categoryCards.length ? (
             <div className="category-cards-grid reveal-stagger">
               {categoryCards.map((cat) => (
                 <Link
@@ -413,11 +398,7 @@ export default function HomePage({
                 </Link>
               ))}
             </div>
-          ) : (
-            <p className="catalogue-load-state">
-              There are no published materials to browse yet.
-            </p>
-          )}
+          ) : null}
         </div>
       </section>
     ),

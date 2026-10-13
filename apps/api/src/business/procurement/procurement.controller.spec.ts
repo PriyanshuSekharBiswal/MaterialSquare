@@ -88,7 +88,22 @@ describe("procurement audit history", () => {
         findMany: jest.fn().mockResolvedValue([]),
         upsert: jest.fn().mockResolvedValue({ id: "quote-1" }),
       },
-      procurementRequest: { update: jest.fn() },
+      supplierProduct: {
+        findMany: jest.fn().mockResolvedValue([{
+          id: "supplier-product-1",
+          productName: "Cement",
+          brand: "BuildCo",
+          category: "Cement",
+          unit: "bag",
+          catalogVariantId: null,
+        }]),
+        updateMany: jest.fn(),
+      },
+      purchaseOrder: { findMany: jest.fn().mockResolvedValue([]) },
+      procurementRequest: {
+        update: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue(procurementRequest),
+      },
       auditLog: { create: auditCreate },
     };
     const prisma = {
@@ -132,6 +147,10 @@ describe("procurement audit history", () => {
       where: { id: "request-1" },
       data: { status: "COMPARING" },
     });
+    expect(tx.supplierProduct.updateMany).toHaveBeenCalledWith({
+      where: { id: "supplier-product-1", supplierId, isActive: true, deletedAt: null },
+      data: { lastQuotedPrice: 400, lastQuotedPriceAt: expect.any(Date) },
+    });
     expect(auditCreate).toHaveBeenCalledWith({
       data: {
         staffId: "staff-2",
@@ -145,6 +164,47 @@ describe("procurement audit history", () => {
           totalAmount: 4000,
         },
       },
+    });
+  });
+
+  it("rejects supplier quote quantities that exceed the remaining request after another supplier allocation", async () => {
+    const procurementRequest = {
+      id: "request-1",
+      updatedAt: new Date("2026-10-12T00:00:00.000Z"),
+      items: [{ productName: "Cement", brand: "BuildCo", category: "Cement", quantity: 20, unit: "bag" }],
+    };
+    const upsert = jest.fn();
+    const tx = {
+      procurementRequest: {
+        update: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue(procurementRequest),
+      },
+      supplierQuote: {
+        findMany: jest.fn().mockResolvedValue([{
+          items: [{ productName: "Cement", brand: "BuildCo", category: "Cement", quantity: 15, unit: "bag", unitPrice: 400 }],
+        }]),
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert,
+      },
+      purchaseOrder: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const prisma = {
+      procurementRequest: { findUnique: jest.fn().mockResolvedValue(procurementRequest) },
+      supplier: { findUnique: jest.fn().mockResolvedValue({ id: supplierId, status: "ACTIVE" }) },
+      $transaction: jest.fn(async (work: (db: typeof tx) => unknown) => work(tx)),
+    } as never;
+    const controller = new ProcurementController(prisma);
+
+    await expect(controller.addSupplierQuote("request-1", staff, {
+      supplierId,
+      items: [{ productName: "Cement", brand: "BuildCo", category: "Cement", quantity: 10, unit: "bag", unitPrice: 400 }],
+      totalAmount: 4000,
+      available: true,
+    })).rejects.toThrow("Only 5 bag remain");
+    expect(upsert).not.toHaveBeenCalled();
+    expect(tx.procurementRequest.update).toHaveBeenCalledWith({
+      where: { id: "request-1" },
+      data: { updatedAt: expect.any(Date) },
     });
   });
 });

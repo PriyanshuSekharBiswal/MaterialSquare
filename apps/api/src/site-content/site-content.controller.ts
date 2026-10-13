@@ -14,7 +14,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { SEO_INDEXABLE_SERVICE_AREA_SLUGS, serviceAreaSlugs, websitePageDescription, websitePages, parsePolicy, sanitizePublicSiteContent, SITE_CONTENT_DEFAULTS } from "@material-square/types";
+import { SEO_INDEXABLE_SERVICE_AREA_SLUGS, serviceAreaSlugs, websitePageDescription, websitePages, parsePolicy, publicFaqEntries, sanitizePublicSiteContent, SITE_CONTENT_DEFAULTS } from "@material-square/types";
 import { SITE_CONTENT_KEYS, SiteContentSchema } from "./site-content.schema";
 import { StaffGuard } from "../auth/access.guard";
 import { validate } from "../common/validation";
@@ -98,6 +98,9 @@ export class PublicSiteContentController {
       ...(publishedExperts.length ? ["/experts"] : []),
       ...(parsePolicy(savedContent["policy.privacy"], "privacy").published ? ["/privacy"] : []),
       ...(parsePolicy(savedContent["policy.terms"], "terms").published ? ["/terms"] : []),
+      ...(parsePolicy(savedContent["policy.shipping"], "shipping").published ? ["/shipping"] : []),
+      ...(parsePolicy(savedContent["policy.returns"], "returns").published ? ["/return-policy"] : []),
+      ...(publicFaqEntries(savedContent).length ? ["/faq"] : []),
     ];
     const managedPages = websitePages(savedContent["website.pages"])
       .filter((page) => page.published && websitePageDescription(page));

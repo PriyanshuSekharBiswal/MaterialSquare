@@ -47,6 +47,9 @@ export const SEO_ROUTE_DESCRIPTIONS: Record<string, string> = {
   "/experts": "Find listed product enquiry desks and service providers, then check whether they support your project requirements and PIN code.",
   "/privacy": "Read how Material Square handles customer account, quotation and project information when you use this website.",
   "/terms": "Review the terms that apply when browsing the Material Square catalogue and submitting a construction-material enquiry.",
+  "/faq": "Answers to common questions about product options, quotations, availability, delivery and using the Material Square catalogue.",
+  "/shipping": "Learn how shipping charges, delivery availability and delivery timing are confirmed for Material Square orders.",
+  "/return-policy": "Learn how to contact Material Square to request a review of a return or replacement.",
 };
 export const DEFAULT_FAQ_ENTRIES = [
   {
@@ -78,6 +81,8 @@ export const SITE_CONTENT_DEFAULTS = {
   "website.pages": "[]",
   "policy.privacy": JSON.stringify(DEFAULT_POLICIES.privacy),
   "policy.terms": JSON.stringify(DEFAULT_POLICIES.terms),
+  "policy.shipping": JSON.stringify(DEFAULT_POLICIES.shipping),
+  "policy.returns": JSON.stringify(DEFAULT_POLICIES.returns),
   "faq.enabled": "true",
   "faq.entries": JSON.stringify(DEFAULT_FAQ_ENTRIES),
   "navigation.order": "home,marketplace,why,guides,blogs,experts,contact",
@@ -105,6 +110,7 @@ export const SITE_CONTENT_DEFAULTS = {
   "home.hiddenSections": "",
   "home.contentBlocks": "[]",
   "home.heroImage": "",
+  "home.categoryImages": "{}",
   "home.categoryImage.steel": "/images/categories/steel-category.webp",
   "home.categoryImage.adhesives": "/images/categories/adhesives-category.webp",
   "home.calloutBadge": "Prepare a material request",
@@ -247,16 +253,6 @@ export const SITE_CONTENT_GROUPS: {
       {
         key: "home.heroImage",
         label: "Homepage hero banner image",
-        image: true,
-      },
-      {
-        key: "home.categoryImage.steel",
-        label: "Steel & Reinforcement category image",
-        image: true,
-      },
-      {
-        key: "home.categoryImage.adhesives",
-        label: "Adhesives & Grouts category image",
         image: true,
       },
       { key: "home.eyebrow", label: "Hero badge" },

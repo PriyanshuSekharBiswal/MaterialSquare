@@ -7,6 +7,7 @@ import {
 } from "react";
 import {
   ArrowRight,
+  Check,
   FileText,
   Info,
   Image,
@@ -22,17 +23,20 @@ import {
   X,
 } from "lucide-react";
 import {
+  resolveCatalogueCategoryId,
   sanitizePublicSiteContent,
   SITE_CONTENT_DEFAULTS,
+  STOREFRONT_CATEGORIES,
+  type ManagedCatalogueCategory,
   type SiteContent,
 } from "@material-square/types";
 import CatalogueVariantsEditor, {
   type EditableVariant,
 } from "./CatalogueVariantsEditor";
-import { generateVariantCodes } from "./product-codes";
 import MaterialSquareLogo from "../../components/MaterialSquareLogo";
 import { confirmAdminAction } from "../../components/confirmAdminAction";
 import PartnerBrandsManager from "./PartnerBrandsManager";
+import ProductDetailSurface, { type ProductDetailChoiceGroup } from "../../../../../packages/storefront-ui/ProductDetailSurface";
 import "./catalogue-manager.css";
 
 type Listing = {
@@ -68,6 +72,8 @@ type Listing = {
   specifications: Record<string, string>;
   sortOrder: number;
   createdAt?: string;
+  updatedAt?: string;
+  draftExpiresAt?: string | null;
 };
 type Variant = EditableVariant;
 type ProductDraft = {
@@ -78,25 +84,6 @@ type ProductDraft = {
   variants: Variant[];
 };
 const PRODUCT_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const productCodePrefix = (value: string) => value.replace(/[^a-z0-9]/gi, "").slice(0, 3).toLocaleUpperCase();
-function nextProductCode(brand: string, category: string, listings: Listing[]) {
-  const brandPrefix = productCodePrefix(brand);
-  const categoryPrefix = productCodePrefix(category);
-  if (!brandPrefix || !categoryPrefix) return "";
-  const prefix = `MS-${brandPrefix}-${categoryPrefix}-`;
-  const usedCodes = new Set(listings.map((listing) => listing.code?.toLocaleUpperCase()).filter(Boolean) as string[]);
-  const serials = [...usedCodes]
-    .map((code) => code.match(new RegExp(`^${prefix}(\\d+)$`))?.[1])
-    .filter(Boolean)
-    .map(Number);
-  let serial = Math.max(0, ...serials) + 1;
-  let code = `${prefix}${String(serial).padStart(2, "0")}`;
-  while (usedCodes.has(code)) {
-    serial += 1;
-    code = `${prefix}${String(serial).padStart(2, "0")}`;
-  }
-  return code;
-}
 const productDraftKey = (id: string) =>
   `material-square:catalogue-draft:${id || "new"}`;
 
@@ -123,6 +110,51 @@ function StorefrontPreviewImage({ src, alt }: { src: string; alt: string }) {
   );
 }
 
+function CatalogueHighlightsEditor({
+  value,
+  automaticRows,
+  onChange,
+}: {
+  value: string[];
+  automaticRows: Array<{ title: string; description: string }>;
+  onChange: (value: string[]) => void;
+}) {
+  const rows = value.map((entry) => {
+    const splitAt = entry.indexOf(" — ");
+    return splitAt < 0
+      ? { title: "", description: entry }
+      : { title: entry.slice(0, splitAt), description: entry.slice(splitAt + 3) };
+  });
+  const encodeRows = (items: Array<{ title: string; description: string }>) =>
+    items.map((row) => {
+      const title = row.title.trim();
+      const description = row.description.trim();
+      return title || description ? `${title} — ${description}` : "";
+    }).filter(Boolean);
+  const updateRow = (index: number, key: "title" | "description", text: string) => {
+    onChange(encodeRows(rows.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: text } : row)));
+  };
+  return (
+    <div className="catalogue-highlights-editor">
+      {automaticRows.map((row) => (
+        <div className="catalogue-highlight-row catalogue-highlight-row-auto" key={row.title}>
+          <label>Title<input value={row.title} readOnly /></label>
+          <label>Description<input value={row.description} readOnly /></label>
+          <span className="catalogue-highlight-source">Automatic</span>
+        </div>
+      ))}
+      {rows.map((row, index) => (
+        <div className="catalogue-highlight-row" key={index}>
+          <label>Title<input value={row.title} maxLength={120} placeholder="Highlight title" onChange={(event) => updateRow(index, "title", event.target.value)} /></label>
+          <label>Description<input value={row.description} maxLength={500} placeholder="Short description" onChange={(event) => updateRow(index, "description", event.target.value)} /></label>
+          <button type="button" className="catalogue-remove-attribute" aria-label={`Remove highlight ${index + 1}`} onClick={() => onChange(encodeRows(rows.filter((_, rowIndex) => rowIndex !== index)))}><X size={14} /></button>
+        </div>
+      ))}
+      <button type="button" className="btn-sm btn-secondary" onClick={() => onChange([...value, " "])}>Add highlight</button>
+    </div>
+  );
+}
+
 const blank: Listing = {
   id: "",
   slug: "",
@@ -130,8 +162,8 @@ const blank: Listing = {
   name: "",
   brand: "",
   brandTagline: "",
-  category: "cement",
-  categoryLabel: "Cement & Aggregates",
+  category: "",
+  categoryLabel: "",
   unit: "",
   packaging: "",
   image: "",
@@ -157,6 +189,8 @@ const blank: Listing = {
   sortOrder: 0,
 };
 const MAX_GALLERY_IMAGES = 3;
+const MAX_PRODUCT_PHOTOS = 4;
+const MAX_PRODUCT_IMAGE_BYTES = 20 * 1024 * 1024;
 const slugify = (value: string) =>
   value
     .toLowerCase()
@@ -181,6 +215,55 @@ const visibleSpecs = (
         !/^https?:\/\//i.test(String(value).trim()),
     ),
   );
+const automaticHighlightTitles = new Set([
+  "product name",
+  "brand",
+  "category",
+  "options & variations",
+]);
+const splitHighlight = (entry: string) => {
+  const splitAt = entry.indexOf(" — ");
+  return splitAt < 0
+    ? { title: "", description: entry }
+    : { title: entry.slice(0, splitAt), description: entry.slice(splitAt + 3) };
+};
+const manualHighlights = (features: string[]) =>
+  features.filter((entry) => !automaticHighlightTitles.has(splitHighlight(entry).title.trim().toLocaleLowerCase()));
+const nonEmptyVariants = (variants: Variant[]) =>
+  variants.filter((variant) =>
+    Boolean(
+      variant.label.trim() ||
+        variant.code?.trim() ||
+        variant.image?.trim() ||
+        variant.galleryImages?.some((image) => image.trim()) ||
+        variant.price != null ||
+        Object.entries(variant.attributes || {}).some(([key, value]) => key.trim() || value.trim()),
+    ),
+  );
+const summarizeVariantChoices = (variants: Variant[]) => {
+  const choices = new Map<string, Set<string>>();
+  for (const variant of variants) {
+    for (const [rawName, rawValue] of Object.entries(variant.attributes || {})) {
+      const name = rawName.trim();
+      const value = rawValue.trim();
+      if (!name || !value) continue;
+      const values = choices.get(name) || new Set<string>();
+      values.add(value);
+      choices.set(name, values);
+    }
+  }
+  const summary = [...choices.entries()]
+    .map(([name, values]) => `${name}: ${[...values].join(", ")}`)
+    .join(" · ");
+  if (summary) return summary;
+  return [...new Set(variants.map((variant) => variant.label.trim()).filter(Boolean))].join(", ");
+};
+const boundedFeature = (title: string, description: string) => {
+  const prefix = `${title} — `;
+  const limit = Math.max(0, 300 - prefix.length);
+  const value = description.trim();
+  return `${prefix}${value.length > limit ? `${value.slice(0, Math.max(0, limit - 1)).trimEnd()}…` : value}`;
+};
 const customerPriceNote = (note: string | null | undefined) => {
   const value = String(note || "").trim();
   return !value ||
@@ -238,19 +321,29 @@ export default function CatalogueManager({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [catalogueQuery, setCatalogueQuery] = useState(initialSearch);
-  const [brandFilter, setBrandFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [publicationFilter, setPublicationFilter] = useState("all");
-  const [availabilityFilter, setAvailabilityFilter] = useState("all");
-  const [catalogueSort, setCatalogueSort] = useState("recent");
-  const [cataloguePage, setCataloguePage] = useState(1);
+  const [publishProgress, setPublishProgress] = useState<{
+    productName: string;
+    percent: number;
+    message: string;
+    state: "working" | "complete" | "error";
+  } | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const [catalogueQuery, setCatalogueQuery] = useState(() => new URLSearchParams(window.location.search).get("catalogueSearch") || initialSearch);
+  const [brandFilter, setBrandFilter] = useState(() => new URLSearchParams(window.location.search).get("catalogueBrand") || "all");
+  const [categoryFilter, setCategoryFilter] = useState(() => new URLSearchParams(window.location.search).get("catalogueCategory") || "all");
+  const [publicationFilter, setPublicationFilter] = useState(() => new URLSearchParams(window.location.search).get("cataloguePublication") || "all");
+  const [availabilityFilter, setAvailabilityFilter] = useState(() => new URLSearchParams(window.location.search).get("catalogueAvailability") || "all");
+  const [catalogueSort, setCatalogueSort] = useState(() => new URLSearchParams(window.location.search).get("catalogueSort") || "recent");
+  const [cataloguePage, setCataloguePage] = useState(() => Math.max(1, Number(new URLSearchParams(window.location.search).get("cataloguePage")) || 1));
   const [productInterest, setProductInterest] = useState<
     Record<string, number>
   >({});
-  const [managingBrands, setManagingBrands] = useState(false);
+  const [managingBrands, setManagingBrands] = useState(() => new URLSearchParams(window.location.search).get("catalogueView") === "brands");
+  const [addProductChooserOpen, setAddProductChooserOpen] = useState(false);
   const [partnerBrandOptions, setPartnerBrandOptions] = useState<string[]>([]);
+  const [catalogueCategoryOptions, setCatalogueCategoryOptions] = useState<ManagedCatalogueCategory[]>(() => STOREFRONT_CATEGORIES.map(({ id, label }) => ({ id, label, active: true, aliases: [] })));
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+  const [exitPromptOpen, setExitPromptOpen] = useState(false);
   const [recoveredDraft, setRecoveredDraft] = useState<ProductDraft | null>(
     null,
   );
@@ -264,24 +357,58 @@ export default function CatalogueManager({
     ...SITE_CONTENT_DEFAULTS,
   }));
   const productForm = useRef<HTMLFormElement>(null);
+  const filtersInitialized = useRef(false);
+  const saveAsDraftOnSubmit = useRef(false);
   const previewStage = useRef<HTMLDivElement>(null);
   const canManage = ["SUPER_ADMIN", "ADMIN", "CATALOG_MANAGER"].includes(role);
+  const productEditorOpen = editing !== null;
 
   useEffect(() => {
-    if (!editing) return;
+    if (publishProgress?.state !== "working") return;
+    const timer = window.setInterval(() => {
+      setPublishProgress((current) =>
+        current?.state === "working"
+          ? {
+              ...current,
+              percent:
+                current.percent >= 84
+                  ? current.percent
+                  : Math.min(82, current.percent + 3),
+            }
+          : current,
+      );
+    }, 180);
+    return () => window.clearInterval(timer);
+  }, [publishProgress?.state]);
+
+  useEffect(() => {
+    if (!uploadSuccess) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setUploadSuccess(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [uploadSuccess]);
+
+  useEffect(() => {
+    if (!productEditorOpen) return;
     const frame = window.requestAnimationFrame(() => {
       productForm.current?.scrollTo({ top: 0, behavior: "instant" });
     });
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [editing]);
+  }, [productEditorOpen]);
 
   useEffect(() => {
-    setCatalogueQuery(initialSearch);
+    if (initialSearch) setCatalogueQuery(initialSearch);
   }, [initialSearch]);
 
   useEffect(() => {
+    if (!filtersInitialized.current) {
+      filtersInitialized.current = true;
+      return;
+    }
     setCataloguePage(1);
   }, [
     catalogueQuery,
@@ -291,6 +418,26 @@ export default function CatalogueManager({
     availabilityFilter,
     catalogueSort,
   ]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (managingBrands) url.searchParams.set("catalogueView", "brands");
+    else url.searchParams.delete("catalogueView");
+    const values: Array<[string, string, string]> = [
+      ["catalogueSearch", catalogueQuery, ""],
+      ["catalogueBrand", brandFilter, "all"],
+      ["catalogueCategory", categoryFilter, "all"],
+      ["cataloguePublication", publicationFilter, "all"],
+      ["catalogueAvailability", availabilityFilter, "all"],
+      ["catalogueSort", catalogueSort, "recent"],
+      ["cataloguePage", String(cataloguePage), "1"],
+    ];
+    for (const [key, value, defaultValue] of values) {
+      if (value && value !== defaultValue) url.searchParams.set(key, value);
+      else url.searchParams.delete(key);
+    }
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [availabilityFilter, brandFilter, cataloguePage, catalogueQuery, catalogueSort, categoryFilter, managingBrands, publicationFilter]);
 
   useEffect(() => {
     if (!previewOpen) return;
@@ -417,11 +564,11 @@ export default function CatalogueManager({
         (getPrice(left) - getPrice(right))
       );
     }
-    const leftAdded = left.createdAt
-      ? Date.parse(left.createdAt)
+    const leftAdded = left.updatedAt || left.createdAt
+      ? Date.parse(left.updatedAt || left.createdAt || "")
       : left.sortOrder;
-    const rightAdded = right.createdAt
-      ? Date.parse(right.createdAt)
+    const rightAdded = right.updatedAt || right.createdAt
+      ? Date.parse(right.updatedAt || right.createdAt || "")
       : right.sortOrder;
     return rightAdded - leftAdded || left.name.localeCompare(right.name);
   });
@@ -488,6 +635,43 @@ export default function CatalogueManager({
     detailPreviewVariant?.availabilityStatus ||
     previewListing?.availabilityStatus ||
     (detailPreviewVariant?.inStock ? "IN_STOCK" : "CHECK_AVAILABILITY");
+  const previewDetailChoiceGroups: ProductDetailChoiceGroup[] = previewListing
+    ? (() => {
+        const attributes = new Map<string, { label: string; values: string[] }>();
+        for (const variant of previewListing.variants) {
+          for (const [rawKey, rawValue] of Object.entries(variant.attributes || {})) {
+            const label = rawKey.trim();
+            const value = String(rawValue || "").trim();
+            if (!label || !value) continue;
+            const key = label.toLocaleLowerCase();
+            const group = attributes.get(key) || { label, values: [] };
+            if (!group.values.some((existing) => existing.toLocaleLowerCase() === value.toLocaleLowerCase())) group.values.push(value);
+            attributes.set(key, group);
+          }
+        }
+        const groups = attributes.size
+          ? Array.from(attributes.entries()).map(([key, group]) => ({
+              label: group.label,
+              selectedValue: Object.entries(detailPreviewVariant?.attributes || {}).find(([attribute]) => attribute.trim().toLocaleLowerCase() === key)?.[1] || "",
+              choices: group.values.map((value) => {
+                const variant = previewListing.variants.find((candidate) => Object.entries(candidate.attributes || {}).some(([attribute, candidateValue]) => attribute.trim().toLocaleLowerCase() === key && String(candidateValue).toLocaleLowerCase() === value.toLocaleLowerCase()));
+                return { label: value, price: variant?.price, offerLabel: variant?.offerLabel, image: variant?.image, selected: Object.entries(detailPreviewVariant?.attributes || {}).some(([attribute, selected]) => attribute.trim().toLocaleLowerCase() === key && String(selected).toLocaleLowerCase() === value.toLocaleLowerCase()) };
+              }),
+            }))
+          : previewListing.variants.length ? [{
+              label: "Choose an option",
+              selectedValue: detailPreviewVariant?.label || "",
+              choices: previewListing.variants.slice(0, 6).map((variant, index) => ({
+                label: variant.label || `Option ${index + 1}`,
+                price: variant.price,
+                offerLabel: variant.offerLabel,
+                image: variant.image,
+                selected: variant.id === detailPreviewVariant?.id,
+              })),
+            }] : [];
+        return groups;
+      })()
+    : [];
 
   const request = useCallback(
     async <T,>(path: string, method = "GET", body?: unknown): Promise<T> => {
@@ -584,8 +768,8 @@ export default function CatalogueManager({
       input.value = "";
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Product images must be 5 MB or smaller.");
+    if (file.size > MAX_PRODUCT_IMAGE_BYTES) {
+      setError("Product images must be 20 MB or smaller.");
       input.value = "";
       return;
     }
@@ -593,6 +777,7 @@ export default function CatalogueManager({
     setBusy(true);
     setError("");
     setNotice("");
+    setUploadSuccess(null);
     try {
       const body = new FormData();
       body.append("file", file);
@@ -602,7 +787,7 @@ export default function CatalogueManager({
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
           body,
-          signal: AbortSignal.timeout(60000),
+          signal: AbortSignal.timeout(120000),
         },
       );
       const result = (await response.json().catch(() => null)) as {
@@ -623,6 +808,73 @@ export default function CatalogueManager({
         current ? { ...current, image: result.url! } : current,
       );
       setNotice("Image uploaded. Save the product to publish it.");
+      setUploadSuccess("Main product photo uploaded");
+      input.value = "";
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Could not upload this product image.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function uploadGalleryPhoto(
+    file: File,
+    input: HTMLInputElement,
+    index: number,
+  ) {
+    if (!new Set(["image/png", "image/jpeg", "image/webp"]).has(file.type)) {
+      setError("Choose a PNG, JPEG, or WebP product image.");
+      input.value = "";
+      return;
+    }
+    if (file.size > MAX_PRODUCT_IMAGE_BYTES) {
+      setError("Product images must be 20 MB or smaller.");
+      input.value = "";
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setNotice("");
+    setUploadSuccess(null);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || "/api"}/storage/images`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body,
+          signal: AbortSignal.timeout(120000),
+        },
+      );
+      const result = (await response.json().catch(() => null)) as {
+        url?: string;
+        message?: string;
+      } | null;
+      if (response.status === 401) onSignOut();
+      if (!response.ok || !result?.url)
+        throw new Error(
+          typeof result?.message === "string"
+            ? result.message
+            : "Could not upload this product image.",
+        );
+      setEditing((current) => {
+        if (!current) return current;
+        const galleryImages = [...(current.galleryImages || [])];
+        galleryImages[index] = result.url!;
+        return { ...current, galleryImages };
+      });
+      setPreviewListing((current) => {
+        if (!current) return current;
+        const galleryImages = [...(current.galleryImages || [])];
+        galleryImages[index] = result.url!;
+        return { ...current, galleryImages };
+      });
+      setNotice("Product photo uploaded. Save the product to keep it.");
+      setUploadSuccess("Product photo uploaded");
       input.value = "";
     } catch (e) {
       setError(
@@ -637,20 +889,22 @@ export default function CatalogueManager({
     file: File,
     input: HTMLInputElement,
     index: number,
+    photoIndex: number,
   ) {
     if (!new Set(["image/png", "image/jpeg", "image/webp"]).has(file.type)) {
       setError("Choose a PNG, JPEG, or WebP product image.");
       input.value = "";
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Product images must be 5 MB or smaller.");
+    if (file.size > MAX_PRODUCT_IMAGE_BYTES) {
+      setError("Product images must be 20 MB or smaller.");
       input.value = "";
       return;
     }
     setBusy(true);
     setError("");
     setNotice("");
+    setUploadSuccess(null);
     try {
       const body = new FormData();
       body.append("file", file);
@@ -660,7 +914,7 @@ export default function CatalogueManager({
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
           body,
-          signal: AbortSignal.timeout(60000),
+          signal: AbortSignal.timeout(120000),
         },
       );
       const result = (await response.json().catch(() => null)) as {
@@ -668,6 +922,12 @@ export default function CatalogueManager({
         message?: string;
       } | null;
       if (response.status === 401) onSignOut();
+      const updatePhoto = (variant: Listing["variants"][number]) => {
+        if (photoIndex === 0) return { ...variant, image: result.url! };
+        const galleryImages = [...(variant.galleryImages || [])];
+        galleryImages[photoIndex - 1] = result.url!;
+        return { ...variant, galleryImages: galleryImages.slice(0, 3) };
+      };
       if (!response.ok || !result?.url)
         throw new Error(
           typeof result?.message === "string"
@@ -680,7 +940,7 @@ export default function CatalogueManager({
               ...current,
               variants: current.variants.map((variant, rowIndex) =>
                 rowIndex === index
-                  ? { ...variant, image: result.url! }
+                  ? updatePhoto(variant)
                   : variant,
               ),
             }
@@ -692,102 +952,18 @@ export default function CatalogueManager({
               ...current,
               variants: current.variants.map((variant, rowIndex) =>
                 rowIndex === index
-                  ? { ...variant, image: result.url! }
+                  ? updatePhoto(variant)
                   : variant,
               ),
             }
           : current,
       );
       setNotice("Option photo uploaded. Save the product to keep it.");
+      setUploadSuccess("Option photo uploaded");
       input.value = "";
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Could not upload this option image.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function uploadGalleryImages(files: FileList, input: HTMLInputElement) {
-    const selected = Array.from(files);
-    const galleryCount = editing?.galleryImages.length || 0;
-    const remaining = MAX_GALLERY_IMAGES - galleryCount;
-    if (
-      selected.length > remaining ||
-      selected.some(
-        (file) =>
-          !new Set(["image/png", "image/jpeg", "image/webp"]).has(file.type) ||
-          file.size > 5 * 1024 * 1024,
-      )
-    ) {
-      setError(
-        remaining < 1
-          ? "You can add up to three optional product images. Remove an image before uploading another."
-          : `Choose up to ${remaining} more PNG, JPEG, or WebP image${remaining === 1 ? "" : "s"}, each 5 MB or smaller.`,
-      );
-      input.value = "";
-      return;
-    }
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      const uploaded: string[] = [];
-      for (const file of selected) {
-        const body = new FormData();
-        body.append("file", file);
-        const response = await fetch(
-          `${import.meta.env.VITE_API_URL || "/api"}/storage/images`,
-          {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-            body,
-            signal: AbortSignal.timeout(60000),
-          },
-        );
-        const result = (await response.json().catch(() => null)) as {
-          url?: string;
-          message?: string;
-        } | null;
-        if (response.status === 401) onSignOut();
-        if (!response.ok || !result?.url)
-          throw new Error(
-            typeof result?.message === "string"
-              ? result.message
-              : `Could not upload ${file.name}.`,
-          );
-        uploaded.push(result.url);
-      }
-      setEditing((current) =>
-        current
-          ? {
-              ...current,
-              galleryImages: Array.from(
-                new Set([...(current.galleryImages || []), ...uploaded]),
-              ),
-            }
-          : current,
-      );
-      setPreviewListing((current) =>
-        current
-          ? {
-              ...current,
-              galleryImages: Array.from(
-                new Set([...(current.galleryImages || []), ...uploaded]),
-              ),
-            }
-          : current,
-      );
-      setNotice(
-        `${uploaded.length} gallery image${uploaded.length === 1 ? "" : "s"} uploaded. Save the product to keep them.`,
-      );
-      input.value = "";
-    } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Could not upload these gallery images.",
       );
     } finally {
       setBusy(false);
@@ -800,7 +976,13 @@ export default function CatalogueManager({
     try {
       const rows = await request<Listing[]>("/products/catalogue");
       setListings(
-        rows.map((row) => ({
+        rows
+          .filter((row) => {
+            if (row.isPublished) return true;
+            if (!row.draftExpiresAt) return true;
+            return Date.parse(row.draftExpiresAt) > Date.now();
+          })
+          .map((row) => ({
           ...row,
           availabilityStatus:
             row.availabilityStatus ||
@@ -828,7 +1010,7 @@ export default function CatalogueManager({
             row.specifications && typeof row.specifications === "object"
               ? row.specifications
               : {},
-        })),
+          })),
       );
     } catch (e) {
       setError(
@@ -843,16 +1025,16 @@ export default function CatalogueManager({
   }, [refresh]);
   useEffect(() => {
     let active = true;
-    void request<Array<{ name: string; isActive: boolean }>>(
-      "/products/catalogue/partner-brands",
-    )
-      .then((brands) => {
-        if (active)
-          setPartnerBrandOptions(
-            brands.filter((brand) => brand.isActive).map((brand) => brand.name),
-          );
-      })
-      .catch(() => undefined);
+    void Promise.all([
+      request<Array<{ name: string; isActive: boolean }>>("/products/catalogue/partner-brands"),
+      request<ManagedCatalogueCategory[]>("/products/catalogue/categories"),
+    ])
+      .then(([brands, categories]) => {
+        if (active) {
+          setPartnerBrandOptions(brands.filter((brand) => brand.isActive).map((brand) => brand.name));
+          setCatalogueCategoryOptions(categories);
+        }
+      }).catch(() => undefined);
     return () => {
       active = false;
     };
@@ -911,6 +1093,16 @@ export default function CatalogueManager({
     }
   }, [editing?.id, editing?.image, editing?.galleryImages, editing?.variants]);
 
+  useEffect(() => {
+    if (!editing || draftSavedAt === null) return;
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [editing?.id, draftSavedAt]);
+
   function captureProductDraft(event: FormEvent<HTMLFormElement>) {
     if (!editing) return;
     const values: ProductDraft["values"] = {};
@@ -926,7 +1118,7 @@ export default function CatalogueManager({
       name: String(formValues.get("name") || "").trim(),
       brand: String(formValues.get("brand") || "").trim(),
       slug: String(formValues.get("slug") || "").trim(),
-      code: String(formValues.get("code") || "").trim() || null,
+      code: editing.code || null,
       category: String(formValues.get("category") || "").trim(),
       categoryLabel: String(formValues.get("categoryLabel") || "").trim(),
       unit: String(formValues.get("unit") || "").trim(),
@@ -972,6 +1164,34 @@ export default function CatalogueManager({
     }
   }
 
+  function requestProductEditorClose() {
+    if (draftSavedAt !== null) {
+      setExitPromptOpen(true);
+      return;
+    }
+    setEditing(null);
+    setPreviewListing(null);
+  }
+
+  function exitWithoutSaving() {
+    try {
+      localStorage.removeItem(productDraftKey(editing?.id || ""));
+    } catch {
+      // Browser recovery storage is optional.
+    }
+    setExitPromptOpen(false);
+    setEditing(null);
+    setDraftSavedAt(null);
+    setRecoveredDraft(null);
+    setPreviewListing(null);
+  }
+
+  function saveDraftAndClose() {
+    if (!productForm.current) return;
+    saveAsDraftOnSubmit.current = true;
+    productForm.current.requestSubmit();
+  }
+
   function recoverableDraftFor(product: Listing): ProductDraft | null {
     try {
       const raw = localStorage.getItem(productDraftKey(product.id));
@@ -993,22 +1213,27 @@ export default function CatalogueManager({
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const saveAsDraft = saveAsDraftOnSubmit.current;
+    saveAsDraftOnSubmit.current = false;
     const form = event.currentTarget;
+    if (!saveAsDraft && !form.reportValidity()) return;
     const values = new FormData(form);
     const name = String(values.get("name") || "").trim();
-    const code = String(values.get("code") || "").trim();
     const rawPrice = String(values.get("price") || "").trim();
     const rawCompare = String(values.get("compareAtPrice") || "").trim();
-    const variantCodes = generateVariantCodes(code, formProduct.variants || []);
+    const enteredSlug = slugify(String(values.get("slug") || name)) || `draft-${Date.now()}`;
+    const draftingPublishedProduct = saveAsDraft && Boolean(editing?.isPublished);
     const payload = {
-      slug: slugify(String(values.get("slug") || code || name)),
-      code: code || null,
-      name,
+      slug: draftingPublishedProduct
+        ? `draft-${enteredSlug.slice(0, 100)}-${Date.now()}`
+        : enteredSlug,
+      code: draftingPublishedProduct ? null : formProduct.code || null,
+      name: name || (saveAsDraft ? "Untitled product" : name),
       brand: String(values.get("brand") || "").trim(),
       brandTagline: String(values.get("brandTagline") || "").trim() || null,
-      category: String(values.get("category") || "").trim(),
-      categoryLabel: String(values.get("categoryLabel") || "").trim(),
-      unit: String(values.get("unit") || "").trim(),
+      category: String(values.get("category") || "").trim() || (saveAsDraft ? "draft" : ""),
+      categoryLabel: String(values.get("categoryLabel") || "").trim() || (saveAsDraft ? "Draft product" : ""),
+      unit: String(values.get("unit") || "").trim() || (saveAsDraft ? "unit" : ""),
       packaging: String(values.get("packaging") || "").trim() || null,
       image: String(values.get("image") || "").trim() || null,
       photoBanner: String(values.get("photoBanner") || "").trim() || null,
@@ -1018,30 +1243,52 @@ export default function CatalogueManager({
       minOrderQty: String(values.get("minOrderQty") || "").trim() || null,
       dispatchTime: String(values.get("dispatchTime") || "").trim() || null,
       price: rawPrice ? Number(rawPrice) : null,
-      compareAtPrice: rawCompare ? Number(rawCompare) : null,
+      compareAtPrice:
+        rawCompare && (!saveAsDraft || !rawPrice || Number(rawCompare) >= Number(rawPrice))
+          ? Number(rawCompare)
+          : null,
       priceNote:
         customerPriceNote(String(values.get("priceNote") || "")) || null,
       offerLabel: String(values.get("offerLabel") || "").trim() || null,
-      offerStartsAt: String(values.get("offerStartsAt") || "") || null,
-      offerEndsAt: String(values.get("offerEndsAt") || "") || null,
+      offerStartsAt:
+        saveAsDraft &&
+        String(values.get("offerStartsAt") || "") >
+          String(values.get("offerEndsAt") || "")
+          ? null
+          : String(values.get("offerStartsAt") || "") || null,
+      offerEndsAt:
+        saveAsDraft &&
+        String(values.get("offerStartsAt") || "") >
+          String(values.get("offerEndsAt") || "")
+          ? null
+          : String(values.get("offerEndsAt") || "") || null,
       availabilityStatus: String(
         values.get("availabilityStatus") || "CHECK_AVAILABILITY",
       ) as Listing["availabilityStatus"],
       isInStock: values.get("availabilityStatus") === "IN_STOCK",
-      isPublished: values.get("isPublished") === "on",
+      isPublished: saveAsDraft ? false : values.get("isPublished") === "on",
       features: fromLines(values.get("features")),
       applications: fromLines(values.get("applications")),
       specifications: specsFromLines(values.get("specifications")),
-      variants: (formProduct.variants || []).map((variant, sortOrder) => ({
+      variants: (formProduct.variants || [])
+        .filter((variant) => !saveAsDraft || Boolean(variant.label.trim() && variant.unit.trim()))
+        .map((variant, sortOrder) => ({
         ...variant,
+        unit: String(variant.unit || values.get("unit") || "").trim(),
         isInStock: variant.availabilityStatus === "IN_STOCK",
-        code: variantCodes[sortOrder] || null,
+        code: String(variant.code || "").trim() || null,
         price:
           variant.price == null || variant.price === ""
             ? null
             : Number(variant.price),
         compareAtPrice:
-          variant.compareAtPrice == null || variant.compareAtPrice === ""
+          variant.compareAtPrice == null ||
+          variant.compareAtPrice === "" ||
+          (saveAsDraft &&
+            variant.price != null &&
+            variant.price !== "" &&
+            variant.compareAtPrice !== "" &&
+            Number(variant.compareAtPrice) < Number(variant.price))
             ? null
             : Number(variant.compareAtPrice),
         priceNote: customerPriceNote(variant.priceNote) || null,
@@ -1053,59 +1300,152 @@ export default function CatalogueManager({
           variant.minOrderQuantity == null || variant.minOrderQuantity === ""
             ? null
             : Number(variant.minOrderQuantity),
-        quantityBreaks: variant.quantityBreaks || [],
+        quantityBreaks:
+          saveAsDraft &&
+          !(variant.quantityBreaks || []).every(
+            (row, index, rows) =>
+              (index === 0 || row.minimumQuantity > rows[index - 1].minimumQuantity) &&
+              (index === 0 || row.unitPrice <= rows[index - 1].unitPrice),
+          )
+            ? []
+            : variant.quantityBreaks || [],
         sortOrder,
-      })),
+        })),
       sortOrder: Number(values.get("sortOrder") || 0),
     };
-    if (
+    if (!saveAsDraft && (
       payload.galleryImages.length > MAX_GALLERY_IMAGES &&
       payload.galleryImages.length > (editing?.galleryImages.length || 0)
-    ) {
+    )) {
       setError(
         "Add up to three optional product images. Existing listings with older galleries can still be saved as-is.",
       );
       return;
     }
-    if (rawCompare && rawPrice && Number(rawCompare) < Number(rawPrice)) {
+    if (!saveAsDraft && rawCompare && rawPrice && Number(rawCompare) < Number(rawPrice)) {
       setError(
         "Original price must be equal to or greater than the selling price.",
       );
       return;
     }
     if (
-      payload.offerStartsAt &&
+      !saveAsDraft && payload.offerStartsAt &&
       payload.offerEndsAt &&
       payload.offerEndsAt < payload.offerStartsAt
     ) {
       setError("Offer end date must be on or after its start date.");
       return;
     }
+    const isPublishing = !saveAsDraft && payload.isPublished;
+    const publishStartedAt = isPublishing ? Date.now() : 0;
+    if (isPublishing) {
+      setPublishProgress({
+        productName: name || "Product",
+        percent: 8,
+        message: "Saving product details…",
+        state: "working",
+      });
+    } else {
+      setPublishProgress(null);
+    }
     setBusy(true);
     setError("");
     setNotice("");
+    setUploadSuccess(null);
     try {
-      await request(
-        `/products/catalogue${editing?.id ? `/${editing.id}` : ""}`,
-        editing?.id ? "PATCH" : "POST",
+      const saveExistingProduct = Boolean(editing?.id) && !draftingPublishedProduct;
+      const savedProduct = await request<{ id: string; name: string; isPublished: boolean }>(
+        `/products/catalogue${saveExistingProduct ? `/${editing?.id}` : ""}`,
+        saveExistingProduct ? "PATCH" : "POST",
         payload,
       );
-      setNotice(
-        payload.isPublished
-          ? "Product saved and published to the website."
-          : "Product saved as a draft.",
-      );
-      try {
-        localStorage.removeItem(productDraftKey(editing?.id || ""));
-      } catch {
-        /* browser storage is optional */
+      if (saveAsDraft) {
+        setNotice(`${savedProduct.name || name || "Product"} saved as a draft and added to the top of the catalogue.`);
+        try {
+          const oldKey = productDraftKey(editing?.id || "");
+          const newKey = productDraftKey(savedProduct.id);
+          const recovery = localStorage.getItem(oldKey);
+          if (recovery && oldKey !== newKey) {
+            localStorage.setItem(newKey, recovery);
+            localStorage.removeItem(oldKey);
+          }
+        } catch {
+          // The saved catalogue draft remains available if recovery storage fails.
+        }
+      } else if (savedProduct.isPublished) {
+        setNotice("");
+        setPublishProgress({
+          productName: savedProduct.name || name || "Product",
+          percent: 84,
+          message: "Saved. Checking that it is visible on the storefront…",
+          state: "working",
+        });
+        setEditing(null);
+        setExitPromptOpen(false);
+        setDraftSavedAt(null);
+        setPreviewListing(null);
+        let visibleOnStorefront = false;
+        try {
+          const publicProducts = await request<Listing[]>("/products");
+          visibleOnStorefront = publicProducts.some(
+            (product) => product.id === savedProduct.id,
+          );
+        } catch {
+          // Keep the saved state visible, but do not report storefront confirmation.
+        }
+        const minimumProgressMs = 650;
+        const remainingAnimationMs =
+          minimumProgressMs - (Date.now() - publishStartedAt);
+        if (remainingAnimationMs > 0) {
+          await new Promise((resolve) =>
+            window.setTimeout(resolve, remainingAnimationMs),
+          );
+        }
+        setPublishProgress({
+          productName: savedProduct.name || name || "Product",
+          percent: 100,
+          message: visibleOnStorefront
+            ? "Publish completed · this product is live on the storefront."
+            : "Saved as published, but storefront visibility could not be confirmed. Refresh and check again.",
+          state: visibleOnStorefront ? "complete" : "error",
+        });
+      } else {
+        if (isPublishing) {
+          setPublishProgress({
+            productName: savedProduct.name || name || "Product",
+            percent: 100,
+            message: "The product was saved, but the server kept it private as a draft.",
+            state: "error",
+          });
+        } else {
+          setNotice("Product saved as a draft.");
+        }
       }
-      setEditing(null);
-      setDraftSavedAt(null);
-      setPreviewListing(null);
+      if (!saveAsDraft) {
+        try {
+          localStorage.removeItem(productDraftKey(editing?.id || ""));
+        } catch {
+          /* browser storage is optional */
+        }
+      }
+      if (!savedProduct.isPublished) {
+        setEditing(null);
+        setExitPromptOpen(false);
+        setDraftSavedAt(null);
+        setPreviewListing(null);
+      }
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save this product.");
+      const message = e instanceof Error ? e.message : "Could not save this product.";
+      setError(message);
+      if (!saveAsDraft && payload.isPublished) {
+        setPublishProgress({
+          productName: name || "Product",
+          percent: 100,
+          message: `Publish failed · ${message}`,
+          state: "error",
+        });
+      }
     } finally {
       setBusy(false);
     }
@@ -1162,7 +1502,7 @@ export default function CatalogueManager({
         ? {
             image: recovery.image,
             galleryImages: recovery.galleryImages,
-            variants: recovery.variants,
+            variants: nonEmptyVariants(recovery.variants),
           }
         : {}),
     };
@@ -1173,6 +1513,7 @@ export default function CatalogueManager({
     setDraftSavedAt(recovery?.savedAt ?? null);
   };
   const startNew = () => {
+    setAddProductChooserOpen(false);
     const product = {
       ...blank,
       sortOrder: listings.length
@@ -1186,7 +1527,7 @@ export default function CatalogueManager({
         ? {
             image: recovery.image,
             galleryImages: recovery.galleryImages,
-            variants: recovery.variants,
+            variants: nonEmptyVariants(recovery.variants),
           }
         : {}),
     };
@@ -1196,10 +1537,58 @@ export default function CatalogueManager({
     setRecoveredDraft(recovery);
     setDraftSavedAt(recovery?.savedAt ?? null);
   };
+  const showDraftListings = () => {
+    setAddProductChooserOpen(false);
+    setPublicationFilter("draft");
+    setCatalogueSort("recent");
+    setCataloguePage(1);
+    setCatalogueQuery("");
+    requestAnimationFrame(() =>
+      document.querySelector(".catalogue-filter-panel")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      }),
+    );
+  };
   const formProduct = editing;
-  const generatedProductCode = formProduct && !formProduct.id
-    ? nextProductCode(formProduct.brand, formProduct.category, listings)
-    : formProduct?.code || "";
+  const automaticHighlights = formProduct
+    ? [
+        { title: "Product name", description: formProduct.name.trim() },
+        { title: "Brand", description: formProduct.brand.trim() },
+        { title: "Category", description: (formProduct.categoryLabel || formProduct.category).trim() },
+        {
+          title: "Options & variations",
+          description: summarizeVariantChoices(formProduct.variants || []),
+        },
+      ].filter((row) => row.description)
+    : [];
+  const storedHighlights = formProduct
+    ? [
+        ...automaticHighlights.map((row) => boundedFeature(row.title, row.description)),
+        ...manualHighlights(formProduct.features).map((entry) => {
+          const row = splitHighlight(entry);
+          return boundedFeature(row.title, row.description);
+        }),
+      ]
+    : [];
+  const productBrandChoices = formProduct
+    ? [...new Set([...partnerBrandOptions, ...brands, formProduct.brand].filter(Boolean))]
+        .sort((left, right) => left.localeCompare(right))
+    : [];
+  const productCategoryChoices = formProduct
+    ? (() => {
+        const choices = new Map<string, { value: string; label: string }>();
+        const selectedId = resolveCatalogueCategoryId(formProduct.categoryLabel || formProduct.category, catalogueCategoryOptions);
+        for (const category of catalogueCategoryOptions.filter((item) => item.active || item.id === selectedId)) {
+          choices.set(category.id, { value: category.id, label: category.label });
+        }
+        return [...choices.values()];
+      })()
+    : [];
+  const selectedCategoryValue = formProduct
+    ? productCategoryChoices.find((category) => category.value === resolveCatalogueCategoryId(formProduct.categoryLabel || formProduct.category, catalogueCategoryOptions))?.value || ""
+    : "";
+  const selectedCategory = productCategoryChoices.find((category) => category.value === selectedCategoryValue);
 
   const openProductPreview = () => {
     if (productForm.current) {
@@ -1209,6 +1598,59 @@ export default function CatalogueManager({
     }
     setPreviewOpen(true);
   };
+  const renderPublishStatus = () => publishProgress && (
+    <section
+      className={`catalogue-publish-status is-${publishProgress.state}`}
+      role={publishProgress.state === "error" ? "alert" : "status"}
+      aria-live={publishProgress.state === "working" ? "polite" : "assertive"}
+      aria-label="Product publishing status"
+    >
+      <div className="catalogue-publish-status-heading">
+        <span className="catalogue-publish-status-icon" aria-hidden="true">
+          {publishProgress.state === "complete" ? (
+            <Check size={17} strokeWidth={3} />
+          ) : publishProgress.state === "error" ? (
+            <Info size={17} />
+          ) : (
+            <RefreshCw size={17} className="catalogue-publish-status-spin" />
+          )}
+        </span>
+        <div className="catalogue-publish-status-copy">
+          <strong>
+            {publishProgress.state === "complete"
+              ? "Publish completed"
+              : publishProgress.state === "error"
+                ? "Publication needs attention"
+                : "Publishing product"}
+          </strong>
+          <span>{publishProgress.productName} · {publishProgress.message}</span>
+        </div>
+        <span className="catalogue-publish-status-percent">
+          {publishProgress.percent}%
+        </span>
+        {publishProgress.state !== "working" && (
+          <button
+            type="button"
+            className="catalogue-publish-status-dismiss"
+            aria-label="Dismiss publication status"
+            onClick={() => setPublishProgress(null)}
+          >
+            <X size={17} />
+          </button>
+        )}
+      </div>
+      <div
+        className="catalogue-publish-status-track"
+        role="progressbar"
+        aria-label="Publishing progress"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={publishProgress.percent}
+      >
+        <span style={{ width: `${publishProgress.percent}%` }} />
+      </div>
+    </section>
+  );
 
   if (managingBrands)
     return (
@@ -1251,13 +1693,70 @@ export default function CatalogueManager({
             <button
               className="btn-sm btn-primary"
               disabled={busy}
-              onClick={startNew}
+              onClick={() => setAddProductChooserOpen(true)}
             >
               <PackagePlus size={16} /> Add product
             </button>
           )}
         </div>
       </header>
+      {renderPublishStatus()}
+      {addProductChooserOpen && (
+        <div
+          className="catalogue-add-choice-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget)
+              setAddProductChooserOpen(false);
+          }}
+        >
+          <section
+            className="catalogue-add-choice-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="catalogue-add-choice-title"
+          >
+            <h2 id="catalogue-add-choice-title">What would you like to do?</h2>
+            <p>
+              Start a product or continue working on a saved draft. Drafts stay
+              here for 7 days after their last save.
+            </p>
+            <div className="catalogue-add-choice-actions">
+              <button
+                type="button"
+                className="catalogue-add-choice-card"
+                onClick={startNew}
+              >
+                <PackagePlus size={20} />
+                <span>
+                  <strong>Add new product</strong>
+                  <small>Start with a blank product form.</small>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="catalogue-add-choice-card"
+                onClick={showDraftListings}
+              >
+                <FileText size={20} />
+                <span>
+                  <strong>Edit drafts</strong>
+                  <small>
+                    {listings.filter((product) => !product.isPublished).length}{" "}
+                    saved drafts · newest first · kept for 7 days
+                  </small>
+                </span>
+              </button>
+            </div>
+            <button
+              type="button"
+              className="catalogue-add-choice-cancel"
+              onClick={() => setAddProductChooserOpen(false)}
+            >
+              Cancel
+            </button>
+          </section>
+        </div>
+      )}
       {error && (
         <p className="admin-error" role="alert">
           {error}
@@ -1273,9 +1772,12 @@ export default function CatalogueManager({
           <form
             ref={productForm}
             className="panel-card catalogue-product-form"
+            data-admin-unsaved-form
             role="dialog"
             aria-modal="true"
             aria-labelledby="catalogue-editor-title"
+            autoComplete="off"
+            noValidate
             onSubmit={(event) => void save(event)}
             onChange={captureProductDraft}
           >
@@ -1309,18 +1811,19 @@ export default function CatalogueManager({
               <button
                 type="button"
                 className="btn-sm btn-secondary"
-                onClick={() => setEditing(null)}
+                onClick={requestProductEditorClose}
                 aria-label="Close product form"
               >
                 <X size={16} />
               </button>
             </div>
+            {publishProgress?.state === "working" && renderPublishStatus()}
             <div className="catalogue-fields">
               <div className="catalogue-form-section-heading catalogue-wide">
                 <span className="catalogue-section-number">01</span>
                 <div>
                   <strong>Product identity</strong>
-                  <small>Name, brand, category and ordering details.</small>
+                    <small>Name, brand, category and default unit.</small>
                 </div>
               </div>
               <label>
@@ -1334,80 +1837,49 @@ export default function CatalogueManager({
               </label>
               <label>
                 Brand
-                <input
+                <select
                   name="brand"
                   required
-                  list="catalogue-partner-brand-options"
-                  maxLength={120}
                   value={formProduct.brand}
                   onChange={(event) => setEditing((current) => current ? { ...current, brand: event.target.value } : current)}
-                />
-                <datalist id="catalogue-partner-brand-options">
-                  {[
-                    ...new Set(
-                      [
-                        ...partnerBrandOptions,
-                        ...brands,
-                        formProduct.brand,
-                      ].filter(Boolean),
-                    ),
-                  ].map((brand) => (
-                    <option key={brand} value={brand} />
-                  ))}
-                </datalist>
+                >
+                  <option value="">Choose a brand</option>
+                  {productBrandChoices.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+                </select>
               </label>
               <label>
-                Product code
-                <input
-                  name="code"
-                  maxLength={80}
-                  value={generatedProductCode}
-                  readOnly={!formProduct.id}
-                  onChange={(event) =>
-                    setEditing((current) =>
-                      current ? { ...current, code: event.target.value } : current,
-                    )
-                  }
-                  aria-describedby={!formProduct.id ? "catalogue-product-code-hint" : undefined}
-                />
-                {!formProduct.id && <small id="catalogue-product-code-hint">Automatic format: MS-[brand 3]-[category 3]-[sequence], e.g. MS-ULT-CEM-01.</small>}
+                Category
+                <select
+                  name="categoryChoice"
+                  required
+                  value={selectedCategoryValue}
+                  onChange={(event) => {
+                    const choice = productCategoryChoices.find((category) => category.value === event.target.value);
+                    if (!choice) return;
+                    setEditing((current) => current ? { ...current, category: choice.value, categoryLabel: choice.label } : current);
+                  }}
+                >
+                  <option value="">Choose a category</option>
+                  {productCategoryChoices.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}
+                </select>
+                <input type="hidden" name="category" value={selectedCategoryValue} />
+                <input type="hidden" name="categoryLabel" value={selectedCategory?.label || ""} />
               </label>
+              <label>
+                Default unit
+                <input name="unit" required maxLength={100} placeholder="L, kg, piece, pack" value={formProduct.unit} onChange={(event) => setEditing((current) => current ? { ...current, unit: event.target.value } : current)} />
+                <small>Each option can use its own unit.</small>
+              </label>
+              <details className="catalogue-optional-settings catalogue-wide">
+                <summary>More product details <span>Website URL, grade and ordering information</span></summary>
+                <div className="catalogue-optional-grid">
               <label>
                 URL slug
                 <input
                   name="slug"
                   maxLength={120}
-                  placeholder="Generated from code or name"
+                  placeholder="Generated from product name"
                   defaultValue={formProduct.slug}
-                />
-              </label>
-              <label>
-                Category key
-                <input
-                  name="category"
-                  required
-                  maxLength={80}
-                  value={formProduct.category}
-                  onChange={(event) => setEditing((current) => current ? { ...current, category: event.target.value } : current)}
-                />
-              </label>
-              <label>
-                Category name
-                <input
-                  name="categoryLabel"
-                  required
-                  maxLength={120}
-                  defaultValue={formProduct.categoryLabel}
-                />
-              </label>
-              <label>
-                Unit shown to customer
-                <input
-                  name="unit"
-                  required
-                  maxLength={100}
-                  placeholder="e.g. 50 kg bag"
-                  defaultValue={formProduct.unit}
                 />
               </label>
               <label>
@@ -1434,16 +1906,11 @@ export default function CatalogueManager({
                   defaultValue={formProduct.dispatchTime || ""}
                 />
               </label>
-              <div className="catalogue-form-section-heading catalogue-wide">
-                <span className="catalogue-section-number">02</span>
-                <div>
-                  <strong>Pricing &amp; offers</strong>
-                  <small>
-                    Set a customer-facing price, optional offer and delivery
-                    wording.
-                  </small>
                 </div>
-              </div>
+              </details>
+              <details className="catalogue-optional-settings catalogue-wide">
+                <summary>Single price and offer <span>Optional fallback when all options share one price</span></summary>
+                <div className="catalogue-optional-grid">
               <label>
                 Price (₹ per unit)
                 <input
@@ -1469,7 +1936,7 @@ export default function CatalogueManager({
                 <input
                   name="priceNote"
                   maxLength={120}
-                  placeholder="e.g. per bag, GST included"
+                  placeholder="e.g. Tax included"
                   defaultValue={customerPriceNote(formProduct.priceNote)}
                 />
               </label>
@@ -1478,7 +1945,7 @@ export default function CatalogueManager({
                 <input
                   name="offerLabel"
                   maxLength={120}
-                  placeholder="e.g. Launch offer"
+                  placeholder="Enter offer name"
                   defaultValue={formProduct.offerLabel || ""}
                 />
               </label>
@@ -1502,271 +1969,77 @@ export default function CatalogueManager({
                 Offers are optional. Leave compare-at price, offer label and
                 dates blank for a regular-price product.
               </p>
-              <label>
-                Packaging
-                <input
-                  name="packaging"
-                  maxLength={500}
-                  defaultValue={formProduct.packaging || ""}
-                />
-              </label>
-              <label>
-                Brand tagline
-                <input
-                  name="brandTagline"
-                  maxLength={500}
-                  defaultValue={formProduct.brandTagline || ""}
-                />
-              </label>
+                </div>
+              </details>
               <div className="catalogue-form-section-heading catalogue-wide">
-                <span className="catalogue-section-number">03</span>
+                <span className="catalogue-section-number">02</span>
                 <div>
                   <strong>Product photos</strong>
                   <small>
-                    Add one main photo and up to three optional views. Preview
-                    them before publishing.
+                    Upload one photo to get started. Add up to three optional images; options can use any shared photo.
                   </small>
                 </div>
               </div>
-              <label className="catalogue-primary-image-url">
-                Main photo · paste an image link
-                <input
-                  name="image"
-                  type="url"
-                  maxLength={1000}
-                  placeholder="https://example.com/product-photo.jpg"
-                  value={formProduct.image || ""}
-                  onChange={(event) =>
-                    setEditing({ ...formProduct, image: event.target.value })
-                  }
-                />
-                <small>
-                  Use a public image URL approved for this product. You can also
-                  upload a file in the panel beside this field.
-                </small>
-                {formProduct.image && (
-                  <span className="catalogue-image-preview">
-                    <img
-                      src={formProduct.image}
-                      alt="Primary product preview"
-                    />
-                    <span>Main product photo</span>
-                  </span>
-                )}
-              </label>
-              <label className="catalogue-image-upload catalogue-primary-image-upload">
-                <span>
-                  <Upload size={17} />{" "}
-                  {formProduct.image
-                    ? "Replace main photo with a file"
-                    : "Or upload the main photo"}
-                </span>
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  disabled={busy}
-                  onChange={(event) => {
-                    const input = event.currentTarget;
-                    const file = input.files?.[0];
-                    if (file) void uploadImage(file, input);
-                  }}
-                />
-                <small>
-                  PNG, JPEG or WebP · Up to 5 MB. Uploading replaces the main
-                  photo.
-                </small>
-              </label>
-              <label className="catalogue-wide">
-                Photo banner (optional)
-                <input
-                  name="photoBanner"
-                  maxLength={40}
-                  placeholder="Bestseller, Top choice, First choice"
-                  defaultValue={formProduct.photoBanner || ""}
-                />
-                <small>Appears at the top-left of the product photo.</small>
-              </label>
+              <input
+                type="hidden"
+                name="image"
+                value={formProduct.image || ""}
+                readOnly
+              />
               <input
                 type="hidden"
                 name="galleryImages"
                 value={lines(formProduct.galleryImages || [])}
                 readOnly
               />
-              <div className="catalogue-gallery-url-options catalogue-wide">
-                <div className="catalogue-gallery-url-heading">
-                  <strong>Optional photo links</strong>
-                  <span>
-                    {formProduct.galleryImages.length} of {MAX_GALLERY_IMAGES}{" "}
-                    added
-                  </span>
+              <div className="catalogue-photo-layout catalogue-wide">
+                <div className="catalogue-photo-slot catalogue-photo-hero">
+                  {formProduct.image ? (
+                    <img src={formProduct.image} alt="Main product" />
+                  ) : (
+                    <div className="catalogue-photo-empty"><Upload size={30} /><strong>Main product photo</strong><span>Upload a photo or use a URL below</span></div>
+                  )}
+                  <label className="catalogue-photo-picker">
+                    <Upload size={16} /> {formProduct.image ? "Replace main photo" : "Upload main photo"}
+                    <input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={(event) => { const input = event.currentTarget; const file = input.files?.[0]; if (file) void uploadImage(file, input); }} />
+                  </label>
+                  <label className="catalogue-photo-url">
+                    Or paste image URL
+                    <input type="url" maxLength={1000} placeholder="https://example.com/product-photo.jpg" value={formProduct.image || ""} onChange={(event) => setEditing({ ...formProduct, image: event.target.value })} />
+                  </label>
                 </div>
-                {Array.from(
-                  {
-                    length: Math.max(
-                      MAX_GALLERY_IMAGES,
-                      formProduct.galleryImages.length,
-                    ),
-                  },
-                  (_, index) => (
-                    <label key={`gallery-url-${index}`}>
-                      Photo {index + 1} · URL
-                      <input
-                        type="url"
-                        value={formProduct.galleryImages[index] || ""}
-                        placeholder="https://example.com/another-view.jpg"
-                        onChange={(event) => {
-                          const next = [...(formProduct.galleryImages || [])];
-                          next[index] = event.currentTarget.value.trim();
-                          setEditing({
-                            ...formProduct,
-                            galleryImages: next.filter(Boolean),
-                          });
-                        }}
-                      />
-                    </label>
-                  ),
-                )}
-                <p>
-                  Three optional views are available for new listings. Existing
-                  listings may have one older extra photo; remove it if you want
-                  to replace it.
+                <div className="catalogue-photo-side">
+                  {Array.from({ length: MAX_GALLERY_IMAGES }, (_, index) => {
+                    const photo = formProduct.galleryImages[index] || "";
+                    return (
+                      <div className="catalogue-photo-slot catalogue-photo-small" key={`product-photo-${index}`}>
+                        {photo ? <img src={photo} alt={`Product view ${index + 2}`} /> : <div className="catalogue-photo-empty"><Upload size={20} /><strong>Photo {index + 2}</strong><span>Optional</span></div>}
+                        <label className="catalogue-photo-picker">
+                          <Upload size={14} /> {photo ? "Replace photo" : "Upload photo"}
+                          <input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={(event) => { const input = event.currentTarget; const file = input.files?.[0]; if (file) void uploadGalleryPhoto(file, input, index); }} />
+                        </label>
+                        <label className="catalogue-photo-url">
+                          Or paste image URL
+                          <input type="url" maxLength={1000} placeholder="https://example.com/photo.jpg" value={photo} onChange={(event) => { const galleryImages = [...(formProduct.galleryImages || [])]; galleryImages[index] = event.target.value; setEditing({ ...formProduct, galleryImages }); }} />
+                        </label>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="catalogue-photo-note">
+                  {Number(Boolean(formProduct.image)) + formProduct.galleryImages.filter(Boolean).length} of {MAX_PRODUCT_PHOTOS} photos · PNG, JPEG or WebP · Up to 20 MB each. One photo is enough; the other three are optional.
                 </p>
               </div>
-              <div className="catalogue-image-upload catalogue-gallery-upload catalogue-wide">
-                <label
-                  className="catalogue-gallery-upload-label"
-                  htmlFor="catalogue-gallery-upload-input"
-                >
-                  <Upload size={17} />
-                  <strong>Or upload optional photos</strong>
-                  <span>
-                    Choose up to{" "}
-                    {Math.max(
-                      0,
-                      MAX_GALLERY_IMAGES - formProduct.galleryImages.length,
-                    )}{" "}
-                    more · PNG, JPEG or WebP · 5 MB each
-                  </span>
-                </label>
-                <input
-                  id="catalogue-gallery-upload-input"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  multiple
-                  disabled={
-                    busy ||
-                    formProduct.galleryImages.length >= MAX_GALLERY_IMAGES
-                  }
-                  onChange={(event) => {
-                    const input = event.currentTarget;
-                    const files = input.files;
-                    if (files?.length) void uploadGalleryImages(files, input);
-                  }}
-                />
-              </div>
-              {formProduct.galleryImages.length > 0 && (
-                <div
-                  className="catalogue-gallery-previews catalogue-wide"
-                  aria-label="Optional product photo previews"
-                >
-                  {formProduct.galleryImages.map((image, index) => (
-                    <span
-                      className="catalogue-image-preview"
-                      key={`${image}-${index}`}
-                    >
-                      <img
-                        src={image}
-                        alt={`Optional product photo ${index + 1}`}
-                      />
-                      <span>Photo {index + 1}</span>
-                      <button
-                        type="button"
-                        className="btn-sm btn-secondary"
-                        aria-label={`Remove optional photo ${index + 1}`}
-                        onClick={() =>
-                          setEditing({
-                            ...formProduct,
-                            galleryImages: formProduct.galleryImages.filter(
-                              (_, imageIndex) => imageIndex !== index,
-                            ),
-                          })
-                        }
-                      >
-                        <X size={14} /> Remove
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
               <div className="catalogue-form-section-heading catalogue-wide">
-                <span className="catalogue-section-number">04</span>
-                <div>
-                  <strong>Customer-facing content</strong>
-                  <small>
-                    Explain the product clearly and add useful specifications.
-                  </small>
-                </div>
-              </div>
-              <label>
-                Display order
-                <input
-                  name="sortOrder"
-                  type="number"
-                  min="0"
-                  step="1"
-                  defaultValue={formProduct.sortOrder}
-                />
-              </label>
-              <label className="catalogue-wide">
-                Short description
-                <textarea
-                  name="description"
-                  rows={3}
-                  maxLength={3000}
-                  defaultValue={formProduct.description || ""}
-                />
-              </label>
-              <label>
-                Features (one per line)
-                <textarea
-                  name="features"
-                  rows={5}
-                  defaultValue={lines(formProduct.features)}
-                />
-              </label>
-              <label>
-                Applications (one per line)
-                <textarea
-                  name="applications"
-                  rows={5}
-                  defaultValue={lines(formProduct.applications)}
-                />
-              </label>
-              <label className="catalogue-wide">
-                Customer specifications (one “name: value” per line)
-                <textarea
-                  name="specifications"
-                  rows={5}
-                  defaultValue={Object.entries(
-                    visibleSpecs(formProduct.specifications),
-                  )
-                    .map(([key, value]) => `${key}: ${value}`)
-                    .join("\n")}
-                />
-              </label>
-              <div className="catalogue-form-section-heading catalogue-wide">
-                <span className="catalogue-section-number">05</span>
+                <span className="catalogue-section-number">03</span>
                 <div>
                   <strong>Options &amp; variants</strong>
-                  <small>
-                    Configure sizes, colours, packaging or other selectable
-                    combinations.
-                  </small>
+                  <small>Add the choices customers can select. Each option can have its own code, photo, price and availability.</small>
                 </div>
               </div>
               <CatalogueVariantsEditor
                 variants={formProduct.variants || []}
-                productCode={generatedProductCode}
+                imageOptions={[formProduct.image, ...(formProduct.galleryImages || [])].filter((image): image is string => Boolean(image))}
                 onChange={(variants) => {
                   const next = { ...formProduct, variants };
                   setEditing(next);
@@ -1774,12 +2047,47 @@ export default function CatalogueManager({
                     current ? { ...current, variants } : current,
                   );
                 }}
-                onUploadImage={(file, input, index) =>
-                  void uploadVariantImage(file, input, index)
+                onUploadImage={(file, input, index, photoIndex) =>
+                  void uploadVariantImage(file, input, index, photoIndex)
                 }
                 defaultUnit={formProduct.unit}
                 busy={busy}
               />
+              <div className="catalogue-form-section-heading catalogue-wide">
+                <span className="catalogue-section-number">04</span>
+                <div>
+                  <strong>Product highlights</strong>
+                  <small>Product details fill automatically. Add any extra highlights you need.</small>
+                </div>
+              </div>
+              <div className="catalogue-highlight-field catalogue-wide">
+                <CatalogueHighlightsEditor
+                  value={manualHighlights(formProduct.features)}
+                  automaticRows={automaticHighlights}
+                  onChange={(features) => setEditing((current) => current ? { ...current, features } : current)}
+                />
+                <input type="hidden" name="features" value={lines(storedHighlights)} readOnly />
+              </div>
+              <div className="catalogue-form-section-heading catalogue-wide">
+                <span className="catalogue-section-number">05</span>
+                <div>
+                  <strong>Product description</strong>
+                  <small>Describe the product for customers.</small>
+                </div>
+              </div>
+              <label className="catalogue-wide">
+                Description
+                <textarea name="description" rows={5} maxLength={3000} placeholder="Describe the product for customers" defaultValue={formProduct.description || ""} />
+              </label>
+              <label>
+                Marketplace badge
+                <input name="photoBanner" maxLength={40} placeholder="Optional badge" defaultValue={formProduct.photoBanner || ""} />
+              </label>
+              <input type="hidden" name="sortOrder" value={formProduct.sortOrder} readOnly />
+              <input type="hidden" name="applications" value={lines(formProduct.applications)} readOnly />
+              <input type="hidden" name="specifications" value={Object.entries(visibleSpecs(formProduct.specifications)).map(([key, value]) => `${key}: ${value}`).join("\n")} readOnly />
+              <input type="hidden" name="packaging" value={formProduct.packaging || ""} readOnly />
+              <input type="hidden" name="brandTagline" value={formProduct.brandTagline || ""} readOnly />
             </div>
             <div className="catalogue-form-checks">
               <label>
@@ -2373,253 +2681,35 @@ export default function CatalogueManager({
                           </div>
                         </>
                       ) : (
-                        <article className="store-preview-detail">
-                          <div className="store-preview-detail-breadcrumb">
-                            <span>Home</span>
-                            <span>/</span>
-                            <span>{previewListing.brand || "Brand"}</span>
-                            <span>/</span>
-                            <strong>
-                              {previewListing.name || "Product details"}
-                            </strong>
-                          </div>
-                          <div className="store-preview-detail-media">
-                            {previewListing.photoBanner && (
-                              <span className="store-preview-photo-banner store-preview-detail-banner">
-                                {previewListing.photoBanner}
-                              </span>
-                            )}
-                            <StorefrontPreviewImage
-                              src={
-                                previewListing.image ||
-                                previewListing.galleryImages[0] ||
-                                ""
-                              }
-                              alt={previewListing.name || "Product preview"}
-                            />
-                            {previewListing.galleryImages.length > 0 && (
-                              <div className="store-preview-thumbnails">
-                                {previewListing.galleryImages
-                                  .slice(0, 4)
-                                  .map((image, index) => (
-                                    <img
-                                      key={`${image}-${index}`}
-                                      src={image}
-                                      alt={`Product view ${index + 1}`}
-                                    />
-                                  ))}
-                              </div>
-                            )}
-                          </div>
-                          <div className="store-preview-detail-copy">
-                            <div className="store-preview-detail-kicker">
-                              <span>
-                                {previewListing.categoryLabel || "Category"}
-                              </span>
-                              {previewListing.code && (
-                                <span>SKU · {previewListing.code}</span>
-                              )}
-                            </div>
-                            <div className="store-preview-brand-line">
-                              <div className="store-preview-brand-title">
-                                <span
-                                  className="store-preview-brand-mark"
-                                  aria-hidden="true"
-                                >
-                                  {(previewListing.brand || "B")
-                                    .slice(0, 1)
-                                    .toUpperCase()}
-                                </span>
-                                <strong>
-                                  {previewListing.brand || "Brand"}
-                                </strong>
-                              </div>
-                              {previewListing.brandTagline && (
-                                <span>{previewListing.brandTagline}</span>
-                              )}
-                            </div>
-                            <h2>{previewListing.name || "Product name"}</h2>
-                            {previewListing.grade && (
-                              <span className="store-preview-grade">
-                                {previewListing.grade}
-                              </span>
-                            )}
-                            {customerPriceNote(previewListing.priceNote) && (
-                              <p className="store-preview-note">
-                                {customerPriceNote(previewListing.priceNote)}
-                              </p>
-                            )}
-                            {previewDescription ? (
-                              <p>{previewDescription}</p>
-                            ) : (
-                              !previewListing.description && (
-                                <p>
-                                  A product description will appear here when
-                                  you add one.
-                                </p>
-                              )
-                            )}
-                            {Object.keys(
-                              visibleSpecs(previewListing.specifications),
-                            ).length > 0 && (
-                              <div className="store-preview-specs">
-                                <h3>Specifications</h3>
-                                {Object.entries(
-                                  visibleSpecs(previewListing.specifications),
-                                ).map(([key, value]) => (
-                                  <div key={key}>
-                                    <span>{key}</span>
-                                    <strong>{value}</strong>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {previewListing.features.length > 0 && (
-                              <div className="store-preview-list">
-                                <h3>Key features</h3>
-                                <ul>
-                                  {previewListing.features.map(
-                                    (feature, index) => (
-                                      <li key={`${feature}-${index}`}>
-                                        {feature}
-                                      </li>
-                                    ),
-                                  )}
-                                </ul>
-                              </div>
-                            )}
-                            {previewListing.applications.length > 0 && (
-                              <div className="store-preview-list">
-                                <h3>Applications</h3>
-                                <ul>
-                                  {previewListing.applications.map(
-                                    (application, index) => (
-                                      <li key={`${application}-${index}`}>
-                                        {application}
-                                      </li>
-                                    ),
-                                  )}
-                                </ul>
-                              </div>
-                            )}
-                          </div>
-                          <aside className="store-preview-detail-order">
-                            <div className="store-preview-buy-heading">
-                              <span>Configure your selection</span>
-                              <strong>Choose a product option</strong>
-                              <small>
-                                Options and pricing reflect the selected product
-                                combination.
-                              </small>
-                            </div>
-                            <span className="store-preview-price-caption">
-                              {previewDetailPrice
-                                ? `Price per ${detailPreviewVariant?.unit || previewListing.unit || "unit"}`
-                                : "Pricing"}
-                            </span>
-                            <div className="store-preview-detail-price">
-                              {previewDetailPrice ? (
-                                <strong>
-                                  ₹
-                                  {Number(previewDetailPrice).toLocaleString(
-                                    "en-IN",
-                                  )}
-                                </strong>
-                              ) : (
-                                <strong>Request a quotation</strong>
-                              )}
-                            </div>
-                            {(detailPreviewVariant?.offerLabel ||
-                              previewListing.offerLabel) && (
-                              <span className="store-preview-detail-offer">
-                                {detailPreviewVariant?.offerLabel ||
-                                  previewListing.offerLabel}
-                              </span>
-                            )}
-                            {previewDetailPriceNote && (
-                              <small className="store-preview-order-note">
-                                {previewDetailPriceNote}
-                              </small>
-                            )}
-                            <span
-                              className={`store-preview-detail-stock ${previewDetailAvailability === "IN_STOCK" ? "available" : ""}`}
-                            >
-                              {previewDetailAvailability === "IN_STOCK"
-                                ? "In stock"
-                                : previewDetailAvailability === "OUT_OF_STOCK"
-                                  ? "Out of stock"
-                                  : "Check availability"}
-                            </span>
-                            {(detailPreviewVariant?.minOrderQuantity ||
-                              previewListing.minOrderQty) && (
-                              <small className="store-preview-order-moq">
-                                Minimum order:{" "}
-                                {detailPreviewVariant?.minOrderQuantity ||
-                                  previewListing.minOrderQty}{" "}
-                                {detailPreviewVariant?.unit ||
-                                  previewListing.unit}
-                              </small>
-                            )}
-                            {previewListing.variants.length > 0 && (
-                              <div className="store-preview-variants">
-                                <h3>Choose an option</h3>
-                                <div>
-                                  {previewListing.variants
-                                    .slice(0, 6)
-                                    .map((variant, index) => (
-                                      <span
-                                        key={`${variant.id || variant.label}-${index}`}
-                                      >
-                                        <strong>
-                                          {variant.label ||
-                                            Object.values(
-                                              variant.attributes || {},
-                                            ).join(" · ") ||
-                                            `Option ${index + 1}`}
-                                        </strong>
-                                        <small>
-                                          {variant.price != null &&
-                                          variant.price !== ""
-                                            ? `₹${Number(variant.price).toLocaleString("en-IN")}`
-                                            : "Request a quote"}
-                                        </small>
-                                      </span>
-                                    ))}
-                                </div>
-                                {previewListing.variants.length > 6 && (
-                                  <small>
-                                    +{previewListing.variants.length - 6} more
-                                    options
-                                  </small>
-                                )}
-                              </div>
-                            )}
-                            <label className="store-preview-quantity">
-                              Quantity ({previewListing.unit || "unit"})
-                              <input
-                                type="text"
-                                value={
-                                  previewListing.minOrderQty?.match(
-                                    /[\d.]+/,
-                                  )?.[0] || "1"
-                                }
-                                readOnly
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              className="store-preview-detail-cta"
-                              disabled
-                            >
-                              <PackagePlus size={15} /> Add to Material List{" "}
-                              <ArrowRight size={15} />
-                            </button>
-                            <small className="store-preview-private-note">
-                              Preview controls are disabled. Customers can use
-                              them on the published product page.
-                            </small>
-                          </aside>
-                        </article>
+                        <ProductDetailSurface
+                          title={previewListing.name || "Product name"}
+                          brand={previewListing.brand || "Brand"}
+                          brandTagline={previewListing.brandTagline || undefined}
+                          category={previewListing.categoryLabel || "Category"}
+                          code={detailPreviewVariant?.code || previewListing.code}
+                          grade={previewListing.grade}
+                          photoBanner={previewListing.photoBanner}
+                          images={Array.from(new Set([previewListing.image, ...previewListing.galleryImages].filter((image): image is string => Boolean(image))))}
+                          price={previewDetailPrice}
+                          compareAtPrice={detailPreviewVariant?.compareAtPrice ?? previewListing.compareAtPrice}
+                          unit={detailPreviewVariant?.unit || previewListing.unit || "unit"}
+                          priceNote={previewDetailPriceNote}
+                          offerLabel={detailPreviewVariant?.offerLabel || previewListing.offerLabel}
+                          availability={previewDetailAvailability}
+                          stockQuantity={detailPreviewVariant?.stockQuantity}
+                          minimumOrder={detailPreviewVariant?.minOrderQuantity || previewListing.minOrderQty?.match(/[\d.]+/)?.[0]}
+                          choiceGroups={previewDetailChoiceGroups}
+                          selectionLabel={detailPreviewVariant?.label || undefined}
+                          quantity={previewListing.minOrderQty?.match(/[\d.]+/)?.[0] || "1"}
+                          description={previewDescription || previewListing.description}
+                          highlights={Object.entries(visibleSpecs(previewListing.specifications))}
+                          features={previewListing.features}
+                          applications={previewListing.applications}
+                          actionDisabled
+                          preview
+                          onSubmit={(event) => event.preventDefault()}
+                          afterAction={<small className="shared-product-detail-feedback">Preview controls are disabled. Customers can use them on the published product page.</small>}
+                        />
                       )}
                     </div>
                   </div>
@@ -2643,6 +2733,77 @@ export default function CatalogueManager({
               </div>
             )}
           </form>
+          {exitPromptOpen && (
+            <div className="catalogue-exit-confirm-overlay">
+              <section
+                className="catalogue-exit-confirm"
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="catalogue-exit-confirm-title"
+                aria-describedby="catalogue-exit-confirm-description"
+              >
+                <h2 id="catalogue-exit-confirm-title">Save your changes?</h2>
+                <p id="catalogue-exit-confirm-description">
+                  Your changes are not saved yet. Save them as a private draft
+                  for 7 days, discard them, or return to editing.
+                </p>
+                <div className="catalogue-exit-confirm-actions">
+                  <button
+                    type="button"
+                    className="btn-sm btn-secondary"
+                    disabled={busy}
+                    onClick={() => setExitPromptOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-sm btn-secondary catalogue-exit-discard"
+                    disabled={busy}
+                    onClick={exitWithoutSaving}
+                  >
+                    Exit without saving
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-sm btn-primary"
+                    disabled={busy}
+                    onClick={saveDraftAndClose}
+                  >
+                    <Save size={15} /> Save Draft
+                  </button>
+                </div>
+              </section>
+            </div>
+          )}
+        </div>
+      )}
+      {uploadSuccess && (
+        <div
+          className="catalogue-publish-success-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setUploadSuccess(null);
+          }}
+        >
+          <section
+            className="catalogue-publish-success-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="catalogue-upload-success-title"
+            aria-describedby="catalogue-upload-success-description"
+          >
+            <div className="catalogue-publish-success-content">
+              <span className="catalogue-publish-success-icon" aria-hidden="true"><Check size={22} strokeWidth={3} /></span>
+              <div className="catalogue-publish-success-copy">
+                <h2 id="catalogue-upload-success-title">{uploadSuccess}</h2>
+                <p id="catalogue-upload-success-description">The image was uploaded and added to this product draft. Save the product to keep the change.</p>
+              </div>
+              <button type="button" className="catalogue-publish-success-close" aria-label="Close upload confirmation" onClick={() => setUploadSuccess(null)}>×</button>
+            </div>
+            <footer className="catalogue-publish-success-actions">
+              <button type="button" autoFocus onClick={() => setUploadSuccess(null)}>Continue editing</button>
+            </footer>
+          </section>
         </div>
       )}
       <section
@@ -2767,7 +2928,7 @@ export default function CatalogueManager({
               : "A catalogue manager can add client-approved products here. No sample products are being shown."}
           </p>
           {canManage && (
-            <button className="btn-sm btn-primary" onClick={startNew}>
+            <button className="btn-sm btn-primary" onClick={() => setAddProductChooserOpen(true)}>
               <PackagePlus size={15} /> Add first product
             </button>
           )}
@@ -2849,7 +3010,7 @@ export default function CatalogueManager({
                 )}
               </div>
               {product.variants?.length > 0 && (
-                <details>
+                <details className="catalogue-listing-variants">
                   <summary>View pack prices and availability</summary>
                   <div className="table-scroll">
                     <table>

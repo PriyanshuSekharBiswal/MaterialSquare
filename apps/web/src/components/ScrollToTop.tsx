@@ -9,13 +9,12 @@ export default function ScrollToTop() {
   useLayoutEffect(() => {
     const previous = previousLocation.current;
     previousLocation.current = { pathname, search };
+    const pathnameChanged = previous.pathname !== pathname;
+    // Query-only updates often represent an in-page choice (such as a product
+    // variant). Keep the customer's current viewport for those changes.
+    if (!pathnameChanged) return;
     if (isInitialReloadForCurrentLocation()) return;
     cancelInitialScrollRestore();
-    const focusMarkerWasConsumed = pathname === '/material-list'
-      && previous.pathname === pathname
-      && new URLSearchParams(previous.search).has('item')
-      && !new URLSearchParams(search).has('item');
-    if (focusMarkerWasConsumed) return;
     if (pathname === '/material-list' && new URLSearchParams(search).has('item')) return;
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [pathname, search]);

@@ -1,7 +1,13 @@
 import { Link } from "react-router-dom";
-import { parsePolicy } from "@material-square/types";
+import { parsePolicy, publicFaqEntries, type PolicyKind } from "@material-square/types";
 import { useSiteContent } from "../site-content";
-function PolicyPage({ kind }: { kind: "privacy" | "terms" }) {
+const policyTitles: Record<PolicyKind, string> = {
+  privacy: "Privacy notice",
+  terms: "Website terms",
+  shipping: "Shipping policy",
+  returns: "Return policy",
+};
+function PolicyPage({ kind }: { kind: PolicyKind }) {
   const content = useSiteContent();
   const policy = parsePolicy(content[`policy.${kind}`], kind);
   const plainText = (value: string) =>
@@ -10,9 +16,9 @@ function PolicyPage({ kind }: { kind: "privacy" | "terms" }) {
     return (
       <article className="legal-page container">
         <span className="badge-pill">
-          {kind === "privacy" ? "Privacy" : "Website terms"}
+          {policyTitles[kind]}
         </span>
-        <h1>{kind === "privacy" ? "Privacy information" : "Website terms"}</h1>
+        <h1>{policyTitles[kind]}</h1>
         <p>This information is being reviewed and is not published yet.</p>
         <Link className="btn btn-secondary" to="/contact">
           Contact Material Square
@@ -23,7 +29,7 @@ function PolicyPage({ kind }: { kind: "privacy" | "terms" }) {
   return (
     <article className="legal-page container">
       <span className="badge-pill">
-        {kind === "privacy" ? "Privacy" : "Website terms"}
+        {policyTitles[kind]}
       </span>
       <h1>{policy.title}</h1>
       <p className="legal-updated">{policy.notice}</p>
@@ -33,12 +39,9 @@ function PolicyPage({ kind }: { kind: "privacy" | "terms" }) {
           <p style={{ whiteSpace: "pre-line" }}>{plainText(section.body)}</p>
         </section>
       ))}
-      <Link
-        className="btn btn-secondary"
-        to={kind === "privacy" ? "/terms" : "/privacy"}
-      >
-        {kind === "privacy" ? "Read website terms" : "Read privacy notice"}
-      </Link>
+      {kind === "privacy" && <Link className="btn btn-secondary" to="/terms">Read website terms</Link>}
+      {kind === "terms" && <Link className="btn btn-secondary" to="/privacy">Read privacy notice</Link>}
+      {(kind === "shipping" || kind === "returns") && <Link className="btn btn-secondary" to="/contact">Contact Material Square</Link>}
     </article>
   );
 }
@@ -47,4 +50,27 @@ export function PrivacyPage() {
 }
 export function TermsPage() {
   return <PolicyPage kind="terms" />;
+}
+export function ShippingPage() {
+  return <PolicyPage kind="shipping" />;
+}
+export function ReturnPolicyPage() {
+  return <PolicyPage kind="returns" />;
+}
+export function FaqPage() {
+  const entries = publicFaqEntries(useSiteContent());
+  return (
+    <article className="legal-page container faq-page">
+      <span className="badge-pill">Help &amp; support</span>
+      <h1>Frequently asked questions</h1>
+      <p className="legal-updated">Answers to common questions about products, quotations, availability and delivery.</p>
+      {entries.length ? entries.map((entry) => (
+        <details className="faq-page-entry" key={entry.question}>
+          <summary>{entry.question}</summary>
+          <div className="shared-product-accordion-content"><p>{entry.answer}</p></div>
+        </details>
+      )) : <p>There are no published FAQs at the moment.</p>}
+      <Link className="btn btn-secondary" to="/contact">Contact Material Square</Link>
+    </article>
+  );
 }

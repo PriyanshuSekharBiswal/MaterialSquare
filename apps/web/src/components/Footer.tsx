@@ -14,19 +14,18 @@ import InstagramIcon from "./icons/InstagramIcon";
 import WhatsAppIcon from "./icons/WhatsAppIcon";
 import { useSiteContent } from "../site-content";
 import { whatsappLink } from "../messages";
-import type { CatalogueProduct } from "../types";
 import { parsePolicy } from "@material-square/types";
+import { useCatalogueCategories } from "../catalogue/useCatalogueCategories";
 
-export default function Footer({ products = [] }: { products?: CatalogueProduct[] }) {
+export default function Footer() {
   const siteContent = useSiteContent();
+  const managedCategories = useCatalogueCategories();
   const socialLinks = parseSocialLinks(siteContent["footer.socialLinks"]);
   const privacyPolicy = parsePolicy(siteContent["policy.privacy"], "privacy");
   const termsPolicy = parsePolicy(siteContent["policy.terms"], "terms");
   const privacyPublished = privacyPolicy.published;
   const termsPublished = termsPolicy.published;
-  const categories = Array.from(
-    new Map(products.map((product) => [product.category, product.categoryLabel])).entries(),
-  );
+  const categories = managedCategories.map(({ id, label }) => [id, label] as const);
   const contactDetails = Boolean(
     siteContent["contact.location"] ||
     siteContent["contact.phone"] ||

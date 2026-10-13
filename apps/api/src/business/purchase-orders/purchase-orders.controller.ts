@@ -85,40 +85,46 @@ export class PurchaseOrdersController {
       Array.isArray(quote.items) && quote.items.length
         ? z.array(supplierQuoteItem).parse(quote.items)
         : requestedItems;
-    const allocationKey = (item: {
+    const allocated = new Map<number, number>();
+    const requestedIndexFor = (line: {
       productName: string;
       brand?: string;
+      category?: string;
+      catalogVariantId?: string;
       unit: string;
-    }) =>
-      `${item.productName.toLowerCase()}|${(item.brand || "").toLowerCase()}|${item.unit.toLowerCase()}`;
+    }) => requestedItems.findIndex((item) =>
+      normalizeAllocationPart(item.productName) === normalizeAllocationPart(line.productName) &&
+      normalizeAllocationPart(item.brand) === normalizeAllocationPart(line.brand) &&
+      normalizeAllocationPart(item.category) === normalizeAllocationPart(line.category) &&
+      normalizeAllocationPart(item.unit) === normalizeAllocationPart(line.unit) &&
+      (!item.catalogVariantId || !line.catalogVariantId || item.catalogVariantId === line.catalogVariantId));
     const created = await this.prisma.$transaction(
       async (tx) => {
         const existingOrders = await tx.purchaseOrder.findMany({
           where: { requestId: quote.requestId },
           select: { items: true },
         });
-        const allocated = new Map<string, number>();
         for (const order of existingOrders) {
           const lines = z.array(procurementItem).safeParse(order.items);
           if (!lines.success) continue;
           for (const line of lines.data) {
-            const key = allocationKey(line);
-            allocated.set(key, (allocated.get(key) || 0) + line.quantity);
+            const index = requestedIndexFor(line);
+            if (index < 0) continue;
+            allocated.set(index, (allocated.get(index) || 0) + line.quantity);
           }
         }
-        const requestedByKey = new Map(
-          requestedItems.map((item) => [allocationKey(item), item]),
-        );
         for (const item of quotedItems) {
-          const requested = requestedByKey.get(allocationKey(item));
+          const index = requestedIndexFor(item);
+          const requested = requestedItems[index];
           if (
-            !requested ||
-            (allocated.get(allocationKey(item)) || 0) + item.quantity >
+            index < 0 || !requested ||
+            (allocated.get(index) || 0) + item.quantity >
               requested.quantity + 1e-8
           )
             throw new ConflictException(
               `The ${item.productName} allocation exceeds the remaining requested quantity`,
             );
+          allocated.set(index, (allocated.get(index) || 0) + item.quantity);
         }
         const po = await tx.purchaseOrder.create({
           data: {
@@ -278,22 +284,23 @@ export class PurchaseOrdersController {
         },
         select: { items: true },
       });
-      const required = request
-        ? z.array(procurementItem).parse(request.items)
-        : [];
-      const delivered = new Map<string, number>();
+      const required = request ? z.array(procurementItem).parse(request.items) : [];
+      const delivered = new Map<number, number>();
       for (const order of allOrders) {
         const lines = z.array(procurementItem).safeParse(order.items);
         if (!lines.success) continue;
         for (const line of lines.data) {
-          const key = `${line.productName.toLowerCase()}|${(line.brand || "").toLowerCase()}|${line.unit.toLowerCase()}`;
-          delivered.set(key, (delivered.get(key) || 0) + line.quantity);
+          const index = required.findIndex((item) =>
+            normalizeAllocationPart(item.productName) === normalizeAllocationPart(line.productName) &&
+            normalizeAllocationPart(item.brand) === normalizeAllocationPart(line.brand) &&
+            normalizeAllocationPart(item.category) === normalizeAllocationPart(line.category) &&
+            normalizeAllocationPart(item.unit) === normalizeAllocationPart(line.unit) &&
+            (!item.catalogVariantId || !line.catalogVariantId || item.catalogVariantId === line.catalogVariantId));
+          if (index < 0) continue;
+          delivered.set(index, (delivered.get(index) || 0) + line.quantity);
         }
       }
-      const fullyAllocated = required.every((item) => {
-        const key = `${item.productName.toLowerCase()}|${(item.brand || "").toLowerCase()}|${item.unit.toLowerCase()}`;
-        return (delivered.get(key) || 0) >= item.quantity;
-      });
+      const fullyAllocated = required.every((item, index) => (delivered.get(index) || 0) >= item.quantity);
       await tx.procurementRequest.update({
         where: { id: po.requestId },
         data: { status: fullyAllocated ? "ORDERED" : "COMPARING" },
@@ -313,4 +320,8 @@ export class PurchaseOrdersController {
       return tx.purchaseOrder.findUnique({ where: { id } });
     });
   }
+}
+
+function normalizeAllocationPart(value?: string) {
+  return (value || "").trim().toLocaleLowerCase("en-IN");
 }

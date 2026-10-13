@@ -403,7 +403,7 @@ fieldset.bc-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 .procurement-rfq-coverage>p{display:grid;grid-template-columns:minmax(160px,1fr) auto auto;align-items:center;gap:12px;margin:0;padding:10px 12px;border:1px solid #e2e8f0;border-radius:9px;color:#53627a;font-size:13px}
 .procurement-rfq-coverage strong{color:#26354b}
 .procurement-rfq-coverage em{font-style:normal;font-weight:700}
-.coverage-covered{color:#167044}.coverage-partial{color:#a15b11}.coverage-unknown,.coverage-no-listing{color:#687991}
+.coverage-covered{color:#167044}.coverage-partial,.coverage-minimum-order{color:#a15b11}.coverage-none,.coverage-unknown,.coverage-no-listing{color:#687991}
 .procurement-rfq-coverage small{grid-column:1/-1;color:#a15b11;font-weight:650}
 .procurement-rfq-candidate{display:grid;gap:12px;padding:15px;border:1px solid #dfe6ef;border-radius:12px;background:#fff}
 .procurement-rfq-candidate>header{display:flex;justify-content:space-between;gap:14px}

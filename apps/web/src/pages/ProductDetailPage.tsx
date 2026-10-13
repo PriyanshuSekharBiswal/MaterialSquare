@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, Info, Package, ShoppingCart, Truck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Info, Truck } from "lucide-react";
 import { materialId } from "../ids";
 import { useCustomer } from "../customer";
 import { trackWebsiteEvent } from "../analytics";
 import type { CatalogueProduct, MaterialItem } from "../types";
-import ProductImage from "../components/ProductImage";
+import { parsePolicy, publicFaqEntries } from "@material-square/types";
+import ProductDetailSurface, { type ProductDetailChoiceGroup } from "../../../../packages/storefront-ui/ProductDetailSurface";
 import { getBrandMeta } from "../components/icons/BrandBadges";
 import PartnerBrandLogo from "../components/PartnerBrandLogo";
 import ProductRecommendationCarousel from "../components/ProductRecommendationCarousel";
 import { bestMatchingVariant } from "../search/variant-match";
 import { partnerBrandMatchesProduct, usePartnerBrands } from "../partner-brands";
 import { customerPriceNote, customerProductDescription, customerSpecifications } from "../catalogue/customer-display";
+import { useSiteContent } from "../site-content";
 
 export default function ProductDetailPage({ products, loading = false, catalogueUnavailable = false, onRetryCatalogue }: { products: CatalogueProduct[]; loading?: boolean; catalogueUnavailable?: boolean; onRetryCatalogue?: () => void }) {
   const { productId } = useParams();
@@ -21,6 +23,7 @@ export default function ProductDetailPage({ products, loading = false, catalogue
   const product = products.find((item) => item.id === productId);
   const { items, updateItems, ready, canEdit, error } = useCustomer();
   const partnerBrands = usePartnerBrands();
+  const siteContent = useSiteContent();
   const [specification, setSpecification] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [selectedVariantId, setSelectedVariantId] = useState("");
@@ -61,6 +64,13 @@ export default function ProductDetailPage({ products, loading = false, catalogue
       if (!group.values.some((existing) => existing.toLocaleLowerCase() === value.toLocaleLowerCase())) group.values.push(value);
       values.set(key, group);
     }
+    const attributeSignatures = variants.map((variant) => JSON.stringify(
+      Object.entries(variant.attributes || {}).map(([key, value]) => [key.trim().toLocaleLowerCase(), String(value).trim().toLocaleLowerCase()]).sort(([left], [right]) => left.localeCompare(right)),
+    ));
+    if (variants.length > 1 && (!values.size || new Set(attributeSignatures).size < variants.length)) {
+      const labels = Array.from(new Set(variants.map((variant) => variant.label.trim()).filter(Boolean)));
+      if (labels.length > 1) values.set("__variant", { label: "Option", values: labels });
+    }
     return Array.from(values.entries()).map(([key, group]) => ({ key, ...group }));
   }, [variants]);
   const technicalSpecs = useMemo(() => customerSpecifications({
@@ -97,11 +107,21 @@ export default function ProductDetailPage({ products, loading = false, catalogue
   const quantityBreaks = (selectedVariant?.quantityBreaks || []).slice().sort((a, b) => Number(a.minimumQuantity) - Number(b.minimumQuantity));
   const matchedBreak = quantityBreaks.filter((row) => Number(quantity) >= Number(row.minimumQuantity)).at(-1);
   const price = matchedBreak?.unitPrice ?? selectedVariant?.price ?? product.price;
+  const compareAtPrice = matchedBreak ? null : selectedVariant?.compareAtPrice ?? product.compareAtPrice;
+  const discountPercent = price != null && compareAtPrice != null && Number(compareAtPrice) > Number(price)
+    ? Math.round(((Number(compareAtPrice) - Number(price)) / Number(compareAtPrice)) * 100)
+    : 0;
   const unit = selectedVariant?.unit || product.unit;
   const priceDisclosure = customerPriceNote(selectedVariant?.priceNote || product.priceNote);
   const description = customerProductDescription(product.description);
+  const faqEntries = publicFaqEntries(siteContent);
+  const returnPolicy = parsePolicy(siteContent["policy.returns"], "returns");
   const availability = selectedVariant?.availabilityStatus || product.availabilityStatus || ((selectedVariant?.inStock ?? product.inStock) ? "IN_STOCK" : "CHECK_AVAILABILITY");
   const minimumOrder = Number(selectedVariant?.minOrderQuantity || product.minOrderQty?.match(/[\d.]+/)?.[0] || 0) || 0;
+  const relatedVariants = variants
+    .filter((variant) => variant.id !== selectedVariant?.id)
+    .slice()
+    .sort((a, b) => a.sortOrder - b.sortOrder);
   const relatedProducts = products.filter((item) => item.id !== product.id && item.category === product.category).slice(0, 10);
   const complementaryCategories: Record<string, string[]> = {
     cement: ["paints", "pipes", "adhesives", "steel"],
@@ -128,10 +148,53 @@ export default function ProductDetailPage({ products, loading = false, catalogue
     .slice(0, 3);
   const inList = items.some((item) => (item.catalogueId || item.id) === product.id && (item.variantId || "") === (selectedVariant?.id || "") && (item.specification || "") === selectedLabel);
 
+  const preferredUnitGroup = optionGroups.find((group) =>
+    /size|unit|pack|volume|capacity|weight/i.test(group.key),
+  );
+  const primaryChoiceKey = preferredUnitGroup?.key || optionGroups[0]?.key;
+  const orderedOptionGroups = primaryChoiceKey
+    ? [
+        ...optionGroups.filter((group) => group.key === primaryChoiceKey),
+        ...optionGroups.filter((group) => group.key !== primaryChoiceKey),
+      ]
+    : optionGroups;
+  const detailChoiceGroups: ProductDetailChoiceGroup[] = (orderedOptionGroups.length
+    ? orderedOptionGroups
+    : variants.length ? [{ key: "__variant", label: "Choose size, pack or option", values: variants.map((variant) => variant.label) }] : [])
+    .map((group) => {
+      const selectedValue = group.key === "__variant"
+        ? selectedVariant?.label || ""
+        : Object.entries(selectedVariant?.attributes || {}).find(([key]) => key.trim().toLocaleLowerCase() === group.key)?.[1] || "";
+      return {
+        label:
+          group.key === preferredUnitGroup?.key &&
+          /^(size|unit|pack|volume|capacity|weight)s?$/i.test(group.key)
+            ? "Unit"
+            : group.label,
+        presentation:
+          group.key === primaryChoiceKey || group.key === "__variant"
+            ? "cards"
+            : "select",
+        selectedValue,
+        choices: group.values.map((value) => {
+          const optionVariant = group.key === "__variant"
+            ? variants.find((variant) => variant.label.trim() === value)
+            : bestVariantForAttribute(group.key, value);
+          return {
+            label: value,
+            price: optionVariant?.price ?? product.price,
+            offerLabel: optionVariant?.offerLabel,
+            selected: selectedValue.toLocaleLowerCase() === value.toLocaleLowerCase(),
+            onSelect: () => selectAttribute(group.key, value),
+          };
+        }),
+      };
+    });
+
   function addSelection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const value = Number(quantity);
-    if (!ready || !Number.isFinite(value) || value <= 0 || value > 1_000_000) return;
+    if (availability === "OUT_OF_STOCK" || !ready || !Number.isFinite(value) || value <= 0 || value > 1_000_000) return;
     const accepted = updateItems((old) => {
       const existing = old.find((item) => (item.catalogueId || item.id) === currentProduct.id && (item.variantId || "") === (selectedVariant?.id || "") && (item.specification || "") === selectedLabel);
       const item: MaterialItem = {
@@ -162,6 +225,7 @@ export default function ProductDetailPage({ products, loading = false, catalogue
   }
 
   function bestVariantForAttribute(groupKey: string, value: string) {
+    if (groupKey === "__variant") return variants.find((variant) => variant.label.trim() === value) || variants[0];
     const selectedAttributes = selectedVariant?.attributes || {};
     const candidates = variants.filter((variant) => Object.entries(variant.attributes || {}).some(([key, candidate]) => key.trim().toLocaleLowerCase() === groupKey && String(candidate).toLocaleLowerCase() === value.toLocaleLowerCase()));
     return candidates.sort((a, b) => {
@@ -179,62 +243,48 @@ export default function ProductDetailPage({ products, loading = false, catalogue
   return (
     <section className="product-detail-page container">
       <nav className="product-breadcrumbs" aria-label="Breadcrumb">
-        <Link to="/">Home</Link><span>/</span><Link to={product.brand ? `/marketplace?brand=${encodeURIComponent(product.brand)}` : "/marketplace"}>{product.brand || "Marketplace"}</Link><span>/</span><span aria-current="page">{product.name}</span>
+        <Link to="/">Home</Link><span>/</span><Link to={displayBrand.name ? `/marketplace?brand=${encodeURIComponent(displayBrand.name)}` : "/marketplace"}>{displayBrand.name || "Marketplace"}</Link><span>/</span><span aria-current="page">{product.name}</span>
       </nav>
-      <Link className="product-back-link" to={product.brand ? `/marketplace?brand=${encodeURIComponent(product.brand)}` : "/marketplace"}><ArrowLeft size={16} /> Back to {product.brand ? `${product.brand} products` : "all materials"}</Link>
+      <Link className="product-back-link" to={displayBrand.name ? `/marketplace?brand=${encodeURIComponent(displayBrand.name)}` : "/marketplace"}><ArrowLeft size={16} /> Back to {displayBrand.name ? `${displayBrand.name} products` : "all materials"}</Link>
 
-      <article className="product-detail-card">
-        <div className="product-detail-gallery">
-          <div className="product-detail-image">
-            {product.photoBanner && <span className="product-photo-banner">{product.photoBanner}</span>}
-            <ProductImage src={activeImage} alt={product.name} loading="eager" />
-          </div>
-          {gallery.length > 1 && <div className="catalogue-gallery-thumbnails" aria-label="Product images">
-            {gallery.map((image, index) => <button type="button" key={`${image}-${index}`} className={image === activeImage ? "is-active" : ""} onClick={() => setSelectedImage(image)} aria-label={`View product image ${index + 1}`}><ProductImage src={image} alt="" /></button>)}
-          </div>}
-        </div>
-
-        <div className="product-detail-information">
-          <div className="product-detail-kicker"><span>{product.categoryLabel}</span>{product.code && <span>SKU · {product.code}</span>}</div>
-          <div className="product-detail-brand-line"><PartnerBrandLogo brand={displayBrand} className="mini" style={{ width: 32, height: 32, maxWidth: 32, maxHeight: 32, objectFit: "contain" }} /><div><strong>{product.brand}</strong>{product.brandTagline && <small>{product.brandTagline}</small>}</div></div>
-          <h1>{product.name}</h1>
-          {description && <p className="product-detail-description">{description}</p>}
-          {quantityBreaks.length > 0 && <section className="product-detail-spec-block"><h2>Quantity prices</h2>{quantityBreaks.map((row) => <div className="product-detail-spec-row" key={`${row.minimumQuantity}-${row.unitPrice}`}><span>{Number(row.minimumQuantity).toLocaleString("en-IN")}+ {unit}</span><strong>₹{Number(row.unitPrice).toLocaleString("en-IN")} / {unit}</strong></div>)}</section>}
-          {technicalSpecs.length > 0 && <section className="product-detail-spec-block"><h2>Specifications</h2>{technicalSpecs.map(([key, value]) => <div className="product-detail-spec-row" key={key}><span>{key}</span><strong>{String(value)}</strong></div>)}</section>}
-          {product.features.length > 0 && <section className="product-detail-spec-block"><h2>Product features</h2><ul className="product-detail-list">{product.features.map((feature) => <li key={feature}><Check size={15} />{feature}</li>)}</ul></section>}
-          {product.applications.length > 0 && <section className="product-detail-spec-block"><h2>Applications</h2><ul className="product-detail-list">{product.applications.map((application) => <li key={application}><Check size={15} />{application}</li>)}</ul></section>}
-
-        </div>
-
-        <form className="product-detail-buy-box" onSubmit={addSelection}>
-            <div className="product-detail-buy-heading"><span>Configure your selection</span><strong>{selectedVariant?.label || selectedLabel || "Choose a product option"}</strong></div>
-            <div className="product-detail-offer-row">
-              <div><span className="rate-k">{price == null ? "Pricing" : `Price per ${unit}`}</span><strong className="product-detail-price">{price == null ? "Request a quotation" : `₹${Number(price).toLocaleString("en-IN")}`}</strong>
-                {(selectedVariant?.offerLabel || product.offerLabel) && <span className="catalogue-offer-badge">{selectedVariant?.offerLabel || product.offerLabel}</span>}
-                {priceDisclosure && <small className="catalogue-price-caveat">{priceDisclosure}</small>}
-              </div>
-              <span className={`product-detail-stock status-${availability.toLowerCase().replaceAll("_", "-")}`}>{availability === "IN_STOCK" ? (selectedVariant?.stockQuantity != null ? `In stock · ${selectedVariant.stockQuantity} available` : "In stock") : availability === "OUT_OF_STOCK" ? "Out of stock" : "Check availability"}</span>
-            </div>
-            {minimumOrder > 0 && <p className="product-detail-moq"><Package size={15} />Minimum order: {minimumOrder} {unit}</p>}
-            {optionGroups.length > 0 && <div className="product-option-groups">{optionGroups.map((group) => {
-              const selectedValue = Object.entries(selectedVariant?.attributes || {}).find(([key]) => key.trim().toLocaleLowerCase() === group.key)?.[1] || "";
-              return <fieldset className="product-option-group" key={group.key}><legend>{group.label}{selectedValue ? <strong>: {selectedValue}</strong> : null}</legend><div className="product-option-values">{group.values.map((value) => {
-                const optionVariant = bestVariantForAttribute(group.key, value);
-                const optionAvailability = optionVariant?.availabilityStatus || (optionVariant?.inStock ? "IN_STOCK" : "CHECK_AVAILABILITY");
-                const unavailable = optionAvailability === "OUT_OF_STOCK";
-                const optionPrice = optionVariant?.price ?? product.price;
-                return <button type="button" key={value} aria-pressed={selectedValue.toLocaleLowerCase() === value.toLocaleLowerCase()} className={`product-option-chip${selectedValue.toLocaleLowerCase() === value.toLocaleLowerCase() ? " is-selected" : ""}`} onClick={() => selectAttribute(group.key, value)}>{optionVariant?.image && <ProductImage src={optionVariant.image} alt="" />}<span>{value}<small>{optionPrice != null ? `₹${Number(optionPrice).toLocaleString("en-IN")} / ${optionVariant?.unit || product.unit}` : unavailable ? "Out of stock" : "Request a quotation"}</small></span>{unavailable && optionPrice != null ? <small>Out of stock</small> : null}</button>;
-              })}</div></fieldset>;
-            })}</div>}
-            {variants.length > 0 && optionGroups.length === 0 && <label>Choose size, pack or option<select required value={selectedVariant?.id || ""} onChange={(event) => { const next = variants.find((variant) => variant.id === event.target.value); if (next) selectVariant(next); }}>{variants.map((variant) => { const state = variant.availabilityStatus || (variant.inStock ? "IN_STOCK" : "CHECK_AVAILABILITY"); return <option key={variant.id} value={variant.id}>{variant.label}{variant.price != null ? ` · ₹${Number(variant.price).toLocaleString("en-IN")}` : ""}{state === "OUT_OF_STOCK" ? " · Out of stock" : state === "CHECK_AVAILABILITY" ? " · Check availability" : ""}</option>; })}</select></label>}
-            {!variants.length && <label>Required size / specification{product.specs?.sizes ? " *" : " (optional)"}<input required={Boolean(product.specs?.sizes)} maxLength={500} value={specification} placeholder="Enter your required size or variant" onChange={(event) => { setSpecification(event.target.value); setAdded(false); }} /></label>}
-            <div className="product-detail-quantity-row"><label><span className="product-detail-quantity-label">Quantity ({unit})</span><input type="number" min={minimumOrder > 0 ? minimumOrder : 0.001} max="1000000" step="any" required value={quantity} onChange={(event) => { setQuantity(event.target.value); setAdded(false); }} /></label>
-              <button disabled={!canEdit || !ready} className="btn btn-orange"><ShoppingCart size={17} aria-hidden="true" />{inList ? "Update cart" : "Add to cart"}<ArrowRight size={16} /></button>
-            </div>
-            {error && <p role="alert" className="customer-help">{error}</p>}
-            {added && !error && <p role="status" className="product-added-confirmation">Added to your cart. <Link to="/material-list">Review cart <ArrowRight size={14} /></Link></p>}
-          </form>
-      </article>
+      <ProductDetailSurface
+        title={product.name}
+        brand={displayBrand.name}
+        brandTagline={partnerBrand?.tagline || product.brandTagline}
+        category={product.categoryLabel}
+        code={selectedVariant?.code || product.code}
+        grade={product.grade}
+        brandMark={<PartnerBrandLogo brand={displayBrand} className="mini shared-product-brand-logo" />}
+        images={gallery}
+        selectedImage={activeImage}
+        onImageSelect={setSelectedImage}
+        price={price}
+        compareAtPrice={compareAtPrice}
+        unit={unit}
+        offerLabel={selectedVariant?.offerLabel || product.offerLabel || (discountPercent > 0 ? `${discountPercent}% OFF` : null)}
+        priceNote={priceDisclosure}
+        availability={availability}
+        stockQuantity={selectedVariant?.stockQuantity}
+        minimumOrder={minimumOrder}
+        choiceGroups={detailChoiceGroups}
+        selectionLabel={selectedVariant?.label || selectedLabel}
+        quantity={quantity}
+        onQuantityChange={(value) => { setQuantity(value); setAdded(false); }}
+        specification={specification}
+        specificationRequired={Boolean(product.specs?.sizes)}
+        onSpecificationChange={(value) => { setSpecification(value); setAdded(false); }}
+        description={description}
+        faqEntries={faqEntries}
+        returnPolicy={returnPolicy.published ? returnPolicy : null}
+        highlights={technicalSpecs.map(([key, value]) => [key, String(value)])}
+        features={product.features}
+        applications={product.applications}
+        quantityBreaks={quantityBreaks}
+        actionLabel={availability === "OUT_OF_STOCK" ? "Out of stock" : inList ? "Update cart" : "Add to cart"}
+        actionDisabled={!canEdit || !ready || availability === "OUT_OF_STOCK"}
+        onSubmit={addSelection}
+        afterAction={error ? <p role="alert" className="shared-product-detail-feedback">{error}</p> : added ? <p role="status" className="shared-product-detail-feedback">Added to your cart. <Link to="/material-list">Review cart <ArrowRight size={14} /></Link></p> : null}
+      />
 
       <section className="product-detail-support" aria-label="Product support">
         <div className="product-detail-assurance">
@@ -243,13 +293,15 @@ export default function ProductDetailPage({ products, loading = false, catalogue
         </div>
       </section>
 
-      {relatedProducts.length > 0 && <section className="product-page-related" aria-label="Similar products">
+      {(relatedProducts.length > 0 || relatedVariants.length > 0) && <section className="product-page-related" aria-label="Similar products">
         <ProductRecommendationCarousel
           eyebrow="Continue browsing"
           title={`Similar ${product.categoryLabel.toLowerCase()} products`}
           browseHref={`/marketplace?category=${encodeURIComponent(product.category)}`}
           browseLabel="View all"
           products={relatedProducts}
+          variantProduct={relatedVariants.length ? product : undefined}
+          variants={relatedVariants}
           partnerBrands={partnerBrands}
           ariaLabel="Similar products carousel"
         />

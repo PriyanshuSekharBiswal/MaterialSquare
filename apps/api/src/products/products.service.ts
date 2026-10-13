@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { buildCatalogueCategoryDirectory, normalizeCatalogueCategory, partnerBrandDefaultLogoUrl, resolveCatalogueCategoryId, STOREFRONT_CATEGORIES, type ManagedCatalogueCategory } from "@material-square/types";
 import { PrismaService } from "../prisma/prisma.service";
 
 function auditText(value: unknown): string {
@@ -36,7 +37,9 @@ function normalizePartnerBrand(brand: Record<string, unknown>): PartnerBrandReco
     category: categories[0] || "",
     categories,
     tagline: String(brand.tagline || ""),
-    logoUrl: typeof brand.logoUrl === "string" ? brand.logoUrl : null,
+    logoUrl: typeof brand.logoUrl === "string" && brand.logoUrl.trim()
+      ? brand.logoUrl
+      : partnerBrandDefaultLogoUrl(String(brand.id || "")),
     isActive: brand.isActive !== false,
     sortOrder: Number(brand.sortOrder || 0),
   } as PartnerBrandRecord;
@@ -237,7 +240,7 @@ export class ProductsService {
     ],
     ["jaquar", "Jaquar Bath + Light", "Sanitary", "Bath + Light"],
     ["cera", "CERA Sanitaryware", "Sanitary", "Sanitaryware | Faucets | Tiles"],
-    ["tata-tiscon", "Tata Tiscon", "Steel", "Desh Ka Saria"],
+    ["tata-tiscon", "Tata Tiscon", "Steel & Reinforcement", "Desh Ka Saria"],
     [
       "myk-laticrete",
       "MYK Laticrete",
@@ -250,6 +253,7 @@ export class ProductsService {
     category,
     categories: [category],
     tagline,
+    logoUrl: partnerBrandDefaultLogoUrl(id),
     isActive: true,
     sortOrder,
   }));
@@ -284,6 +288,87 @@ export class ProductsService {
     return Array.isArray(brands)
       ? brands.map((brand) => normalizePartnerBrand(brand as Record<string, unknown>))
       : this.initialPartnerBrands;
+  }
+
+  private async readCatalogueCategorySettings(): Promise<ManagedCatalogueCategory[]> {
+    const saved = await this.prisma.websiteContent.findUnique({ where: { id: "catalogue-categories" } });
+    const content = saved?.content && typeof saved.content === "object" && !Array.isArray(saved.content)
+      ? saved.content as Record<string, unknown>
+      : {};
+    const rows = content["catalogue.categories"];
+    if (!Array.isArray(rows)) return [];
+    return rows.flatMap((row): ManagedCatalogueCategory[] => {
+      if (!row || typeof row !== "object" || Array.isArray(row)) return [];
+      const value = row as Record<string, unknown>;
+      if (typeof value.id !== "string" || typeof value.label !== "string") return [];
+      const builtin = STOREFRONT_CATEGORIES.find((category) => category.id === value.id);
+      return [{
+        id: value.id,
+        label: value.label.trim() || builtin?.label || value.id,
+        active: value.active !== false,
+        aliases: Array.isArray(value.aliases) ? value.aliases.filter((alias): alias is string => typeof alias === "string").slice(0, 30) : [],
+      }];
+    });
+  }
+
+  private async buildManagedCatalogueCategories(brands: PartnerBrandRecord[]) {
+    const settings = await this.readCatalogueCategorySettings();
+    const labels = brands.flatMap((brand) => brand.categories);
+    return buildCatalogueCategoryDirectory(settings, labels);
+  }
+
+  async getCatalogueCategories() {
+    const [brands, categories] = await Promise.all([this.getPartnerBrands(), this.readCatalogueCategorySettings()]);
+    return buildCatalogueCategoryDirectory(categories, brands.flatMap((brand) => brand.categories));
+  }
+
+  async getPublicCatalogueCategories() {
+    const [brands, categories] = await Promise.all([this.getPublicPartnerBrands(), this.readCatalogueCategorySettings()]);
+    const activeBrandLabels = brands.filter((brand) => brand.isActive).flatMap((brand) => brand.categories);
+    const directory = buildCatalogueCategoryDirectory(categories, activeBrandLabels);
+    const builtinIds = new Set(STOREFRONT_CATEGORIES.map(({ id }) => id));
+    const brandIds = new Set(activeBrandLabels.map((label) => resolveCatalogueCategoryId(label, directory)));
+    return directory.filter((category) => category.active && (builtinIds.has(category.id) || brandIds.has(category.id)));
+  }
+
+  async saveCatalogueCategories(categories: ManagedCatalogueCategory[], staffId: string) {
+    const [previous, brands] = await Promise.all([
+      this.prisma.websiteContent.findUnique({ where: { id: "catalogue-categories" } }),
+      this.getPartnerBrands(),
+    ]);
+    const existing = await this.buildManagedCatalogueCategories(brands);
+    const existingById = new Map(existing.map((category) => [category.id, category]));
+    if (categories.some((category) => !existingById.has(category.id))) {
+      throw new BadRequestException("Create custom categories while adding or editing a partner brand.");
+    }
+    if (existing.some((category) => !categories.some((candidate) => candidate.id === category.id))) {
+      throw new BadRequestException("Keep every category in the directory and mark it inactive if you no longer use it.");
+    }
+    const normalized = categories.map((category) => {
+      const before = existingById.get(category.id);
+      const oldLabels = before && before.label !== category.label ? [before.label] : [];
+      return { ...category, aliases: [...new Set([...(before?.aliases || []), ...category.aliases, ...oldLabels])] };
+    });
+    const content = previous?.content && typeof previous.content === "object" && !Array.isArray(previous.content)
+      ? previous.content as Record<string, unknown>
+      : {};
+    return this.prisma.$transaction(async (db) => {
+      await db.websiteContent.upsert({
+        where: { id: "catalogue-categories" },
+        create: { id: "catalogue-categories", content: { ...content, "catalogue.categories": normalized } },
+        update: { content: { ...content, "catalogue.categories": normalized } },
+      });
+      await db.auditLog.create({
+        data: {
+          staffId,
+          action: "CATALOGUE_CATEGORIES_UPDATED",
+          entityType: "WEBSITE_CATEGORIES",
+          entityId: "catalogue-categories",
+          metadata: { count: normalized.length, active: normalized.filter((category) => category.active).length },
+        },
+      });
+      return normalized;
+    });
   }
 
   async savePartnerBrands(
@@ -436,7 +521,14 @@ export class ProductsService {
 
   async findCatalogue() {
     const listings = await this.prisma.catalogListing.findMany({
-      where: { deletedAt: null },
+      where: {
+        deletedAt: null,
+        OR: [
+          { isPublished: true },
+          { draftExpiresAt: null },
+          { draftExpiresAt: { gt: new Date() } },
+        ],
+      },
       include: { variants: { orderBy: { sortOrder: "asc" } } },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
@@ -742,6 +834,9 @@ export class ProductsService {
       ...listing,
       isInStock: availabilityStatus === "IN_STOCK",
       availabilityStatus,
+      draftExpiresAt: data.isPublished
+        ? null
+        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       code: data.code || null,
       brandTagline: data.brandTagline || null,
       packaging: data.packaging || null,

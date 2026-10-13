@@ -294,6 +294,7 @@ model CatalogListing {
   isInStock          Boolean                   @default(false)
   availabilityStatus CatalogAvailabilityStatus @default(CHECK_AVAILABILITY)
   isPublished        Boolean                   @default(false)
+  draftExpiresAt     DateTime?
   deletedAt          DateTime?
   features           String[]                  @default([])
   applications       String[]                  @default([])
@@ -600,6 +601,7 @@ model SupplierProduct {
   availableQuantity     Decimal?               @db.Decimal(12, 3)
   availabilityCheckedAt DateTime?
   lastQuotedPrice       Decimal?               @db.Decimal(12, 2)
+  lastQuotedPriceAt     DateTime?
   isActive              Boolean                @default(true)
   deletedAt             DateTime?
   createdAt             DateTime               @default(now())

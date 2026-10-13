@@ -128,6 +128,8 @@ export class SuppliersController {
           data: products.map((product) => ({
             ...product,
             supplierId: supplier.id,
+            lastQuotedPriceAt:
+              product.lastQuotedPrice == null ? null : new Date(),
             availabilityCheckedAt:
               product.availableQuantity == null ? null : new Date(),
           })),
@@ -359,6 +361,8 @@ export class SuppliersController {
         data: {
           supplierId: id,
           ...data,
+          lastQuotedPriceAt:
+            data.lastQuotedPrice == null ? null : new Date(),
           availabilityCheckedAt:
             data.availableQuantity == null ? null : new Date(),
         },
@@ -383,10 +387,11 @@ export class SuppliersController {
     @Req() req: StaffRequest,
     @Body() body: unknown,
   ) {
-    const data = validate(
+    const { confirmAvailability, ...data } = validate(
       supplierProductInput.partial().extend({
         minimumOrderQty: z.number().positive().nullable().optional(),
         lastQuotedPrice: z.number().nonnegative().nullable().optional(),
+        confirmAvailability: z.boolean().optional(),
       }),
       body,
     );
@@ -399,7 +404,13 @@ export class SuppliersController {
         where: { id: productId, supplierId: id, deletedAt: null },
         data: {
           ...data,
-          ...(data.availableQuantity !== undefined
+          ...(data.lastQuotedPrice !== undefined
+            ? {
+                lastQuotedPriceAt:
+                  data.lastQuotedPrice === null ? null : new Date(),
+              }
+            : {}),
+          ...(data.availableQuantity !== undefined || confirmAvailability
             ? {
                 availabilityCheckedAt:
                   data.availableQuantity === null ? null : new Date(),

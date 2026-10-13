@@ -17,6 +17,7 @@ export default function ProcurementWorkspace({
   mutate,
   submit,
   download,
+  onPrepareCustomerQuote,
 }: {
   records: ProcurementRequest[];
   busy: boolean;
@@ -24,6 +25,7 @@ export default function ProcurementWorkspace({
   mutate: Mutate;
   submit: FormSubmit;
   download: (path: string, filename: string) => Promise<void>;
+  onPrepareCustomerQuote?: (rfqId: string) => void;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [manualRequestOpen, setManualRequestOpen] = useState(false);
@@ -119,7 +121,7 @@ export default function ProcurementWorkspace({
         </div>
       )}
 
-      <CustomerRfqSourcing request={request} />
+      <CustomerRfqSourcing request={request} onPrepareCustomerQuote={onPrepareCustomerQuote} />
 
       <section ref={queueRef} className="procurement-queue" aria-labelledby="procurement-queue-title">
         <div className="procurement-queue-heading">

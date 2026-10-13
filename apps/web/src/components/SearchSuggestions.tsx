@@ -13,8 +13,10 @@ import './SearchSuggestions.css';
 import ProductImage from "./ProductImage";
 import { matchesCatalogueSearch, scoreCatalogueSearch } from '../search/catalogue-search';
 import PartnerBrandLogo from "./PartnerBrandLogo";
-import { partnerBrandCategoryLabel, partnerBrandCategories, partnerBrandMatchesProduct, type PartnerBrand } from "../partner-brands";
+import { partnerBrandCategories, partnerBrandMatchesProduct, type PartnerBrand } from "../partner-brands";
 import { bestMatchingVariant } from "../search/variant-match";
+import { resolveCatalogueCategoryId } from "@material-square/types";
+import { useCatalogueCategories } from "../catalogue/useCatalogueCategories";
 
 export default function SearchSuggestions({
   products = [],
@@ -29,15 +31,18 @@ export default function SearchSuggestions({
   className = '',
 }: { products?: CatalogueProduct[]; partnerBrands?: PartnerBrand[]; query?: string; isOpen?: boolean; loading?: boolean; onSelectSuggestion?: (query: string) => void; onSelectCategory?: (category: string) => void; onSelectBrand?: (brand: string) => void; onSelectProduct?: (product: CatalogueProduct, query: string) => void; className?: string }) {
   const trimmed = query.trim().toLowerCase();
-  const categories = useMemo(() => Array.from(new Map(products.map((product) => [product.category, product.categoryLabel])).entries()).map(([id, label]) => ({ id, label })), [products]);
+  const categories = useCatalogueCategories();
   const brands = useMemo(() => {
-    const directory = partnerBrands.map((brand) => ({ name: brand.name, category: partnerBrandCategoryLabel(brand), categories: partnerBrandCategories(brand), id: brand.id, logoUrl: brand.logoUrl }));
+    const directory = partnerBrands.map((brand) => {
+      const normalizedCategories = partnerBrandCategories(brand).map((value) => categories.find((item) => item.id === resolveCatalogueCategoryId(value, categories))?.label || value);
+      return { name: brand.name, category: normalizedCategories.join(" · "), categories: normalizedCategories, id: brand.id, logoUrl: brand.logoUrl };
+    });
     const known = new Set(directory.map((brand) => brand.name.toLocaleLowerCase()));
     const listed = Array.from(new Set(products.map((product) => product.brand).filter(Boolean)))
       .filter((name) => !known.has(name.toLocaleLowerCase()))
       .map((name) => { const category = products.find((product) => product.brand === name)?.categoryLabel || ""; return { name, category, categories: category ? [category] : [], id: name, logoUrl: null }; });
     return [...directory, ...listed];
-  }, [partnerBrands, products]);
+  }, [partnerBrands, products, categories]);
 
   // Filter matching products
   const matchingProducts = useMemo(() => {
@@ -93,7 +98,7 @@ export default function SearchSuggestions({
               <TrendingUp size={14} className="trending-icon" />
               <span>Find materials</span>
             </div>
-            <p className="suggestions-search-hint">Search by product, brand, size, pack, colour or product code.</p>
+            <p className="suggestions-search-hint">Search by product name, brand, product code, option code or option details.</p>
           </div>
 
           {/* Quick Categories Bar */}
@@ -153,6 +158,8 @@ export default function SearchSuggestions({
                       <div className="suggest-title">{prod.name}</div>
                       <div className="suggest-meta">
                         <span className="suggest-brand">{prod.brand} · {prod.categoryLabel}</span>
+                        <span className="suggest-dot">•</span>
+                        <span className="suggest-code" title={matchingVariant?.code || prod.code}>{matchingVariant?.code || prod.code}</span>
                         <span className="suggest-dot">•</span>
                         <span className="suggest-price">{variantPrice != null ? `₹${Number(variantPrice).toLocaleString('en-IN')}` : prod.variants?.some(variant => variant.price != null) ? `From ₹${Math.min(...prod.variants.filter(variant => variant.price != null).map(variant => Number(variant.price))).toLocaleString('en-IN')}` : 'Request a quotation'}</span>
                       </div>

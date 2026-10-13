@@ -78,6 +78,16 @@ const partnerBrandsSchema = z
         brands.length,
     "Brand names and IDs must be unique",
   );
+const catalogueCategoriesSchema = z.array(z.object({
+  id: z.string().trim().min(1).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  label: z.string().trim().min(1).max(120),
+  active: z.boolean(),
+  aliases: z.array(z.string().trim().min(1).max(120)).max(30).default([]),
+}).strict()).max(200).refine(
+  (categories) => new Set(categories.map((category) => category.id)).size === categories.length &&
+    new Set(categories.map((category) => category.label.toLocaleLowerCase())).size === categories.length,
+  "Category names and IDs must be unique",
+);
 const variantSchema = z
   .object({
     id: z.string().uuid().optional(),
@@ -219,6 +229,23 @@ export class ProductsController {
       validate(partnerBrandsSchema, body),
       req.user.userId,
     );
+  }
+
+  @Get("categories")
+  getPublicCatalogueCategories() {
+    return this.productsService.getPublicCatalogueCategories();
+  }
+
+  @Get("catalogue/categories")
+  @UseGuards(StaffGuard)
+  getCatalogueCategories() {
+    return this.productsService.getCatalogueCategories();
+  }
+
+  @Put("catalogue/categories")
+  @UseGuards(StaffGuard)
+  saveCatalogueCategories(@Req() req: StaffRequest, @Body() body: unknown) {
+    return this.productsService.saveCatalogueCategories(validate(catalogueCategoriesSchema, body), req.user.userId);
   }
 
   @Get()

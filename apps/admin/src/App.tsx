@@ -107,6 +107,9 @@ export function App() {
   const [token, setTokenState] = useState(restoredToken),
     [staff, setStaff] = useState<AdminStaff | null>(null);
   const [tab, setTab] = useState<WorkspaceTab>(workspaceTabFromUrl);
+  const [businessContentReady, setBusinessContentReady] = useState(false);
+  const [salesContentReady, setSalesContentReady] = useState(false);
+  const [pendingCustomerRfqId, setPendingCustomerRfqId] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats | null>(null),
     [websiteAnalytics, setWebsiteAnalytics] = useState<WebsiteAnalytics | null>(
       null,
@@ -130,11 +133,11 @@ export function App() {
     [loading, setLoading] = useState(false),
     [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showRefreshSkeleton, setShowRefreshSkeleton] = useState(isInitialReloadForCurrentLocation);
-  const [query, setQuery] = useState(""),
-    [search, setSearch] = useState(""),
+  const [query, setQuery] = useState(() => new URLSearchParams(window.location.search).get("adminSearch") || ""),
+    [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("adminSearch") || ""),
     [catalogueInitialSearch, setCatalogueInitialSearch] = useState(""),
-    [status, setStatus] = useState(""),
-    [page, setPage] = useState(1),
+    [status, setStatus] = useState(() => new URLSearchParams(window.location.search).get("adminStatus") || ""),
+    [page, setPage] = useState(() => Math.max(1, Number(new URLSearchParams(window.location.search).get("adminPage")) || 1)),
     [revision, setRevision] = useState(0);
   const [selected, setSelected] = useState<Customer | null>(null),
     [draft, setDraft] = useState<Followup | null>(null);
@@ -145,10 +148,12 @@ export function App() {
   useEffect(() => {
     const restoreWorkspaceFromHistory = () => {
       setTab(workspaceTabFromUrl());
-      setPage(1);
-      setQuery("");
-      setSearch("");
-      setStatus("");
+      const params = new URLSearchParams(window.location.search);
+      const restoredSearch = params.get("adminSearch") || "";
+      setPage(Math.max(1, Number(params.get("adminPage")) || 1));
+      setQuery(restoredSearch);
+      setSearch(restoredSearch);
+      setStatus(params.get("adminStatus") || "");
       setSelected(null);
       setDraft(null);
       setNotice("");
@@ -158,6 +163,18 @@ export function App() {
     return () =>
       window.removeEventListener("popstate", restoreWorkspaceFromHistory);
   }, []);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (tab === "customers" || tab === "followups") {
+      if (page > 1) url.searchParams.set("adminPage", String(page));
+      else url.searchParams.delete("adminPage");
+      if (search) url.searchParams.set("adminSearch", search);
+      else url.searchParams.delete("adminSearch");
+      if (status) url.searchParams.set("adminStatus", status);
+      else url.searchParams.delete("adminStatus");
+    }
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [page, search, status, tab]);
   const setToken = useCallback((value: string) => {
     setTokenState(value);
     try {
@@ -420,7 +437,7 @@ export function App() {
     };
   }, [token, tab, page, search, status, revision, request]);
   useEffect(() => {
-    const ready = !token || (Boolean(staff) && !loading);
+    const ready = !token || (Boolean(staff) && !loading && (tab !== "business" || businessContentReady) && (tab !== "sales" || salesContentReady));
     document.documentElement.dataset.msScrollReady = ready ? "true" : "false";
     if (!ready) return;
     const completeReload = () => {
@@ -432,7 +449,7 @@ export function App() {
       return () => window.removeEventListener("ms-scroll-restored", completeReload);
     }
     completeReload();
-  }, [token, staff, loading]);
+  }, [token, staff, loading, tab, businessContentReady, salesContentReady]);
   const navigate = (next: typeof tab) => {
     const url = new URL(window.location.href);
     url.searchParams.set("workspace", next);
@@ -440,10 +457,15 @@ export function App() {
       url.searchParams.delete("staffId");
       url.searchParams.delete("staffView");
     }
+    url.searchParams.delete("adminPage");
+    url.searchParams.delete("adminSearch");
+    url.searchParams.delete("adminStatus");
     // CMS section hashes are meaningful only inside Website Editor. Clear a
     // stale CMS anchor when moving to another top-level workspace page.
     url.hash = "";
     window.history.pushState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    if (next === "business" && tab !== "business") setBusinessContentReady(false);
+    if (next === "sales" && tab !== "sales") setSalesContentReady(false);
     setTab(next);
     setPage(1);
     setQuery("");
@@ -651,6 +673,9 @@ export function App() {
             onBack={() => navigate("overview")}
             onSignOut={signOut}
             embedded
+            initialRfqId={pendingCustomerRfqId}
+            onInitialRfqHandled={() => setPendingCustomerRfqId(null)}
+            onContentReady={setSalesContentReady}
           />
         )}
         {tab === "business" && staff && (
@@ -661,6 +686,15 @@ export function App() {
             onBack={() => navigate("overview")}
             onSignOut={signOut}
             embedded
+            onContentReady={setBusinessContentReady}
+            onPrepareCustomerQuote={
+              staff.role === "SUPER_ADMIN" || staff.role === "ADMIN"
+                ? (rfqId) => {
+                    setPendingCustomerRfqId(rfqId);
+                    navigate("sales");
+                  }
+                : undefined
+            }
           />
         )}
         {tab === "reports" && staff && (

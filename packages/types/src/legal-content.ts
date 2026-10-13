@@ -16,7 +16,8 @@ export const PolicySchema = z.object({
   reviewNote: z.string().max(2000),
 });
 export type WebsitePolicy = z.infer<typeof PolicySchema>;
-export const DEFAULT_POLICIES: Record<"privacy" | "terms", WebsitePolicy> = {
+export type PolicyKind = "privacy" | "terms" | "shipping" | "returns";
+export const DEFAULT_POLICIES: Record<PolicyKind, WebsitePolicy> = {
   privacy: {
     title: "Privacy Notice",
     notice: "Last updated 8 October 2026",
@@ -135,10 +136,50 @@ export const DEFAULT_POLICIES: Record<"privacy" | "terms", WebsitePolicy> = {
     reviewNote:
       "Before production launch, confirm legal operator identity/principal address, appointed grievance officer name/designation and contact, exact seller/marketplace role, order acceptance flow, GST/tax disclosures, stock and delivery process, cancellation/returns/refund/warranty terms, and counsel review. Copy is published only to localhost at this stage; do not treat it as a guarantee of legal compliance.",
   },
+  shipping: {
+    title: "Shipping Policy",
+    notice: "Shipping charges are calculated at checkout. Delivery details are confirmed for each order.",
+    published: true,
+    sections: [
+      {
+        heading: "Shipping charges",
+        body: "Shipping charges are calculated at checkout and can depend on the products, quantities and delivery location. The team confirms the final delivery details with your order.",
+      },
+      {
+        heading: "Delivery timing and availability",
+        body: "Delivery availability and timing depend on the requested products and delivery location. Material Square staff will confirm the delivery plan before an order is finalised.",
+      },
+      {
+        heading: "Need help?",
+        body: "For a delivery estimate or location-specific question, contact Material Square with your quotation or order reference and delivery PIN code.",
+      },
+    ],
+    reviewNote: "Review shipping charges, service areas, delivery times and order workflow before publishing this policy.",
+  },
+  returns: {
+    title: "Return Policy",
+    notice: "Return and replacement requests are reviewed with the Material Square team for each order.",
+    published: true,
+    sections: [
+      {
+        heading: "Requesting a return or replacement",
+        body: "Contact Material Square before sending any item back. Share your quotation or order reference, the product and quantity, and the reason for your request. If an item is damaged or incorrect, include clear photos where possible.",
+      },
+      {
+        heading: "Review and next steps",
+        body: "Return or replacement eligibility can depend on the product, its condition and the applicable supplier terms. The team will review the order and confirm the available next steps and return instructions.",
+      },
+      {
+        heading: "Contact us",
+        body: "Please do not dispatch an item until the team has confirmed the return process and destination. Contact Material Square with your quotation or order reference to begin a review.",
+      },
+    ],
+    reviewNote: "Confirm product-specific eligibility, timelines, freight responsibility, refund method and statutory consumer rights before production use.",
+  },
 };
 export function parsePolicy(
   value: string,
-  kind: "privacy" | "terms",
+  kind: PolicyKind,
 ): WebsitePolicy {
   try {
     const parsed = PolicySchema.safeParse(JSON.parse(value));

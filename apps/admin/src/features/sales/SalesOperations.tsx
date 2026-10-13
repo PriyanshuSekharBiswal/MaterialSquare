@@ -131,6 +131,11 @@ const tabs = [
   "inquiries",
 ] as const;
 type Tab = (typeof tabs)[number];
+const salesSectionParam = "salesSection";
+function tabFromLocation(availableTabs: readonly Tab[]): Tab {
+  const requested = new URLSearchParams(window.location.search).get(salesSectionParam);
+  return availableTabs.includes(requested as Tab) ? requested as Tab : availableTabs[0] || "overview";
+}
 type AcceptanceChannel = "WHATSAPP" | "EMAIL" | "PHONE";
 const labels: Record<Tab, string> = {
   overview: "Overview",
@@ -167,6 +172,9 @@ export default function SalesOperations({
   customerUrl,
   onBack,
   onSignOut,
+  initialRfqId,
+  onInitialRfqHandled,
+  onContentReady,
   embedded = false,
 }: {
   accessToken: string;
@@ -174,11 +182,14 @@ export default function SalesOperations({
   customerUrl?: string;
   onBack: () => void;
   onSignOut: () => void;
+  initialRfqId?: string | null;
+  onInitialRfqHandled?: () => void;
+  onContentReady?: (ready: boolean) => void;
   embedded?: boolean;
 }) {
   const [token, setToken] = useState(accessToken);
   const [staffName, setStaffName] = useState("");
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>(() => tabFromLocation(roleTabs[role] || ["overview"]));
   const [operationsMenuOpen, setOperationsMenuOpen] = useState(false);
   const operationsMenuRef = useRef<HTMLDivElement>(null);
   const quoteEditorRef = useRef<HTMLDivElement>(null);
@@ -193,7 +204,34 @@ export default function SalesOperations({
   const [products, setProducts] = useState<Product[]>([]);
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const selectTab = (next: Tab) => {
+    if (!visibleTabs.includes(next) || next === tab) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set(salesSectionParam, next);
+    window.history.pushState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    setTab(next);
+  };
   useEffect(() => setToken(accessToken), [accessToken]);
+  useEffect(() => {
+    if (!visibleTabs.includes(tab)) setTab(visibleTabs[0] || "overview");
+  }, [role, tab, visibleTabs]);
+  useEffect(() => {
+    const syncTabFromUrl = () => setTab(tabFromLocation(visibleTabs));
+    window.addEventListener("popstate", syncTabFromUrl);
+    return () => window.removeEventListener("popstate", syncTabFromUrl);
+  }, [visibleTabs]);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get(salesSectionParam) === tab) return;
+    url.searchParams.set(salesSectionParam, tab);
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [tab]);
+  useEffect(() => {
+    onContentReady?.(false);
+  }, [tab, onContentReady]);
+  useEffect(() => {
+    if (initialRfqId && !rfqsLoaded) setTab("rfqs");
+  }, [initialRfqId, rfqsLoaded]);
   useEffect(() => {
     if (!operationsMenuOpen) return;
     const closeOnOutsidePointer = (event: PointerEvent) => {
@@ -215,6 +253,19 @@ export default function SalesOperations({
   const [selectedRfq, setSelectedRfq] = useState<Rfq | null>(null);
   const [editingDraft, setEditingDraft] = useState(false);
   const [revision, setRevision] = useState<RevisionQuote | null>(null);
+  useEffect(() => {
+    if (!initialRfqId || !rfqsLoaded) return;
+    const rfq = rfqs.find((record) => record.id === initialRfqId);
+    if (rfq) {
+      setSelectedRfq(rfq);
+      setEditingDraft(false);
+      setRevision(null);
+      setTab("quotes");
+    } else {
+      setError("The selected customer request is no longer open in the RFQ inbox.");
+    }
+    onInitialRfqHandled?.();
+  }, [initialRfqId, rfqsLoaded, rfqs, onInitialRfqHandled]);
   useEffect(() => {
     if (
       tab !== "quotes" ||
@@ -286,8 +337,9 @@ export default function SalesOperations({
       setError(e instanceof Error ? e.message : "Could not load data");
     } finally {
       setBusy(false);
+      onContentReady?.(true);
     }
-  }, [request, tab]);
+  }, [onContentReady, request, tab]);
   useEffect(() => {
     if (token) void refresh();
   }, [token, refresh]);
@@ -368,7 +420,7 @@ export default function SalesOperations({
                   key={item}
                   className={`subnav-pill ${tab === item ? "active" : ""}`}
                   onClick={() => {
-                    setTab(item);
+                    selectTab(item);
                     setSelectedRfq(null);
                     setRevision(null);
                     setOperationsMenuOpen(false);
@@ -1017,7 +1069,7 @@ export default function SalesOperations({
                 key={item}
                 className={`nav-item ${tab === item ? "active" : ""}`}
                 onClick={() => {
-                  setTab(item);
+                  selectTab(item);
                   setSelectedRfq(null);
                   setRevision(null);
                 }}

@@ -657,6 +657,17 @@
 .content-image-preview-details strong { color: #26364d; font-size: .8rem; }
 .content-image-preview-details span { overflow: hidden; color: #718096; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
 .content-image-preview-placeholder { display: grid; height: 86px; place-content: center; gap: 4px; border-radius: 8px; color: #8290a4; background: #f1f5f9; text-align: center; font-size: .7rem; }
+.homepage-category-images { margin-top: 16px; }
+.homepage-category-images > h2 { margin-top: 0; }
+.homepage-category-image-list { display: grid; gap: 14px; }
+.homepage-category-image-item { min-width: 0; padding: 16px; border: 1px solid #e0e7f0; border-radius: 14px; background: #fff; }
+.homepage-category-image-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.homepage-category-image-heading h3 { margin: 0; color: #26364d; font-size: 1rem; }
+.homepage-category-image-heading p { margin: 4px 0 0; color: #718096; font-size: .82rem; }
+.homepage-category-image-heading details { color: #c2410c; font-size: .82rem; }
+.homepage-category-image-heading summary { cursor: pointer; font-weight: 700; }
+.homepage-category-image-heading ul { max-height: 180px; overflow: auto; margin: 8px 0 0; padding-left: 20px; color: #526176; }
+.homepage-category-image-item .content-image-field { padding: 12px; }
 .login-session-note { margin: 0; color: #748198; font-size: .78rem; line-height: 1.5; }
 @media (max-width: 720px) {
   .website-content-fields,

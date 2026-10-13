@@ -150,6 +150,15 @@ const sectionRoles: Record<Section, string[]> = {
   "quote-rules": ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER"],
 };
 
+function sectionFromLocation(role: string): Section {
+  const requested = new URLSearchParams(window.location.search).get("businessSection");
+  return (
+    sections.find((entry) => entry.id === requested && sectionRoles[entry.id].includes(role))?.id ||
+    sections.find((entry) => sectionRoles[entry.id].includes(role))?.id ||
+    "suppliers"
+  );
+}
+
 import MaterialSquareLogo from "../../components/MaterialSquareLogo";
 
 export default function BusinessConsole({
@@ -158,6 +167,8 @@ export default function BusinessConsole({
   customerUrl,
   onBack,
   onSignOut,
+  onPrepareCustomerQuote,
+  onContentReady,
   embedded = false,
 }: {
   token: string;
@@ -165,14 +176,14 @@ export default function BusinessConsole({
   customerUrl?: string;
   onBack: () => void;
   onSignOut: () => void;
+  onPrepareCustomerQuote?: (rfqId: string) => void;
+  onContentReady: (ready: boolean) => void;
   embedded?: boolean;
 }) {
   const visibleSections = sections.filter((entry) =>
     sectionRoles[entry.id].includes(role),
   );
-  const [section, setSection] = useState<Section>(
-    () => visibleSections[0]?.id || "suppliers",
-  );
+  const [section, setSection] = useState<Section>(() => sectionFromLocation(role));
   const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
   const sectionMenuRef = useRef<HTMLDivElement>(null);
   const [records, setRecords] = useState<unknown[]>([]);
@@ -200,10 +211,22 @@ export default function BusinessConsole({
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [sectionMenuOpen]);
+  useEffect(() => {
+    onContentReady(false);
+  }, [section, onContentReady]);
   const active =
     visibleSections.find((entry) => entry.id === section) ||
     visibleSections[0] ||
     sections[0];
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("businessSection", section);
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  }, [section]);
   const loyaltySettings: LoyaltySettingsValues | null = settings
     ? {
         enabled: settings.enabled ?? false,
@@ -244,6 +267,7 @@ export default function BusinessConsole({
     const sequence = ++loadSequence.current;
     setBusy(true);
     setError("");
+    onContentReady(false);
     try {
       if (section === "brands") {
         if (sequence === loadSequence.current) {
@@ -266,9 +290,12 @@ export default function BusinessConsole({
           e instanceof Error ? e.message : "Could not load this section.",
         );
     } finally {
-      if (sequence === loadSequence.current) setBusy(false);
+      if (sequence === loadSequence.current) {
+        setBusy(false);
+        if (section !== "brands") onContentReady(true);
+      }
     }
-  }, [active.endpoint, request, section]);
+  }, [active.endpoint, onContentReady, request, section]);
   useEffect(() => {
     if (
       !visibleSections.some((entry) => entry.id === section) &&
@@ -352,6 +379,7 @@ export default function BusinessConsole({
           mutate={mutate}
           submit={submit}
           download={download}
+          onPrepareCustomerQuote={onPrepareCustomerQuote}
         />
       )}
       {section === "transport" && (
@@ -390,6 +418,7 @@ export default function BusinessConsole({
           role={role}
           onSignOut={onSignOut}
           onBack={() => setSection("suppliers")}
+          onContentReady={onContentReady}
           customerUrl={customerUrl}
           embedded
         />

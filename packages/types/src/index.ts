@@ -1,7 +1,9 @@
 import { z } from "zod";
 export * from "./catalog-data";
+export * from "./catalogue-categories";
 export * from "./site-content";
 export * from "./rfq-upload";
+export * from "./partner-brand-defaults";
 
 // ==========================================
 // USER & AUTH TYPES

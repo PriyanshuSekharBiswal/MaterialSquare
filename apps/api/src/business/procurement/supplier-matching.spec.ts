@@ -8,6 +8,7 @@ const makeSupplier = (options: {
   checkedAt?: Date | null;
   minimumOrderQty?: number | null;
   productUpdatedAt?: Date;
+  catalogVariantId?: string | null;
 }) => ({
   id: options.id,
   name: options.id,
@@ -22,7 +23,7 @@ const makeSupplier = (options: {
     brand: "BuildCo",
     category: "cement",
     unit: "bag",
-    catalogVariantId: null,
+    catalogVariantId: options.catalogVariantId ?? null,
     catalogVariant: null,
     availableQuantity: options.quantity == null ? null : String(options.quantity),
     availabilityCheckedAt: options.checkedAt ?? null,
@@ -68,9 +69,48 @@ describe("supplier matching suggestions", () => {
       items: [{ productName: "PPC Cement", brand: "BuildCo", category: "cement", unit: "bag", quantity: 50 }],
     });
 
-    expect(result.requestedItems[0].coverage).toBe("partial");
+    expect(result.requestedItems[0].coverage).toBe("minimum-order");
     expect(result.requestedItems[0].knownFreshCapacity).toBe(10);
     expect(result.candidates[0].matchedProducts[0].availabilityStatus).toBe("outdated");
     expect(result.requestedItems[0].allocationSuggestions).toEqual([]);
+  });
+
+  it("keeps out-of-area listings visible but excludes them from nearby quantity coverage", async () => {
+    const suppliers = [makeSupplier({
+      id: "remote-stock",
+      pincode: "110001",
+      quantity: 100,
+      checkedAt: new Date(),
+      minimumOrderQty: 1,
+    })];
+    const prisma = { supplier: { findMany: jest.fn().mockResolvedValue(suppliers) } } as never;
+    const result = await matchSupplierCatalogue(prisma, {
+      deliveryPincode: "201301",
+      deliveryCity: "Ghaziabad",
+      deliveryState: "Uttar Pradesh",
+      items: [{ productName: "PPC Cement", brand: "BuildCo", category: "cement", unit: "bag", quantity: 50 }],
+    });
+
+    expect(result.candidates).toHaveLength(1);
+    expect(result.requestedItems[0]).toMatchObject({
+      matchedSupplierCount: 1,
+      outsideRecordedAreaCount: 1,
+      knownFreshCapacity: 0,
+      coverage: "unknown",
+      allocationSuggestions: [],
+    });
+  });
+
+  it("requires an exact catalogue variant when the request has a variant ID", async () => {
+    const supplier = makeSupplier({ id: "wrong-variant", quantity: 20, checkedAt: new Date(), catalogVariantId: "variant-b" });
+    const prisma = { supplier: { findMany: jest.fn().mockResolvedValue([supplier]) } } as never;
+    const result = await matchSupplierCatalogue(prisma, {
+      deliveryPincode: "201301",
+      deliveryCity: "Noida",
+      items: [{ productName: "PPC Cement", brand: "BuildCo", category: "cement", unit: "bag", quantity: 10, catalogVariantId: "variant-a" }],
+    });
+
+    expect(result.candidates).toHaveLength(0);
+    expect(result.requestedItems[0].coverage).toBe("no-listing");
   });
 });

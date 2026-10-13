@@ -21,11 +21,13 @@ import ProductImage from '../components/ProductImage';
 import FaqSection from '../components/FaqSection';
 import { useSiteContent } from '../site-content';
 import { matchesCatalogueSearch, scoreCatalogueSearch } from '../search/catalogue-search';
-import { partnerBrandCategories, partnerBrandCategoryLabel, partnerBrandMatchesProduct, usePartnerBrands } from '../partner-brands';
+import { partnerBrandCategories, partnerBrandMatchesProduct, usePartnerBrands } from '../partner-brands';
 import { bestMatchingVariant } from '../search/variant-match';
 import RotatingSearchPlaceholder from '../components/RotatingSearchPlaceholder';
 import { buildSearchExamples } from '../search/search-examples';
 import { customerPriceNote } from '../catalogue/customer-display';
+import { resolveCatalogueCategoryId } from '@material-square/types';
+import { useCatalogueCategories } from '../catalogue/useCatalogueCategories';
 
 const CATALOGUE_PAGE_SIZE = 16;
 const getAvailabilityStatus = (item: Pick<CatalogueProduct, 'availabilityStatus' | 'inStock'>) =>
@@ -35,7 +37,6 @@ const availabilityLabel = (status: NonNullable<CatalogueProduct['availabilitySta
   OUT_OF_STOCK: 'Out of stock',
   CHECK_AVAILABILITY: 'Check availability',
 })[status];
-
 export default function MarketplacePage({
   bomList = [],
   products,
@@ -45,10 +46,14 @@ export default function MarketplacePage({
   onToggleBOM,
   onOpenProduct,
   onOpenBOMDrawer,
-}: { products: CatalogueProduct[]; bomList?: MaterialItem[]; catalogueLoading?: boolean; catalogueUnavailable?: boolean; onRetryCatalogue?: () => void; onToggleBOM: (product: MaterialItem) => void; onOpenProduct: (product: CatalogueProduct, query?: string) => void; onOpenBOMDrawer: () => void }) {
+}: { products: CatalogueProduct[]; bomList?: MaterialItem[]; catalogueLoading?: boolean; catalogueUnavailable?: boolean; onRetryCatalogue?: () => void; onToggleBOM: (product: MaterialItem) => void; onOpenProduct: (product: CatalogueProduct, query?: string, variantId?: string) => void; onOpenBOMDrawer: () => void }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const siteContent = useSiteContent();
   const partnerBrands = usePartnerBrands();
+  const managedCategories = useCatalogueCategories();
+  const categoryDirectory = useMemo(() => {
+    return new Map(managedCategories.map(({ id, label }) => [id, label]));
+  }, [managedCategories]);
   const initialCategory = searchParams.get('category') || 'all';
   const initialBrand = searchParams.get('brand') || '';
   const initialQuery = searchParams.get('q') || '';
@@ -85,8 +90,8 @@ export default function MarketplacePage({
     }
     const configuredBrands = partnerBrands.map((brand) => ({
       name: brand.name,
-      category: partnerBrandCategoryLabel(brand),
-      categories: partnerBrandCategories(brand),
+      category: partnerBrandCategories(brand).map((value) => categoryDirectory.get(resolveCatalogueCategoryId(value, managedCategories)) || value).join(" · "),
+      categories: partnerBrandCategories(brand).map((value) => categoryDirectory.get(resolveCatalogueCategoryId(value, managedCategories)) || value),
       logoUrl: brand.logoUrl,
     }));
     const productOnlyBrands = [...byBrand.values()]
@@ -99,12 +104,13 @@ export default function MarketplacePage({
       ))
       .sort((left, right) => left.name.localeCompare(right.name));
     return [...configuredBrands, ...productOnlyBrands];
-  }, [partnerBrands, products]);
-  const catalogueCategories = useMemo(() => [
-    { id: 'all', label: 'All Materials', count: products.length },
-    ...Array.from(new Map(products.map((product) => [product.category, product.categoryLabel])).entries())
-      .map(([id, label]) => ({ id, label, count: products.filter((product) => product.category === id).length })),
-  ], [products]);
+  }, [partnerBrands, products, categoryDirectory, managedCategories]);
+  const catalogueCategories = useMemo(() => {
+    return [
+      { id: 'all', label: 'All Materials' },
+      ...[...categoryDirectory].map(([id, label]) => ({ id, label })),
+    ];
+  }, [categoryDirectory]);
   const activeCategoryLabel = activeCategory === "all"
     ? ""
     : catalogueCategories.find((category) => category.id === activeCategory)?.label
@@ -112,11 +118,7 @@ export default function MarketplacePage({
   const visibleCatalogueBrands = activeCategory === "all"
     ? catalogueBrands
     : catalogueBrands.filter((brand) => brand.categories.some((category) => {
-        const normalize = (value: string) => value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
-        const brandCategory = normalize(category);
-        const selected = normalize(activeCategory);
-        const selectedLabel = normalize(activeCategoryLabel);
-        return brandCategory === selected || brandCategory === selectedLabel || brandCategory.includes(selected) || selected.includes(brandCategory) || brandCategory.includes(selectedLabel) || selectedLabel.includes(brandCategory);
+        return resolveCatalogueCategoryId(category, managedCategories) === activeCategory;
       }));
   // If user adds new items to BOM, re-show notification bar if it was dismissed
   useEffect(() => {
@@ -139,7 +141,8 @@ export default function MarketplacePage({
 
   // Sync state when URL params change
   useEffect(() => {
-    setActiveCategory(searchParams.get('category') || 'all');
+    const requestedCategory = searchParams.get('category') || 'all';
+    setActiveCategory(requestedCategory === 'all' ? 'all' : resolveCatalogueCategoryId(requestedCategory, managedCategories));
     setSelectedBrand(searchParams.get('brand') || '');
     setSelectedAvailability(searchParams.get('availability') || '');
     const queryFromUrl = searchParams.get('q') || '';
@@ -147,7 +150,7 @@ export default function MarketplacePage({
       lastSearchParamRef.current = queryFromUrl;
       setSearchQuery(queryFromUrl);
     }
-  }, [searchParams]);
+  }, [searchParams, managedCategories]);
 
   // Handle category change
   const handleCategoryChange = (catId: string) => {
@@ -191,7 +194,7 @@ export default function MarketplacePage({
   const filteredProducts = useMemo(() => {
     const matches = products.filter((item) => {
       // Category filter
-      if (activeCategory !== 'all' && item.category !== activeCategory) {
+      if (activeCategory !== 'all' && resolveCatalogueCategoryId(item.categoryLabel || item.category, managedCategories) !== activeCategory) {
         return false;
       }
 
@@ -199,8 +202,6 @@ export default function MarketplacePage({
       if (selectedBrand && !partnerBrandMatchesProduct(selectedBrand, item.brand, `${item.category} ${item.categoryLabel}`)) {
         return false;
       }
-      const itemAvailability = getAvailabilityStatus(item);
-      if (selectedAvailability && itemAvailability !== selectedAvailability) return false;
       // Search query
       if (searchQuery.trim()) {
         return matchesCatalogueSearch(item, searchQuery);
@@ -211,11 +212,19 @@ export default function MarketplacePage({
     return searchQuery.trim()
       ? matches.sort((a, b) => scoreCatalogueSearch(b, searchQuery) - scoreCatalogueSearch(a, searchQuery))
       : matches;
-  }, [products, activeCategory, selectedBrand, selectedAvailability, searchQuery]);
+  }, [products, activeCategory, selectedBrand, searchQuery]);
 
-  const visibleProducts = useMemo(
-    () => filteredProducts.slice(0, visibleProductCount),
-    [filteredProducts, visibleProductCount],
+  const listingCards = useMemo(() => filteredProducts.flatMap((product) => {
+    const variants = product.variants || [];
+    const cards = variants.length ? variants.map((variant) => ({ product, variant })) : [{ product, variant: undefined }];
+    return selectedAvailability
+      ? cards.filter(({ product: cardProduct, variant }) => getAvailabilityStatus(variant || cardProduct) === selectedAvailability)
+      : cards;
+  }), [filteredProducts, selectedAvailability]);
+
+  const visibleListingCards = useMemo(
+    () => listingCards.slice(0, visibleProductCount),
+    [listingCards, visibleProductCount],
   );
 
   useEffect(() => {
@@ -225,21 +234,21 @@ export default function MarketplacePage({
 
   useEffect(() => {
     const sentinel = loadMoreSentinelRef.current;
-    if (!sentinel || visibleProductCount >= filteredProducts.length || !('IntersectionObserver' in window)) return;
+    if (!sentinel || visibleProductCount >= listingCards.length || !('IntersectionObserver' in window)) return;
 
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) {
-        setVisibleProductCount((count) => Math.min(count + CATALOGUE_PAGE_SIZE, filteredProducts.length));
+        setVisibleProductCount((count) => Math.min(count + CATALOGUE_PAGE_SIZE, listingCards.length));
       }
     }, { rootMargin: '720px 0px', threshold: 0 });
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [visibleProductCount, filteredProducts.length]);
+  }, [visibleProductCount, listingCards.length]);
 
   useEffect(() => {
     const sentinel = catalogueEndRef.current;
-    if (!sentinel || !filteredProducts.length || visibleProducts.length < filteredProducts.length || !('IntersectionObserver' in window)) return;
+    if (!sentinel || !listingCards.length || visibleListingCards.length < listingCards.length || !('IntersectionObserver' in window)) return;
 
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) setHasReachedCatalogueEnd(true);
@@ -247,10 +256,10 @@ export default function MarketplacePage({
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [visibleProducts.length, filteredProducts.length]);
+  }, [visibleListingCards.length, listingCards.length]);
 
   const relatedProducts = useMemo(() => {
-    if (filteredProducts.length) return [];
+    if (listingCards.length) return [];
     // Suggestions may broaden an empty brand/category browse, but not an exact search.
     if (searchQuery.trim()) return [];
     const selectedPartner = partnerBrands.find((brand) => brand.name.toLocaleLowerCase() === selectedBrand.toLocaleLowerCase());
@@ -261,12 +270,12 @@ export default function MarketplacePage({
     };
     const hints = selectedPartner ? categoryHints[selectedPartner.category.toLocaleLowerCase()] || [selectedPartner.category.toLocaleLowerCase()] : [];
     return products
-      .filter((product) => activeCategory === "all" || product.category === activeCategory)
+      .filter((product) => activeCategory === "all" || resolveCatalogueCategoryId(product.categoryLabel || product.category, managedCategories) === activeCategory)
       .filter((product) => !selectedPartner || hints.some((hint) => `${product.category} ${product.categoryLabel}`.toLocaleLowerCase().includes(hint)))
       .filter((product) => !selectedAvailability || getAvailabilityStatus(product) === selectedAvailability)
       .sort((a, b) => Number(b.inStock) - Number(a.inStock) || a.name.localeCompare(b.name))
       .slice(0, 4);
-  }, [products, filteredProducts.length, activeCategory, selectedBrand, selectedAvailability, partnerBrands, searchQuery]);
+  }, [products, listingCards.length, activeCategory, selectedBrand, selectedAvailability, partnerBrands, searchQuery, managedCategories]);
 
   // Check if item in BOM
   const isItemInBOM = (id: string) => bomList.some((item) => (item.catalogueId || item.id) === id);
@@ -465,11 +474,6 @@ export default function MarketplacePage({
                     onClick={() => handleCategoryChange(cat.id)}
                   >
                     <span>{cat.label}</span>
-                    <span className="chip-count">
-                      {cat.id === 'all'
-                        ? products.length
-                        : products.filter((p) => p.category === cat.id).length}
-                    </span>
                   </button>
                 );
               })}
@@ -536,44 +540,63 @@ export default function MarketplacePage({
             <div className="catalogue-products-skeleton" role="status" aria-label="Loading materials">
               {Array.from({ length: 6 }, (_, index) => <div className="catalogue-product-skeleton" key={index}><i /><span><b /><b /><b /></span></div>)}
             </div>
-          ) : filteredProducts.length > 0 ? (
+          ) : listingCards.length > 0 ? (
             <div className={`products-directory-grid${searchQuery.trim() ? ' is-search-results-list' : ''}`}>
-              {visibleProducts.map((product) => {
-                const queryVariant = bestMatchingVariant(product, searchQuery);
+              {visibleListingCards.map(({ product, variant }) => {
+                const queryVariant = variant || bestMatchingVariant(product, searchQuery);
                 const cardAvailability = getAvailabilityStatus(queryVariant || product);
-                const productHref = `/product/${encodeURIComponent(product.id)}${searchQuery.trim() ? `?q=${encodeURIComponent(searchQuery.trim())}` : ""}`;
-                const cardImage = queryVariant?.image || product.image;
+                const productParams = new URLSearchParams();
+                if (searchQuery.trim()) productParams.set("q", searchQuery.trim());
+                if (variant?.id) productParams.set("variant", variant.id);
+                const productHref = `/product/${encodeURIComponent(product.id)}${productParams.size ? `?${productParams.toString()}` : ""}`;
+                const cardImage = queryVariant?.image || queryVariant?.galleryImages?.[0] || product.image;
+                const optionAttributes = queryVariant
+                  ? Object.entries(queryVariant.attributes || {})
+                    .filter(([, value]) => !queryVariant.label.toLocaleLowerCase().includes(String(value).toLocaleLowerCase()))
+                    .map(([key, value]) => `${key}: ${value}`)
+                  : [];
+                const optionLabel = queryVariant ? [queryVariant.label, ...optionAttributes].filter(Boolean).join(" · ") : "";
+                const cardPrice = queryVariant?.price ?? product.price;
+                const compareAtPrice = queryVariant?.compareAtPrice ?? product.compareAtPrice;
+                const fullCardCode = queryVariant?.code || product.code;
+                const variantCodeNumber = queryVariant?.code?.match(/-V(\d+)(?:-|$)/i)?.[1];
+                const cardCode = variantCodeNumber ? `${product.code} · V${variantCodeNumber}` : fullCardCode;
                 const inBOM = isItemInBOM(product.id);
                 const matchedPartnerBrand = partnerBrands.find((brand) => partnerBrandMatchesProduct(brand.name, product.brand, `${product.category} ${product.categoryLabel}`));
-                const productOffer = queryVariant?.offerLabel || product.offerLabel || product.variants?.find((variant) => variant.offerLabel)?.offerLabel;
-                const priceNote = customerPriceNote(queryVariant?.priceNote || product.priceNote || product.variants?.find(variant => variant.price != null)?.priceNote);
+                const productOffer = queryVariant?.offerLabel || product.offerLabel;
+                const productCategoryLabel = categoryDirectory.get(resolveCatalogueCategoryId(product.categoryLabel || product.category, managedCategories)) || "";
+                const cardDiscountPercent = cardPrice != null && compareAtPrice != null && Number(compareAtPrice) > Number(cardPrice)
+                  ? Math.round(((Number(compareAtPrice) - Number(cardPrice)) / Number(compareAtPrice)) * 100)
+                  : 0;
+                const cardOfferLabel = productOffer || (cardDiscountPercent > 0 ? `${cardDiscountPercent}% OFF` : "");
+                const priceNote = customerPriceNote(queryVariant?.priceNote || product.priceNote);
                 return (
                     <article
-                      key={product.id}
+                      key={`${product.id}:${queryVariant?.id || "product"}`}
                       className="catalog-product-card"
                       tabIndex={0}
-                      aria-label={`Open product details for ${product.name}`}
+                      aria-label={`Open ${product.name}${optionLabel ? `, ${optionLabel}` : ""}`}
                       onClick={(event) => {
                         const target = event.target;
                         if (target instanceof Element && target.closest('a, button, input, select, textarea, [role="button"]')) return;
-                        onOpenProduct(product, searchQuery);
+                        onOpenProduct(product, searchQuery, queryVariant?.id);
                       }}
                       onKeyDown={(event) => {
                         if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
                         event.preventDefault();
-                        onOpenProduct(product, searchQuery);
+                        onOpenProduct(product, searchQuery, queryVariant?.id);
                       }}
                     >
                     {/* Top Image & Category Pill */}
-                    <Link className="product-media-box" to={productHref} aria-label={`View ${product.name}`}>
+                    <Link className="product-media-box" to={productHref} aria-label={`View ${product.name}${optionLabel ? `, ${optionLabel}` : ""}`}>
                       <ProductImage src={cardImage} alt={product.name} />
                       <div className="media-overlay-tags">
-                        <span className="product-cat-tag">{product.categoryLabel}</span>
+                        {productCategoryLabel && <span className="product-cat-tag">{productCategoryLabel}</span>}
                       </div>
                       {product.photoBanner && (
                         <span className="product-photo-banner">{product.photoBanner}</span>
                       )}
-                      {productOffer && <span className="catalog-card-offer">{productOffer}</span>}
+                      {cardOfferLabel && <span className="catalog-card-offer">{cardOfferLabel}</span>}
                     </Link>
 
                     {/* Content Box */}
@@ -583,13 +606,14 @@ export default function MarketplacePage({
                           <span className="brand-mini-logo-frame" aria-hidden="true">
                             <PartnerBrandLogo brand={matchedPartnerBrand || { name: product.brand }} className="marketplace-brand-logo" />
                           </span>
-                          <span className="brand-title">{product.brand}</span>
+                          <span className="brand-title">{matchedPartnerBrand?.name || product.brand}</span>
                         </div>
-                        <span className="product-sku-code">{product.code}</span>
+                        <span className="product-sku-code" title={fullCardCode}>{cardCode}</span>
                       </div>
 
                       <h3 className="product-card-title"><Link to={productHref}>{product.name}</Link></h3>
-                      {product.specs?.sizes && <p className="product-size-guide">Size guide: {product.specs.sizes}. Specify your requirement in product details.</p>}
+                      {optionLabel && <div className="catalogue-marketplace-option" aria-label={`Option ${optionLabel}`}><span>Option</span><strong>{optionLabel}</strong></div>}
+                      {!queryVariant && product.specs?.sizes && <p className="product-size-guide">Size guide: {product.specs.sizes}. Specify your requirement in product details.</p>}
 
                       {product.grade && (
                         <div className="grade-badge-chip">
@@ -598,7 +622,7 @@ export default function MarketplacePage({
                       )}
 
                       {(() => {
-                        const colourValues = Array.from(new Set((product.variants || []).flatMap((variant) => Object.entries(variant.attributes || {})
+                        const colourValues = queryVariant ? [] : Array.from(new Set((product.variants || []).flatMap((variant) => Object.entries(variant.attributes || {})
                           .filter(([key]) => /colou?r|shade|finish/i.test(key))
                           .map(([, value]) => value.trim()).filter(Boolean))));
                         return colourValues.length > 0 ? (
@@ -611,19 +635,29 @@ export default function MarketplacePage({
 
                       {/* Key features */}
                       {product.features.length > 0 && <ul className="product-features-preview">
-                        {product.features.slice(0, 2).map((feat, idx) => (
+                        {product.features.slice(0, 2).map((feat, idx) => {
+                          const categoryFeature = feat.match(/^(Category\s*[—:-]\s*)(.+)$/i);
+                          const displayFeatureCategory = categoryFeature
+                            ? categoryDirectory.get(resolveCatalogueCategoryId(categoryFeature[2], managedCategories))
+                            : undefined;
+                          if (categoryFeature && !displayFeatureCategory) return null;
+                          const displayFeature = categoryFeature
+                            ? `${categoryFeature[1]}${displayFeatureCategory}`
+                            : feat;
+                          return (
                           <li key={idx}>
                             <Check size={13} className="check-icon-green" />
-                            <span>{feat}</span>
+                            <span>{displayFeature}</span>
                           </li>
-                        ))}
+                          );
+                        })}
                       </ul>}
 
                       {/* Technical Specs Preview */}
                       <div className="product-spec-preview-box">
                         <div className="spec-item">
                           <span className="spec-label">Packaging</span>
-                          <span className="spec-val">{product.unit}</span>
+                        <span className="spec-val">{queryVariant?.unit || product.unit}</span>
                         </div>
                         {product.specs?.standard && (
                           <div className="spec-item">
@@ -636,10 +670,11 @@ export default function MarketplacePage({
                       {/* Pricing & Min Order */}
                       <div className="pricing-row">
                         <div>
-                          <span className="rate-caption">{queryVariant?.price != null || product.price != null ? 'Price per unit' : product.variants?.some(variant => variant.price != null) ? 'Starting from' : 'Pricing'}</span>
+                          <span className="rate-caption">{queryVariant?.price != null || product.price != null ? 'Price per unit' : product.variants?.some(option => option.price != null) ? 'Starting from' : 'Pricing'}</span>
                           <span className="rate-amount">
-                            {queryVariant?.price != null ? `₹${Number(queryVariant.price).toLocaleString('en-IN')}` : product.price == null ? product.variants?.some(variant => variant.price != null) ? `₹${Math.min(...product.variants.filter(variant => variant.price != null).map(variant => Number(variant.price))).toLocaleString('en-IN')}` : 'Request a quote' : `₹${Number(product.price).toLocaleString('en-IN')}`}
+                            {queryVariant?.price != null ? `₹${Number(queryVariant.price).toLocaleString('en-IN')}` : product.price == null ? product.variants?.some(option => option.price != null) ? `₹${Math.min(...product.variants.filter(option => option.price != null).map(option => Number(option.price))).toLocaleString('en-IN')}` : 'Request a quote' : `₹${Number(product.price).toLocaleString('en-IN')}`}
                           </span>
+                          {cardPrice != null && compareAtPrice != null && Number(compareAtPrice) > Number(cardPrice) && <del className="catalogue-card-compare-price">₹{Number(compareAtPrice).toLocaleString("en-IN")}</del>}
                           {priceNote && <small className="catalogue-price-caveat">{priceNote}</small>}
                           <span className={`catalogue-stock-pill status-${cardAvailability.toLocaleLowerCase().replaceAll('_', '-')}`}>{availabilityLabel(cardAvailability)}</span>
                         </div>
@@ -654,7 +689,7 @@ export default function MarketplacePage({
                         <button
                           type="button"
                           className="btn-card-specs"
-                          onClick={() => onOpenProduct(product, searchQuery)}
+                          onClick={() => onOpenProduct(product, searchQuery, queryVariant?.id)}
                         >
                           <Info size={14} /> View details
                         </button>
@@ -662,9 +697,13 @@ export default function MarketplacePage({
                         <button
                           type="button"
                           className={`btn-card-bom ${inBOM ? 'in-bom' : ''}`}
-                          onClick={() => inBOM ? onOpenBOMDrawer() : onToggleBOM(product)}
+                          onClick={() => queryVariant ? onOpenProduct(product, searchQuery, queryVariant.id) : inBOM ? onOpenBOMDrawer() : onToggleBOM(product)}
                         >
-                          {inBOM ? (
+                          {queryVariant ? (
+                            <>
+                              <Plus size={14} /> Choose options
+                            </>
+                          ) : inBOM ? (
                             <>
                               <Check size={14} /> View quote list
                             </>
@@ -724,27 +763,27 @@ export default function MarketplacePage({
               )}
             </div>
           )}
-          {visibleProducts.length < filteredProducts.length && (
+          {visibleListingCards.length < listingCards.length && (
             <div className="catalogue-load-more" ref={loadMoreSentinelRef}>
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => setVisibleProductCount((count) => Math.min(count + CATALOGUE_PAGE_SIZE, filteredProducts.length))}
+                onClick={() => setVisibleProductCount((count) => Math.min(count + CATALOGUE_PAGE_SIZE, listingCards.length))}
               >
-                Load more products <span>({filteredProducts.length - visibleProducts.length} remaining)</span>
+                Load more listings <span>({listingCards.length - visibleListingCards.length} remaining)</span>
               </button>
               <span className="catalogue-load-more-hint" aria-live="polite">
-                Showing {visibleProducts.length} of {filteredProducts.length}
+                Showing {visibleListingCards.length} of {listingCards.length} marketplace cards
               </span>
             </div>
           )}
-          {filteredProducts.length > 0 && visibleProducts.length === filteredProducts.length && (
+          {listingCards.length > 0 && visibleListingCards.length === listingCards.length && (
             <>
               <div ref={catalogueEndRef} aria-hidden="true" />
               {hasReachedCatalogueEnd && <p className="catalogue-end-message" role="status">You’ve reached the end</p>}
             </>
           )}
-          {!filteredProducts.length && relatedProducts.length > 0 && <section className="catalogue-related-section" aria-label="Other catalogue items">
+          {!listingCards.length && relatedProducts.length > 0 && <section className="catalogue-related-section" aria-label="Other catalogue items">
             <div><h3>Other items to explore</h3><p>These are listed in a related materials category. Confirm the exact brand and specification with the team.</p></div>
             <div className="catalogue-related-grid">{relatedProducts.map((product) => <Link to={`/product/${encodeURIComponent(product.id)}`} key={product.id} className="catalogue-related-card">
               <ProductImage src={product.image} alt={product.name} />

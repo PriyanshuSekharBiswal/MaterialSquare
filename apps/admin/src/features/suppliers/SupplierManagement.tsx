@@ -3,7 +3,7 @@ import { ArrowLeft, Search, Trash2, X } from "lucide-react";
 import { confirmAdminAction } from "../../components/confirmAdminAction";
 import type { FormSubmit, Mutate } from "../business/form-contracts";
 import ServiceAreaPincodes from "./ServiceAreaPincodes";
-import SupplierCataloguePicker, { type SupplierBrandCatalogEntry, type SupplierCatalogueVariant } from "./SupplierCataloguePicker";
+import SupplierCataloguePicker, { type SupplierBrandCatalogEntry, type SupplierBrandOption, type SupplierCatalogueVariant } from "./SupplierCataloguePicker";
 import SupplierProducts from "./SupplierProducts";
 
 export type SupplierRecord = {
@@ -105,8 +105,12 @@ export default function SupplierManagement({
   mutate,
   submitForm,
 }: Props) {
-  const [view, setView] = useState<"add" | "list" | "edit" | "details">("add");
-  const [supplierDetailId, setSupplierDetailId] = useState("");
+  const [view, setView] = useState<"add" | "list" | "edit" | "details">(() => {
+    const params = new URLSearchParams(window.location.search);
+    const requested = params.get("supplierView");
+    return requested === "list" || requested === "edit" || requested === "details" ? requested : "add";
+  });
+  const [supplierDetailId, setSupplierDetailId] = useState(() => new URLSearchParams(window.location.search).get("supplierId") || "");
   const [directoryQuery, setDirectoryQuery] = useState("");
   const [directoryResults, setDirectoryResults] = useState<SupplierRecord[] | null>(null);
   const [directoryBusy, setDirectoryBusy] = useState(false);
@@ -118,6 +122,7 @@ export default function SupplierManagement({
   const [supplierProductFilter, setSupplierProductFilter] = useState("all");
   const [supplierCityFilter, setSupplierCityFilter] = useState("all");
   const [catalogueVariants, setCatalogueVariants] = useState<SupplierCatalogueVariant[]>([]);
+  const [catalogueBrandOptions, setCatalogueBrandOptions] = useState<SupplierBrandOption[]>([]);
   const [selectedProductVariantIds, setSelectedProductVariantIds] = useState<string[]>([]);
   const [selectedBrandCatalog, setSelectedBrandCatalog] = useState<SupplierBrandCatalogEntry[]>([]);
   const [ratingEditorSupplier, setRatingEditorSupplier] = useState<SupplierRecord | null>(null);
@@ -129,15 +134,25 @@ export default function SupplierManagement({
   const [ratingDetailsErrors, setRatingDetailsErrors] = useState<Record<string, string>>({});
   const [registeredStaffBySupplier, setRegisteredStaffBySupplier] = useState<Record<string, { name: string } | null>>({});
   const registrationLookupStarted = useRef(new Set<string>());
-  const supplierDetailsRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (view !== "details" || !supplierDetailId) return;
-    const frame = window.requestAnimationFrame(() => {
-      supplierDetailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [supplierDetailId, view]);
+    const url = new URL(window.location.href);
+    if (view === "add") url.searchParams.delete("supplierView");
+    else url.searchParams.set("supplierView", view);
+    if ((view === "details" || view === "edit") && supplierDetailId) url.searchParams.set("supplierId", supplierDetailId);
+    else url.searchParams.delete("supplierId");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [view, supplierDetailId]);
+  useEffect(() => {
+    const syncSupplierView = () => {
+      const params = new URLSearchParams(window.location.search);
+      const requested = params.get("supplierView");
+      setView(requested === "list" || requested === "edit" || requested === "details" ? requested : "add");
+      setSupplierDetailId(params.get("supplierId") || "");
+    };
+    window.addEventListener("popstate", syncSupplierView);
+    return () => window.removeEventListener("popstate", syncSupplierView);
+  }, []);
 
   useEffect(() => {
     const supplierIds = records
@@ -198,9 +213,23 @@ export default function SupplierManagement({
       .catch(() => setCatalogueVariants([]));
   }, [request]);
 
+  useEffect(() => {
+    void request<{ name: string; category?: string; categories?: string[] }[]>("/products/catalogue/partner-brands")
+      .then((directory) => setCatalogueBrandOptions(directory.map((brand) => ({
+        name: brand.name,
+        categories: [...new Set([...(brand.categories || []), ...(brand.category ? [brand.category] : [])])],
+      }))))
+      .catch(() => setCatalogueBrandOptions([]));
+  }, [request]);
+
   const [editingSupplier, setEditingSupplier] = useState<SupplierRecord | null>(
     null,
   );
+  useEffect(() => {
+    if (view !== "edit" || !supplierDetailId || editingSupplier?.id === supplierDetailId) return;
+    const supplier = records.find((entry) => entry.id === supplierDetailId);
+    if (supplier) setEditingSupplier(supplier);
+  }, [editingSupplier?.id, records, supplierDetailId, view]);
   const selectedProducts = catalogueVariants.filter((variant) => selectedProductVariantIds.includes(variant.id));
   const sourceRecords = directoryResults ?? records;
   const supplierCities = [...new Set(sourceRecords.map((supplier) => supplier.city.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -270,7 +299,6 @@ export default function SupplierManagement({
     <>
       {view === "edit" || view === "details" ? (
         <button
-          ref={view === "details" ? supplierDetailsRef : undefined}
           type="button"
           className="bc-button btn-orange-outline supplier-page-back"
           onClick={() => {
@@ -306,6 +334,7 @@ export default function SupplierManagement({
       <form
         key={editingSupplier?.id || "new-supplier"}
         className="bc-form"
+        data-admin-unsaved-form
         onSubmit={(e) => {
           void submitForm(
             e,
@@ -455,6 +484,7 @@ export default function SupplierManagement({
         </fieldset>
         {!editingSupplier && <SupplierCataloguePicker
           variants={catalogueVariants}
+          brandOptions={catalogueBrandOptions}
           selectedIds={selectedProductVariantIds}
           onChange={setSelectedProductVariantIds}
           onBrandCatalogChange={setSelectedBrandCatalog}
@@ -674,7 +704,7 @@ export default function SupplierManagement({
               className="bc-button btn-orange-outline"
               disabled={busy}
               onClick={() => {
-              setSupplierDetailId("");
+              setSupplierDetailId(s.id);
                 setEditingSupplier(s);
                 setView("edit");
               }}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { normalizeCatalogueCategory, resolveCatalogueCategoryId, STOREFRONT_CATEGORIES, type ManagedCatalogueCategory } from "@material-square/types";
 
 export type SupplierCatalogueVariant = {
   id: string;
@@ -9,9 +10,11 @@ export type SupplierCatalogueVariant = {
   category: string;
 };
 export type SupplierBrandCatalogEntry = { brand: string; categories: string[] };
+export type SupplierBrandOption = { name: string; categories: string[] };
 
 type Props = {
   variants: SupplierCatalogueVariant[];
+  brandOptions?: SupplierBrandOption[];
   selectedIds: string[];
   onChange: (selectedIds: string[]) => void;
   onBrandCatalogChange?: (brandCatalog: SupplierBrandCatalogEntry[]) => void;
@@ -23,11 +26,28 @@ const displayBrand = (brand: string) =>
     ? "Supreme Industries"
     : brand.trim();
 
-export default function SupplierCataloguePicker({ variants, selectedIds, onChange, onBrandCatalogChange, saveLabel }: Props) {
+const categoryKey = (category: string) => normalizeCatalogueCategory(category);
+const displayCategory = (category: string, directory: ManagedCatalogueCategory[]) => {
+  const key = categoryKey(category);
+  return directory.find((item) => item.id === resolveCatalogueCategoryId(category, directory))?.label
+    ?? STOREFRONT_CATEGORIES.find((item) => item.id === key)?.label
+    ?? (key === "steel" ? "Steel & Reinforcement" : category.trim());
+};
+
+export default function SupplierCataloguePicker({ variants, brandOptions = [], selectedIds, onChange, onBrandCatalogChange, saveLabel }: Props) {
   const [brands, setBrands] = useState<string[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [managedCategories, setManagedCategories] = useState<ManagedCatalogueCategory[]>(() => STOREFRONT_CATEGORIES.map(({ id, label }) => ({ id, label, active: true, aliases: [] })));
   const [open, setOpen] = useState<"brands" | "categories" | "products" | null>(null);
   const pickerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${import.meta.env.VITE_API_URL || "/api"}/products/categories`, { headers: { Accept: "application/json" }, signal: controller.signal })
+      .then((response) => response.ok ? response.json() as Promise<ManagedCatalogueCategory[]> : null)
+      .then((result) => { if (result && !controller.signal.aborted) setManagedCategories(result.filter((category) => category.active)); })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
   useEffect(() => {
     if (!open) return;
     const closeOutside = (event: PointerEvent) => {
@@ -43,21 +63,31 @@ export default function SupplierCataloguePicker({ variants, selectedIds, onChang
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [open]);
-  const availableBrands = [...new Set(variants.map((variant) => displayBrand(variant.brand)).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  const availableCategories = [...new Set(variants.filter((variant) => brands.includes(displayBrand(variant.brand))).map((variant) => variant.category.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  const availableProducts = variants.filter((variant) => brands.includes(displayBrand(variant.brand)) && categories.includes(variant.category));
+  const availableBrands = [...new Set([
+    ...brandOptions.map((brand) => displayBrand(brand.name)),
+    ...variants.map((variant) => displayBrand(variant.brand)),
+  ].filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const categoryChoices = new Map<string, string>();
+  for (const category of managedCategories) categoryChoices.set(category.id, category.label);
+  const activeCategoryIds = new Set(managedCategories.map((category) => category.id));
+  for (const category of [...brandOptions.flatMap((brand) => brand.categories), ...variants.map((variant) => variant.category)]) {
+    const key = resolveCatalogueCategoryId(category, managedCategories);
+    const label = displayCategory(category, managedCategories);
+    if (activeCategoryIds.has(key) && label) categoryChoices.set(key, managedCategories.find((item) => item.id === key)?.label || label);
+  }
+  const availableCategories = [...categoryChoices.values()].sort((a, b) => a.localeCompare(b));
+  const availableProducts = variants.filter((variant) => brands.includes(displayBrand(variant.brand)) && categories.some((category) => resolveCatalogueCategoryId(category, managedCategories) === resolveCatalogueCategoryId(variant.category, managedCategories)));
   const selectedProducts = variants.filter((variant) => selectedIds.includes(variant.id));
   const notifyBrandCatalog = (nextBrands: string[], nextCategories: string[]) => {
     onBrandCatalogChange?.(nextBrands.map((brand) => ({
       brand,
-      categories: nextCategories.filter((category) => variants.some((variant) => displayBrand(variant.brand) === brand && variant.category.trim() === category)),
+      categories: nextCategories,
     })));
   };
   const previewGroups = brands.map((brand) => {
-    const brandVariants = variants.filter((variant) => displayBrand(variant.brand) === brand);
     return {
       brand,
-      categories: categories.filter((category) => brandVariants.some((variant) => variant.category.trim() === category)),
+      categories,
       products: [...new Set(selectedProducts.filter((product) => displayBrand(product.brand) === brand).map((product) => product.productName.trim()).filter(Boolean))],
     };
   });

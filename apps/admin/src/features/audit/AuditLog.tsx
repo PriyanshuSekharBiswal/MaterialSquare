@@ -20,16 +20,31 @@ type Filters = {
 
 export default function AuditLog({ token, revision }: { token: string; revision: number }) {
   const [filters, setFilters] = useState<Filters>({
-    from: "",
-    to: "",
-    action: "",
-    entityType: "",
-    entityId: "",
+    from: new URLSearchParams(window.location.search).get("auditFrom") || "",
+    to: new URLSearchParams(window.location.search).get("auditTo") || "",
+    action: new URLSearchParams(window.location.search).get("auditAction") || "",
+    entityType: new URLSearchParams(window.location.search).get("auditEntityType") || "",
+    entityId: new URLSearchParams(window.location.search).get("auditEntityId") || "",
   });
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => Math.max(1, Number(new URLSearchParams(window.location.search).get("auditPage")) || 1));
   const [result, setResult] = useState<Page | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const values: Array<[string, string]> = [
+      ["auditFrom", filters.from], ["auditTo", filters.to], ["auditAction", filters.action],
+      ["auditEntityType", filters.entityType], ["auditEntityId", filters.entityId],
+    ];
+    for (const [key, value] of values) {
+      if (value) url.searchParams.set(key, value);
+      else url.searchParams.delete(key);
+    }
+    if (page > 1) url.searchParams.set("auditPage", String(page));
+    else url.searchParams.delete("auditPage");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [filters, page]);
 
   useEffect(() => {
     const controller = new AbortController();
