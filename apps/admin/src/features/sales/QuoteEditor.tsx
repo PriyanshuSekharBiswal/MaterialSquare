@@ -127,27 +127,6 @@ const blank = (): Line => ({
 });
 const serviceStates = ["Delhi", "Haryana", "Uttar Pradesh"];
 const formatMoney = (value: number) => `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
-const toLocalDateInput = (value?: string | null) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-const localDateInputToday = () => toLocalDateInput(new Date().toISOString());
-const dateInputToEndOfDayIso = (value: string) =>
-  new Date(`${value}T23:59:59.999`).toISOString();
-const formatDateInput = (value: string) => {
-  if (!value) return "";
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-};
 const matchesComparisonProduct = (primary?: Selection, option?: Selection) =>
   Boolean(primary && option) &&
   (primary!.category || "Other materials").trim().toLocaleLowerCase() ===
@@ -227,9 +206,6 @@ export default function QuoteEditor({
     () => Boolean(revision?.items.some((item) => item.options?.length)),
   );
   const [freight, setFreight] = useState(revision?.freightAmount || "0");
-  const [validUntil, setValidUntil] = useState(() =>
-    editing ? toLocalDateInput(revision?.validUntil) : "",
-  );
   const [taxPct, setTaxPct] = useState(() => {
     if (!revision) return "18";
     const taxableBase =
@@ -242,7 +218,6 @@ export default function QuoteEditor({
   });
   const [previewSnapshot, setPreviewSnapshot] = useState<{
     requestNumber: string;
-    validUntil: string;
     customerName: string;
     customerPhone: string;
     customerEmail: string;
@@ -646,12 +621,6 @@ export default function QuoteEditor({
       return;
     }
     const form = new FormData(event.currentTarget);
-    const validityDate = String(form.get("validUntil") || "");
-    if (!validityDate) {
-      setError("Choose a valid-until date for this quotation.");
-      formRef.current?.querySelector<HTMLInputElement>('[name="validUntil"]')?.focus();
-      return;
-    }
     const addressParts = [
       ["Building", form.get("building")],
       ["Area", form.get("street")],
@@ -681,7 +650,6 @@ export default function QuoteEditor({
           drawingFileUrl: revision?.drawingFileUrl || undefined,
           projectSiteAddress: addressParts.join(", "),
           sitePincode: form.get("pincode"),
-          validUntil: dateInputToEndOfDayIso(validityDate),
           notes: form.get("notes") || undefined,
           freightAmount: Number(form.get("freight")),
           taxPct: Number(form.get("tax")),
@@ -1240,7 +1208,7 @@ export default function QuoteEditor({
           <section className="sales-quote-section sales-quote-pricing-section">
             <div className="sales-quote-section-heading">
               <span className="sales-quote-section-step">03</span>
-              <div><h3>Pricing, validity & notes</h3><p>Choose how long this quotation remains valid, then enter delivery freight and the applicable tax rate.</p></div>
+              <div><h3>Pricing & notes</h3><p>Enter delivery freight and the applicable tax rate. Quotation validity is assigned automatically.</p></div>
             </div>
             <div className="sales-quote-pricing-grid">
               <div className="sales-quote-pricing-fields">
@@ -1270,18 +1238,6 @@ export default function QuoteEditor({
               required
             />
             <small>Tax is calculated using one rate for the quotation.</small>
-          </label>
-          <label>
-            Valid until
-            <input
-              name="validUntil"
-              type="date"
-              min={localDateInputToday()}
-              value={validUntil}
-              onChange={(event) => setValidUntil(event.target.value)}
-              required
-            />
-            <small>Choose the last date this quotation can be accepted.</small>
           </label>
           <label>
             Quotation notes
@@ -1322,12 +1278,6 @@ export default function QuoteEditor({
               aria-controls="sales-quotation-preview-dialog"
               onClick={() => {
               if (!formRef.current) return;
-              const validityDate = String(new FormData(formRef.current).get("validUntil") || "");
-              if (!validityDate) {
-                setError("Choose a valid-until date before previewing this quotation.");
-                formRef.current.querySelector<HTMLInputElement>('[name="validUntil"]')?.focus();
-                return;
-              }
               if (lines.some((line) => line.alternatives.some((alternative) => {
                 const option = resolveAlternative(line, alternative);
                 return !matchesComparisonProduct(resolveSelection(line), option);
@@ -1364,7 +1314,6 @@ export default function QuoteEditor({
                 .join(", ");
               setPreviewSnapshot({
                 requestNumber: initialRequest?.requestNumber || initialRequest?.id || "",
-                validUntil: validityDate,
                 customerName: String(form.get("name") || "").trim(),
                 customerPhone: String(form.get("phone") || "").trim(),
                 customerEmail: String(form.get("email") || "").trim(),
@@ -1472,7 +1421,6 @@ export default function QuoteEditor({
                   <span>QUOTATION</span>
                   <strong>{previewSnapshot.requestNumber || "Draft quotation"}</strong>
                   <small>Draft preview · Not sent</small>
-                  <small>Valid until {formatDateInput(previewSnapshot.validUntil)}</small>
                 </div>
               </header>
               <section className="sales-quote-preview-customer">

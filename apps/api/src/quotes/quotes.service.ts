@@ -192,7 +192,11 @@ export class QuotesService {
           taxPct: input.taxPct,
           marginAmount: 0,
           freightAmount: input.freightAmount,
-          validUntil: new Date(input.validUntil),
+          validUntil:
+            existingDraft?.validUntil ??
+            new Date(
+              Date.now() + businessRules.quotationValidityHours * 3600000,
+            ),
         };
         if (editId) {
           const existing = await db.quotation.findUnique({

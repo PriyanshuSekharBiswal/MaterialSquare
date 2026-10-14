@@ -173,10 +173,6 @@ export const CreateQuoteSchema = z.object({
   sitePincode: z
     .string()
     .regex(/^\d{6}$/, "Valid 6-digit Indian PIN code required"),
-  validUntil: z.string().datetime().refine(
-    (value) => new Date(value).getTime() > Date.now(),
-    "Choose a validity date in the future",
-  ),
   items: z
     .array(
       z
