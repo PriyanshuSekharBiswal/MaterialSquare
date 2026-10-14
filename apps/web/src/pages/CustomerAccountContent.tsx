@@ -150,7 +150,7 @@ export function AccountContent({
                       {item.options?.map((option) => (
                         <span key={option.id}>
                           {option.brandName} · {option.productName} ·{" "}
-                          {money(option.unitPrice)} / {option.unit}
+                          {option.quantityMt} {option.unit} × {money(option.unitPrice)} / unit · {money(option.lineTotal)}
                         </span>
                       ))}
                     </div>
@@ -793,6 +793,7 @@ export function AccountContent({
                               {money(option.unitPrice)}{" "}
                               <small>/ {option.unit}</small>
                             </strong>
+                            <p>{option.quantityMt} {option.unit} · {money(option.lineTotal)} total</p>
                           </div>
                         ))}
                       </div>

@@ -360,6 +360,7 @@ model Quotation {
   projectSiteAddress String
   sitePincode        String
   status             QuoteStatus         @default(PENDING_REVIEW)
+  publishedAt        DateTime?
   subtotal           Decimal             @db.Decimal(12, 2)
   marginAmount       Decimal             @default(0.0) @db.Decimal(12, 2)
   marginPct          Decimal             @default(0.0) @db.Decimal(5, 2)
@@ -417,6 +418,7 @@ model QuotationItemOption {
   brandName       String
   categoryName    String
   unit            String
+  quantityMt      Decimal       @db.Decimal(12, 3)
   specification   String
   unitPrice       Decimal       @db.Decimal(10, 2)
   lineTotal       Decimal       @db.Decimal(12, 2)

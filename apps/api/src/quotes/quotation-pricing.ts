@@ -20,6 +20,11 @@ export function buildQuotationItems(
       productId?: string;
       catalogueId?: string;
       variantId?: string;
+      productName?: string;
+      brandName?: string;
+      categoryName?: string;
+      unit?: string;
+      quantity?: number;
       unitPrice: number;
       specification: string;
     }) => {
@@ -32,6 +37,29 @@ export function buildQuotationItems(
       const variant = listing?.variants.find(
         (candidate) => candidate.id === selection.variantId,
       );
+      const quantity = selection.quantity ?? line.quantity;
+      if (!product && !listing) {
+        if (!selection.productName || !selection.unit)
+          throw new BadRequestException(
+            "The requested product details are incomplete",
+          );
+        return {
+          productId: null,
+          catalogueId: null,
+          variantId: null,
+          productName: selection.productName,
+          brandName: selection.brandName?.trim() || "Unspecified brand",
+          categoryName: selection.categoryName?.trim() || "Other materials",
+          unit: selection.unit,
+          quantityMt: quantity,
+          specification: selection.specification,
+          unitPrice: selection.unitPrice,
+          lineTotal: new Prisma.Decimal(quantity)
+            .mul(selection.unitPrice)
+            .toDecimalPlaces(2),
+          discountAmount: new Prisma.Decimal(0),
+        };
+      }
       if (listing?.variants.length && !variant)
         throw new BadRequestException(
           "Choose a valid pack or size for this catalogue listing",
@@ -48,16 +76,10 @@ export function buildQuotationItems(
         brandName: product?.brand.name ?? listing!.brand,
         categoryName: product?.category ?? listing!.category,
         unit: variant?.unit ?? product?.unit ?? listing!.unit,
-        specification:
-          variant &&
-          (selection.specification === variant.label ||
-            selection.specification.startsWith(`${variant.label} · `))
-            ? selection.specification
-            : [variant?.label, selection.specification]
-                .filter(Boolean)
-                .join(" · "),
+        quantityMt: quantity,
+        specification: selection.specification || variant?.label || "",
         unitPrice: selection.unitPrice,
-        lineTotal: new Prisma.Decimal(line.quantity)
+        lineTotal: new Prisma.Decimal(quantity)
           .mul(selection.unitPrice)
           .toDecimalPlaces(2),
         discountAmount: new Prisma.Decimal(0),
@@ -125,7 +147,7 @@ export function calculateQuotationTotals(
     discountAmount: discountFor(item, item.quantityMt),
     options: options.map((option) => ({
       ...option,
-      discountAmount: discountFor(option, item.quantityMt),
+      discountAmount: discountFor(option, option.quantityMt),
     })),
   }));
   const subtotal = pricedItems.reduce(

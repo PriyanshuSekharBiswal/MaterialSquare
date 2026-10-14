@@ -53,6 +53,8 @@ export default function WorkspaceOverview({
   onRecordEnquiry,
 }: WorkspaceOverviewProps) {
   const [recentCategory, setRecentCategory] = useState("All activity");
+  const [recentPage, setRecentPage] = useState(1);
+  const recentPageSize = 8;
   const normalizedRecentItems = (recentChanges?.items || []).map((change) => ({
     ...change,
     category: change.category || recentCategoryForEntity(change.entityType),
@@ -73,6 +75,16 @@ export default function WorkspaceOverview({
     (change) =>
       recentCategory === "All activity" || change.category === recentCategory,
   );
+  const recentPageCount = Math.max(1, Math.ceil(recentItems.length / recentPageSize));
+  const currentRecentPage = Math.min(recentPage, recentPageCount);
+  const pagedRecentItems = recentItems.slice(
+    (currentRecentPage - 1) * recentPageSize,
+    currentRecentPage * recentPageSize,
+  );
+  const recentPageStart = recentItems.length
+    ? (currentRecentPage - 1) * recentPageSize + 1
+    : 0;
+  const recentPageEnd = Math.min(currentRecentPage * recentPageSize, recentItems.length);
   const recentCounts = new Map(
     categories.map((category) => [
       category,
@@ -245,7 +257,10 @@ export default function WorkspaceOverview({
                   : "recent-filter"
               }
               aria-pressed={recentCategory === category}
-              onClick={() => setRecentCategory(category)}
+              onClick={() => {
+                setRecentCategory(category);
+                setRecentPage(1);
+              }}
             >
               {category}
               <span>{recentCounts.get(category)}</span>
@@ -273,7 +288,7 @@ export default function WorkspaceOverview({
           </div>
         ) : (
           <ul className="recent-changes-list">
-            {recentItems.map((change) => {
+            {pagedRecentItems.map((change) => {
               const Icon =
                 change.action.includes("CREATED") ||
                 change.action.includes("PUBLISHED")
@@ -438,9 +453,9 @@ export default function WorkspaceOverview({
         )}
         <div className="recent-changes-footer">
           <span>
-            Showing {recentItems.length} of{" "}
+            Showing {recentPageStart}–{recentPageEnd} of {recentItems.length} matching changes (
             {recentChanges?.total ?? normalizedRecentItems.length} recorded
-            changes from the past 7 days.
+            changes from the past 7 days)
           </span>
           {(staffRole === "SUPER_ADMIN" || staffRole === "ADMIN") && (
             <button className="recent-changes-link" onClick={onViewAudit}>
@@ -449,6 +464,27 @@ export default function WorkspaceOverview({
           )}
         </div>
       </section>
+      {recentItems.length > 0 && (
+        <nav className="pagination recent-pagination recent-pagination-outside" aria-label="Recent changes pages">
+          <button
+            type="button"
+            className="btn-sm btn-secondary"
+            onClick={() => setRecentPage(Math.max(1, currentRecentPage - 1))}
+            disabled={currentRecentPage <= 1}
+          >
+            Previous
+          </button>
+          <span aria-current="page">Page {currentRecentPage} of {recentPageCount}</span>
+          <button
+            type="button"
+            className="btn-sm btn-secondary"
+            onClick={() => setRecentPage(Math.min(recentPageCount, currentRecentPage + 1))}
+            disabled={currentRecentPage >= recentPageCount}
+          >
+            Next
+          </button>
+        </nav>
+      )}
       <section className="panel-card panel-body">
         <h2>Today’s work</h2>
         <p>

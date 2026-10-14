@@ -5,6 +5,7 @@ export * from "./site-content";
 export * from "./rfq-upload";
 export * from "./partner-brand-defaults";
 
+
 // ==========================================
 // USER & AUTH TYPES
 // ==========================================
@@ -138,14 +139,21 @@ const QuoteProductSelectionSchema = z
     productId: z.string().min(1).max(100).optional(),
     catalogueId: z.string().min(1).max(100).optional(),
     variantId: z.string().min(1).max(100).optional(),
+    productName: z.string().trim().min(1).max(200).optional(),
+    brandName: z.string().trim().max(120).optional(),
+    categoryName: z.string().trim().max(120).optional(),
+    unit: z.string().trim().min(1).max(100).optional(),
+    quantity: z.number().finite().positive().max(1000000).optional(),
     unitPrice: z.number().finite().nonnegative().max(99999999),
     specification: z.string().trim().max(500).default(""),
   })
   .superRefine((line, ctx) => {
-    if (Boolean(line.productId) === Boolean(line.catalogueId))
+    const hasLinkedSelection = Boolean(line.productId) !== Boolean(line.catalogueId);
+    const hasRequestSnapshot = Boolean(line.productName && line.unit);
+    if ((Boolean(line.productId) && Boolean(line.catalogueId)) || (!hasLinkedSelection && !hasRequestSnapshot))
       ctx.addIssue({
         code: "custom",
-        message: "Select one inventory product or catalogue listing",
+        message: "Select a product or include the requested product details",
       });
     if (line.variantId && !line.catalogueId)
       ctx.addIssue({
@@ -165,6 +173,10 @@ export const CreateQuoteSchema = z.object({
   sitePincode: z
     .string()
     .regex(/^\d{6}$/, "Valid 6-digit Indian PIN code required"),
+  validUntil: z.string().datetime().refine(
+    (value) => new Date(value).getTime() > Date.now(),
+    "Choose a validity date in the future",
+  ),
   items: z
     .array(
       z
@@ -172,17 +184,23 @@ export const CreateQuoteSchema = z.object({
           productId: z.string().min(1).max(100).optional(),
           catalogueId: z.string().min(1).max(100).optional(),
           variantId: z.string().min(1).max(100).optional(),
+          productName: z.string().trim().min(1).max(200).optional(),
+          brandName: z.string().trim().max(120).optional(),
+          categoryName: z.string().trim().max(120).optional(),
+          unit: z.string().trim().min(1).max(100).optional(),
           quantity: z.number().finite().positive().max(1000000).optional(),
           quantityMt: z.number().finite().positive().max(1000000).optional(),
           unitPrice: z.number().finite().nonnegative().max(99999999),
           specification: z.string().trim().max(500).default(""),
-          alternatives: z.array(QuoteProductSelectionSchema).max(2).default([]),
+          alternatives: z.array(QuoteProductSelectionSchema).max(10).default([]),
         })
         .superRefine((line, ctx) => {
-          if (Boolean(line.productId) === Boolean(line.catalogueId))
+          const hasLinkedSelection = Boolean(line.productId) !== Boolean(line.catalogueId);
+          const hasRequestSnapshot = Boolean(line.productName && line.unit);
+          if ((Boolean(line.productId) && Boolean(line.catalogueId)) || (!hasLinkedSelection && !hasRequestSnapshot))
             ctx.addIssue({
               code: "custom",
-              message: "Select one inventory product or catalogue listing",
+              message: "Select a product or include the requested product details",
             });
           if (line.variantId && !line.catalogueId)
             ctx.addIssue({

@@ -65,6 +65,8 @@ export default function RecentActivity({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [refresh, setRefresh] = useState(0);
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -123,6 +125,11 @@ export default function RecentActivity({
       return categoryMatches && searchMatches;
     });
   }, [category, data?.items, search]);
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pageItems = items.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const pageStart = items.length ? (currentPage - 1) * pageSize + 1 : 0;
+  const pageEnd = Math.min(currentPage * pageSize, items.length);
 
   const canOpenCatalogue = ["SUPER_ADMIN", "ADMIN", "SALES_MANAGER", "CATALOG_MANAGER"].includes(role);
   const canOpenContent = ["SUPER_ADMIN", "ADMIN", "CONTENT_MANAGER"].includes(role);
@@ -139,6 +146,7 @@ export default function RecentActivity({
   }, [canOpenBusiness, canOpenCatalogue, canOpenContent, canOpenSales, canOpenStaff, onOpenBusiness, onOpenCatalogue, onOpenContent, onOpenSales, onOpenStaff]);
 
   return (
+    <>
     <section className="panel-card recent-changes-panel recent-activity-page" aria-labelledby="recent-activity-title">
       <div className="recent-changes-header">
         <div>
@@ -156,14 +164,14 @@ export default function RecentActivity({
       <div className="recent-activity-controls">
         <div className="recent-changes-filters" role="group" aria-label="Filter recent activity">
           {categories.map((name) => (
-            <button key={name} className={category === name ? "recent-filter active" : "recent-filter"} type="button" aria-pressed={category === name} onClick={() => setCategory(name)}>
+            <button key={name} className={category === name ? "recent-filter active" : "recent-filter"} type="button" aria-pressed={category === name} onClick={() => { setCategory(name); setPage(1); }}>
               {name}<span>{counts.get(name) || 0}</span>
             </button>
           ))}
         </div>
         <label className="recent-activity-search">
           <span>Search recent changes</span>
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Product, staff member, action…" />
+          <input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Product, staff member, action…" />
         </label>
       </div>
       {loading && <p className="recent-changes-message" role="status">Loading recent activity…</p>}
@@ -173,7 +181,7 @@ export default function RecentActivity({
       )}
       {!loading && !error && items.length > 0 && (
         <ul className="recent-changes-list recent-activity-list">
-          {items.map((item) => {
+          {pageItems.map((item) => {
             const Icon = item.action.includes("UPLOADED") ? Upload : item.action.includes("CREATED") || item.action.includes("PUBLISHED") ? Plus : Pencil;
             const canOpen = (["CATALOG_PRODUCT", "PRODUCT_SKU"].includes(item.entityType) && canOpenCatalogue)
               || (["MEDIA_ASSET", "WEBSITE_CONTENT", "WEBSITE_BRANDS", "BLOG_POST", "EXPERT_ADVISOR"].includes(item.entityType) && canOpenContent)
@@ -239,7 +247,35 @@ export default function RecentActivity({
           })}
         </ul>
       )}
-      {data && <div className="recent-changes-footer"><span>Showing {items.length} of {data.total} recorded changes from the past 7 days.</span></div>}
+      {data && (
+        <div className="recent-changes-footer">
+          <span>
+            Showing {pageStart}–{pageEnd} of {items.length} matching changes ({data.total} recorded changes from the past 7 days)
+          </span>
+        </div>
+      )}
     </section>
+    {items.length > 0 && (
+      <nav className="pagination recent-pagination recent-pagination-outside" aria-label="Recent activity pages">
+        <button
+          type="button"
+          className="btn-sm btn-secondary"
+          onClick={() => setPage(Math.max(1, currentPage - 1))}
+          disabled={currentPage <= 1}
+        >
+          Previous
+        </button>
+        <span aria-current="page">Page {currentPage} of {pageCount}</span>
+        <button
+          type="button"
+          className="btn-sm btn-secondary"
+          onClick={() => setPage(Math.min(pageCount, currentPage + 1))}
+          disabled={currentPage >= pageCount}
+        >
+          Next
+        </button>
+      </nav>
+    )}
+    </>
   );
 }

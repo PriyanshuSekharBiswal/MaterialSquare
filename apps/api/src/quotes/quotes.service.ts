@@ -31,7 +31,10 @@ export class QuotesService {
   async findById(id: string) {
     const quote = await this.prisma.quotation.findUnique({
       where: { id },
-      include: { items: { include: { product: true, options: true } } },
+      include: {
+        customer: true,
+        items: { include: { product: true, options: true } },
+      },
     });
     if (!quote) throw new NotFoundException("Quotation not found");
     return quote;
@@ -189,9 +192,7 @@ export class QuotesService {
           taxPct: input.taxPct,
           marginAmount: 0,
           freightAmount: input.freightAmount,
-          validUntil: new Date(
-            Date.now() + businessRules.quotationValidityHours * 3600000,
-          ),
+          validUntil: new Date(input.validUntil),
         };
         if (editId) {
           const existing = await db.quotation.findUnique({
@@ -313,13 +314,14 @@ export class QuotesService {
             "The original quotation was accepted; this revision cannot be published",
           );
       }
+      const publishedAt = new Date();
       const updated = await db.quotation.updateMany({
         where: {
           id,
           status: { in: ["DRAFT", "PENDING_REVIEW", "MARGIN_ADJUSTED"] },
           validUntil: { gt: new Date() },
         },
-        data: { status: "QUOTE_SENT" },
+        data: { status: "QUOTE_SENT", publishedAt },
       });
       if (updated.count !== 1)
         throw new BadRequestException(

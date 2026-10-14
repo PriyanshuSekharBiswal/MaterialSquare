@@ -237,7 +237,10 @@ export class CustomerController {
           ],
         },
       },
-      include: { items: { include: { product: true, options: true } } },
+      include: {
+        customer: true,
+        items: { include: { product: true, options: true } },
+      },
     });
     if (!quote) throw new NotFoundException("Quotation not found");
 
@@ -362,6 +365,7 @@ export class CustomerController {
                   productName: true,
                   brandName: true,
                   categoryName: true,
+                  quantityMt: true,
                   unit: true,
                   specification: true,
                   unitPrice: true,
@@ -505,6 +509,7 @@ export class CustomerController {
                 productName: true,
                 brandName: true,
                 categoryName: true,
+                quantityMt: true,
                 unit: true,
                 specification: true,
                 unitPrice: true,

@@ -941,6 +941,30 @@ textarea {
   font-size: 0.74rem;
 }
 
+.recent-pagination {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 0;
+  color: var(--ms-slate-600);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.recent-pagination-outside {
+  display: flex;
+  width: 100%;
+  justify-content: flex-end;
+  margin-top: 24px;
+  margin-bottom: 24px;
+}
+
+.recent-pagination .btn-sm:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .recent-changes-link {
   display: inline-flex;
   align-items: center;
@@ -994,6 +1018,10 @@ textarea {
   .recent-changes-footer {
     align-items: flex-start;
     padding: 10px 0;
+  }
+  .recent-pagination {
+    justify-content: space-between;
+    gap: 8px;
   }
   .recent-changes-header,
   .recent-activity-controls {

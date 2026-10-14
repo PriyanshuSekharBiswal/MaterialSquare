@@ -211,6 +211,7 @@ export class QuotationAcceptanceService {
                 categoryName: selected.categoryName,
                 unit: selected.unit,
                 specification: selected.specification,
+                quantityMt: selected.quantityMt,
                 unitPrice: selected.unitPrice,
                 lineTotal: selected.lineTotal,
                 discountAmount: selected.discountAmount,

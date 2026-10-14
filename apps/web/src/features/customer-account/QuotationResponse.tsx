@@ -71,7 +71,7 @@ export default function QuotationResponse({ quote }: { quote: Quote }) {
                   {item.options?.map((option) => (
                     <option key={option.id} value={option.id}>
                       {option.brandName} · {option.productName} ·{" "}
-                      {money(option.unitPrice)} / {option.unit}
+                      {option.quantityMt} {option.unit} · {money(option.unitPrice)} / unit · {money(option.lineTotal)}
                     </option>
                   ))}
                 </select>

@@ -15,19 +15,11 @@ const COLORS = {
 };
 
 type QuotePdf = Prisma.QuotationGetPayload<{
-  include: { items: { include: { product: true; options: true } } };
+  include: {
+    customer: true;
+    items: { include: { product: true; options: true } };
+  };
 }>;
-
-const QUOTE_STATUS_LABEL: Record<QuotePdf["status"], string> = {
-  DRAFT: "DRAFT - REVIEW",
-  PENDING_REVIEW: "PENDING REVIEW",
-  MARGIN_ADJUSTED: "DRAFT - REVIEW",
-  QUOTE_SENT: "SENT TO CUSTOMER",
-  ACCEPTED: "ACCEPTED",
-  CONVERTED_TO_ORDER: "ORDER CREATED",
-  EXPIRED: "EXPIRED",
-  REJECTED: "CLOSED",
-};
 
 @Injectable()
 export class PdfService {
@@ -261,15 +253,58 @@ export class PdfService {
 
       const pageWidth = doc.page.width;
       const pageHeight = doc.page.height;
-      const left = 42;
-      const right = pageWidth - 42;
+      const left = 44;
+      const right = pageWidth - left;
       const contentWidth = right - left;
-      const money = (value: Prisma.Decimal | number) => {
-        const amount = typeof value === "number" ? value : value.toNumber();
-        return `INR ${amount.toLocaleString("en-IN", {
+      const formatAmount = (value: Prisma.Decimal) =>
+        value.toNumber().toLocaleString("en-IN", {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
-        })}`;
+        });
+      const drawRupeeAmount = (
+        value: Prisma.Decimal,
+        x: number,
+        y: number,
+        width: number,
+        align: "left" | "right" = "right",
+        color = COLORS.ink,
+        negative = false,
+        fontSize = 8.5,
+      ) => {
+        const amount = formatAmount(value);
+        const iconScale = fontSize * 0.042;
+        const symbolWidth = fontSize * 0.56;
+        const gap = 3;
+        const negativeWidth = negative ? 9 : 0;
+        const textSlack = 4;
+        const amountWidth = doc.widthOfString(amount);
+        const startX = align === "right" ? x + width - negativeWidth - symbolWidth - gap - amountWidth - textSlack : x;
+        doc.save();
+        const iconX = startX + negativeWidth + (symbolWidth - 12 * iconScale) / 2;
+        const iconY = y - 3 * iconScale;
+        const sx = (value: number) => iconX + value * iconScale;
+        const sy = (value: number) => iconY + value * iconScale;
+        doc.lineWidth(1).lineCap("round").lineJoin("round").strokeColor(color);
+        if (negative) {
+          doc.font("Helvetica-Bold").fontSize(fontSize).fillColor(color)
+            .text("-", startX, y, { width: negativeWidth });
+        }
+        // Draw the ₹ glyph as vector paths so it renders consistently in PDFs
+        // without depending on the viewer's support for the Unicode character.
+        doc.moveTo(sx(6), sy(3)).lineTo(sx(18), sy(3)).stroke();
+        doc.moveTo(sx(6), sy(8)).lineTo(sx(18), sy(8)).stroke();
+        doc.moveTo(sx(6), sy(13)).lineTo(sx(14.5), sy(21)).stroke();
+        doc.moveTo(sx(6), sy(13)).lineTo(sx(9), sy(13)).stroke();
+        doc.moveTo(sx(9), sy(13))
+          .bezierCurveTo(sx(15.667), sy(13), sx(15.667), sy(3), sx(9), sy(3))
+          .stroke();
+        doc.restore();
+        const amountX = startX + negativeWidth + symbolWidth + gap;
+        doc.fillColor(color).text(amount, amountX, y, {
+          width: Math.max(0, x + width - amountX),
+          align: "left",
+          lineBreak: false,
+        });
       };
       const shortDate = (value: Date) =>
         value.toLocaleDateString("en-IN", {
@@ -278,473 +313,250 @@ export class PdfService {
           year: "numeric",
         });
       const sellerName = process.env.QUOTE_SELLER_NAME || "MATERIAL SQUARE";
-      const sellerAddress = process.env.QUOTE_SELLER_ADDRESS?.trim();
-      const sellerPhone = process.env.QUOTE_SELLER_PHONE?.trim();
-      const sellerEmail = process.env.QUOTE_SELLER_EMAIL?.trim();
-      const sellerGstin = process.env.QUOTE_SELLER_GSTIN?.trim();
-      const sellerMark = sellerName
-        .split(/\s+/)
-        .map((part) => part.replace(/[.,]/g, ""))
-        .filter(
-          (part) =>
-            part.length > 0 &&
-            !["PVT", "LTD", "PRIVATE", "LIMITED"].includes(part.toUpperCase()),
-        )
-        .slice(0, 2)
-        .map((part) => part[0])
-        .join("")
-        .toUpperCase();
-      const drawFirstPageHeader = () => {
-        doc.rect(0, 0, pageWidth, 113).fill(COLORS.navy);
-        doc.rect(0, 109, pageWidth, 4).fill(COLORS.blue);
-        doc.roundedRect(left, 23, 42, 42, 10).fill(COLORS.blue);
-        doc
-          .font("Helvetica-Bold")
-          .fontSize(17)
-          .fillColor(COLORS.white)
-          .text(sellerMark || "MS", left, 34, {
-            width: 42,
-            align: "center",
-            ellipsis: true,
-          });
-        doc
-          .font("Helvetica-Bold")
-          .fontSize(14.5)
-          .fillColor(COLORS.white)
-          .text(sellerName, left + 56, 25, {
-            width: right - left - 56 - 174,
-            height: 21,
-            ellipsis: true,
-            characterSpacing: 0.5,
-          });
-        doc
-          .font("Helvetica")
-          .fontSize(7.2)
-          .fillColor("#C8D4E5")
-          .text(sellerAddress || "BUILDING MATERIALS", left + 57, 52, {
-            width: right - left - 174,
-            ellipsis: true,
-          });
-        const sellerContacts = [
-          sellerGstin ? `GSTIN ${sellerGstin}` : undefined,
-          sellerPhone,
-          sellerEmail,
-        ]
-          .filter(Boolean)
-          .join("  |  ");
-        if (sellerContacts) {
-          doc
-            .font("Helvetica")
-            .fontSize(7.2)
-            .fillColor("#C8D4E5")
-            .text(sellerContacts, left + 57, 64, {
-              width: right - left - 174,
-              ellipsis: true,
-            });
-        }
+      const headerBottom = 122;
+      const pageBottom = pageHeight - 46;
+      const customer = quote.customer;
+      const customerFields = [
+        ["Name", quote.customerName || customer?.name || "Not provided"],
+        ["Mobile", quote.customerPhone || customer?.phone || "Not provided"],
+        ["Company", customer?.companyName || "Not provided"],
+        ["GSTIN", customer?.gstin || "Not provided"],
+        ...(quote.customerEmail || customer?.email
+          ? [["Email", quote.customerEmail || customer?.email || ""]]
+          : []),
+      ];
+      const addressTokens = quote.projectSiteAddress
+        .split(/,\s*(?=(?:Building|Area|Street|Landmark|City|State):)/i)
+        .map((part) => part.trim())
+        .filter(Boolean);
+      const addressFields = addressTokens
+        .map((token) => {
+          const match = token.match(/^([^:]+):\s*(.*)$/);
+          return match ? [match[1], match[2].trim()] : ["Address", token];
+        })
+        .filter((field) => field[1]);
+      if (quote.sitePincode && !addressFields.some(([label]) => label.toLowerCase() === "pin code")) {
+        addressFields.push(["PIN code", quote.sitePincode]);
+      }
 
-        doc
-          .font("Helvetica-Bold")
-          .fontSize(10)
-          .fillColor("#D9E5FF")
-          .text("QUOTATION", left, 80, { characterSpacing: 1.8 });
-        doc
-          .font("Helvetica")
-          .fontSize(9)
-          .fillColor("#D9E5FF")
-          .text(
-            `Revision ${quote.revisionNumber} · Prepared for your project`,
-            left + 92,
-            81,
-          );
-
-        const badgeWidth = 164;
-        const badgeX = right - badgeWidth;
-        doc.roundedRect(badgeX, 20, badgeWidth, 62, 8).fill("#203653");
-        doc
-          .font("Helvetica")
-          .fontSize(8)
-          .fillColor("#B9C8DD")
-          .text("QUOTE NUMBER", badgeX + 13, 32, { characterSpacing: 1 });
-        doc
-          .font("Helvetica-Bold")
-          .fontSize(11)
-          .fillColor(COLORS.white)
-          .text(quote.quoteNumber, badgeX + 13, 48, {
-            width: badgeWidth - 26,
-            ellipsis: true,
-          });
-      };
-
-      const drawContinuationHeader = () => {
-        doc
-          .font("Helvetica-Bold")
-          .fontSize(11)
-          .fillColor(COLORS.ink)
-          .text(sellerName, left, 31, { width: 300, ellipsis: true });
-        doc
-          .font("Helvetica")
-          .fontSize(9)
-          .fillColor(COLORS.muted)
-          .text(`Quotation ${quote.quoteNumber}`, right - 230, 32, {
-            width: 230,
-            align: "right",
-          });
-        doc
-          .moveTo(left, 52)
-          .lineTo(right, 52)
-          .lineWidth(1)
-          .strokeColor(COLORS.line)
-          .stroke();
-      };
-
-      const drawCustomerCards = (top: number) => {
-        const gap = 12;
-        const cardWidth = (contentWidth - gap) / 2;
-        const cardHeight = 104;
-        const rightCardX = left + cardWidth + gap;
-        doc.roundedRect(left, top, cardWidth, cardHeight, 8).fill(COLORS.paper);
-        doc
-          .font("Helvetica-Bold")
-          .fontSize(8)
-          .fillColor(COLORS.muted)
-          .text("PREPARED FOR", left + 14, top + 13, { characterSpacing: 1 });
-        doc
-          .font("Helvetica-Bold")
-          .fontSize(12)
-          .fillColor(COLORS.ink)
-          .text(quote.customerName, left + 14, top + 31, {
-            width: cardWidth - 28,
-            ellipsis: true,
-          });
-        let customerY = top + 51;
-        doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.muted);
-        doc.text(quote.customerPhone, left + 14, customerY, {
-          width: cardWidth - 28,
-          ellipsis: true,
-        });
-        customerY += 13;
-        if (quote.customerEmail) {
-          doc.text(quote.customerEmail, left + 14, customerY, {
-            width: cardWidth - 28,
-            ellipsis: true,
-          });
-          customerY += 13;
-        }
-        doc.text(
-          `${quote.projectSiteAddress}, ${quote.sitePincode}`,
-          left + 14,
-          customerY,
-          { width: cardWidth - 28, height: top + cardHeight - customerY - 8 },
+      const drawBrand = (top: number, continuation = false) => {
+        if (!continuation) doc.rect(0, 0, pageWidth, 6).fill("#F26722");
+        // Compact vector version of the Material Square mark used by the preview.
+        const logoX = left;
+        const logoY = top + (continuation ? 0 : 3);
+        doc.save();
+        doc.strokeColor(COLORS.ink).lineWidth(1.1);
+        [[9, 1, 9, 13], [12, 0, 12, 13], [15, 2, 15, 13]].forEach(([x1, y1, x2, y2]) =>
+          doc.moveTo(logoX + x1, logoY + y1).lineTo(logoX + x2, logoY + y2).stroke(),
         );
-
-        doc
-          .roundedRect(rightCardX, top, cardWidth, cardHeight, 8)
-          .fill(COLORS.paleBlue);
-        const metaX = rightCardX + 14;
-        const metaValueX = rightCardX + 105;
-        const metaRows = [
-          ["ISSUED", shortDate(quote.createdAt)],
-          ["VALID UNTIL", shortDate(quote.validUntil)],
-          ["STATUS", QUOTE_STATUS_LABEL[quote.status]],
-        ];
-        metaRows.forEach(([label, value], index) => {
-          const y = top + 18 + index * 25;
-          doc
-            .font("Helvetica-Bold")
-            .fontSize(7.5)
-            .fillColor(COLORS.muted)
-            .text(label, metaX, y, { width: 86, characterSpacing: 0.55 });
-          doc
-            .font("Helvetica-Bold")
-            .fontSize(9)
-            .fillColor(COLORS.ink)
-            .text(value, metaValueX, y - 1, {
-              width: cardWidth - (metaValueX - rightCardX) - 12,
-              ellipsis: true,
-            });
-        });
+        doc.fillColor("#94A3B8").path(`M ${logoX + 16} ${logoY + 5} h 22 v 26 h -8 v -18 h -14 z`).fill();
+        doc.fillColor(COLORS.ink).path(`M ${logoX} ${logoY + 45} v -38 h 9 l 10 19 10 -19 h 9 v 38 h -9 v -23 l -7 14 h -7 l -7 -14 v 23 z`).fill();
+        doc.fillColor("#EA580C").rect(logoX + 29, logoY + 32, 10, 4).fill();
+        doc.fillColor("#EA580C").rect(logoX + 25, logoY + 37, 8, 4).fill();
+        doc.fillColor("#EA580C").rect(logoX + 34, logoY + 37, 8, 4).fill();
+        doc.restore();
+        if (continuation) {
+          doc.font("Helvetica-Bold").fontSize(11).fillColor(COLORS.ink)
+            .text(sellerName, left + 52, top + 8, { width: 240, ellipsis: true });
+          doc.font("Helvetica").fontSize(9).fillColor(COLORS.muted)
+            .text(`Quotation ${quote.quoteNumber}`, right - 220, top + 9, { width: 220, align: "right" });
+          doc.moveTo(left, top + 35).lineTo(right, top + 35).lineWidth(0.7).strokeColor(COLORS.line).stroke();
+        } else {
+          doc.font("Helvetica-Bold").fontSize(16).fillColor(COLORS.ink)
+            .text("MATERIAL", left + 48, top + 9, { characterSpacing: 0.7 });
+          doc.font("Helvetica-Bold").fontSize(8).fillColor("#EA580C")
+            .text("—  S Q U A R E  —", left + 49, top + 28, { characterSpacing: 0.5 });
+          doc.font("Helvetica-Bold").fontSize(5.7).fillColor(COLORS.muted)
+            .text("BUILDING BETTER TOGETHER", left + 50, top + 40, { characterSpacing: 0.35 });
+          const titleX = right - 190;
+          doc.font("Helvetica-Bold").fontSize(18).fillColor(COLORS.ink)
+            .text("QUOTATION", titleX, top + 3, { width: 190, align: "right", characterSpacing: 0.6 });
+          const quoteNumberWidth = 326;
+          const quoteNumberX = right - quoteNumberWidth;
+          doc.font("Helvetica-Bold").fontSize(7.6).fillColor("#5E6D82")
+            .text(quote.quoteNumber, quoteNumberX, top + 29, { width: quoteNumberWidth, align: "right", lineBreak: false });
+          doc.font("Helvetica").fontSize(8).fillColor(COLORS.muted)
+            .text(`Issued ${shortDate(quote.createdAt)}  ·  Valid until ${shortDate(quote.validUntil)}`, titleX, top + 44, { width: 190, align: "right", lineBreak: false });
+          doc.moveTo(left, top + 65).lineTo(right, top + 65).lineWidth(0.7).strokeColor(COLORS.line).stroke();
+        }
       };
 
-      const tableTop = (top: number) => {
-        const tableHeight = 29;
-        doc
-          .roundedRect(left, top, contentWidth, tableHeight, 5)
-          .fill(COLORS.navy);
-        const labels = [
-          { text: "#", x: left + 10, width: 22, align: "left" as const },
-          {
-            text: "MATERIAL / SPECIFICATION",
-            x: left + 39,
-            width: 225,
-            align: "left" as const,
-          },
-          { text: "QTY", x: left + 266, width: 48, align: "right" as const },
-          { text: "UNIT", x: left + 318, width: 41, align: "left" as const },
-          { text: "RATE", x: left + 362, width: 80, align: "right" as const },
-          { text: "AMOUNT", x: left + 444, width: 67, align: "right" as const },
-        ];
-        labels.forEach(({ text, x, width, align }) => {
-          doc
-            .font("Helvetica-Bold")
-            .fontSize(7.3)
-            .fillColor(COLORS.white)
-            .text(text, x, top + 10, { width, align, characterSpacing: 0.4 });
+      const drawCustomerCard = (top: number) => {
+        const inset = 13;
+        const gridX = left + inset;
+        const gridWidth = contentWidth - inset * 2;
+        const colWidth = (gridWidth - 24) / 2;
+        let rowY = top + 35;
+        const customerRows = Math.ceil(customerFields.length / 2);
+        let cardHeight = 35 + customerRows * 34 + 13;
+        const addressLabelY = top + cardHeight + 11;
+        const addressStartY = addressLabelY + 19;
+        let addressHeight = 0;
+        if (addressFields.length) {
+          addressHeight = 30 + addressFields.length * 18;
+        } else {
+          addressHeight = 29;
+        }
+        cardHeight += addressHeight;
+        doc.save().roundedRect(left, top, contentWidth, cardHeight, 8).lineWidth(0.8).strokeColor("#E1E7EF").fillAndStroke("#FBFCFE", "#E1E7EF").restore();
+        doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.ink).text("CUSTOMER INFORMATION", gridX, top + 13, { characterSpacing: 0.5 });
+        customerFields.forEach((field, index) => {
+          const col = index % 2;
+          if (col === 0 && index > 0) rowY += 34;
+          const x = gridX + col * (colWidth + 24);
+          doc.font("Helvetica").fontSize(8.5).fillColor("#78869A").text(field[0], x, rowY, { width: colWidth });
+          doc.font("Helvetica-Bold").fontSize(9).fillColor("#29374C").text(field[1], x, rowY + 12, { width: colWidth, ellipsis: true });
         });
-        return top + tableHeight;
+        if (addressFields.length || quote.projectSiteAddress) {
+          doc.moveTo(gridX, addressLabelY - 6).lineTo(right - inset, addressLabelY - 6).lineWidth(0.6).strokeColor(COLORS.line).stroke();
+          doc.font("Helvetica").fontSize(8.5).fillColor("#78869A").text("Delivery address", gridX, addressLabelY, { width: gridWidth });
+        }
+        if (addressFields.length) {
+          addressFields.forEach(([label, value], index) => {
+            const addressY = addressStartY + index * 18;
+            doc.font("Helvetica").fontSize(8.5).fillColor("#78869A").text(label, gridX, addressY, { width: 84 });
+            doc.font("Helvetica-Bold").fontSize(9).fillColor("#29374C").text(value, gridX + 96, addressY, { width: gridWidth - 96, ellipsis: true });
+          });
+        } else {
+          doc.font("Helvetica-Bold").fontSize(9).fillColor("#29374C").text("Not provided", gridX, addressStartY, { width: gridWidth });
+        }
+        return top + cardHeight;
       };
 
-      drawFirstPageHeader();
-      drawCustomerCards(125);
-      let y = tableTop(238);
-      const contentBottom = pageHeight - 55;
-      const netMaterialSubtotal = quote.subtotal
-        .sub(quote.discountAmount)
-        .add(quote.marginAmount);
-      const multiplier = quote.subtotal.isZero()
-        ? new Prisma.Decimal(1)
-        : netMaterialSubtotal.div(quote.subtotal);
+      const columns = {
+        itemX: left + 8,
+        itemWidth: 258,
+        qtyX: left + 275,
+        qtyWidth: 69,
+        rateX: left + 352,
+        rateWidth: 77,
+        amountX: left + 437,
+        amountWidth: contentWidth - 445,
+      };
+      const drawTableHeader = (top: number) => {
+        doc.rect(left, top, contentWidth, 27).fill("#F4F6F9");
+        doc.moveTo(left, top).lineTo(right, top).lineWidth(0.6).strokeColor("#E0E6EE").stroke();
+        doc.moveTo(left, top + 27).lineTo(right, top + 27).lineWidth(0.6).strokeColor("#D8E0E9").stroke();
+        const header = (text: string, x: number, width: number, align: "left" | "right" = "left") =>
+          doc.font("Helvetica-Bold").fontSize(7.2).fillColor("#5C6C82").text(text, x, top + 9, { width, align, characterSpacing: 0.45 });
+        header("ITEM", columns.itemX, columns.itemWidth);
+        header("QTY", columns.qtyX, columns.qtyWidth);
+        header("UNIT RATE", columns.rateX, columns.rateWidth, "right");
+        header("AMOUNT", columns.amountX, columns.amountWidth, "right");
+        return top + 27;
+      };
 
-      quote.items.forEach((item, index) => {
-        const descriptionWidth = 218;
-        doc.font("Helvetica").fontSize(8.5);
-        const comparisonDetails = item.options.map(
-          (option) =>
-            `Alternative: ${option.brandName} · ${option.productName} · ${money(option.unitPrice)} / ${item.unit}`,
-        );
-        const description = [
-          [item.productName, item.brandName, item.specification]
-            .filter(Boolean)
-            .join("\n"),
-          ...comparisonDetails,
-        ]
-          .filter(Boolean)
-          .join("\n");
-        const descriptionHeight = doc.heightOfString(description, {
-          width: descriptionWidth,
-          lineGap: 1,
-        });
-        const rowHeight = Math.max(25, descriptionHeight + 10);
-        if (y + rowHeight > contentBottom) {
-          doc.addPage({ size: "A4", margin: 0 });
-          drawContinuationHeader();
-          y = tableTop(69);
+      let y = 0;
+      const startItemsOnPage = (continuation = false) => {
+        drawBrand(continuation ? 25 : 25, continuation);
+        if (continuation) {
+          doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.ink)
+            .text("QUOTED ITEMS (CONTINUED)", left, 74, { characterSpacing: 0.45 });
+          y = drawTableHeader(89);
+        } else {
+          const customerBottom = drawCustomerCard(headerBottom);
+          doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.ink)
+            .text("QUOTED ITEMS", left, customerBottom + 18, { characterSpacing: 0.45 });
+          y = drawTableHeader(customerBottom + 34);
         }
+      };
+      const addContinuationPage = () => {
+        doc.addPage({ size: "A4", margin: 0 });
+        startItemsOnPage(true);
+      };
 
-        if (index % 2 === 0) {
-          doc.rect(left, y, contentWidth, rowHeight).fill("#F7F9FC");
+      startItemsOnPage();
+      const rows = quote.items.flatMap((item, index) => [
+        {
+          itemIndex: index,
+          name: [item.productName, item.brandName].filter(Boolean).join(" · "),
+          specification: item.specification,
+          quantity: item.quantityMt,
+          unit: item.unit,
+          unitPrice: item.unitPrice,
+          lineTotal: item.lineTotal,
+          alternative: false,
+        },
+        ...item.options.map((option, optionIndex) => ({
+          itemIndex: index,
+          name: `Option ${String.fromCharCode(66 + optionIndex)} · ${[option.productName, option.brandName].filter(Boolean).join(" · ")}`,
+          specification: option.specification,
+          quantity: option.quantityMt,
+          unit: option.unit,
+          unitPrice: option.unitPrice,
+          lineTotal: option.lineTotal,
+          alternative: true,
+        })),
+      ]);
+      rows.forEach((row) => {
+        doc.font("Helvetica-Bold").fontSize(8.5);
+        const nameHeight = doc.heightOfString(row.name || "Material", { width: columns.itemWidth, lineGap: 1 });
+        doc.font("Helvetica").fontSize(8);
+        const specHeight = row.specification
+          ? doc.heightOfString(row.specification, { width: columns.itemWidth, lineGap: 1 }) + 4
+          : 0;
+        const qty = `${row.quantity.toNumber().toLocaleString("en-IN", { maximumFractionDigits: 3 })} × ${row.unit}`;
+        const qtyHeight = doc.heightOfString(qty, { width: columns.qtyWidth, lineGap: 1 });
+        const rowHeight = Math.max(37, nameHeight + specHeight + 19, qtyHeight + 20);
+        if (y + rowHeight > pageBottom - 5) addContinuationPage();
+        if (row.alternative) doc.rect(left, y, contentWidth, rowHeight).fill("#FFF8F3");
+        const textColor = row.alternative ? "#A04A1D" : "#25344A";
+        doc.font("Helvetica-Bold").fontSize(8.5).fillColor(textColor)
+          .text(row.name || "Material", columns.itemX, y + 9, { width: columns.itemWidth, lineGap: 1 });
+        if (row.specification) {
+          doc.font("Helvetica").fontSize(8).fillColor("#78869A")
+            .text(row.specification, columns.itemX, y + 11 + nameHeight, { width: columns.itemWidth, lineGap: 1 });
         }
-        doc
-          .font("Helvetica")
-          .fontSize(8)
-          .fillColor(COLORS.muted)
-          .text(String(index + 1).padStart(2, "0"), left + 10, y + 10, {
-            width: 22,
-          });
-        doc
-          .font("Helvetica-Bold")
-          .fontSize(8.5)
-          .fillColor(COLORS.ink)
-          .text(description, left + 39, y + 8, {
-            width: descriptionWidth,
-            lineGap: 1,
-          });
-        doc
-          .font("Helvetica")
-          .fontSize(8.2)
-          .fillColor(COLORS.ink)
-          .text(
-            item.quantityMt.toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1"),
-            left + 266,
-            y + 9,
-            {
-              width: 50,
-              align: "right",
-            },
-          )
-          .text(item.unit, left + 318, y + 9, { width: 41 });
-        doc
-          .font("Helvetica")
-          .fontSize(8.2)
-          .fillColor(COLORS.ink)
-          .text(money(item.unitPrice.mul(multiplier)), left + 362, y + 9, {
-            width: 80,
-            align: "right",
-          })
-          .text(money(item.lineTotal.mul(multiplier)), left + 444, y + 9, {
-            width: 67,
-            align: "right",
-          });
-        doc
-          .moveTo(left, y + rowHeight)
-          .lineTo(right, y + rowHeight)
-          .lineWidth(0.55)
-          .strokeColor(COLORS.line)
-          .stroke();
+        doc.font("Helvetica").fontSize(8).fillColor("#39485D")
+          .text(qty, columns.qtyX, y + 10, { width: columns.qtyWidth, lineGap: 1 });
+        doc.font("Helvetica").fontSize(8).fillColor("#39485D");
+        drawRupeeAmount(row.unitPrice, columns.rateX, y + 10, columns.rateWidth, "right", "#39485D", false, 8);
+        drawRupeeAmount(row.lineTotal, columns.amountX, y + 10, columns.amountWidth, "right", "#39485D", false, 8);
+        doc.moveTo(left, y + rowHeight).lineTo(right, y + rowHeight).lineWidth(0.55).strokeColor(COLORS.line).stroke();
         y += rowHeight;
       });
 
-      const hasComparisons = quote.items.some(
-        (item) => item.options.length > 0,
-      );
-      const notesText = [
-        hasComparisons
-          ? "Brand alternatives are shown by material. Contact the team with your preferred options to confirm the quotation total."
-          : "",
-        quote.notes?.trim() || "",
-      ]
-        .filter(Boolean)
-        .join("\n\n");
+      const notes = quote.notes?.trim() || "";
+      const summaryRows: [string, Prisma.Decimal][] = [["Items subtotal", quote.subtotal]];
+      if (quote.discountAmount.greaterThan(0)) summaryRows.push(["Discount", quote.discountAmount.negated()]);
+      if (quote.marginAmount.greaterThan(0)) summaryRows.push(["Service margin", quote.marginAmount]);
+      summaryRows.push([`Tax (${quote.taxPct.toString()}%)`, quote.taxAmount]);
+      summaryRows.push(["Delivery / freight", quote.freightAmount]);
+      const totalsHeight = summaryRows.length * 19 + 48;
       doc.font("Helvetica").fontSize(8.5);
-      const notesHeight = notesText
-        ? Math.min(90, doc.heightOfString(notesText, { width: 230 }) + 38)
+      const notesHeight = notes
+        ? doc.heightOfString(notes, { width: contentWidth - 28, lineGap: 2 }) + 37
         : 0;
-      const summaryHeight = 119 + notesHeight;
-      if (y + summaryHeight > contentBottom) {
-        doc.addPage({ size: "A4", margin: 0 });
-        drawContinuationHeader();
-        y = 74;
+      if (y + 14 + notesHeight + totalsHeight > pageBottom) {
+        addContinuationPage();
       }
-      y += 12;
-
-      if (notesText) {
-        const boxHeight = Math.max(74, notesHeight);
-        doc.roundedRect(left, y, 256, boxHeight, 8).fill(COLORS.paper);
-        doc
-          .font("Helvetica-Bold")
-          .fontSize(8)
-          .fillColor(COLORS.muted)
-          .text("NOTES & TERMS", left + 13, y + 12, { characterSpacing: 0.8 });
-        doc
-          .font("Helvetica")
-          .fontSize(8.5)
-          .fillColor(COLORS.ink)
-          .text(notesText, left + 13, y + 29, {
-            width: 230,
-            height: boxHeight - 38,
-            ellipsis: true,
-          });
-      }
-
-      const summaryWidth = 237;
-      const summaryX = right - summaryWidth;
-      const summaryLabelX = summaryX + 12;
-      const summaryValueX = summaryX + 100;
-      const summaryValueWidth = summaryWidth - 112;
-      let summaryY = y + 2;
-      const drawSummaryRow = (
-        label: string,
-        value: Prisma.Decimal,
-        bold = false,
-      ) => {
-        doc
-          .font(bold ? "Helvetica-Bold" : "Helvetica")
-          .fontSize(bold ? 9 : 8.5)
-          .fillColor(bold ? COLORS.ink : COLORS.muted)
-          .text(label, summaryLabelX, summaryY + 6, { width: 82 });
-        doc
-          .font(bold ? "Helvetica-Bold" : "Helvetica")
-          .fontSize(bold ? 9 : 8.5)
-          .fillColor(COLORS.ink)
-          .text(money(value), summaryValueX, summaryY + 6, {
-            width: summaryValueWidth,
-            align: "right",
-          });
-        summaryY += 20;
-      };
-
-      drawSummaryRow("Materials subtotal", quote.subtotal);
-      if (quote.discountAmount.greaterThan(0)) {
-        drawSummaryRow("Less: discount", quote.discountAmount.negated());
-      }
-      if (quote.marginAmount.greaterThan(0)) {
-        drawSummaryRow("Service margin", quote.marginAmount);
-      }
-      drawSummaryRow("Tax", quote.taxAmount);
-      drawSummaryRow("Delivery / freight", quote.freightAmount);
-      doc
-        .roundedRect(summaryX, summaryY, summaryWidth, 43, 7)
-        .fill(COLORS.navy);
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(9)
-        .fillColor("#D5E2F6")
-        .text("TOTAL", summaryX + 12, summaryY + 15, { characterSpacing: 1 });
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(12)
-        .fillColor(COLORS.white)
-        .text(money(quote.totalAmount), summaryX + 78, summaryY + 13, {
-          width: summaryWidth - 91,
-          align: "right",
+      y += 14;
+      if (notes) {
+        const boxHeight = Math.max(48, notesHeight);
+        doc.roundedRect(left, y, contentWidth, boxHeight, 6).fill("#FFF8F3");
+        doc.rect(left, y, 3, boxHeight).fill("#F1A77C");
+        doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.ink).text("NOTES", left + 13, y + 10);
+        doc.font("Helvetica").fontSize(8.5).fillColor("#617187").text(notes, left + 13, y + 24, {
+          width: contentWidth - 26,
+          height: boxHeight - 30,
+          ellipsis: true,
+          lineGap: 2,
         });
-      const summaryBottom = summaryY + 43;
-      if (!notesText) {
-        doc.roundedRect(left, y, 256, 99, 8).fill(COLORS.paper);
-        doc
-          .font("Helvetica-Bold")
-          .fontSize(8)
-          .fillColor(COLORS.muted)
-          .text("BEFORE YOU CONFIRM", left + 13, y + 12, {
-            characterSpacing: 0.7,
-          });
-        doc
-          .font("Helvetica")
-          .fontSize(8.5)
-          .fillColor(COLORS.ink)
-          .text(
-            "Please review the materials, quantities, rates, and delivery location listed above.",
-            left + 13,
-            y + 29,
-            { width: 230, height: 34 },
-          );
-        doc
-          .font("Helvetica-Bold")
-          .fontSize(7.5)
-          .fillColor(COLORS.ink)
-          .text(`For ${sellerName}`, left + 13, y + 61, {
-            width: 230,
-            ellipsis: true,
-          });
-        doc
-          .moveTo(left + 13, y + 75)
-          .lineTo(left + 243, y + 75)
-          .lineWidth(0.8)
-          .strokeColor(COLORS.line)
-          .stroke();
-        doc
-          .font("Helvetica")
-          .fontSize(7.5)
-          .fillColor(COLORS.muted)
-          .text("Authorized signatory", left + 13, y + 82);
-      } else {
-        const signatureY =
-          Math.max(y + Math.max(74, notesHeight), summaryBottom) + 65;
-        if (signatureY + 30 < contentBottom) {
-          doc
-            .moveTo(right - 164, signatureY)
-            .lineTo(right, signatureY)
-            .lineWidth(0.8)
-            .strokeColor(COLORS.line)
-            .stroke();
-          doc
-            .font("Helvetica-Bold")
-            .fontSize(8)
-            .fillColor(COLORS.ink)
-            .text(`For ${sellerName}`, right - 164, signatureY - 18, {
-              width: 164,
-              align: "right",
-            });
-          doc
-            .font("Helvetica")
-            .fontSize(7.5)
-            .fillColor(COLORS.muted)
-            .text("Authorized signatory", right - 164, signatureY + 5, {
-              width: 164,
-              align: "right",
-            });
-        }
+        y += boxHeight + 12;
       }
+      const summaryWidth = 270;
+      const summaryX = right - summaryWidth;
+      summaryRows.forEach(([label, value]) => {
+        doc.font("Helvetica").fontSize(8.5).fillColor("#66768C").text(label, summaryX, y + 5, { width: 150 });
+        doc.font("Helvetica-Bold").fontSize(8.5).fillColor("#34445B");
+        drawRupeeAmount(value.abs(), summaryX + 150, y + 5, summaryWidth - 150, "right", "#34445B", value.isNegative(), 8.5);
+        y += 19;
+      });
+      doc.moveTo(summaryX, y).lineTo(right, y).lineWidth(0.7).strokeColor("#DCE3EB").stroke();
+      y += 8;
+      doc.font("Helvetica-Bold").fontSize(10).fillColor(COLORS.ink).text("Estimated total", summaryX, y + 2, { width: 150 });
+      doc.font("Helvetica-Bold").fontSize(12).fillColor("#18814D");
+      drawRupeeAmount(quote.totalAmount, summaryX + 150, y, summaryWidth - 150, "right", "#18814D", false, 12);
 
       const pageRange = doc.bufferedPageRange();
       for (
@@ -764,7 +576,7 @@ export class PdfService {
           .fontSize(7.5)
           .fillColor(COLORS.muted)
           .text(
-            `${sellerName}  |  ${quote.quoteNumber}`,
+            `Material Square  ·  ${quote.quoteNumber}`,
             left,
             pageHeight - 27,
             {

@@ -114,6 +114,16 @@ export class RfqsController {
     return this.prisma.rfq.findMany({
       orderBy: { createdAt: "desc" },
       include: {
+        customer: {
+          select: {
+            email: true,
+            companyName: true,
+            gstin: true,
+            shippingAddress: true,
+            city: true,
+            pincode: true,
+          },
+        },
         assignedStaff: { select: { id: true, name: true } },
         attachments: {
           select: {

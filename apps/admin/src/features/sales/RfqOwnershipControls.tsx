@@ -7,17 +7,21 @@ export default function RfqOwnershipControls({
   ownerId,
   ownerName,
   staffNotes,
+  status,
   assignees,
   busy,
   mutate,
+  onStatusChange,
 }: {
   rfqId: string;
   ownerId?: string | null;
   ownerName?: string | null;
   staffNotes?: string | null;
+  status: string;
   assignees: Assignee[];
   busy: boolean;
   mutate: (url: string, method: string, body: unknown) => Promise<unknown>;
+  onStatusChange: (status: string) => void;
 }) {
   const [notes, setNotes] = useState(staffNotes || "");
   useEffect(() => setNotes(staffNotes || ""), [staffNotes, rfqId]);
@@ -31,7 +35,7 @@ export default function RfqOwnershipControls({
 
   return (
     <section className="rfq-staff-controls" aria-label="Internal request management">
-      <label>
+      <label className="rfq-assignee-control">
         Assigned staff owner
         <select
           value={ownerId || ""}
@@ -50,6 +54,23 @@ export default function RfqOwnershipControls({
             <option key={staff.id} value={staff.id}>
               {staff.name} · {staff.role.replaceAll("_", " ")}
             </option>
+          ))}
+        </select>
+      </label>
+      <label className="rfq-status-control">
+        Request status
+        <select
+          value={status}
+          disabled={busy}
+          onChange={(event) => onStatusChange(event.target.value)}
+        >
+          {[
+            ["NEW", "New"],
+            ["CONTACTED", "Contacted"],
+            ["QUOTED", "Quoted"],
+            ["CLOSED", "Closed"],
+          ].map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
           ))}
         </select>
       </label>
