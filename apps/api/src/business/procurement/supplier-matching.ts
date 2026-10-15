@@ -137,11 +137,14 @@ export async function matchSupplierCatalogue(
       };
     })
     .filter((supplier) => supplier.matchedProducts.length > 0)
+    // Keep nearer location tiers first, then rank suppliers by their recorded
+    // five-point rating; recent capacity is a tie-breaker after rating.
     .sort((a, b) =>
       b.locationMatchPercent - a.locationMatchPercent ||
+      Number(b.averageScore != null) - Number(a.averageScore != null) ||
+      (b.averageScore || 0) - (a.averageScore || 0) ||
       b.recentAvailabilityItemCount - a.recentAvailabilityItemCount ||
-      b.recentAvailableQuantity - a.recentAvailableQuantity ||
-      (b.averageScore || 0) - (a.averageScore || 0),
+      b.recentAvailableQuantity - a.recentAvailableQuantity,
     );
 
   for (const [requestedItemIndex, requested] of requestedItems.entries()) {

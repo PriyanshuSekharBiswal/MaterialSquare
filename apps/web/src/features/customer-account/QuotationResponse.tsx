@@ -2,6 +2,7 @@ import { useState } from "react";
 import { customerApi } from "../../api";
 import type { Quote } from "./model";
 import { money } from "./model";
+import { formatQuantityUnit } from "../../quantity-format";
 
 export default function QuotationResponse({ quote }: { quote: Quote }) {
   const [selections, setSelections] = useState<Record<string, string>>({});
@@ -71,7 +72,7 @@ export default function QuotationResponse({ quote }: { quote: Quote }) {
                   {item.options?.map((option) => (
                     <option key={option.id} value={option.id}>
                       {option.brandName} · {option.productName} ·{" "}
-                      {option.quantityMt} {option.unit} · {money(option.unitPrice)} / unit · {money(option.lineTotal)}
+                      {formatQuantityUnit(option.quantityMt, option.unit)} · {money(option.unitPrice)} / unit · {money(option.lineTotal)}
                     </option>
                   ))}
                 </select>

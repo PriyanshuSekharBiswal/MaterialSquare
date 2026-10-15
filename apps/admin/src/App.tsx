@@ -109,7 +109,6 @@ export function App() {
   const [tab, setTab] = useState<WorkspaceTab>(workspaceTabFromUrl);
   const [businessContentReady, setBusinessContentReady] = useState(false);
   const [salesContentReady, setSalesContentReady] = useState(false);
-  const [pendingCustomerRfqId, setPendingCustomerRfqId] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats | null>(null),
     [websiteAnalytics, setWebsiteAnalytics] = useState<WebsiteAnalytics | null>(
       null,
@@ -673,8 +672,6 @@ export function App() {
             onBack={() => navigate("overview")}
             onSignOut={signOut}
             embedded
-            initialRfqId={pendingCustomerRfqId}
-            onInitialRfqHandled={() => setPendingCustomerRfqId(null)}
             onContentReady={setSalesContentReady}
           />
         )}
@@ -687,14 +684,6 @@ export function App() {
             onSignOut={signOut}
             embedded
             onContentReady={setBusinessContentReady}
-            onPrepareCustomerQuote={
-              staff.role === "SUPER_ADMIN" || staff.role === "ADMIN"
-                ? (rfqId) => {
-                    setPendingCustomerRfqId(rfqId);
-                    navigate("sales");
-                  }
-                : undefined
-            }
           />
         )}
         {tab === "reports" && staff && (

@@ -11,14 +11,33 @@ describe("notification status review", () => {
       redis: process.env.REDIS_URL,
       webhook: process.env.NOTIFICATION_WEBHOOK_URL,
       token: process.env.NOTIFICATION_WEBHOOK_TOKEN,
+      authkey: process.env.MSG91_AUTHKEY,
+      quotePublished: process.env.MSG91_SMS_TEMPLATE_ID_QUOTE_PUBLISHED,
+      quoteExpiry: process.env.MSG91_SMS_TEMPLATE_ID_QUOTE_EXPIRY_REMINDER,
+      dispatch: process.env.MSG91_SMS_TEMPLATE_ID_DISPATCH_UPDATE,
     };
     delete process.env.REDIS_URL;
     delete process.env.NOTIFICATION_WEBHOOK_URL;
+    delete process.env.MSG91_AUTHKEY;
+    delete process.env.MSG91_SMS_TEMPLATE_ID_QUOTE_PUBLISHED;
+    delete process.env.MSG91_SMS_TEMPLATE_ID_QUOTE_EXPIRY_REMINDER;
+    delete process.env.MSG91_SMS_TEMPLATE_ID_DISPATCH_UPDATE;
     process.env.NOTIFICATION_WEBHOOK_TOKEN = "do-not-return-this-secret";
     try {
       expect(controller.readiness()).toEqual({
         ready: false,
-        missingRequired: ["REDIS_URL", "NOTIFICATION_WEBHOOK_URL"],
+        missingRequired: [
+          "REDIS_URL",
+          "NOTIFICATION_PROVIDER (MSG91 SMS templates or webhook)",
+        ],
+        webhookConfigured: false,
+        smsConfigured: false,
+        missingSmsTemplates: [
+          "MSG91_AUTHKEY",
+          "MSG91_SMS_TEMPLATE_ID_QUOTE_PUBLISHED",
+          "MSG91_SMS_TEMPLATE_ID_QUOTE_EXPIRY_REMINDER",
+          "MSG91_SMS_TEMPLATE_ID_DISPATCH_UPDATE",
+        ],
         webhookTokenConfigured: true,
       });
       expect(JSON.stringify(controller.readiness())).not.toContain(
@@ -33,6 +52,20 @@ describe("notification status review", () => {
       if (original.token === undefined)
         delete process.env.NOTIFICATION_WEBHOOK_TOKEN;
       else process.env.NOTIFICATION_WEBHOOK_TOKEN = original.token;
+      if (original.authkey === undefined) delete process.env.MSG91_AUTHKEY;
+      else process.env.MSG91_AUTHKEY = original.authkey;
+      if (original.quotePublished === undefined)
+        delete process.env.MSG91_SMS_TEMPLATE_ID_QUOTE_PUBLISHED;
+      else
+        process.env.MSG91_SMS_TEMPLATE_ID_QUOTE_PUBLISHED = original.quotePublished;
+      if (original.quoteExpiry === undefined)
+        delete process.env.MSG91_SMS_TEMPLATE_ID_QUOTE_EXPIRY_REMINDER;
+      else
+        process.env.MSG91_SMS_TEMPLATE_ID_QUOTE_EXPIRY_REMINDER = original.quoteExpiry;
+      if (original.dispatch === undefined)
+        delete process.env.MSG91_SMS_TEMPLATE_ID_DISPATCH_UPDATE;
+      else
+        process.env.MSG91_SMS_TEMPLATE_ID_DISPATCH_UPDATE = original.dispatch;
     }
   });
   it("returns explicit outcomes without selecting message payloads", async () => {

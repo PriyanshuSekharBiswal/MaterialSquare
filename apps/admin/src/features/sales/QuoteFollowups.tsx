@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 
 type Followup = {
   id: string;
-  channel: "WHATSAPP" | "EMAIL" | "INTERNAL";
+  channel: "SMS" | "WHATSAPP" | "EMAIL" | "INTERNAL";
   scheduledAt: string;
   status: "SCHEDULED" | "SENT" | "CANCELLED" | "FAILED";
   notes?: string | null;
@@ -37,8 +37,9 @@ export default function QuoteFollowups({
   return (
     <>
       <p className="bc-helper">
-        Schedule customer reminders for quotations. WhatsApp and email jobs run
-        through the configured notification provider.
+        Schedule customer reminders for quotations. SMS reminders use the
+        configured MSG91 templates; WhatsApp and email use the notification
+        provider.
       </p>
       <h2>Quotations</h2>
       {quotes.map((quote) => (
@@ -74,6 +75,7 @@ export default function QuoteFollowups({
               aria-label="Reminder channel"
               disabled={busy}
             >
+              <option value="SMS">SMS</option>
               <option value="WHATSAPP">WhatsApp</option>
               <option value="EMAIL">Email</option>
               <option value="INTERNAL">Internal task</option>
@@ -143,7 +145,9 @@ function FollowupRow({
   return (
     <div className="business-candidate">
       <span>
-        {followup.channel} · {new Date(followup.scheduledAt).toLocaleString("en-IN")} · {followup.status}
+        {followup.channel} ·{" "}
+        {new Date(followup.scheduledAt).toLocaleString("en-IN")} ·{" "}
+        {followup.status}
       </span>
       {followup.status === "SCHEDULED" && !rescheduling && (
         <>
@@ -185,7 +189,10 @@ function FollowupRow({
         </>
       )}
       {followup.status === "SCHEDULED" && rescheduling && (
-        <form className="bc-inline-form" onSubmit={(event) => void reschedule(event)}>
+        <form
+          className="bc-inline-form"
+          onSubmit={(event) => void reschedule(event)}
+        >
           <label>
             New reminder time
             <input

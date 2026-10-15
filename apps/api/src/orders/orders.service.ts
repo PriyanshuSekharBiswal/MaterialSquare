@@ -292,6 +292,7 @@ export class OrdersService {
           type: "dispatch-whatsapp-alert",
           payload: {
             orderId: order.id,
+            orderNumber: order.orderNumber,
             phone: order.customerPhone,
             truckNo: order.dispatch!.truckNumber,
             status,

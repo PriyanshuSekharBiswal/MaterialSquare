@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCustomer } from "../customer";
 import { customerApi } from "../api";
+import { formatQuantityUnit } from "../quantity-format";
 import type { CatalogueProduct } from "../types";
 import { trackWebsiteEvent } from "../analytics";
 import {
@@ -189,7 +190,7 @@ export default function RequestContactForm({
     );
     if (belowMinimum) {
       setError(
-        `${belowMinimum.name} requires a minimum of ${belowMinimum.minOrderQuantity} ${belowMinimum.unit}.`,
+        `${belowMinimum.name} requires a minimum of ${formatQuantityUnit(belowMinimum.minOrderQuantity, belowMinimum.unit)}.`,
       );
       return;
     }

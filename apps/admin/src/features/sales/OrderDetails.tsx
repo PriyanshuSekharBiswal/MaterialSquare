@@ -97,7 +97,7 @@ export default function OrderDetails({ order }: { order: OrderSummary }) {
                   <td>{item.specification || "—"}</td>
                   <td>
                     {Number(item.quantityMt).toLocaleString("en-IN")}{" "}
-                    {item.unit}
+                    × {item.unit}
                   </td>
                   <td>{money(item.unitPrice)}</td>
                   <td>{money(item.lineTotal)}</td>

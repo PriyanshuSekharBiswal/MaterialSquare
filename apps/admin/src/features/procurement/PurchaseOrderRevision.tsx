@@ -46,23 +46,26 @@ export default function PurchaseOrderRevision({
       setEditing(false);
   }
   return (
-    <div>
+    <div className="po-revision">
       <button
         className="bc-button"
+        type="button"
         disabled={busy}
         onClick={() => setEditing((current) => !current)}
       >
         {editing ? "Cancel PO revision" : "Revise PO"}
       </button>
       {editing && (
-        <form className="bc-form" onSubmit={(event) => void save(event)}>
-          <h4>Revise purchase order</h4>
-          <p>
-            The previous terms are retained in history. This revision requires
-            approval before it can be sent. Confirm any change with the
-            supplier.
-          </p>
-          <div className="bc-fields">
+        <form className="bc-form po-revision-form" onSubmit={(event) => void save(event)}>
+          <header className="po-revision-heading">
+            <h4>Revise purchase order</h4>
+            <p>
+              The previous terms are retained in history. This revision requires
+              approval before it can be sent. Confirm any change with the
+              supplier.
+            </p>
+          </header>
+          <div className="bc-fields po-revision-fields">
             <label>
               Revised shipping address
               <input
@@ -119,11 +122,11 @@ export default function PurchaseOrderRevision({
                 defaultValue={order.freightAmount}
               />
             </label>
-            <label>
+            <label className="po-revision-wide">
               Revision reason
               <textarea name="reason" required minLength={5} maxLength={2000} />
             </label>
-            <label>
+            <label className="po-revision-wide">
               Revised PO notes
               <textarea
                 name="notes"
@@ -132,9 +135,11 @@ export default function PurchaseOrderRevision({
               />
             </label>
           </div>
-          <button className="bc-primary" disabled={busy}>
-            Save PO revision
-          </button>
+          <div className="po-revision-actions">
+            <button className="bc-primary" disabled={busy}>
+              Save PO revision
+            </button>
+          </div>
         </form>
       )}
       {!!order.revisionHistory?.length && (

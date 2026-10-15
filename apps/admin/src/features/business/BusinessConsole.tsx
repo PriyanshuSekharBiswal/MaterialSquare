@@ -167,7 +167,6 @@ export default function BusinessConsole({
   customerUrl,
   onBack,
   onSignOut,
-  onPrepareCustomerQuote,
   onContentReady,
   embedded = false,
 }: {
@@ -176,7 +175,6 @@ export default function BusinessConsole({
   customerUrl?: string;
   onBack: () => void;
   onSignOut: () => void;
-  onPrepareCustomerQuote?: (rfqId: string) => void;
   onContentReady: (ready: boolean) => void;
   embedded?: boolean;
 }) {
@@ -379,7 +377,6 @@ export default function BusinessConsole({
           mutate={mutate}
           submit={submit}
           download={download}
-          onPrepareCustomerQuote={onPrepareCustomerQuote}
         />
       )}
       {section === "transport" && (

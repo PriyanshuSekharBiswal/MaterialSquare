@@ -27,6 +27,7 @@ import RotatingSearchPlaceholder from '../components/RotatingSearchPlaceholder';
 import { buildSearchExamples } from '../search/search-examples';
 import { customerPriceNote } from '../catalogue/customer-display';
 import { resolveCatalogueCategoryId } from '@material-square/types';
+import { formatQuantityUnit, formatQuantityUnitText } from "../quantity-format";
 import { useCatalogueCategories } from '../catalogue/useCatalogueCategories';
 
 const CATALOGUE_PAGE_SIZE = 16;
@@ -680,7 +681,7 @@ export default function MarketplacePage({
                         </div>
                         <div className="min-order-pill">
                           <Package size={12} />
-                          <span>MOQ: {queryVariant?.minOrderQuantity ? `${queryVariant.minOrderQuantity} ${queryVariant.unit || product.unit}` : product.minOrderQty || 'Confirm'}</span>
+                          <span>MOQ: {queryVariant?.minOrderQuantity ? formatQuantityUnit(queryVariant.minOrderQuantity, queryVariant.unit || product.unit) : formatQuantityUnitText(product.minOrderQty, product.unit) || 'Confirm'}</span>
                         </div>
                       </div>
 

@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import ServiceAreaPincodes from "../suppliers/ServiceAreaPincodes";
+import { formatQuantityUnit } from "../../quantity-format";
 
 type Material = {
   productName: string;
@@ -280,7 +281,7 @@ export default function ProcurementRequestCard({
             <strong>{item.productName}</strong>
             <span>
               {item.brand ? `${item.brand} · ` : ""}
-              {item.quantity} {item.unit}
+              {formatQuantityUnit(item.quantity, item.unit)}
             </span>
             {item.notes && <small>{item.notes}</small>}
           </li>
@@ -307,7 +308,7 @@ export default function ProcurementRequestCard({
                 <h2 id={`procurement-match-title-${record.id}`}>Match suppliers</h2>
                 <p>{record.requestNumber} · {record.deliveryCity} · PIN {record.deliveryPincode}</p>
                 <p className="procurement-match-explainer">
-                  Location percentages use recorded PIN, service area, city, and state details; they are not distance estimates.
+                  Suppliers are ranked by location tier, then by rating percentage from highest to lowest. Location tiers use saved PIN, service area, city, and state details; they are not distance estimates.
                 </p>
               </div>
               <button
@@ -333,9 +334,9 @@ export default function ProcurementRequestCard({
                     {matchSummary.requestedItems.map((item, index) => (
                       <p key={`${item.productName}-${index}`}>
                         <strong>{item.productName}{item.brand ? ` · ${item.brand}` : ""}</strong>
-                        <span>{item.knownFreshCapacity > 0 ? `${item.knownFreshCapacity} ${item.unit} in records checked within 30 days · ${item.quantity} ${item.unit} requested` : `${item.quantity} ${item.unit} requested · no recent nearby stock quantity recorded`}</span>
+                        <span>{item.knownFreshCapacity > 0 ? `${formatQuantityUnit(item.knownFreshCapacity, item.unit)} in records checked within 30 days · ${formatQuantityUnit(item.quantity, item.unit)} requested` : `${formatQuantityUnit(item.quantity, item.unit)} requested · no recent nearby stock quantity recorded`}</span>
                         <em className={`coverage-${item.coverage}`}>{item.coverage === "covered" ? "Recorded allocation possible" : item.coverage === "partial" ? "Partial recorded allocation" : item.coverage === "minimum-order" ? "No quantity meets recorded minimums" : item.coverage === "none" ? "No recent available quantity recorded" : item.coverage === "unknown" ? "Availability unknown or outdated" : "No matching supplier listing"}</em>
-                        {item.allocationSuggestions.length > 0 && <small>Possible split, for staff to confirm: {item.allocationSuggestions.map((allocation) => `${allocation.supplierName} ${allocation.quantity} ${item.unit}`).join(" + ")}</small>}
+                        {item.allocationSuggestions.length > 0 && <small>Possible split, for staff to confirm: {item.allocationSuggestions.map((allocation) => `${allocation.supplierName} ${formatQuantityUnit(allocation.quantity, item.unit)}`).join(" + ")}</small>}
                         {item.outsideRecordedAreaCount ? <small>{item.outsideRecordedAreaCount} matching listing(s) are outside recorded nearby/service-area coverage and excluded from this coverage estimate.</small> : null}
                         {item.minimumOrderBlockedCount ? <small>{item.minimumOrderBlockedCount} potential listing(s) could not be allocated because the remaining amount is below their recorded minimum order.</small> : null}
                         {item.minimumOrderUnknownCount ? <small>{item.minimumOrderUnknownCount} matching listing(s) have no minimum-order quantity recorded; verify before allocating.</small> : null}
@@ -357,8 +358,8 @@ export default function ProcurementRequestCard({
                     {supplier.locationMatchPercent}% recorded location score · {supplier.locationMatchLabel}{supplier.locationMatchPercent < 60 ? " · outside nearby coverage estimate" : ""}{" "}
                     ·{" "}
                     {supplier.averageScore == null
-                      ? "No ratings"
-                      : `${supplier.averageScore.toFixed(1)}/5`}
+                      ? "Not yet rated"
+                      : `${Math.round((supplier.averageScore / 5) * 100)}% rating`}
                   </summary>
                   {(supplier.city || supplier.pincode || supplier.servicePincodes?.length) && (
                     <p>
@@ -375,10 +376,10 @@ export default function ProcurementRequestCard({
                   ) : <p>No service PINs recorded.</p>}
                   {supplier.matchedProducts?.map((product) => (
                     <p key={`${product.productName}-${product.brand}-${product.unit}`}>
-                      Supplier listing: {product.productName} · {product.brand || "Brand unspecified"} · {product.category} · Available: {product.availableQuantity == null ? "Unknown" : `${product.availableQuantity} ${product.unit}`}
+                      Supplier listing: {product.productName} · {product.brand || "Brand unspecified"} · {product.category} · Available: {product.availableQuantity == null ? "Unknown" : formatQuantityUnit(product.availableQuantity, product.unit)}
                       {product.availabilityStatus === "outdated" ? " · STOCK DATA OUTDATED (over 30 days)" : product.availabilityStatus === "unknown" ? " · Stock not checked / quantity unknown" : ` · checked ${new Date(product.availabilityCheckedAt!).toLocaleString("en-IN")}`}
-                      {product.minimumOrderQty != null ? ` · Minimum order ${product.minimumOrderQty} ${product.unit}` : " · Minimum order not recorded"}
-                      {product.availabilityStatus === "recently-checked" ? ` · Suggested amount from recorded stock: ${product.suggestedAllocationQuantity} ${product.unit}` : " · Not included in stock allocation because availability is not current"}
+                      {product.minimumOrderQty != null ? ` · Minimum order ${formatQuantityUnit(product.minimumOrderQty, product.unit)}` : " · Minimum order not recorded"}
+                      {product.availabilityStatus === "recently-checked" ? ` · Suggested amount from recorded stock: ${formatQuantityUnit(product.suggestedAllocationQuantity, product.unit)}` : " · Not included in stock allocation because availability is not current"}
                       {product.lastQuotedPrice != null
                         ? ` · Last recorded price ₹${Number(product.lastQuotedPrice).toLocaleString("en-IN")}/${product.unit} · ${priceRecency(product.lastQuotedPriceAt)} (verify directly; not a current quote)`
                         : " · Price not recorded"}
@@ -416,11 +417,11 @@ export default function ProcurementRequestCard({
                           <div className="business-candidate" key={`${item.catalogVariantId || item.productName}-${index}`}>
                             <strong>
                               {item.productName}
-                              {item.brand ? ` · ${item.brand}` : ""} · source shortfall {item.quantity} {item.unit}
-                              {item.requiredQuantity != null && <> · total need {item.requiredQuantity} {item.unit}</>}
-                              {item.clientStockQuantity != null && <> · client stock {item.clientStockQuantity} {item.unit}</>}
+                              {item.brand ? ` · ${item.brand}` : ""} · source shortfall {formatQuantityUnit(item.quantity, item.unit)}
+                              {item.requiredQuantity != null && <> · total need {formatQuantityUnit(item.requiredQuantity, item.unit)}</>}
+                              {item.clientStockQuantity != null && <> · client stock {formatQuantityUnit(item.clientStockQuantity, item.unit)}</>}
                             </strong>
-                            <small>{otherCommitted > 0 ? `${otherCommitted} ${item.unit} already quoted by other suppliers · ` : ""}{remaining} {item.unit} remaining for this supplier quote</small>
+                            <small>{otherCommitted > 0 ? `${formatQuantityUnit(otherCommitted, item.unit)} already quoted by other suppliers · ` : ""}{formatQuantityUnit(remaining, item.unit)} remaining for this supplier quote</small>
                             <label>
                               Quantity offered ({item.unit})
                               <input name={`quantity-${index}`} type="number" min="0" max={remaining} step="any" defaultValue={initialQuantity} />
@@ -473,22 +474,27 @@ export default function ProcurementRequestCard({
         </div>,
         document.body,
       )}
-      <h4>Supplier quote comparison</h4>
+      <section className="procurement-quote-comparison">
+        <header className="procurement-quote-comparison-heading">
+          <h4>Supplier quote comparison</h4>
+          {quotes.length > 0 && (
+            <label>
+              Compare supplier quotes by
+              <select
+                value={sort}
+                onChange={(event) => setSort(event.target.value)}
+              >
+                <option value="price">Total price</option>
+                <option value="lead">Lead time</option>
+              </select>
+            </label>
+          )}
+        </header>
       {!quotes.length ? (
         <p>No supplier quotes recorded yet.</p>
       ) : (
         <>
-          <label>
-            Compare supplier quotes by
-            <select
-              value={sort}
-              onChange={(event) => setSort(event.target.value)}
-            >
-              <option value="price">Total price</option>
-              <option value="lead">Lead time</option>
-            </select>
-          </label>
-          <div className="procurement-table">
+          <div className="procurement-table procurement-quote-table">
             <table>
               <thead>
                 <tr>
@@ -508,7 +514,7 @@ export default function ProcurementRequestCard({
                       <ul>
                         {quote.items.map((item, index) => (
                           <li key={`${item.productName}-${index}`}>
-                            {item.productName}: {item.quantity} {item.unit} at{" "}
+                            {item.productName}: {formatQuantityUnit(item.quantity, item.unit)} at{" "}
                             {money(item.unitPrice)}/{item.unit}
                           </li>
                         ))}
@@ -565,7 +571,7 @@ export default function ProcurementRequestCard({
             Supplier subtotal {money(selected.totalAmount)}. This PO will cover{" "}
             {selected.items
               .map(
-                (item) => `${item.productName} (${item.quantity} ${item.unit})`,
+                (item) => `${item.productName} (${formatQuantityUnit(item.quantity, item.unit)})`,
               )
               .join(", ")}
             .
@@ -630,6 +636,7 @@ export default function ProcurementRequestCard({
           </button>
         </form>
       )}
+      </section>
       {record.purchaseOrders.map((po) => (
         <div className="business-candidate" key={po.id}>
           <strong>
@@ -640,7 +647,7 @@ export default function ProcurementRequestCard({
             {Array.isArray(po.items) &&
               po.items.map((item, index) => (
                 <li key={`${item.productName}-${index}`}>
-                  {item.productName}: {item.quantity} {item.unit}
+                  {item.productName}: {formatQuantityUnit(item.quantity, item.unit)}
                 </li>
               ))}
           </ul>

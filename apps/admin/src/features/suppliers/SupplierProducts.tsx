@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import { confirmAdminAction } from "../../components/confirmAdminAction";
+import { formatQuantityUnit } from "../../quantity-format";
 import SupplierCataloguePicker, { type SupplierBrandCatalogEntry, type SupplierBrandOption, type SupplierCatalogueVariant } from "./SupplierCataloguePicker";
 
 type Product = {
@@ -328,9 +329,9 @@ export default function SupplierProducts({
                     <p><strong>Category:</strong> {product.category || "Not specified"}</p>
                     <p><strong>Unit:</strong> {product.unit || "Not specified"}</p>
                     <p><strong>Status:</strong> <span className={product.isActive ? "is-active" : "is-inactive"}>{product.isActive ? "Active" : "Inactive"}</span></p>
-                    <p><strong>Minimum order:</strong> {product.minimumOrderQty ?? "Not specified"}</p>
+                    <p><strong>Minimum order:</strong> {product.minimumOrderQty == null ? "Not specified" : formatQuantityUnit(product.minimumOrderQty, product.unit)}</p>
                     <p><strong>Last quoted price:</strong> {product.lastQuotedPrice ?? "Not recorded"}{product.lastQuotedPrice != null ? product.lastQuotedPriceAt ? ` · recorded ${new Date(product.lastQuotedPriceAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}` : " · record date unknown" : ""}</p>
-                    <p><strong>Available quantity:</strong> {product.availableQuantity ?? "Not checked"}{product.availabilityCheckedAt ? ` · checked ${new Date(product.availabilityCheckedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}${Date.now() - Date.parse(product.availabilityCheckedAt) > 30 * 24 * 60 * 60 * 1000 ? " · OUTDATED (over 30 days)" : ""}` : " · Unknown until checked"}</p>
+                    <p><strong>Available quantity:</strong> {product.availableQuantity == null ? "Not checked" : formatQuantityUnit(product.availableQuantity, product.unit)}{product.availabilityCheckedAt ? ` · checked ${new Date(product.availabilityCheckedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}${Date.now() - Date.parse(product.availabilityCheckedAt) > 30 * 24 * 60 * 60 * 1000 ? " · OUTDATED (over 30 days)" : ""}` : " · Unknown until checked"}</p>
                     <p><strong>Product record updated:</strong> {product.updatedAt ? new Date(product.updatedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "Not recorded"}</p>
                     <p className="bc-supplier-product-linked"><strong>Linked client pack:</strong> {product.catalogVariant ? `${product.catalogVariant.listing.name} · ${product.catalogVariant.label}` : "Not linked"}</p>
                   </div>

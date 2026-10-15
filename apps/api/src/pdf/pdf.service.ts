@@ -679,7 +679,7 @@ export class PdfService {
       challan.items.forEach((item) => {
         doc.font("Helvetica").fontSize(9).text(item.name, 50, y);
         doc.text(
-          `${item.quantityMt.toLocaleString("en-IN")} ${item.unit}`,
+          `${item.quantityMt.toLocaleString("en-IN")} × ${item.unit}`,
           430,
           y,
           {

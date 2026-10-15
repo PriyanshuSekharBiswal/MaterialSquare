@@ -1,4 +1,5 @@
 import type { CatalogueProduct, MaterialItem } from "../types";
+import { formatQuantityUnit } from "../quantity-format";
 import { Link } from "react-router-dom";
 import { ArrowRight, ClipboardList, Pencil, ShoppingBag } from "lucide-react";
 import { useCustomer } from "../customer";
@@ -34,7 +35,7 @@ export default function GetQuotePage(props: {
                   {product ? <Link to={`/product/${encodeURIComponent(product.id)}`}>{item.name}</Link> : <strong>{item.name}</strong>}
                   <small>{description}</small>
                 </div>
-                <b>{Number(item.quantity ?? 1).toLocaleString("en-IN")} × {item.unit || "unit not set"}</b>
+                <b>{formatQuantityUnit(item.quantity ?? 1, item.unit || "unit not set")}</b>
               </li>;
             })}
           </ul> : <div className="quotation-review-empty"><ShoppingBag size={20} /><span>No cart items are selected. You can still attach a project plan, or add materials first.</span></div>}

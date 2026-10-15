@@ -344,14 +344,24 @@ export class QuotesService {
         await db.notificationOutbox.create({
           data: {
             type: "quote-published",
-            payload: { quoteId: id, phone: quote.customerPhone },
+            payload: {
+              quoteId: id,
+              quoteNumber: quote.quoteNumber,
+              validUntil: quote.validUntil.toISOString(),
+              phone: quote.customerPhone,
+            },
           },
         });
       if (businessRules.sendQuoteExpiryReminder)
         await db.notificationOutbox.create({
           data: {
             type: "quote-expiry-reminder",
-            payload: { quoteId: id, phone: quote.customerPhone },
+            payload: {
+              quoteId: id,
+              quoteNumber: quote.quoteNumber,
+              validUntil: quote.validUntil.toISOString(),
+              phone: quote.customerPhone,
+            },
             runAt: new Date(
               Math.max(
                 Date.now(),

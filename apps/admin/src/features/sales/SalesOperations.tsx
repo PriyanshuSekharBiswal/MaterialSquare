@@ -19,6 +19,7 @@ import {
   Menu,
 } from "lucide-react";
 import MaterialSquareLogo from "../../components/MaterialSquareLogo";
+import { formatQuantityUnit } from "../../quantity-format";
 import QuoteEditor, { type RevisionQuote } from "./QuoteEditor";
 import RfqOwnershipControls from "./RfqOwnershipControls";
 import CatalogueManager from "../catalogue/CatalogueManager";
@@ -260,11 +261,8 @@ const rfqVariantSpecification = (label: string, attributes: Iterable<unknown> = 
   }
   return parts.join(" · ");
 };
-const rfqQuantityLabel = (quantity: number, unit: string, specification = "") => {
-  const packSize = `${unit} ${specification}`.match(/(\d+(?:[.,]\d+)?)\s*(mm|cm|kg|mt|tonnes?|g|ml|l|m)\b/i);
-  const count = quantity.toLocaleString("en-IN");
-  return packSize ? `${count} × ${packSize[1]} ${packSize[2]}` : `${count} ${unit}`;
-};
+const rfqQuantityLabel = (quantity: number, unit: string) =>
+  formatQuantityUnit(quantity, unit);
 const omitQuantityPackFromVariant = (variant: string, quantity: string) => {
   const packSize = quantity.match(/×\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|kg|mt|tonnes?|g|ml|l|m)\b/i);
   if (!packSize) return variant;
@@ -281,8 +279,6 @@ export default function SalesOperations({
   customerUrl,
   onBack,
   onSignOut,
-  initialRfqId,
-  onInitialRfqHandled,
   onContentReady,
   embedded = false,
 }: {
@@ -291,8 +287,6 @@ export default function SalesOperations({
   customerUrl?: string;
   onBack: () => void;
   onSignOut: () => void;
-  initialRfqId?: string | null;
-  onInitialRfqHandled?: () => void;
   onContentReady?: (ready: boolean) => void;
   embedded?: boolean;
 }) {
@@ -342,9 +336,6 @@ export default function SalesOperations({
     onContentReady?.(false);
   }, [tab, onContentReady]);
   useEffect(() => {
-    if (initialRfqId && !rfqsLoaded) setTab("rfqs");
-  }, [initialRfqId, rfqsLoaded]);
-  useEffect(() => {
     if (!operationsMenuOpen) return;
     const closeOnOutsidePointer = (event: PointerEvent) => {
       if (!operationsMenuRef.current?.contains(event.target as Node)) {
@@ -367,21 +358,6 @@ export default function SalesOperations({
   const [editingDraft, setEditingDraft] = useState(false);
   const [revision, setRevision] = useState<RevisionQuote | null>(null);
   const [creatingCustomQuote, setCreatingCustomQuote] = useState(false);
-  useEffect(() => {
-    if (!initialRfqId || !rfqsLoaded) return;
-    const rfq = rfqs.find((record) => record.id === initialRfqId);
-    if (rfq) {
-      setSelectedRfq(rfq);
-      setEditingDraft(false);
-      setRevision(null);
-      setCreatingCustomQuote(false);
-      setQuoteView("prepare");
-      setTab("quotes");
-    } else {
-      setError("The selected customer request is no longer open in the RFQ inbox.");
-    }
-    onInitialRfqHandled?.();
-  }, [initialRfqId, rfqsLoaded, rfqs, onInitialRfqHandled]);
   useEffect(() => {
     if (
       tab !== "quotes" ||
@@ -783,7 +759,7 @@ export default function SalesOperations({
                       const variant = listing?.variants.find((entry) => entry.id === item.variantId);
                       const image = variant?.image || listing?.image || listing?.galleryImages?.[0];
                       const cataloguePrice = variant?.price ?? listing?.price ?? null;
-                      const quantityLabel = rfqQuantityLabel(item.quantity, item.unit, item.specification);
+                      const quantityLabel = rfqQuantityLabel(item.quantity, item.unit);
                       const variantDetails = omitQuantityPackFromVariant(variant
                         ? rfqVariantSpecification(variant.label, Object.values(variant.attributes || {}))
                         : rfqVariantSpecification(item.specification || listing?.packaging || "—"), quantityLabel);
@@ -1016,7 +992,7 @@ export default function SalesOperations({
                           <span className="sales-quote-request-items">
                             {uniqueItems.slice(0, 3).map((item, index) => (
                               <span key={`${record.id}-item-${index}`}>
-                                {item.material}{item.quantity ? ` · ${item.quantity} ${item.unit}` : ""}
+                                {item.material}{item.quantity ? ` · ${formatQuantityUnit(item.quantity, item.unit)}` : ""}
                               </span>
                             ))}
                             {uniqueItems.length > 3 && <small>+{uniqueItems.length - 3} more items</small>}
@@ -1109,7 +1085,7 @@ export default function SalesOperations({
                         </div>
                         <p>
                           {item.specification && <span>{item.specification} · </span>}
-                          {item.quantityMt} {item.unit} × {money(item.unitPrice)}
+                          {formatQuantityUnit(item.quantityMt, item.unit)} × {money(item.unitPrice)}
                           <strong className="sales-quote-line-total">{money(item.lineTotal)}</strong>
                         </p>
                       {item.options?.map((option) => (
@@ -1118,7 +1094,7 @@ export default function SalesOperations({
                           <strong>{option.brandName} · {option.productName}</strong>
                           <small>
                             {option.specification ? `${option.specification} · ` : ""}
-                            {option.quantityMt} {option.unit} × {money(option.unitPrice)} / unit · {money(option.lineTotal)}
+                            {formatQuantityUnit(option.quantityMt, option.unit)} × {money(option.unitPrice)} / unit · {money(option.lineTotal)}
                           </small>
                         </p>
                       ))}
@@ -1289,7 +1265,7 @@ export default function SalesOperations({
                                   </option>
                                   {item.options.map((option) => (
                                     <option key={option.id} value={option.id}>
-                                      {option.brandName} · {option.productName} · {option.quantityMt} {option.unit}
+                                      {option.brandName} · {option.productName} · {formatQuantityUnit(option.quantityMt, option.unit)}
                                     </option>
                                   ))}
                                 </select>

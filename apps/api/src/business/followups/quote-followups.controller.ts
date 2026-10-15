@@ -18,7 +18,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { validate } from "../../common/validation";
 
 const followupInput = z.object({
-  channel: z.enum(["WHATSAPP", "EMAIL", "INTERNAL"]),
+  channel: z.enum(["SMS", "WHATSAPP", "EMAIL", "INTERNAL"]),
   scheduledAt: z.string().datetime(),
   notes: z.string().max(3000).optional(),
 });
@@ -73,6 +73,7 @@ export class QuoteFollowupsController {
               phone: quote.customerPhone,
               email: quote.customerEmail,
               quoteNumber: quote.quoteNumber,
+              validUntil: quote.validUntil.toISOString(),
               notes: data.notes || "",
             },
           },
@@ -165,6 +166,7 @@ export class QuoteFollowupsController {
                 phone: quote.customerPhone,
                 email: quote.customerEmail,
                 quoteNumber: quote.quoteNumber,
+                validUntil: quote.validUntil.toISOString(),
                 notes: notes || "",
               },
             },

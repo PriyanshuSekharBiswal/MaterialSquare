@@ -1,4 +1,5 @@
 import type { CatalogueProduct, CatalogueVariant, MaterialItem } from "../types";
+import { formatQuantityUnit } from "../quantity-format";
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useCustomer } from "../customer";
@@ -163,7 +164,7 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
             <label className="material-quantity-field">
               <span className="material-quantity-label">
                 <span>Quantity</span>
-                <small>{Number(item.quantity ?? 1).toLocaleString("en-IN")} × {selectedVariant?.unit || item.unit}</small>
+                <small>{formatQuantityUnit(item.quantity ?? 1, selectedVariant?.unit || item.unit)}</small>
               </span>
               <input
                 aria-label={`Quantity for ${item.name}`}
@@ -238,7 +239,7 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
                 </select>
                 <ChevronDown size={18} aria-hidden="true" />
               </div>
-              {selectedVariant?.minOrderQuantity && <small>Minimum order for this option: {selectedVariant.minOrderQuantity} {selectedVariant.unit}</small>}
+              {selectedVariant?.minOrderQuantity && <small>Minimum order for this option: {formatQuantityUnit(selectedVariant.minOrderQuantity, selectedVariant.unit)}</small>}
             </label> : <>
               <p className="material-option-note">
                 {product?.variants?.length === 1

@@ -17,6 +17,7 @@ import type {
   Quote,
 } from "../features/customer-account/model";
 import { formatDate, money } from "../features/customer-account/model";
+import { formatQuantityUnit } from "../quantity-format";
 
 export function AccountContent({
   path,
@@ -142,7 +143,7 @@ export function AccountContent({
                     {item.brandName} · {item.specification || item.categoryName}
                   </span>
                   <small>
-                    {item.quantityMt} {item.unit} × {money(item.unitPrice)}
+                    {formatQuantityUnit(item.quantityMt, item.unit)} × {money(item.unitPrice)}
                   </small>
                   {Boolean(item.options?.length) && (
                     <div className="account-alternatives">
@@ -150,7 +151,7 @@ export function AccountContent({
                       {item.options?.map((option) => (
                         <span key={option.id}>
                           {option.brandName} · {option.productName} ·{" "}
-                          {option.quantityMt} {option.unit} × {money(option.unitPrice)} / unit · {money(option.lineTotal)}
+                          {formatQuantityUnit(option.quantityMt, option.unit)} × {money(option.unitPrice)} / unit · {money(option.lineTotal)}
                         </span>
                       ))}
                     </div>
@@ -283,7 +284,7 @@ export function AccountContent({
                   {item.brandName} · {item.specification || item.categoryName}
                 </span>
                 <small>
-                  {item.quantityMt} {item.unit} × {money(item.unitPrice)}
+                  {formatQuantityUnit(item.quantityMt, item.unit)} × {money(item.unitPrice)}
                 </small>
               </div>
               <strong>{money(item.lineTotal)}</strong>
@@ -537,7 +538,7 @@ export function AccountContent({
                         {item.productName} · {item.brandName}
                       </span>
                       <small>
-                        {item.quantityMt} {item.unit} × {money(item.unitPrice)}
+                        {formatQuantityUnit(item.quantityMt, item.unit)} × {money(item.unitPrice)}
                       </small>
                     </li>
                   ))}
@@ -624,7 +625,7 @@ export function AccountContent({
                           {item.brand ? ` · ${item.brand}` : ""}
                         </strong>
                         <span>
-                          {item.quantity} {item.unit}
+                          {formatQuantityUnit(item.quantity, item.unit)}
                           {item.specification ? ` · ${item.specification}` : ""}
                         </span>
                       </li>
@@ -770,7 +771,7 @@ export function AccountContent({
                       <h3>
                         {item.productName}{" "}
                         <small>
-                          {item.quantityMt} {item.unit} required
+                          {formatQuantityUnit(item.quantityMt, item.unit)} required
                         </small>
                       </h3>
                       <div className="account-option-grid">
@@ -793,7 +794,7 @@ export function AccountContent({
                               {money(option.unitPrice)}{" "}
                               <small>/ {option.unit}</small>
                             </strong>
-                            <p>{option.quantityMt} {option.unit} · {money(option.lineTotal)} total</p>
+                            <p>{formatQuantityUnit(option.quantityMt, option.unit)} · {money(option.lineTotal)} total</p>
                           </div>
                         ))}
                       </div>
@@ -865,7 +866,7 @@ export function AccountContent({
                         <span>{item.brandName}</span>
                       </div>
                       <b>
-                        {item.quantityMt} {item.unit}
+                        {formatQuantityUnit(item.quantityMt, item.unit)}
                       </b>
                     </div>
                   ))}

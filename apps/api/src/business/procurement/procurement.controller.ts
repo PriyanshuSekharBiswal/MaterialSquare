@@ -87,10 +87,55 @@ export class ProcurementController {
   @Get("customer-rfqs")
   async customerRfqs() {
     const requests = await this.prisma.rfq.findMany({
-      where: { status: { in: ["NEW", "CONTACTED", "QUOTED"] } },
+      where: { status: { in: ["NEW", "CONTACTED", "QUOTED", "CLOSED"] } },
       orderBy: { createdAt: "desc" },
       take: 100,
-      select: { id: true, requestNumber: true, siteLocation: true, items: true, status: true, createdAt: true },
+      select: {
+        id: true,
+        requestNumber: true,
+        siteLocation: true,
+        items: true,
+        status: true,
+        createdAt: true,
+        quotations: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            quoteNumber: true,
+            status: true,
+            totalAmount: true,
+            sitePincode: true,
+            createdAt: true,
+            updatedAt: true,
+            publishedAt: true,
+            revisionNumber: true,
+            items: {
+              select: {
+                productName: true,
+                brandName: true,
+                categoryName: true,
+                quantityMt: true,
+                unit: true,
+                specification: true,
+                catalogueId: true,
+                variantId: true,
+                options: {
+                  select: {
+                    productName: true,
+                    brandName: true,
+                    categoryName: true,
+                    quantityMt: true,
+                    unit: true,
+                    specification: true,
+                    catalogueId: true,
+                    variantId: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
     const suppliers = requests.length ? await loadMatchingSuppliers(this.prisma) : [];
     return Promise.all(requests.map(async (request) => {
@@ -143,6 +188,78 @@ export class ProcurementController {
         quantity: item.quantity, unit: item.unit, notes: item.specification,
         catalogVariantId: item.variantId,
       })),
+    });
+  }
+
+  @Get("customer-quotations/:id/suppliers")
+  async customerQuotationCandidates(@Param("id") id: string) {
+    const quote = await this.prisma.quotation.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        projectSiteAddress: true,
+        sitePincode: true,
+        customer: { select: { city: true } },
+        items: {
+          select: {
+            productName: true,
+            brandName: true,
+            categoryName: true,
+            quantityMt: true,
+            unit: true,
+            specification: true,
+            variantId: true,
+            options: {
+              select: {
+                productName: true,
+                brandName: true,
+                categoryName: true,
+                quantityMt: true,
+                unit: true,
+                specification: true,
+                variantId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!quote) throw new NotFoundException("Customer quotation not found");
+
+    const deliveryPincode = quote.sitePincode.trim();
+    if (!/^[1-9]\d{5}$/.test(deliveryPincode))
+      throw new BadRequestException("This quotation is missing a usable delivery PIN");
+
+    const deliveryCity = quote.projectSiteAddress.match(
+      /(?:^|,\s*)City:\s*(.*?)(?=,\s*(?:Building|Area|Landmark|State):|$)/i,
+    )?.[1]?.trim() || quote.customer?.city || "";
+    const items = quote.items.flatMap((item) => [
+      {
+        productName: item.productName,
+        brand: item.brandName,
+        category: item.categoryName || undefined,
+        quantity: Number(item.quantityMt),
+        unit: item.unit,
+        notes: item.specification,
+        catalogVariantId: item.variantId,
+      },
+      ...item.options.map((option) => ({
+        productName: option.productName,
+        brand: option.brandName,
+        category: option.categoryName || undefined,
+        quantity: Number(option.quantityMt),
+        unit: option.unit,
+        notes: option.specification,
+        catalogVariantId: option.variantId,
+      })),
+    ]).filter((item) => item.productName.trim() && item.quantity > 0 && Number.isFinite(item.quantity));
+    if (!items.length)
+      throw new BadRequestException("This quotation has no matchable product lines");
+
+    return matchSupplierCatalogue(this.prisma, {
+      deliveryCity,
+      deliveryPincode,
+      items,
     });
   }
 

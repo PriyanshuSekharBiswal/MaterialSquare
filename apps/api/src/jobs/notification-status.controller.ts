@@ -4,20 +4,40 @@ import { z } from "zod";
 import { StaffGuard } from "../auth/access.guard";
 import { PrismaService } from "../prisma/prisma.service";
 import { validate } from "../common/validation";
+import { Msg91SmsService } from "./msg91-sms.service";
 
 @Controller("admin/notifications")
 @UseGuards(StaffGuard)
 export class NotificationStatusController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly msg91Sms: Msg91SmsService = new Msg91SmsService(),
+  ) {}
 
   @Get("readiness")
   readiness() {
-    const missingRequired = ["REDIS_URL", "NOTIFICATION_WEBHOOK_URL"].filter(
+    const missingRequired = ["REDIS_URL"].filter(
       (key) => !process.env[key]?.trim(),
     );
+    const missingSmsTemplates = this.msg91Sms.getMissingConfiguration([
+      "quote-published",
+      "quote-expiry-reminder",
+      "dispatch-whatsapp-alert",
+    ]);
+    const webhookConfigured = Boolean(
+      process.env.NOTIFICATION_WEBHOOK_URL?.trim(),
+    );
+    const smsConfigured = missingSmsTemplates.length === 0;
+    if (!webhookConfigured && !smsConfigured)
+      missingRequired.push(
+        "NOTIFICATION_PROVIDER (MSG91 SMS templates or webhook)",
+      );
     return {
       ready: missingRequired.length === 0,
       missingRequired,
+      webhookConfigured,
+      smsConfigured,
+      missingSmsTemplates,
       webhookTokenConfigured: Boolean(
         process.env.NOTIFICATION_WEBHOOK_TOKEN?.trim(),
       ),

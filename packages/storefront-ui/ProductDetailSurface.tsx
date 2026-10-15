@@ -2,6 +2,7 @@ import type { FormEvent, ReactNode } from "react";
 import { ArrowRight, ChevronDown, PackagePlus } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { FaqEntry, WebsitePolicy } from "@material-square/types";
+import { formatQuantityUnit } from "./formatQuantityUnit";
 import "./product-detail-surface.css";
 
 export interface ProductDetailChoice {
@@ -174,7 +175,7 @@ export default function ProductDetailSurface({
       </div>
       {minimumOrder != null && Number(minimumOrder) > 0 && (
         <p className="shared-product-moq">
-          Minimum order: {minimumOrder} {unit}
+          Minimum order: {formatQuantityUnit(minimumOrder, unit)}
         </p>
       )}
 

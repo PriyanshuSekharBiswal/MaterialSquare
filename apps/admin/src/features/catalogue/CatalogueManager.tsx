@@ -37,6 +37,7 @@ import MaterialSquareLogo from "../../components/MaterialSquareLogo";
 import { confirmAdminAction } from "../../components/confirmAdminAction";
 import PartnerBrandsManager from "./PartnerBrandsManager";
 import ProductDetailSurface, { type ProductDetailChoiceGroup } from "../../../../../packages/storefront-ui/ProductDetailSurface";
+import { formatQuantityUnit, formatQuantityUnitText } from "../../quantity-format";
 import "./catalogue-manager.css";
 
 type Listing = {
@@ -2488,7 +2489,7 @@ export default function CatalogueManager({
                                   </div>
                                   <span className="store-preview-moq">
                                     MOQ:{" "}
-                                    {previewListing.minOrderQty || "Confirm"}
+                                    {formatQuantityUnitText(previewListing.minOrderQty, previewListing.unit) || "Confirm"}
                                   </span>
                                 </div>
                                 <div className="store-preview-actions">
@@ -2652,7 +2653,7 @@ export default function CatalogueManager({
                                         )}
                                       </div>
                                       <span className="store-preview-moq">
-                                        MOQ: {listing.minOrderQty || "Confirm"}
+                                        MOQ: {formatQuantityUnitText(listing.minOrderQty, listing.unit) || "Confirm"}
                                       </span>
                                     </div>
                                     <div className="store-preview-actions">
@@ -3058,7 +3059,7 @@ export default function CatalogueManager({
                             <td>
                               {variant.minOrderQuantity == null
                                 ? "Confirm minimum"
-                                : `${variant.minOrderQuantity} ${variant.unit}`}
+                                : formatQuantityUnit(variant.minOrderQuantity, variant.unit)}
                             </td>
                           </tr>
                         ))}

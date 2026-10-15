@@ -7,9 +7,13 @@ import {
 } from "@nestjs/common";
 import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
+import { Msg91SmsService } from "./msg91-sms.service";
 @Injectable()
 export class QueueService implements OnModuleInit, OnModuleDestroy {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly msg91Sms: Msg91SmsService = new Msg91SmsService(),
+  ) {}
   private timer?: ReturnType<typeof setInterval>;
   private flushing = false;
   private connection?: IORedis;
@@ -17,9 +21,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   private worker?: Worker;
   private readonly logger = new Logger(QueueService.name);
   async onModuleInit() {
-    if (!process.env.REDIS_URL || !process.env.NOTIFICATION_WEBHOOK_URL) {
+    if (!process.env.REDIS_URL || !this.hasAnyProvider()) {
       this.logger.warn(
-        "Notifications pending: configure REDIS_URL and NOTIFICATION_WEBHOOK_URL",
+        "Notifications pending: configure REDIS_URL and an SMS template or notification webhook",
       );
       return;
     }
@@ -78,21 +82,29 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
             return;
           }
         }
-        const endpoint = process.env.NOTIFICATION_WEBHOOK_URL;
-        if (!endpoint)
-          throw new Error("Notification provider is not configured");
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.NOTIFICATION_WEBHOOK_TOKEN || ""}`,
-            "Idempotency-Key": String(job.id),
-          },
-          body: JSON.stringify({ type: job.name, ...job.data }),
-          signal: AbortSignal.timeout(10000),
-        });
-        if (!response.ok)
-          throw new Error(`Notification provider returned ${response.status}`);
+        if (this.shouldSendSms(job.name, job.data)) {
+          await this.msg91Sms.send(job.name, job.data, String(job.id));
+        } else {
+          const endpoint = process.env.NOTIFICATION_WEBHOOK_URL?.trim();
+          if (!endpoint)
+            throw new Error(
+              `No notification provider configured for ${job.name}`,
+            );
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${process.env.NOTIFICATION_WEBHOOK_TOKEN || ""}`,
+              "Idempotency-Key": String(job.id),
+            },
+            body: JSON.stringify({ type: job.name, ...job.data }),
+            signal: AbortSignal.timeout(10000),
+          });
+          if (!response.ok)
+            throw new Error(
+              `Notification provider returned ${response.status}`,
+            );
+        }
         if (job.data.outboxId)
           await this.prisma.notificationOutbox.update({
             where: { id: job.data.outboxId },
@@ -143,9 +155,11 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         take: 100,
       });
       for (const item of pending) {
+        const payload = item.payload as Record<string, unknown>;
+        if (!this.canDeliver(item.type, payload)) continue;
         await this.queue.add(
           item.type,
-          { ...(item.payload as Record<string, string>), outboxId: item.id },
+          { ...(payload as Record<string, string>), outboxId: item.id },
           {
             jobId: item.id,
             delay: Math.max(0, item.runAt.getTime() - Date.now()),
@@ -164,6 +178,32 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       this.flushing = false;
     }
   }
+
+  private hasAnyProvider() {
+    return Boolean(
+      process.env.NOTIFICATION_WEBHOOK_URL?.trim() ||
+      (process.env.MSG91_AUTHKEY?.trim() &&
+        [
+          "quote-published",
+          "quote-expiry-reminder",
+          "quote-follow-up",
+          "dispatch-whatsapp-alert",
+        ].some((type) => this.msg91Sms.hasTemplate(type))),
+    );
+  }
+
+  private shouldSendSms(type: string, payload: Record<string, unknown>) {
+    if (type === "quote-follow-up" && payload.channel !== "SMS") return false;
+    return Boolean(
+      process.env.MSG91_AUTHKEY?.trim() && this.msg91Sms.hasTemplate(type),
+    );
+  }
+
+  private canDeliver(type: string, payload: Record<string, unknown>) {
+    if (this.shouldSendSms(type, payload)) return true;
+    return Boolean(process.env.NOTIFICATION_WEBHOOK_URL?.trim());
+  }
+
   async onModuleDestroy() {
     if (this.timer) clearInterval(this.timer);
     await this.worker?.close();

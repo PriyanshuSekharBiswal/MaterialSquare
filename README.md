@@ -62,7 +62,20 @@ Product images must be supplied by the client. The website uses a neutral placeh
 
 Customers can browse products and prepare a browser-stored quote list without signing in. Submitting a quotation request or opening account history requires a customer session. Customers sign in using their mobile number and a verified MSG91 OTP; there is no customer password login. The server issues a revocable HTTP-only session cookie that persists in the same browser for up to a year and renews as the customer uses the account. Another browser or device requires a new OTP sign-in, and explicit sign-out revokes the current session. Signed-in customers can review their own requests, published quotations and brand alternatives, order tracking, purchase history, loyalty activity, and profile. Admin and staff sign in separately with a mobile number or email plus password in the protected `/admin` workspace. Configure `MSG91_AUTHKEY` only on the API, and configure `VITE_MSG91_WIDGET_ID` and `VITE_MSG91_TOKEN_AUTH` for customer OTP sign-in. No OTP fallback code is included.
 
-Payments are not collected by the website. Accounts staff record payments only after receiving them offline (cash, UPI, card, or another method), including advances and later balance payments. The order ledger records each amount, method, optional reference/note, staff member, time, and a unique 23-character payment reference; it prevents overpayment and keeps the remaining balance visible. Notification delivery is deferred until a provider is selected and configured; queued notification records must not be treated as messages delivered.
+Payments are not collected by the website. Accounts staff record payments only after receiving them offline (cash, UPI, card, or another method), including advances and later balance payments. The order ledger records each amount, method, optional reference/note, staff member, time, and a unique 23-character payment reference; it prevents overpayment and keeps the remaining balance visible. Notification outbox records stay pending until a provider route is configured; queued records must not be treated as messages delivered.
+
+### SMS notifications
+
+The API can deliver quotation publication, quotation expiry, scheduled SMS follow-ups, and dispatch updates through the MSG91 SMS Flow API. Keep `MSG91_AUTHKEY` and the template IDs in the API environment only. Register and approve a separate DLT content template for each event in the account that owns the sender, then set its ID in that environment. Configure the client's own MSG91 account in production; never deploy a developer's auth key or template IDs to the client's environment. The web OTP widget remains a separate sign-in flow.
+
+Template variables are passed in this order:
+
+- `MSG91_SMS_TEMPLATE_ID_QUOTE_PUBLISHED`: `VAR1` quote number, `VAR2` valid-until date.
+- `MSG91_SMS_TEMPLATE_ID_QUOTE_EXPIRY_REMINDER`: `VAR1` quote number, `VAR2` valid-until date.
+- `MSG91_SMS_TEMPLATE_ID_QUOTE_FOLLOW_UP`: `VAR1` quote number. Staff notes remain internal and are not sent in SMS.
+- `MSG91_SMS_TEMPLATE_ID_DISPATCH_UPDATE`: `VAR1` order number, `VAR2` dispatch status, `VAR3` truck number (or “Not assigned”).
+
+The Sales follow-up scheduler includes SMS as a channel. Email and WhatsApp follow-ups, plus purchase-order emails with PDF attachments, continue through `NOTIFICATION_WEBHOOK_URL`. Promotional messaging is not enabled by this adapter; it needs a separate consent-aware workflow and its approved promotional template. A notification is only marked delivered after MSG91 accepts the request; that does not confirm delivery to the handset.
 
 Create the initial client administrator through the one-time staff provisioning operation. The client can then add staff accounts and assign roles in the workspace. Remove temporary developer test accounts after local testing and provision the client's real administrator for handover.
 
@@ -70,7 +83,7 @@ Migration `202610050003_hide_preview_catalogue` hides the former preview product
 
 ## Operations
 
-- Notification provider integration is deferred. The app may retain internal notification/outbox state, but it must not send external messages until a provider is selected and configured.
+- Notification delivery requires `REDIS_URL` and either `NOTIFICATION_WEBHOOK_URL` or configured MSG91 templates. Incomplete routes remain in the outbox as pending.
 - Configure S3-compatible storage with the `AWS_*` values in `.env.example` before using media storage workflows.
 - Set exact public origins in API `CORS_ORIGINS`; terminate TLS at the deployment proxy.
 - Keep credentials out of source control. Store a unique client admin password outside the repository; the admin workspace supports staff and catalogue management.

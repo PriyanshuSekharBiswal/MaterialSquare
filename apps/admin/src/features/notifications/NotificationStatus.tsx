@@ -12,6 +12,7 @@ type Readiness = {
   ready: boolean;
   missingRequired: string[];
   webhookTokenConfigured: boolean;
+  missingSmsTemplates?: string[];
 };
 export default function NotificationStatus({ token, revision }: { token: string; revision: number }) {
   const [filters, setFilters] = useState(() => ({
@@ -158,6 +159,9 @@ export default function NotificationStatus({ token, revision }: { token: string;
               ? ""
               : " The optional NOTIFICATION_WEBHOOK_TOKEN is also not set."}
           </p>
+          {readiness.missingSmsTemplates?.length ? (
+            <p>MSG91 SMS also needs: {readiness.missingSmsTemplates.join(", ")}.</p>
+          ) : null}
           <p>Secret values are never shown in this screen.</p>
         </aside>
       ) : readiness?.ready ? (

@@ -3,6 +3,7 @@ import {
   TRANSPORTATION_TRANSITIONS,
   type TransportationStatus,
 } from "@material-square/types";
+import { formatQuantityUnit } from "../../quantity-format";
 export type TransportationPlan = {
   id: string;
   orderId: string;
@@ -121,9 +122,8 @@ export default function TransportationPlanCard({
         );
         return (
           <p key={item.id}>
-            {item.productName}: {delivered.toLocaleString("en-IN")} /{" "}
-            {Number(item.quantityMt).toLocaleString("en-IN")} {item.unit}{" "}
-            delivered
+            {item.productName}: {formatQuantityUnit(delivered, item.unit)} /{" "}
+            {formatQuantityUnit(item.quantityMt, item.unit)} delivered
           </p>
         );
       })}
