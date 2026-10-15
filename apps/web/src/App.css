@@ -8683,52 +8683,6 @@ select:not([multiple]) {
   border-color: #f1e2d8;
   background: #fffaf6;
 }
-.marketplace-page .catalogue-marketplace-variant-options {
-  display: grid;
-  min-width: 0;
-  gap: .45rem;
-  margin: 0 0 .55rem;
-  padding: .55rem;
-}
-.marketplace-page .catalogue-marketplace-variant-options legend {
-  padding: 0 .25rem;
-  color: var(--ms-slate-600);
-  font-size: .7rem;
-  font-weight: 750;
-}
-.marketplace-page .catalogue-marketplace-variant-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: .4rem;
-}
-.marketplace-page .catalogue-marketplace-variant {
-  display: grid;
-  min-width: 0;
-  min-height: 58px;
-  align-content: center;
-  gap: .22rem;
-  padding: .5rem .58rem;
-  border: 1px solid var(--ms-slate-200);
-  border-radius: 9px;
-  background: #fff;
-  color: var(--ms-slate-800);
-  text-align: left;
-  cursor: pointer;
-}
-.marketplace-page .catalogue-marketplace-variant:hover { border-color: var(--ms-primary); }
-.marketplace-page .catalogue-marketplace-variant.is-selected {
-  border-color: var(--ms-primary);
-  background: var(--ms-primary-light);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ms-primary) 14%, transparent);
-}
-.marketplace-page .catalogue-marketplace-variant strong,
-.marketplace-page .catalogue-marketplace-variant span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.marketplace-page .catalogue-marketplace-variant strong { font-size: .75rem; }
-.marketplace-page .catalogue-marketplace-variant span { color: var(--ms-slate-900); font-size: .9rem; font-weight: 800; }
 .marketplace-page .pricing-row {
   margin-top: auto;
   padding-top: .75rem;
