@@ -65,6 +65,7 @@ export default function MarketplacePage({
   const [selectedBrand, setSelectedBrand] = useState(initialBrand);
   const [selectedAvailability, setSelectedAvailability] = useState(initialAvailability);
   const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [selectedVariantIds, setSelectedVariantIds] = useState<Record<string, string>>({});
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchExamples = buildSearchExamples(products);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
@@ -215,12 +216,15 @@ export default function MarketplacePage({
       : matches;
   }, [products, activeCategory, selectedBrand, searchQuery]);
 
-  const listingCards = useMemo(() => filteredProducts.flatMap((product) => {
+  // A catalogue listing is one product card. Variants are options on that card,
+  // not separate products; availability filtering should keep the product if
+  // at least one of its options matches.
+  const listingCards = useMemo(() => filteredProducts.filter((product) => {
+    if (!selectedAvailability) return true;
     const variants = product.variants || [];
-    const cards = variants.length ? variants.map((variant) => ({ product, variant })) : [{ product, variant: undefined }];
-    return selectedAvailability
-      ? cards.filter(({ product: cardProduct, variant }) => getAvailabilityStatus(variant || cardProduct) === selectedAvailability)
-      : cards;
+    return variants.length
+      ? variants.some((variant) => getAvailabilityStatus(variant) === selectedAvailability)
+      : getAvailabilityStatus(product) === selectedAvailability;
   }), [filteredProducts, selectedAvailability]);
 
   const visibleListingCards = useMemo(
@@ -543,12 +547,20 @@ export default function MarketplacePage({
             </div>
           ) : listingCards.length > 0 ? (
             <div className={`products-directory-grid${searchQuery.trim() ? ' is-search-results-list' : ''}`}>
-              {visibleListingCards.map(({ product, variant }) => {
-                const queryVariant = variant || bestMatchingVariant(product, searchQuery);
+              {visibleListingCards.map((product) => {
+                const variants = product.variants || [];
+                const availabilityVariants = selectedAvailability
+                  ? variants.filter((option) => getAvailabilityStatus(option) === selectedAvailability)
+                  : variants;
+                const selectedVariantId = selectedVariantIds[product.id];
+                const queryVariant = availabilityVariants.find((option) => option.id === selectedVariantId)
+                  || availabilityVariants.find((option) => option.id === bestMatchingVariant(product, searchQuery)?.id)
+                  || availabilityVariants[0]
+                  || bestMatchingVariant(product, searchQuery);
                 const cardAvailability = getAvailabilityStatus(queryVariant || product);
                 const productParams = new URLSearchParams();
                 if (searchQuery.trim()) productParams.set("q", searchQuery.trim());
-                if (variant?.id) productParams.set("variant", variant.id);
+                if (queryVariant?.id) productParams.set("variant", queryVariant.id);
                 const productHref = `/product/${encodeURIComponent(product.id)}${productParams.size ? `?${productParams.toString()}` : ""}`;
                 const cardImage = queryVariant?.image || queryVariant?.galleryImages?.[0] || product.image;
                 const optionAttributes = queryVariant
@@ -573,7 +585,7 @@ export default function MarketplacePage({
                 const priceNote = customerPriceNote(queryVariant?.priceNote || product.priceNote);
                 return (
                     <article
-                      key={`${product.id}:${queryVariant?.id || "product"}`}
+                      key={product.id}
                       className="catalog-product-card"
                       tabIndex={0}
                       aria-label={`Open ${product.name}${optionLabel ? `, ${optionLabel}` : ""}`}
@@ -613,7 +625,31 @@ export default function MarketplacePage({
                       </div>
 
                       <h3 className="product-card-title"><Link to={productHref}>{product.name}</Link></h3>
-                      {optionLabel && <div className="catalogue-marketplace-option" aria-label={`Option ${optionLabel}`}><span>Option</span><strong>{optionLabel}</strong></div>}
+                      {variants.length > 1 ? (
+                        <fieldset className="catalogue-marketplace-option catalogue-marketplace-variant-options">
+                          <legend>Options{queryVariant?.unit || product.unit ? ` · ${queryVariant?.unit || product.unit}` : ""}</legend>
+                          <div className="catalogue-marketplace-variant-grid" role="group" aria-label={`Options for ${product.name}`}>
+                            {availabilityVariants.map((option) => {
+                              const optionPrice = option.price ?? product.price;
+                              const isSelected = option.id === queryVariant?.id;
+                              return (
+                                <button
+                                  key={option.id}
+                                  type="button"
+                                  className={`catalogue-marketplace-variant${isSelected ? " is-selected" : ""}`}
+                                  aria-pressed={isSelected}
+                                  onClick={() => setSelectedVariantIds((current) => ({ ...current, [product.id]: option.id }))}
+                                >
+                                  <strong title={option.label}>{option.label}</strong>
+                                  {optionPrice != null && <span>₹{Number(optionPrice).toLocaleString("en-IN")}</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </fieldset>
+                      ) : optionLabel ? (
+                        <div className="catalogue-marketplace-option" aria-label={`Option ${optionLabel}`}><span>Option</span><strong>{optionLabel}</strong></div>
+                      ) : null}
                       {!queryVariant && product.specs?.sizes && <p className="product-size-guide">Size guide: {product.specs.sizes}. Specify your requirement in product details.</p>}
 
                       {product.grade && (
@@ -774,7 +810,7 @@ export default function MarketplacePage({
                 Load more listings <span>({listingCards.length - visibleListingCards.length} remaining)</span>
               </button>
               <span className="catalogue-load-more-hint" aria-live="polite">
-                Showing {visibleListingCards.length} of {listingCards.length} marketplace cards
+                Showing {visibleListingCards.length} of {listingCards.length} products
               </span>
             </div>
           )}
