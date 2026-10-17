@@ -1,9 +1,9 @@
 .shared-product-detail {
   container: shared-product-detail / inline-size;
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   align-items: start;
-  gap: clamp(1.15rem, 2.2vw, 2rem);
+  gap: clamp(0.85rem, 1.5vw, 1.35rem);
   padding: clamp(1rem, 2.1vw, 1.7rem);
   border: 1px solid #e5eaf0;
   border-radius: 22px;
@@ -16,8 +16,11 @@
   grid-row: 1 / span 2;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.6rem;
   min-width: 0;
+  align-self: start;
+  position: sticky;
+  top: 132px;
 }
 .shared-product-image {
   position: relative;
@@ -47,11 +50,15 @@
   white-space: nowrap;
 }
 .shared-product-image img {
+  display: block;
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  padding: clamp(1rem, 2.5vw, 2rem);
+  max-width: 100%;
+  max-height: 100%;
+  padding: clamp(0.65rem, 1.4vw, 1rem);
   object-fit: contain;
+  object-position: center;
 }
 .shared-product-image > span {
   color: #8995a4;
@@ -308,7 +315,7 @@
   gap: 0.2rem;
   border: 1px solid #dce2e8;
   border-radius: 12px;
-  padding: 0.6rem 0.7rem;
+  padding: 0.55rem 0.55rem;
   color: inherit;
   background: #fff;
   text-align: left;
@@ -347,9 +354,11 @@
   white-space: nowrap;
 }
 .shared-product-choice strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   color: #172235;
-  font-size: 0.93rem;
-  line-height: 1.25;
+  font-size: 0.86rem;
+  line-height: 1.2;
 }
 .shared-product-choice small {
   color: #c2410c;
@@ -532,11 +541,23 @@
   justify-content: space-between;
   gap: 0.65rem;
   padding: 0.5rem 1rem;
-  color: #262626;
+  color: #c2410c;
   font-size: clamp(1rem, 1.1vw, 1.15rem);
   font-weight: 500;
   list-style: none;
   cursor: pointer;
+  transition: color 0.16s ease, background-color 0.16s ease;
+}
+.shared-product-accordion > summary:hover,
+.shared-product-accordion[open] > summary {
+  color: #f56612;
+  background: #fff7f1;
+}
+.shared-product-accordion > summary:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 3px solid rgb(245 102 18 / 28%);
+  outline-offset: -3px;
 }
 .shared-product-accordion > summary::-webkit-details-marker {
   display: none;
@@ -545,11 +566,11 @@
   width: 8px;
   height: 8px;
   flex: 0 0 8px;
-  border-right: 2px solid #768396;
-  border-bottom: 2px solid #768396;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
   content: "";
   transform: rotate(45deg) translateY(-2px);
-  transition: transform 0.15s ease;
+  transition: color 0.16s ease, transform 0.15s ease;
 }
 .shared-product-accordion[open] > summary::after {
   transform: rotate(225deg) translate(-1px, -1px);
@@ -640,8 +661,11 @@
     grid-column: 1;
     grid-row: auto;
   }
+  .shared-product-gallery {
+    position: static;
+  }
   .shared-product-image {
-    aspect-ratio: 1/0.82;
+    aspect-ratio: 1/1;
   }
 }
 @container shared-product-detail (max-width: 480px) {

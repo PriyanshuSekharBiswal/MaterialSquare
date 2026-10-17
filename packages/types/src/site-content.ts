@@ -167,8 +167,10 @@ export const SITE_CONTENT_DEFAULTS = {
     "Ask the team to confirm site coverage, delivery timing, and any applicable charges for your request.",
   "contact.phone": "7735527252",
   "contact.phoneDisplay": "+91 77355 27252",
+  "contact.whatsappPhone": "7735527252",
   "contact.email": "admin@materialsquare.in",
   "contact.location": "",
+  "contact.instagramUrl": "https://www.instagram.com/materialsquare.in/",
   "contact.officeName": "Material Square",
   "contact.officeAddress": "192, Prakash Industrial Estate, Sahibabad, Ghaziabad, Uttar Pradesh",
   "contact.mapUrl": "https://maps.app.goo.gl/sPj9Ai7rZpLMPKh36",
@@ -196,7 +198,6 @@ const LEGACY_UNAPPROVED_SITE_CONTENT: Partial<Record<SiteContentKey, string>> = 
   "contact.officeAddress": "Plot 42, Mohan Nagar Link Road, Industrial Area, Ghaziabad, Uttar Pradesh 201007",
   "contact.coverageTitle": "Confirm coverage for your site.",
   "contact.coverageDescription": "Serving Delhi NCR (Noida, Greater Noida, Delhi, Gurugram, Ghaziabad & Faridabad). Coverage, product availability, delivery timing, and any site charges are confirmed by staff for each request.",
-  "footer.socialLinks": '[{"id":"instagram","label":"Instagram","url":"https://www.instagram.com/materialsquare.in/"}]',
   "home.slogan": "Aap Construction Sambhaliye, Material Hum Sambhalenge.",
   "footer.slogan": "Aap Construction Sambhaliye, Material Hum Sambhalenge.",
   "home.title": "Why Make 5 Calls?\nOne Call. All Materials.",
@@ -217,6 +218,15 @@ export function sanitizePublicSiteContent(
       safe[key] = SITE_CONTENT_DEFAULTS[key];
   }
   return safe;
+}
+
+/** Format the single stored Indian call number for display across the storefront. */
+export function formatContactPhone(value: string | null | undefined): string {
+  const phone = value?.trim() || "";
+  const digits = phone.replace(/\D/g, "");
+  if (/^[6-9]\d{9}$/.test(digits)) return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+  if (/^91[6-9]\d{9}$/.test(digits)) return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;
+  return phone;
 }
 
 export const SITE_CONTENT_GROUPS: {
@@ -300,7 +310,7 @@ export const SITE_CONTENT_GROUPS: {
     ],
   },
   {
-    label: "Contact & business details",
+    label: "Business details",
     fields: [
       { key: "contact.title", label: "Page heading" },
       { key: "contact.description", label: "Introduction", multiline: true },
@@ -310,10 +320,11 @@ export const SITE_CONTENT_GROUPS: {
         label: "Coverage and delivery note",
         multiline: true,
       },
-      { key: "contact.phone", label: "Phone number (digits only)" },
-      { key: "contact.phoneDisplay", label: "Phone display text" },
+      { key: "contact.phone", label: "Call phone number (10 digits)" },
+      { key: "contact.whatsappPhone", label: "WhatsApp number (digits only)" },
       { key: "contact.email", label: "Customer service email" },
       { key: "contact.location", label: "Service area" },
+      { key: "contact.instagramUrl", label: "Instagram profile URL" },
       { key: "contact.officeName", label: "Office or depot name" },
       {
         key: "contact.officeAddress",
@@ -432,6 +443,30 @@ export function parseSocialLinks(value: string): SocialLink[] {
     return parsed.success ? parsed.data : [];
   } catch {
     return [];
+  }
+}
+
+/** Combine the single managed Instagram profile with any additional social links. */
+export function siteSocialLinks(content: Record<string, unknown>): SocialLink[] {
+  const socialLinksValue = typeof content["footer.socialLinks"] === "string" ? content["footer.socialLinks"] : "[]";
+  const extras = parseSocialLinks(socialLinksValue).filter((link) => {
+    const hostname = new URL(link.url).hostname.toLowerCase();
+    return hostname !== "instagram.com" && !hostname.endsWith(".instagram.com");
+  });
+  const instagramUrl = typeof content["contact.instagramUrl"] === "string" ? content["contact.instagramUrl"].trim() : "";
+  if (!instagramUrl) return extras;
+
+  try {
+    const parsed = new URL(instagramUrl);
+    const hostname = parsed.hostname.toLowerCase();
+    if (parsed.protocol !== "https:" || (hostname !== "instagram.com" && !hostname.endsWith(".instagram.com"))) return extras;
+    const handle = parsed.pathname.split("/").filter(Boolean)[0];
+    return [
+      { id: "social-instagram", label: handle ? `@${handle}` : "Instagram", url: parsed.toString() },
+      ...extras,
+    ];
+  } catch {
+    return extras;
   }
 }
 

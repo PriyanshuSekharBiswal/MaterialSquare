@@ -2,7 +2,7 @@ import { Plus, Trash2, Upload } from "lucide-react";
 
 const customerPriceNote = (note: string | null | undefined) => {
   const value = String(note || "").trim();
-  return !value || /reference|observed|confirm local price|seller listing|local price and taxes may differ/i.test(value) ? "" : value;
+  return !value || /reference|observed|source listing|rate can change|confirm (?:the )?(?:current )?(?:local )?(?:price|availability)|local availability|availability before ordering|seller listing|local price and taxes may differ/i.test(value) ? "" : value;
 };
 
 export type EditableVariant = {

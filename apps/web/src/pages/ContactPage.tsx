@@ -5,11 +5,13 @@ import { Mail, MapPin, Phone } from 'lucide-react';
 import WhatsAppIcon from '../components/icons/WhatsAppIcon';
 import { useSiteContent } from '../site-content';
 import DeferredDirectionGoogleMaps from "../components/DeferredDirectionGoogleMaps";
+import { formatContactPhone } from "@material-square/types";
 
 export default function ContactPage() {
   const siteContent = useSiteContent();
   const hasContactOptions = Boolean(
     siteContent["contact.phone"] ||
+    siteContent["contact.whatsappPhone"] ||
     siteContent["contact.email"] ||
     siteContent["contact.officeAddress"],
   );
@@ -30,21 +32,21 @@ export default function ContactPage() {
       {hasContactOptions && <section className="contact-channels-section">
         <div className="container">
           <div className="contact-cards-grid">
-            {siteContent["contact.phone"] && <>
-            <article className="contact-info-card highlighted">
+            {siteContent["contact.whatsappPhone"] && <article className="contact-info-card highlighted">
               <div className="info-card-icon whatsapp"><WhatsAppIcon size={26} color="#16a34a" /></div>
               <h2>WhatsApp</h2>
               <p>Send a material request or ask the team to confirm product and delivery details.</p>
-              <a href={whatsappLink('Material Square — Contact Enquiry\n\nHello, I would like to discuss construction materials for my site.', siteContent["contact.phone"])} target="_blank" rel="noopener noreferrer" className="channel-link">
+              <a href={whatsappLink('Material Square — Contact Enquiry\n\nHello, I would like to discuss construction materials for my site.', siteContent["contact.whatsappPhone"])} target="_blank" rel="noopener noreferrer" className="channel-link">
                 Chat on WhatsApp
               </a>
-            </article>
+            </article>}
 
+            {siteContent["contact.phone"] && <>
             <article className="contact-info-card">
               <div className="info-card-icon phone"><Phone size={24} /></div>
               <h2>Call</h2>
               <p>Speak with the team about a product listing or site requirement.</p>
-              {siteContent["contact.phone"] && <a href={`tel:${siteContent["contact.phone"]}`} className="channel-link">{siteContent["contact.phoneDisplay"] || siteContent["contact.phone"]}</a>}
+              {siteContent["contact.phone"] && <a href={`tel:${siteContent["contact.phone"]}`} className="channel-link">{formatContactPhone(siteContent["contact.phone"])}</a>}
             </article>
             </>}
 

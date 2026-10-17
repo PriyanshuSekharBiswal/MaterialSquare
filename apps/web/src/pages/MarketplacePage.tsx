@@ -1,8 +1,8 @@
 import { productMessage, whatsappLink } from '../messages';
 import type { MaterialItem, CatalogueProduct } from '../types';
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigationType, useSearchParams } from 'react-router-dom';
 import {
   Search,
   Check,
@@ -25,12 +25,20 @@ import { partnerBrandCategories, partnerBrandMatchesProduct, usePartnerBrands } 
 import { bestMatchingVariant } from '../search/variant-match';
 import RotatingSearchPlaceholder from '../components/RotatingSearchPlaceholder';
 import { buildSearchExamples } from '../search/search-examples';
-import { customerPriceNote } from '../catalogue/customer-display';
-import { resolveCatalogueCategoryId } from '@material-square/types';
+import { formatContactPhone, resolveCatalogueCategoryId } from '@material-square/types';
 import { formatQuantityUnit, formatQuantityUnitText } from "../quantity-format";
 import { useCatalogueCategories } from '../catalogue/useCatalogueCategories';
+import { customerCardFeatures } from '../catalogue/customer-display';
 
 const CATALOGUE_PAGE_SIZE = 16;
+const readVisibleProductCount = (locationKey: string) => {
+  try {
+    const value = Number(sessionStorage.getItem(`material-square-marketplace-count:${locationKey}`));
+    return Number.isFinite(value) && value >= CATALOGUE_PAGE_SIZE ? value : CATALOGUE_PAGE_SIZE;
+  } catch {
+    return CATALOGUE_PAGE_SIZE;
+  }
+};
 const getAvailabilityStatus = (item: Pick<CatalogueProduct, 'availabilityStatus' | 'inStock'>) =>
   item.availabilityStatus || (item.inStock ? 'IN_STOCK' : 'CHECK_AVAILABILITY');
 const availabilityLabel = (status: NonNullable<CatalogueProduct['availabilityStatus']>) => ({
@@ -38,6 +46,26 @@ const availabilityLabel = (status: NonNullable<CatalogueProduct['availabilitySta
   OUT_OF_STOCK: 'Out of stock',
   CHECK_AVAILABILITY: 'Check availability',
 })[status];
+const getListingDealRank = (product: CatalogueProduct, variant?: NonNullable<CatalogueProduct['variants']>[number]) => {
+  const price = variant?.price ?? product.price;
+  const compareAtPrice = variant?.compareAtPrice ?? product.compareAtPrice;
+  const priceDiscount = price != null && compareAtPrice != null && Number(compareAtPrice) > Number(price)
+    ? ((Number(compareAtPrice) - Number(price)) / Number(compareAtPrice)) * 100
+    : 0;
+  const offerLabel = variant?.offerLabel || product.offerLabel || '';
+  const labelledDiscount = Number(offerLabel.match(/(\d+(?:\.\d+)?)\s*%/)?.[1] || 0);
+  const hasCalculatedOffer = priceDiscount > 0;
+  const hasExplicitBanner = Boolean(offerLabel.trim()) || (!hasCalculatedOffer && Boolean(product.photoBanner?.trim()));
+  const availability = getAvailabilityStatus(variant || product);
+  return {
+    discount: Math.max(priceDiscount, labelledDiscount),
+    hasOfferLabel: Boolean(offerLabel.trim()),
+    hasExplicitBanner,
+    hasOffer: hasCalculatedOffer || Boolean(offerLabel.trim()) || Boolean(product.photoBanner?.trim()),
+    isInStock: availability === 'IN_STOCK',
+    availabilityRank: availability === 'IN_STOCK' ? 0 : availability === 'CHECK_AVAILABILITY' ? 1 : 2,
+  };
+};
 export default function MarketplacePage({
   bomList = [],
   products,
@@ -49,6 +77,8 @@ export default function MarketplacePage({
   onOpenBOMDrawer,
 }: { products: CatalogueProduct[]; bomList?: MaterialItem[]; catalogueLoading?: boolean; catalogueUnavailable?: boolean; onRetryCatalogue?: () => void; onToggleBOM: (product: MaterialItem) => void; onOpenProduct: (product: CatalogueProduct, query?: string, variantId?: string) => void; onOpenBOMDrawer: () => void }) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigationType = useNavigationType();
   const siteContent = useSiteContent();
   const partnerBrands = usePartnerBrands();
   const managedCategories = useCatalogueCategories();
@@ -69,7 +99,12 @@ export default function MarketplacePage({
   const searchExamples = buildSearchExamples(products);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [isStickyDismissed, setIsStickyDismissed] = useState(false);
-  const [visibleProductCount, setVisibleProductCount] = useState(CATALOGUE_PAGE_SIZE);
+  const [visibleProductCount, setVisibleProductCount] = useState(() => readVisibleProductCount(location.key));
+  const previousLocationKeyRef = useRef(location.key);
+  const previousFilterStateRef = useRef({
+    locationKey: location.key,
+    filterKey: JSON.stringify([initialCategory, initialBrand, initialAvailability, initialQuery]),
+  });
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const catalogueEndRef = useRef<HTMLDivElement>(null);
   const [hasReachedCatalogueEnd, setHasReachedCatalogueEnd] = useState(false);
@@ -215,23 +250,65 @@ export default function MarketplacePage({
       : matches;
   }, [products, activeCategory, selectedBrand, searchQuery]);
 
-  const listingCards = useMemo(() => filteredProducts.flatMap((product) => {
-    const variants = product.variants || [];
-    const cards = variants.length ? variants.map((variant) => ({ product, variant })) : [{ product, variant: undefined }];
-    return selectedAvailability
-      ? cards.filter(({ product: cardProduct, variant }) => getAvailabilityStatus(variant || cardProduct) === selectedAvailability)
-      : cards;
-  }), [filteredProducts, selectedAvailability]);
+  const listingCards = useMemo(() => {
+    const cards = filteredProducts.flatMap((product) => {
+      const variants = product.variants || [];
+      const productCards = variants.length ? variants.map((variant) => ({ product, variant })) : [{ product, variant: undefined }];
+      return selectedAvailability
+        ? productCards.filter(({ product: cardProduct, variant }) => getAvailabilityStatus(variant || cardProduct) === selectedAvailability)
+        : productCards;
+    });
+    return cards
+      .map((card, index) => ({ ...card, index }))
+      .sort((left, right) => {
+        if (searchQuery.trim()) {
+          const relevance = scoreCatalogueSearch(right.product, searchQuery) - scoreCatalogueSearch(left.product, searchQuery);
+          if (relevance) return relevance;
+        }
+        const leftDeal = getListingDealRank(left.product, left.variant);
+        const rightDeal = getListingDealRank(right.product, right.variant);
+        const leftOfferGroup = leftDeal.isInStock && leftDeal.hasExplicitBanner ? 0 : leftDeal.isInStock && leftDeal.hasOffer ? 1 : 2;
+        const rightOfferGroup = rightDeal.isInStock && rightDeal.hasExplicitBanner ? 0 : rightDeal.isInStock && rightDeal.hasOffer ? 1 : 2;
+        return leftOfferGroup - rightOfferGroup
+          || leftDeal.availabilityRank - rightDeal.availabilityRank
+          || rightDeal.discount - leftDeal.discount
+          || Number(rightDeal.hasOfferLabel) - Number(leftDeal.hasOfferLabel)
+          || left.index - right.index;
+      })
+      .map(({ product, variant }) => ({ product, variant }));
+  }, [filteredProducts, selectedAvailability, searchQuery]);
 
   const visibleListingCards = useMemo(
     () => listingCards.slice(0, visibleProductCount),
     [listingCards, visibleProductCount],
   );
 
+  useLayoutEffect(() => {
+    if (previousLocationKeyRef.current === location.key) return;
+    previousLocationKeyRef.current = location.key;
+    if (navigationType === 'POP') {
+      setVisibleProductCount(readVisibleProductCount(location.key));
+    }
+  }, [location.key, navigationType]);
+
   useEffect(() => {
+    try {
+      sessionStorage.setItem(`material-square-marketplace-count:${location.key}`, String(visibleProductCount));
+    } catch {
+      // Keep the catalogue usable when session storage is unavailable.
+    }
+  }, [location.key, visibleProductCount]);
+
+  useEffect(() => {
+    const filterKey = JSON.stringify([activeCategory, selectedBrand, selectedAvailability, searchQuery]);
+    const previous = previousFilterStateRef.current;
+    const filtersChanged = previous.filterKey !== filterKey;
+    const historyEntryChanged = previous.locationKey !== location.key;
+    previousFilterStateRef.current = { locationKey: location.key, filterKey };
+    if (!filtersChanged || (navigationType === 'POP' && historyEntryChanged)) return;
     setVisibleProductCount(CATALOGUE_PAGE_SIZE);
     setHasReachedCatalogueEnd(false);
-  }, [activeCategory, selectedBrand, selectedAvailability, searchQuery]);
+  }, [activeCategory, selectedBrand, selectedAvailability, searchQuery, location.key, navigationType]);
 
   useEffect(() => {
     const sentinel = loadMoreSentinelRef.current;
@@ -530,7 +607,7 @@ export default function MarketplacePage({
               <span>Need a custom quantity or site delivery information?</span>
               {siteContent["contact.phone"] && (
                 <a href={`tel:${siteContent["contact.phone"]}`} className="phone-quick-link">
-                  <Phone size={13} /> {siteContent["contact.phoneDisplay"] || siteContent["contact.phone"]}
+                  <Phone size={13} /> {formatContactPhone(siteContent["contact.phone"])}
                 </a>
               )}
             </div>
@@ -570,7 +647,11 @@ export default function MarketplacePage({
                   ? Math.round(((Number(compareAtPrice) - Number(cardPrice)) / Number(compareAtPrice)) * 100)
                   : 0;
                 const cardOfferLabel = productOffer || (cardDiscountPercent > 0 ? `${cardDiscountPercent}% OFF` : "");
-                const priceNote = customerPriceNote(queryVariant?.priceNote || product.priceNote);
+                const cardBannerLabel = cardOfferLabel || product.photoBanner || "";
+                const hasExplicitCardBanner = Boolean(productOffer || (!cardOfferLabel && product.photoBanner));
+                const cardMinOrderQuantity = queryVariant?.minOrderQuantity != null
+                  ? formatQuantityUnit(queryVariant.minOrderQuantity, "")
+                  : formatQuantityUnitText(product.minOrderQty, product.unit).replace(/\s*×\s*.*$/, "");
                 return (
                     <article
                       key={`${product.id}:${queryVariant?.id || "product"}`}
@@ -594,10 +675,7 @@ export default function MarketplacePage({
                       <div className="media-overlay-tags">
                         {productCategoryLabel && <span className="product-cat-tag">{productCategoryLabel}</span>}
                       </div>
-                      {product.photoBanner && (
-                        <span className="product-photo-banner">{product.photoBanner}</span>
-                      )}
-                      {cardOfferLabel && <span className="catalog-card-offer">{cardOfferLabel}</span>}
+                      {cardBannerLabel && <span className={`catalog-card-offer${hasExplicitCardBanner ? ' is-explicit-offer' : ' is-calculated-offer'}`}>{cardBannerLabel}</span>}
                     </Link>
 
                     {/* Content Box */}
@@ -635,8 +713,8 @@ export default function MarketplacePage({
                       })()}
 
                       {/* Key features */}
-                      {product.features.length > 0 && <ul className="product-features-preview">
-                        {product.features.slice(0, 2).map((feat, idx) => {
+                      {customerCardFeatures(product.features).length > 0 && <ul className="product-features-preview">
+                        {customerCardFeatures(product.features).slice(0, 2).map((feat, idx) => {
                           const categoryFeature = feat.match(/^(Category\s*[—:-]\s*)(.+)$/i);
                           const displayFeatureCategory = categoryFeature
                             ? categoryDirectory.get(resolveCatalogueCategoryId(categoryFeature[2], managedCategories))
@@ -655,33 +733,29 @@ export default function MarketplacePage({
                       </ul>}
 
                       {/* Technical Specs Preview */}
-                      <div className="product-spec-preview-box">
-                        <div className="spec-item">
-                          <span className="spec-label">Packaging</span>
-                        <span className="spec-val">{queryVariant?.unit || product.unit}</span>
-                        </div>
-                        {product.specs?.standard && (
+                      {product.specs?.standard && <div className="product-spec-preview-box">
                           <div className="spec-item">
                             <span className="spec-label">IS Standard:</span>
                             <span className="spec-val font-mono">{product.specs.standard}</span>
                           </div>
-                        )}
-                      </div>
+                      </div>}
 
+                      <div className="marketplace-card-footer">
                       {/* Pricing & Min Order */}
                       <div className="pricing-row">
-                        <div>
+                        <div className="marketplace-card-price">
                           <span className="rate-caption">{queryVariant?.price != null || product.price != null ? 'Price per unit' : product.variants?.some(option => option.price != null) ? 'Starting from' : 'Pricing'}</span>
                           <span className="rate-amount">
                             {queryVariant?.price != null ? `₹${Number(queryVariant.price).toLocaleString('en-IN')}` : product.price == null ? product.variants?.some(option => option.price != null) ? `₹${Math.min(...product.variants.filter(option => option.price != null).map(option => Number(option.price))).toLocaleString('en-IN')}` : 'Request a quote' : `₹${Number(product.price).toLocaleString('en-IN')}`}
                           </span>
                           {cardPrice != null && compareAtPrice != null && Number(compareAtPrice) > Number(cardPrice) && <del className="catalogue-card-compare-price">₹{Number(compareAtPrice).toLocaleString("en-IN")}</del>}
-                          {priceNote && <small className="catalogue-price-caveat">{priceNote}</small>}
-                          <span className={`catalogue-stock-pill status-${cardAvailability.toLocaleLowerCase().replaceAll('_', '-')}`}>{availabilityLabel(cardAvailability)}</span>
                         </div>
-                        <div className="min-order-pill">
-                          <Package size={12} />
-                          <span>MOQ: {queryVariant?.minOrderQuantity ? formatQuantityUnit(queryVariant.minOrderQuantity, queryVariant.unit || product.unit) : formatQuantityUnitText(product.minOrderQty, product.unit) || 'Confirm'}</span>
+                        <div className="marketplace-card-pricing-meta">
+                          <span className={`catalogue-stock-pill status-${cardAvailability.toLocaleLowerCase().replaceAll('_', '-')}`}>{availabilityLabel(cardAvailability)}</span>
+                          <div className="min-order-pill">
+                            <Package size={12} />
+                            <span>MOQ: {cardMinOrderQuantity || 'Confirm'}</span>
+                          </div>
                         </div>
                       </div>
 
@@ -715,8 +789,8 @@ export default function MarketplacePage({
                           )}
                         </button>
 
-                        {siteContent["contact.phone"] && <a
-                          href={whatsappLink(productMessage(product), siteContent["contact.phone"])}
+                        {siteContent["contact.whatsappPhone"] && <a
+                          href={whatsappLink(productMessage(product), siteContent["contact.whatsappPhone"])}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn-card-whatsapp"
@@ -724,6 +798,7 @@ export default function MarketplacePage({
                         >
                           <WhatsAppIcon size={16} color="currentColor" />
                         </a>}
+                      </div>
                       </div>
                     </div>
                     </article>
@@ -747,10 +822,10 @@ export default function MarketplacePage({
                   <p>{products.length ? "Try adjusting your filters or contact the team to ask about an item that is not listed." : "Tell us what you need and our team can help confirm availability while the client’s approved inventory is being added."}</p>
                   <div className="empty-state-actions">
                     {products.length ? <button type="button" onClick={handleResetFilters} className="btn btn-secondary">Clear All Filters</button> : <Link to="/contact" className="btn btn-primary">Request a material</Link>}
-                    {siteContent["contact.phone"] && <a
+                    {siteContent["contact.whatsappPhone"] && <a
                       href={whatsappLink(
                         `Hello Material Square, I am looking for a material not listed: "${searchQuery}". Can you supply this to my site?`,
-                        siteContent["contact.phone"],
+                        siteContent["contact.whatsappPhone"],
                       )}
                       target="_blank"
                       rel="noopener noreferrer"

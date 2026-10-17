@@ -1,4 +1,23 @@
 import React, { useRef, useEffect } from 'react';
+import type { RefObject } from 'react';
+
+let lastHeroPointer: { x: number; y: number } | null = null;
+let heroPointerTrackingInstalled = false;
+
+const rememberHeroPointer = (event: PointerEvent) => {
+  lastHeroPointer = { x: event.clientX, y: event.clientY };
+};
+
+const clearHeroPointer = () => {
+  lastHeroPointer = null;
+};
+
+const ensureHeroPointerTracking = () => {
+  if (heroPointerTrackingInstalled || typeof window === 'undefined') return;
+  window.addEventListener('pointermove', rememberHeroPointer, { passive: true });
+  window.addEventListener('pointerleave', clearHeroPointer);
+  heroPointerTrackingInstalled = true;
+};
 
 /**
  * HeroBuildingCanvas
@@ -6,23 +25,29 @@ import React, { useRef, useEffect } from 'react';
  * Recreates the clean minimal wireframe architecture from https://cmemp.vercel.app/
  * Adapts fluidly across Desktop, Laptop, Tablet, and Mobile with touch & mouse tracking.
  */
-export default function HeroBuildingCanvas({ className = '', centered = false }) {
+export default function HeroBuildingCanvas({ className = '', centered = false, focalAnchorRef }: {
+  className?: string;
+  centered?: boolean;
+  focalAnchorRef?: RefObject<HTMLElement | null>;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    ensureHeroPointerTracking();
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     let animId: number | null = null;
-    let canvasIsVisible = true;
     let lastFrameAt = 0;
+    // Start a fresh build whenever the home hero mounts. Keeping this clock in
+    // module scope made a return to Home resume at a later, already-built phase.
     const startTime = performance.now();
-    let targetTiltX = 0;
-    let targetTiltY = 0;
-    let currentTiltX = 0;
-    let currentTiltY = 0;
+    let targetOffsetX = 0;
+    let targetOffsetY = 0;
+    let currentOffsetX = 0;
+    let currentOffsetY = 0;
 
     const getFocalCenter = (w: number, h: number, rect: DOMRect) => {
       if (centered) {
@@ -31,56 +56,63 @@ export default function HeroBuildingCanvas({ className = '', centered = false })
           y: Math.min(h * 0.82, h - 35),
         };
       }
-      const textCol = document.querySelector('.hero-text-col');
-      if (textCol && rect) {
-        const textRect = textCol.getBoundingClientRect();
-        // Position the 3D building comfortably to the right so the entire ground grid clears the search bar and buttons
-        const targetX = (textRect.right - rect.left) + 330;
+      const showcaseCol = focalAnchorRef?.current;
+      if (showcaseCol && rect) {
+        const colRect = showcaseCol.getBoundingClientRect();
         return {
-          x: Math.max(w * 0.58, Math.min(targetX, w - 160)),
-          y: h * 0.70,
+          x: (colRect.left - rect.left) + colRect.width * 0.5,
+          y: (colRect.top - rect.top) + colRect.height * 0.70,
         };
       }
       return {
-        x: w * 0.62,
+        x: w * 0.67,
         y: h * 0.70,
       };
     };
 
-    const handlePointerMove = (clientX: number, clientY: number) => {
+    const handlePointerCoordinates = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      const w = canvas.width / dpr;
-      const h = canvas.height / dpr;
+      // Pointer coordinates and focal geometry are in CSS pixels. The backing
+      // bitmap may use a capped device-pixel ratio, so don't derive these from
+      // canvas.width / window.devicePixelRatio.
+      const w = rect.width;
+      const h = rect.height;
 
       const focal = getFocalCenter(w, h, rect);
 
       const mouseX = clientX - rect.left;
       const mouseY = clientY - rect.top;
+      lastHeroPointer = { x: clientX, y: clientY };
 
-      targetTiltX = ((mouseX - focal.x) / (w * 0.5)) * 12;
-      targetTiltY = ((mouseY - focal.y) / (h * 0.5)) * 8;
+      // A restrained parallax shift makes the cursor response easy to see while
+      // keeping the building anchored in its layout column.
+      targetOffsetX = Math.max(-28, Math.min(28, ((mouseX - focal.x) / (w * 0.5)) * 28));
+      targetOffsetY = Math.max(-18, Math.min(18, ((mouseY - focal.y) / (h * 0.5)) * 18));
     };
 
-    const handleMouseMove = (e: MouseEvent) => {
-      handlePointerMove(e.clientX, e.clientY);
+    const handlePointerMove = (e: PointerEvent) => {
+      handlePointerCoordinates(e.clientX, e.clientY);
     };
 
     const handleTouchMove = (e: TouchEvent) => {
       if (e.touches && e.touches[0]) {
-        handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+        handlePointerCoordinates(e.touches[0].clientX, e.touches[0].clientY);
       }
     };
 
     const handlePointerLeave = () => {
-      targetTiltX = 0;
-      targetTiltY = 0;
+      lastHeroPointer = null;
+      targetOffsetX = 0;
+      targetOffsetY = 0;
     };
 
-    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    window.addEventListener('pointermove', handlePointerMove, { passive: true });
     window.addEventListener('mouseleave', handlePointerLeave);
     window.addEventListener('touchmove', handleTouchMove, { passive: true });
     window.addEventListener('touchend', handlePointerLeave);
+    if (lastHeroPointer) {
+      handlePointerCoordinates(lastHeroPointer.x, lastHeroPointer.y);
+    }
 
     const drawPoly = (p1: { x: number; y: number }, p2: { x: number; y: number }, p3: { x: number; y: number }, p4: { x: number; y: number }, fillStyle: string | CanvasGradient | null, strokeStyle: string | null, lineWidth = 0.85) => {
       ctx.beginPath();
@@ -102,7 +134,7 @@ export default function HeroBuildingCanvas({ className = '', centered = false })
 
     const render = (timestamp: number) => {
       animId = null;
-      if (!canvasIsVisible || document.visibilityState === 'hidden') return;
+      if (document.visibilityState === 'hidden') return;
       // The drawing is decorative; 30fps keeps its animation smooth while
       // substantially reducing CPU and battery use on high-refresh displays.
       if (timestamp - lastFrameAt < 1000 / 30) {
@@ -111,7 +143,8 @@ export default function HeroBuildingCanvas({ className = '', centered = false })
       }
       lastFrameAt = timestamp;
       // 14-second loop cycle matching cmemp.vercel.app
-      const cycle = ((timestamp - startTime) / 1000) % 14;
+      const elapsed = timestamp - startTime;
+      const cycle = (elapsed / 1000) % 14;
       let buildProgress = 0;
       let globalAlpha = 1;
 
@@ -123,11 +156,12 @@ export default function HeroBuildingCanvas({ className = '', centered = false })
       } else {
         const m = (cycle - 12) / 2;
         buildProgress = 1;
-        globalAlpha = 1 - Math.sin(m * Math.PI * 0.5);
+        // Fade gently without ever making a route return look like a missing canvas.
+        globalAlpha = 0.65 + 0.35 * (1 - Math.sin(m * Math.PI * 0.5));
       }
 
-      currentTiltX += (targetTiltX - currentTiltX) * 0.05;
-      currentTiltY += (targetTiltY - currentTiltY) * 0.05;
+      currentOffsetX += (targetOffsetX - currentOffsetX) * 0.14;
+      currentOffsetY += (targetOffsetY - currentOffsetY) * 0.14;
 
       const rect = canvas.getBoundingClientRect();
       const w = rect.width;
@@ -162,10 +196,10 @@ export default function HeroBuildingCanvas({ className = '', centered = false })
 
       const project = (x: number, y: number, z: number) => {
         const isoX = (x - y) * Math.cos(Math.PI / 6) * scale;
-        const isoY = (x + y) * Math.sin(Math.PI / 6) * zAspect * scale;
+        const isoY = (x + y) * Math.sin(Math.PI / 6) * zAspect * scale - z * scale;
         return {
-          x: centerX + isoX + currentTiltX * 0.6,
-          y: centerY + isoY - z * scale + currentTiltY * 0.45,
+          x: centerX + currentOffsetX + isoX,
+          y: centerY + currentOffsetY + isoY,
         };
       };
 
@@ -438,7 +472,7 @@ export default function HeroBuildingCanvas({ className = '', centered = false })
     };
 
     const scheduleFrame = () => {
-      if (animId === null && canvasIsVisible && document.visibilityState !== 'hidden') {
+      if (animId === null && document.visibilityState !== 'hidden') {
         animId = requestAnimationFrame(render);
       }
     };
@@ -452,20 +486,9 @@ export default function HeroBuildingCanvas({ className = '', centered = false })
       }
     };
 
-    const visibilityObserver = 'IntersectionObserver' in window
-      ? new IntersectionObserver(([entry]) => {
-          canvasIsVisible = entry.isIntersecting;
-          if (!canvasIsVisible && animId !== null) {
-            cancelAnimationFrame(animId);
-            animId = null;
-          } else {
-            scheduleFrame();
-          }
-        }, { rootMargin: '100px' })
-      : null;
-    visibilityObserver?.observe(canvas);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
+    let resizeObserver: ResizeObserver | null = null;
     const handleResize = () => {
       const parent = canvas.parentElement;
       if (!parent) return;
@@ -484,20 +507,24 @@ export default function HeroBuildingCanvas({ className = '', centered = false })
     };
 
     handleResize();
+    if (canvas.parentElement && 'ResizeObserver' in window) {
+      resizeObserver = new ResizeObserver(handleResize);
+      resizeObserver.observe(canvas.parentElement);
+    }
     window.addEventListener('resize', handleResize);
     scheduleFrame();
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      resizeObserver?.disconnect();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      visibilityObserver?.disconnect();
-      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('mouseleave', handlePointerLeave);
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handlePointerLeave);
       if (animId !== null) cancelAnimationFrame(animId);
     };
-  }, [centered]);
+  }, [centered, focalAnchorRef]);
 
   return <canvas ref={canvasRef} className={`hero-3d-building-canvas ${className}`} aria-hidden="true" />;
 }

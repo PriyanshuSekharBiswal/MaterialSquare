@@ -15,7 +15,10 @@ export default function SocialLinksEditor({
   disabled,
   onChange,
 }: SocialLinksEditorProps) {
-  const links = parseSocialLinks(content["footer.socialLinks"]);
+  const links = parseSocialLinks(content["footer.socialLinks"]).filter((link) => {
+    const hostname = new URL(link.url).hostname.toLowerCase();
+    return hostname !== "instagram.com" && !hostname.endsWith(".instagram.com");
+  });
 
   function save(next: SocialLink[]) {
     onChange({ ...content, "footer.socialLinks": JSON.stringify(next) });
@@ -27,8 +30,8 @@ export default function SocialLinksEditor({
 
   return (
     <section className="panel-card panel-body">
-      <h2>Social links</h2>
-      <p>Manage the external social links shown in the website footer.</p>
+      <h2>Other social links</h2>
+      <p>Manage additional profiles shown in the website footer. Instagram is set above with the other business contact details.</p>
       {links.map((link, index) => (
         <fieldset
           className="social-link-editor"

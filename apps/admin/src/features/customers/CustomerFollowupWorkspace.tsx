@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { ArrowLeft, ArrowRight, PackageCheck, Plus, Search } from "lucide-react";
 import {
   blankFollowup,
@@ -46,6 +46,7 @@ type CustomerFollowupWorkspaceProps = {
   openCustomer: (id: string) => void;
   draft: Followup | null;
   setDraft: Dispatch<SetStateAction<Followup | null>>;
+  startDraft: (draft?: Followup) => void;
   setTab: Dispatch<SetStateAction<WorkspaceTab>>;
   setError: Dispatch<SetStateAction<string>>;
   save: (event: FormEvent<HTMLFormElement>) => void;
@@ -69,12 +70,30 @@ export default function CustomerFollowupWorkspace({
   openCustomer,
   draft,
   setDraft,
+  startDraft,
   setTab,
   setError,
   save,
 }: CustomerFollowupWorkspaceProps) {
   const result = tab === "customers" ? customers : followups;
-  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("adminRfq"));
+  useEffect(() => {
+    const restoreRequest = () => setSelectedRequestId(new URLSearchParams(window.location.search).get("adminRfq"));
+    window.addEventListener("popstate", restoreRequest);
+    return () => window.removeEventListener("popstate", restoreRequest);
+  }, []);
+  const openRequest = (id: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("adminRfq", id);
+    window.history.pushState({ ...(window.history.state ?? {}), adminRfq: id }, "", `${url.pathname}${url.search}${url.hash}`);
+    setSelectedRequestId(id);
+  };
+  const closeCustomerOrRequest = () => {
+    if (selectedRequestId && window.history.state?.adminRfq) window.history.back();
+    else if (!selectedRequestId && window.history.state?.adminCustomer) window.history.back();
+    else if (selectedRequestId) setSelectedRequestId(null);
+    else setSelected(null);
+  };
   const selectedRequest = selected?.rfqs?.find((request) => request.id === selectedRequestId);
   const requests = selected?.rfqs ?? [];
   const requestQuotes = requests.flatMap((request) => request.quotations);
@@ -130,7 +149,7 @@ export default function CustomerFollowupWorkspace({
                 <button
                   type="button"
                   className="btn-sm btn-primary customer-new-followup"
-                  onClick={() => setDraft(blankFollowup())}
+                  onClick={() => startDraft(blankFollowup())}
                 >
                   <Plus size={16} />
                   New follow-up
@@ -235,7 +254,7 @@ export default function CustomerFollowupWorkspace({
           <div className="customer-profile-header">
             <button
               className="btn-sm btn-secondary btn-orange-outline admin-back-button"
-              onClick={() => selectedRequest ? setSelectedRequestId(null) : setSelected(null)}
+              onClick={closeCustomerOrRequest}
             >
               <ArrowLeft size={16} />
               {selectedRequest ? "Back to customer history" : "Back to customers"}
@@ -281,7 +300,7 @@ export default function CustomerFollowupWorkspace({
                 setSearch("");
                 setQuery("");
                 setStatus("");
-                setDraft({
+                startDraft({
                   ...blankFollowup(),
                   customerName: selected.name,
                   phone: selected.phone,
@@ -386,7 +405,7 @@ export default function CustomerFollowupWorkspace({
                         <span><strong>{orderCount}</strong> orders</span>
                         <span><strong>{deliveryCount}</strong> deliveries</span>
                       </div>
-                      <button className="btn-sm btn-primary" onClick={() => setSelectedRequestId(request.id)}>
+                      <button className="btn-sm btn-primary" onClick={() => openRequest(request.id)}>
                         View request <ArrowRight size={15} />
                       </button>
                     </article>
@@ -416,9 +435,12 @@ export default function CustomerFollowupWorkspace({
               type="button"
               className="btn-sm btn-secondary btn-orange-outline"
               onClick={() => {
-                setDraft(null);
-                setSelected(null);
-                setError("");
+                if (window.history.state?.adminDraft) window.history.back();
+                else {
+                  setDraft(null);
+                  setSelected(null);
+                  setError("");
+                }
               }}
             >
               Cancel

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import WhatsAppIcon from './icons/WhatsAppIcon';
 import { useSiteContent } from '../site-content';
+import { formatContactPhone } from '@material-square/types';
 import './DirectionGoogleMaps.css';
 
 type MapPoint = { x: number; y: number };
@@ -147,7 +148,7 @@ export default function DirectionGoogleMaps({ className = '' }) {
   );
   const officeName = siteContent['contact.officeName'].trim() || 'Material Square';
   const officePhone = siteContent['contact.phone'].trim();
-  const officePhoneDisplay = siteContent['contact.phoneDisplay'].trim() || officePhone;
+  const officePhoneDisplay = formatContactPhone(officePhone);
 
   useEffect(() => {
     if (activeRoute && !serviceRoutes.some((route) => route.id === activeRoute.id))

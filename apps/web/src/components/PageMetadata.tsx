@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { SEO_INDEXABLE_SERVICE_AREA_SLUGS, SEO_ROUTE_DESCRIPTIONS, SEO_SERVICE_AREA_PAGES, serviceAreaSlugs, websitePageDescription, websitePages, parsePolicy, parseSocialLinks, publicFaqEntries, type PolicyKind, type SiteContentKey } from "@material-square/types";
+import { SEO_INDEXABLE_SERVICE_AREA_SLUGS, SEO_ROUTE_DESCRIPTIONS, SEO_SERVICE_AREA_PAGES, serviceAreaSlugs, siteSocialLinks, websitePageDescription, websitePages, parsePolicy, publicFaqEntries, type PolicyKind, type SiteContentKey } from "@material-square/types";
 import { useSiteContent } from "../site-content";
 import type { CatalogueProduct } from "../types";
 import { customerProductDescription, customerProductTitle, customerSpecifications } from "../catalogue/customer-display";
@@ -402,7 +402,7 @@ export default function PageMetadata({ products = [], catalogueLoaded = false }:
       const coveredAreas = SEO_SERVICE_AREA_PAGES
         .filter((areaPage) => coveredAreaSlugs.has(areaPage.slug))
         .map((areaPage) => areaPage.name);
-      const officialProfiles = parseSocialLinks(content["footer.socialLinks"])
+      const officialProfiles = siteSocialLinks(content)
         .map(({ url }) => url);
       setStructuredData({
         "@context": "https://schema.org",

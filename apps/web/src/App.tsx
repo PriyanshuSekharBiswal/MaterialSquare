@@ -5,8 +5,8 @@ import { CustomerProtectedRoute } from './components/CustomerProtectedRoute';
 import './customer.css';
 import './customer-portal.css';
 import type { CatalogueProduct, MaterialItem } from './types';
-import React, { lazy, Suspense, useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import React, { lazy, Suspense, useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate, useNavigationType, UNSAFE_LocationContext, type Location as RouterLocation } from 'react-router-dom';
 import './App.css';
 import useScrollReveal from './hooks/useScrollReveal';
 import { trackWebsiteEvent } from './analytics';
@@ -46,8 +46,39 @@ import WhatsAppIcon from './components/icons/WhatsAppIcon';
 function AppShell() {
   const siteContent = useSiteContent();
   const location = useLocation();
+  const navigationType = useNavigationType();
   const navigate = useNavigate();
+  const previousRouteLocation = useRef(location);
+  const [routeHistory, setRouteHistory] = useState(() => [location]);
   useScrollReveal();
+
+  useLayoutEffect(() => {
+    const previous = previousRouteLocation.current;
+    previousRouteLocation.current = location;
+    if (previous.key === location.key) return;
+
+    setRouteHistory((current) => {
+      const previousIndex = current.findIndex((entry) => entry.key === previous.key);
+      if (navigationType === "PUSH") {
+        const retained = previousIndex >= 0 ? current.slice(0, previousIndex + 1) : current;
+        return [...retained, location];
+      }
+      if (navigationType === "REPLACE") {
+        const retained = previousIndex >= 0 ? current.slice(0, previousIndex) : current;
+        return [...retained, location];
+      }
+      return current.some((entry) => entry.key === location.key)
+        ? current
+        : [...current, location];
+    });
+  }, [location, navigationType]);
+
+  // Keep each visited route entry mounted. Browser Back (including trackpad
+  // swipe-back) can then reveal the exact component instance and its local
+  // form, filter, selection, and scroll-container state.
+  const cachedRouteEntries: RouterLocation[] = routeHistory.some((entry) => entry.key === location.key)
+    ? routeHistory
+    : [...routeHistory, location];
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("draftPreview") === "1")
@@ -161,9 +192,11 @@ function AppShell() {
 
         {/* Dedicated Route Views with smooth transition on section change */}
         <main id="main-content" className="app-main-content">
-          <div key={location.pathname} className="ms-page-transition-wrapper">
+          {cachedRouteEntries.map((routeLocation) => (
+          <UNSAFE_LocationContext.Provider key={routeLocation.key} value={{ location: routeLocation, navigationType }}>
+          <div className="ms-page-transition-wrapper" hidden={routeLocation.key !== location.key}>
             <Suspense fallback={<div className="page-loading-skeleton" role="status" aria-label="Loading page"><i /><i /><i /><i /></div>}>
-            <Routes>
+            <Routes location={routeLocation}>
               {/* 1. Home Page */}
               <Route
                 path="/"
@@ -266,6 +299,8 @@ function AppShell() {
             </Routes>
             </Suspense>
           </div>
+          </UNSAFE_LocationContext.Provider>
+          ))}
         </main>
 
         {/* Brand Footer */}
@@ -291,8 +326,8 @@ function AppShell() {
               {bomList.length > 0 && <span className="dock-badge">{bomList.length}</span>}
             </button>
 
-            {siteContent["contact.phone"] && <a
-              href={whatsappLink("Material Square — General Enquiry", siteContent["contact.phone"])}
+            {siteContent["contact.whatsappPhone"] && <a
+              href={whatsappLink("Material Square — General Enquiry", siteContent["contact.whatsappPhone"])}
               target="_blank"
               rel="noopener noreferrer"
               className="dock-whatsapp-btn"

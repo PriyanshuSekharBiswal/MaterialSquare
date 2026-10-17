@@ -5,13 +5,11 @@ import NavigationControls from "./NavigationControls";
 import HomepageSectionControls from "./HomepageSectionControls";
 import HomepageContentBlocks from "./HomepageContentBlocks";
 import GuideControls from "./GuideControls";
-import MediaLibrary from "./MediaLibrary";
 import SocialLinksEditor from "./SocialLinksEditor";
-import "./media-library.css";
 import ContentImageField from "../../components/ContentImageField";
 import HomepageCategoryImages from "./HomepageCategoryImages";
 import { useCallback, useEffect, useRef, useState, type SetStateAction } from "react";
-import { AlertTriangle, ArrowLeft, Clock3, ContactRound, Files, House, Images, Menu, PanelBottom, RotateCcw, Save, RotateCw, Search, Share2, ShieldCheck, CircleQuestionMark, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Clock3, ContactRound, Files, House, Menu, PanelBottom, RotateCcw, Save, RotateCw, Search, ShieldCheck, CircleQuestionMark, Trash2, X } from "lucide-react";
 import {
   SITE_CONTENT_DEFAULTS,
   SITE_CONTENT_GROUPS,
@@ -22,18 +20,19 @@ const PREVIEW_MESSAGE = "material-square:site-content-preview";
 const RECOVERY_KEY = "material-square-website-content-recovery-v1";
 const WEBSITE_SECTION_KEY = "material-square-website-editor-section";
 const WEBSITE_SECTION_IDS = [
-  "content-pages", "content-homepage", "content-guides", "content-contact", "content-images",
-  "content-privacy", "content-social", "content-metadata", "content-footer",
+  "content-pages", "content-homepage", "content-guides", "content-contact",
+  "content-privacy", "content-metadata", "content-footer",
 ];
 const WEBSITE_SECTION_ITEMS = [
   ["content-pages", "Pages & menus", Files], ["content-homepage", "Homepage", House], ["content-guides", "Guides & FAQs", CircleQuestionMark],
-  ["content-contact", "Contact & office", ContactRound], ["content-images", "Images", Images], ["content-privacy", "Policies", ShieldCheck],
-  ["content-social", "Social links", Share2], ["content-metadata", "Search & SEO", Search], ["content-footer", "Footer", PanelBottom],
+  ["content-contact", "Business details", ContactRound], ["content-privacy", "Policies", ShieldCheck],
+  ["content-metadata", "Search & SEO", Search], ["content-footer", "Footer", PanelBottom],
 ] as const;
 const readSavedWebsiteSection = () => {
   if (typeof window === "undefined") return "content-pages";
   try {
     const savedSection = window.localStorage.getItem(WEBSITE_SECTION_KEY);
+    if (savedSection === "content-social") return "content-contact";
     return savedSection && WEBSITE_SECTION_IDS.includes(savedSection) ? savedSection : "content-pages";
   } catch {
     return "content-pages";
@@ -671,7 +670,7 @@ export default function WebsiteContentManager({
         </div>
       )}
       <div className="embedded-subnav-bar website-content-section-bar" ref={sectionMenuRef}>
-        <h2 className="operations-current-section">{({ "content-pages": "Pages & menus", "content-homepage": "Homepage", "content-guides": "Guides & FAQs", "content-contact": "Contact & office", "content-images": "Images", "content-privacy": "Policies", "content-social": "Social links", "content-metadata": "Search & SEO", "content-footer": "Footer" } as Record<string, string>)[activeContentSection] || "Pages & menus"}</h2>
+        <h2 className="operations-current-section">{({ "content-pages": "Pages & menus", "content-homepage": "Homepage", "content-guides": "Guides & FAQs", "content-contact": "Business details", "content-privacy": "Policies", "content-metadata": "Search & SEO", "content-footer": "Footer" } as Record<string, string>)[activeContentSection] || "Pages & menus"}</h2>
         {sectionMenuOpen && (
           <div className="embedded-subnav-items website-content-section-menu" id="website-section-menu">
             {WEBSITE_SECTION_ITEMS.map(([id, label, Icon]) => (
@@ -762,18 +761,19 @@ export default function WebsiteContentManager({
           <GuideControls content={content} disabled={contentDisabled} onChange={updateContent} />
           {renderContentGroups(["Tools & Guides"])}
         </>}
-        {activeContentSection === "content-contact" && renderContentGroups(["Contact & business details"])}
-        {activeContentSection === "content-images" && <MediaLibrary token={token} onSignOut={onSignOut} />}
+        {activeContentSection === "content-contact" && <>
+          {renderContentGroups(["Business details"])}
+          <SocialLinksEditor content={content} disabled={contentDisabled} onChange={updateContent} />
+        </>}
         {activeContentSection === "content-privacy" && <>
           <PolicyEditor kind="privacy" content={content} disabled={contentDisabled} onChange={updateContent} />
           <PolicyEditor kind="terms" content={content} disabled={contentDisabled} onChange={updateContent} />
           <PolicyEditor kind="shipping" content={content} disabled={contentDisabled} onChange={updateContent} />
           <PolicyEditor kind="returns" content={content} disabled={contentDisabled} onChange={updateContent} />
         </>}
-        {activeContentSection === "content-social" && <SocialLinksEditor content={content} disabled={contentDisabled} onChange={updateContent} />}
         {activeContentSection === "content-metadata" && renderContentGroups(["Page metadata"])}
         {activeContentSection === "content-footer" && renderContentGroups(["Footer"])}
-        {!loading && activeContentSection !== "content-images" && activeContentSection !== "content-social" && activeContentSection !== "content-privacy" && (
+        {!loading && activeContentSection !== "content-privacy" && (
           <p className="website-content-note">Text is stored as plain text. Page layout, product images, prices and availability are managed separately.</p>
         )}
       </div>

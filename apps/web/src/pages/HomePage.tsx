@@ -56,6 +56,7 @@ export default function HomePage({
     return typeof window !== "undefined" ? window.innerWidth < 992 : false;
   });
   const searchRef = useRef<HTMLFormElement>(null);
+  const heroShowcaseRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -138,7 +139,7 @@ export default function HomePage({
           {/* Desktop: Full-bleed 3D Isometric Building Simulation (borderless, full scale) */}
           {!isMobileView && (
             <div className="hero-desktop-canvas-wrap">
-              <DeferredHeroBuildingCanvas centered={false} />
+              <DeferredHeroBuildingCanvas centered={false} focalAnchorRef={heroShowcaseRef} />
             </div>
           )}
 
@@ -287,6 +288,7 @@ export default function HomePage({
                 </Link>
               </div>
             </div>
+            {!isMobileView && <div ref={heroShowcaseRef} className="hero-showcase-col" aria-hidden="true" />}
           </div>
         </section>
         <ArchitecturalTicker />
@@ -448,15 +450,15 @@ export default function HomePage({
               details, then contact the team to confirm price, availability,
               taxes, and delivery for your site.
             </p>
-            <div className="why-actions">
-              <Link to="/why-us" className="btn btn-primary">
-                <span>See how the website works</span>
-                <ArrowRight size={15} />
-              </Link>
-              <Link to="/guides" className="btn btn-secondary">
-                <span>Explore Tools & Guides</span>
-              </Link>
-            </div>
+          </div>
+          <div className="why-actions">
+            <Link to="/why-us" className="btn btn-primary">
+              <span>See how the website works</span>
+              <ArrowRight size={15} />
+            </Link>
+            <Link to="/guides" className="btn btn-secondary">
+              <span>Explore Tools & Guides</span>
+            </Link>
           </div>
         </div>
       </section>
@@ -534,11 +536,11 @@ export default function HomePage({
               <FileText size={16} />
               <span>{siteContent["home.calloutButton"]}</span>
             </Link>
-            {siteContent["contact.phone"] && (
+            {siteContent["contact.whatsappPhone"] && (
               <a
                 href={whatsappLink(
                   "Material Square — General Enquiry",
-                  siteContent["contact.phone"],
+                  siteContent["contact.whatsappPhone"],
                 )}
                 target="_blank"
                 rel="noopener noreferrer"

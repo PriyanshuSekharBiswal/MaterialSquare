@@ -122,6 +122,20 @@ function initialRange() {
   };
 }
 
+function readReportLocation() {
+  const params = new URLSearchParams(window.location.search);
+  const requestedType = params.get("reportType");
+  const range = {
+    from: params.get("from") || "",
+    to: params.get("to") || "",
+  };
+  const validRange = range.from && range.to && range.from <= range.to;
+  return {
+    type: requestedType as ReportType | null,
+    range: validRange ? range : initialRange(),
+  };
+}
+
 function csvCell(value: string | number | null) {
   let text = value === null ? "" : String(value);
   if (/^[\s]*[=+\-@\t\r]/.test(text)) text = `'${text}`;
@@ -173,10 +187,13 @@ export default function OperationalReports({
         ? ["SUPER_ADMIN", "ADMIN", "PROCUREMENT_HEAD"].includes(role)
         : ["SUPER_ADMIN", "ADMIN", "DISPATCH_OFFICER"].includes(role),
   );
-  const [reportType, setReportType] = useState<ReportType>(
-    visibleTabs[0]?.id || "sales",
-  );
-  const [range, setRange] = useState(initialRange);
+  const [reportType, setReportType] = useState<ReportType>(() => {
+    const requested = readReportLocation().type;
+    return visibleTabs.some(({ id }) => id === requested)
+      ? requested!
+      : visibleTabs[0]?.id || "sales";
+  });
+  const [range, setRange] = useState(() => readReportLocation().range);
   const [draftRange, setDraftRange] = useState(range);
   const [loadedReport, setLoadedReport] = useState<{
     type: ReportType;
@@ -194,6 +211,35 @@ export default function OperationalReports({
     if (!visibleTabs.some(({ id }) => id === reportType))
       setReportType(visibleTabs[0]?.id || "sales");
   }, [role, reportType]);
+
+  useEffect(() => {
+    const restoreReportLocation = () => {
+      const restored = readReportLocation();
+      const nextType = visibleTabs.some(({ id }) => id === restored.type)
+        ? restored.type!
+        : visibleTabs[0]?.id || "sales";
+      setReportType(nextType);
+      setRange(restored.range);
+      setDraftRange(restored.range);
+    };
+    window.addEventListener("popstate", restoreReportLocation);
+    return () => window.removeEventListener("popstate", restoreReportLocation);
+  }, [role]);
+
+  function navigateReportLocation(nextType: ReportType, nextRange: { from: string; to: string }) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("reportType", nextType);
+    url.searchParams.set("from", nextRange.from);
+    url.searchParams.set("to", nextRange.to);
+    window.history.pushState(
+      { ...(window.history.state ?? {}), reportType: nextType, reportRange: nextRange },
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+    setReportType(nextType);
+    setRange(nextRange);
+    setDraftRange(nextRange);
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -303,11 +349,16 @@ export default function OperationalReports({
 
   function applyRange(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!draftRange.from || !draftRange.to || draftRange.from > draftRange.to) {
+    const formValues = new FormData(event.currentTarget);
+    const nextRange = {
+      from: String(formValues.get("from") || ""),
+      to: String(formValues.get("to") || ""),
+    };
+    if (!nextRange.from || !nextRange.to || nextRange.from > nextRange.to) {
       setError("Choose a valid start and end date.");
       return;
     }
-    setRange({ ...draftRange });
+    navigateReportLocation(reportType, nextRange);
   }
 
   function exportReport() {
@@ -360,7 +411,7 @@ export default function OperationalReports({
                   role="tab"
                   aria-selected={reportType === id}
                   className={reportType === id ? "active" : ""}
-                  onClick={() => setReportType(id)}
+                  onClick={() => navigateReportLocation(id, range)}
                 >
                   {label}
                 </button>
@@ -373,6 +424,7 @@ export default function OperationalReports({
                 <span>From</span>
                 <input
                   type="date"
+                  name="from"
                   value={draftRange.from}
                   onChange={(event) =>
                     setDraftRange({ ...draftRange, from: event.target.value })
@@ -384,6 +436,7 @@ export default function OperationalReports({
                 <span>To</span>
                 <input
                   type="date"
+                  name="to"
                   value={draftRange.to}
                   onChange={(event) =>
                     setDraftRange({ ...draftRange, to: event.target.value })

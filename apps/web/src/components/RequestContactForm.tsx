@@ -51,7 +51,7 @@ export default function RequestContactForm({
     notes: "",
   });
   const [channel, setChannel] = useState<"whatsapp" | "email" | "website">(
-      siteContent["contact.phone"]
+      siteContent["contact.whatsappPhone"]
         ? "whatsapp"
         : siteContent["contact.email"]
           ? "email"
@@ -387,7 +387,7 @@ export default function RequestContactForm({
           if (
             enquiry &&
             channel === "whatsapp" &&
-            !siteContent["contact.phone"]
+            !siteContent["contact.whatsappPhone"]
           ) {
             setError("WhatsApp contact is not configured. Choose email.");
             return;
@@ -420,7 +420,7 @@ export default function RequestContactForm({
               >
                 <option
                   value="whatsapp"
-                  disabled={!siteContent["contact.phone"]}
+                  disabled={!siteContent["contact.whatsappPhone"]}
                 >
                   WhatsApp
                 </option>
@@ -684,7 +684,7 @@ export default function RequestContactForm({
                   className={`btn ${channel === "whatsapp" ? "btn-whatsapp" : "btn-primary"}`}
                   href={
                     channel === "whatsapp"
-                      ? whatsappLink(message, siteContent["contact.phone"])
+                      ? whatsappLink(message, siteContent["contact.whatsappPhone"])
                       : emailLink(
                           `Material Square — ${enquiry ? "Enquiry" : "Quotation Request"} — ${details.name}`,
                           message,
@@ -703,7 +703,7 @@ export default function RequestContactForm({
                       actionLabel: `Open ${channel === "email" ? "email" : "WhatsApp"}`,
                       actionHref:
                         channel === "whatsapp"
-                          ? whatsappLink(message, siteContent["contact.phone"])
+                          ? whatsappLink(message, siteContent["contact.whatsappPhone"])
                           : emailLink(
                               `Material Square — ${enquiry ? "Enquiry" : "Quotation Request"} — ${details.name}`,
                               message,

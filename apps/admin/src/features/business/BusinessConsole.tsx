@@ -203,6 +203,7 @@ export default function BusinessConsole({
   const [section, setSection] = useState<Section>(() =>
     sectionFromLocation(role),
   );
+  const [visitedSections, setVisitedSections] = useState<Set<Section>>(() => new Set([sectionFromLocation(role)]));
   const [transportView, setTransportView] = useState<
     "plan" | "challan" | "plans"
   >("plan");
@@ -232,6 +233,84 @@ export default function BusinessConsole({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const applyBusinessSubView = (value: string | null) => {
+    const [scope, action, ...rest] = (value || "").split(":");
+    const id = rest.join(":") || null;
+    setSelectedTransportationPlanId(null);
+    setEditTransportationPlanOnOpen(false);
+    setTransportView("plan");
+    setSelectedExpertId(null);
+    setExpertView("add");
+    setSelectedBlogId(null);
+    setBlogView("write");
+    setSelectedCommissionId(null);
+    setCommissionView("record");
+    setLoyaltyView("overview");
+    setQuotationRulesView("overview");
+    if (scope === "transport") {
+      setSelectedTransportationPlanId(action === "detail" ? id : null);
+      setEditTransportationPlanOnOpen(action === "detail");
+      setTransportView(action === "detail" ? "plans" : action === "challan" ? "challan" : action === "plans" ? "plans" : "plan");
+    } else if (scope === "experts") {
+      setSelectedExpertId(action === "edit" ? id : null);
+      setExpertView(action === "add" ? "add" : "directory");
+    } else if (scope === "blogs") {
+      setSelectedBlogId(action === "edit" ? id : null);
+      setBlogView(action === "write" ? "write" : "articles");
+    } else if (scope === "commissions") {
+      setSelectedCommissionId(action === "detail" ? id : null);
+      setCommissionView(action === "record" ? "record" : "records");
+    } else if (scope === "loyalty") {
+      setLoyaltyView(action === "settings" ? "settings" : "overview");
+    } else if (scope === "quote-rules") {
+      setQuotationRulesView(action === "settings" ? "settings" : "overview");
+    }
+  };
+  const navigateBusinessSubView = (value: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("businessSubView", value);
+    window.history.pushState({ ...(window.history.state ?? {}), businessSubView: value }, "", `${url.pathname}${url.search}${url.hash}`);
+    applyBusinessSubView(value);
+  };
+  const returnFromBusinessSubView = (fallbackValue: string, fallback: () => void) => {
+    if (window.history.state?.businessSubView) window.history.back();
+    else {
+      const url = new URL(window.location.href);
+      url.searchParams.set("businessSubView", fallbackValue);
+      window.history.replaceState(
+        { ...(window.history.state ?? {}), businessSubView: fallbackValue },
+        "",
+        `${url.pathname}${url.search}${url.hash}`,
+      );
+      applyBusinessSubView(fallbackValue);
+      fallback();
+    }
+  };
+  useEffect(() => {
+    setVisitedSections((current) => current.has(section) ? current : new Set(current).add(section));
+  }, [section]);
+  const selectSection = (next: Section) => {
+    if (!visibleSections.some((entry) => entry.id === next) || next === section) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("businessSection", next);
+    url.searchParams.delete("businessSubView");
+    if (next !== "procurement") url.searchParams.delete("procurementView");
+    window.history.pushState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    setSection(next);
+    setMessage("");
+    setError("");
+  };
+  useEffect(() => {
+    const restoreSection = () => {
+      const restored = sectionFromLocation(role);
+      setSection(restored);
+      setVisitedSections((current) => current.has(restored) ? current : new Set(current).add(restored));
+      applyBusinessSubView(new URLSearchParams(window.location.search).get("businessSubView"));
+    };
+    window.addEventListener("popstate", restoreSection);
+    applyBusinessSubView(new URLSearchParams(window.location.search).get("businessSubView"));
+    return () => window.removeEventListener("popstate", restoreSection);
+  }, [role]);
   useEffect(() => {
     if (!sectionMenuOpen) return;
     const closeOnOutsidePointer = (event: PointerEvent) => {
@@ -252,27 +331,6 @@ export default function BusinessConsole({
   useEffect(() => {
     onContentReady(false);
   }, [section, onContentReady]);
-  useEffect(() => {
-    if (section !== "experts") {
-      setSelectedExpertId(null);
-      setExpertView("add");
-    }
-  }, [section]);
-  useEffect(() => {
-    if (section !== "blogs") {
-      setSelectedBlogId(null);
-      setBlogView("write");
-    }
-  }, [section]);
-  useEffect(() => {
-    if (section !== "commissions") {
-      setSelectedCommissionId(null);
-      setCommissionView("record");
-    }
-  }, [section]);
-  useEffect(() => {
-    if (section !== "loyalty") setLoyaltyView("overview");
-  }, [section]);
   const active =
     visibleSections.find((entry) => entry.id === section) ||
     visibleSections[0] ||
@@ -480,7 +538,7 @@ export default function BusinessConsole({
   }
   const sectionContent = (
     <>
-      {section === "suppliers" && (
+      {visitedSections.has("suppliers") && <div hidden={section !== "suppliers"}>
         <SupplierManagement
           records={visibleRecords as SupplierRecord[]}
           request={request}
@@ -488,8 +546,8 @@ export default function BusinessConsole({
           mutate={mutate}
           submitForm={submit}
         />
-      )}
-      {section === "procurement" && (
+      </div>}
+      {visitedSections.has("procurement") && <div hidden={section !== "procurement"}>
         <ProcurementWorkspace
           records={visibleRecords as ProcurementRequest[]}
           busy={busy}
@@ -498,8 +556,8 @@ export default function BusinessConsole({
           submit={submit}
           download={download}
         />
-      )}
-      {section === "transport" && (
+      </div>}
+      {visitedSections.has("transport") && <div hidden={section !== "transport"}>
         <>
           <div
             className="transportation-workflow-tabs"
@@ -511,9 +569,7 @@ export default function BusinessConsole({
               className={`transportation-workflow-tab${transportView === "plan" ? " active" : ""}`}
               aria-pressed={transportView === "plan"}
               onClick={() => {
-                setTransportView("plan");
-                setSelectedTransportationPlanId(null);
-                setEditTransportationPlanOnOpen(false);
+                navigateBusinessSubView("transport:plan");
               }}
             >
               Plan delivery
@@ -523,9 +579,7 @@ export default function BusinessConsole({
               className={`transportation-workflow-tab${transportView === "challan" ? " active" : ""}`}
               aria-pressed={transportView === "challan"}
               onClick={() => {
-                setTransportView("challan");
-                setSelectedTransportationPlanId(null);
-                setEditTransportationPlanOnOpen(false);
+                navigateBusinessSubView("transport:challan");
               }}
             >
               Issue challan
@@ -535,9 +589,7 @@ export default function BusinessConsole({
               className={`transportation-workflow-tab${transportView === "plans" ? " active" : ""}`}
               aria-pressed={transportView === "plans"}
               onClick={() => {
-                setTransportView("plans");
-                setSelectedTransportationPlanId(null);
-                setEditTransportationPlanOnOpen(false);
+                navigateBusinessSubView("transport:plans");
               }}
             >
               Transportation plans{" "}
@@ -570,42 +622,41 @@ export default function BusinessConsole({
                 busy={busy}
                 mutate={mutate}
                 onOpenForEdit={() => {
-                  setEditTransportationPlanOnOpen(true);
-                  setSelectedTransportationPlanId(plan.id);
+                  navigateBusinessSubView(`transport:detail:${plan.id}`);
                 }}
               />
             ))}
           </div>
         </>
-      )}
-      {section === "discounts" && (
+      </div>}
+      {visitedSections.has("discounts") && <div hidden={section !== "discounts"}>
         <DiscountRules
           rules={visibleRecords as DiscountRule[]}
           busy={busy}
           submit={submit}
           mutate={mutate}
         />
-      )}
-      {section === "followups" && (
+      </div>}
+      {visitedSections.has("followups") && <div hidden={section !== "followups"}>
         <QuoteFollowups
           quotes={visibleRecords as FollowupQuotation[]}
           submit={submit}
           mutate={mutate}
           busy={busy}
         />
-      )}
-      {section === "brands" && (
+      </div>}
+      {visitedSections.has("brands") && <div hidden={section !== "brands"}>
         <PartnerBrandsManager
           token={token}
           role={role}
           onSignOut={onSignOut}
-          onBack={() => setSection("suppliers")}
+          onBack={() => selectSection("suppliers")}
           onContentReady={onContentReady}
           customerUrl={customerUrl}
           embedded
         />
-      )}
-      {section === "experts" && (
+      </div>}
+      {visitedSections.has("experts") && <div hidden={section !== "experts"}>
         <ExpertDirectoryPanel
           records={visibleRecords as ExpertProfile[]}
           token={token}
@@ -617,11 +668,11 @@ export default function BusinessConsole({
           submitForm={submit}
           mutate={mutate}
           activeView={expertView}
-          onViewChange={setExpertView}
-          onOpenEdit={setSelectedExpertId}
+          onViewChange={(view) => navigateBusinessSubView(`experts:${view}`)}
+          onOpenEdit={(id) => navigateBusinessSubView(`experts:edit:${id}`)}
         />
-      )}
-      {section === "blogs" && (
+      </div>}
+      {visitedSections.has("blogs") && <div hidden={section !== "blogs"}>
         <BlogManagementPanel
           records={visibleRecords as BlogPost[]}
           token={token}
@@ -633,23 +684,23 @@ export default function BusinessConsole({
           submitForm={submit}
           mutate={mutate}
           activeView={blogView}
-          onViewChange={setBlogView}
-          onOpenEdit={setSelectedBlogId}
+          onViewChange={(view) => navigateBusinessSubView(`blogs:${view}`)}
+          onOpenEdit={(id) => navigateBusinessSubView(`blogs:edit:${id}`)}
         />
-      )}
-      {section === "commissions" && (
+      </div>}
+      {visitedSections.has("commissions") && <div hidden={section !== "commissions"}>
         <CommissionManagement
           records={visibleRecords as CommissionRecord[]}
           busy={busy}
           onCreate={(commission) => mutate(active.endpoint, "POST", commission)}
           onApprove={(id) => mutate(`/commissions/${id}/approve`, "POST", {})}
           activeView={commissionView}
-          onViewChange={setCommissionView}
-          onOpenRecord={setSelectedCommissionId}
+          onViewChange={(view) => navigateBusinessSubView(`commissions:${view}`)}
+          onOpenRecord={(id) => navigateBusinessSubView(`commissions:detail:${id}`)}
         />
-      )}
-      {section === "quote-rules" && settings && (
-        quotationRulesView === "overview" ? (
+      </div>}
+      {visitedSections.has("quote-rules") && settings && <div hidden={section !== "quote-rules"}>
+        {quotationRulesView === "overview" ? (
           <QuotationRulesOverview
             settings={{
               quotationValidityHours: Number(settings.quotationValidityHours ?? 48),
@@ -659,7 +710,7 @@ export default function BusinessConsole({
               createdBy: settings.createdBy,
               createdAt: settings.createdAt,
             }}
-            onEdit={() => setQuotationRulesView("settings")}
+            onEdit={() => navigateBusinessSubView("quote-rules:settings")}
           />
         ) : (
           <QuotationRules
@@ -671,25 +722,25 @@ export default function BusinessConsole({
             }}
             busy={busy}
             onSave={(rules) => mutate(active.endpoint, "PUT", rules)}
-            onSaved={() => setQuotationRulesView("overview")}
+            onSaved={() => navigateBusinessSubView("quote-rules:overview")}
           />
-        )
-      )}
-      {section === "loyalty" && loyaltySettings && (
-        loyaltyView === "overview" ? (
+        )}
+      </div>}
+      {visitedSections.has("loyalty") && loyaltySettings && <div hidden={section !== "loyalty"}>
+        {loyaltyView === "overview" ? (
           <LoyaltyProgramOverview
             settings={loyaltySettings}
-            onEdit={() => setLoyaltyView("settings")}
+            onEdit={() => navigateBusinessSubView("loyalty:settings")}
           />
         ) : (
           <LoyaltySettings
             settings={loyaltySettings}
             busy={busy}
             onSave={saveLoyaltySettings}
-            onSaved={() => setLoyaltyView("overview")}
+            onSaved={() => navigateBusinessSubView("loyalty:overview")}
           />
-        )
-      )}
+        )}
+      </div>}
     </>
   );
 
@@ -714,7 +765,7 @@ export default function BusinessConsole({
             <button
               type="button"
               className="btn-sm btn-secondary admin-back-button transportation-plan-detail-back"
-              onClick={() => setQuotationRulesView("overview")}
+              onClick={() => returnFromBusinessSubView("quote-rules:overview", () => setQuotationRulesView("overview"))}
             >
               <ArrowLeft size={16} aria-hidden="true" />
               Back to quotation rules
@@ -728,7 +779,7 @@ export default function BusinessConsole({
               }}
               busy={busy}
               onSave={(rules) => mutate(active.endpoint, "PUT", rules)}
-              onSaved={() => setQuotationRulesView("overview")}
+              onSaved={() => navigateBusinessSubView("quote-rules:overview")}
             />
           </section>
         </div>
@@ -741,7 +792,7 @@ export default function BusinessConsole({
             <button
               type="button"
               className="btn-sm btn-secondary admin-back-button transportation-plan-detail-back"
-              onClick={() => setLoyaltyView("overview")}
+              onClick={() => returnFromBusinessSubView("loyalty:overview", () => setLoyaltyView("overview"))}
             >
               <ArrowLeft size={16} aria-hidden="true" />
               Back to loyalty program
@@ -750,7 +801,7 @@ export default function BusinessConsole({
               settings={loyaltySettings}
               busy={busy}
               onSave={saveLoyaltySettings}
-              onSaved={() => setLoyaltyView("overview")}
+              onSaved={() => navigateBusinessSubView("loyalty:overview")}
             />
           </section>
         </div>
@@ -764,8 +815,10 @@ export default function BusinessConsole({
               type="button"
               className="btn-sm btn-secondary admin-back-button transportation-plan-detail-back"
               onClick={() => {
-                setSelectedExpertId(null);
-                setExpertView("directory");
+                returnFromBusinessSubView("experts:directory", () => {
+                  setSelectedExpertId(null);
+                  setExpertView("directory");
+                });
               }}
             >
               <ArrowLeft size={16} aria-hidden="true" />
@@ -782,12 +835,14 @@ export default function BusinessConsole({
               submitForm={submit}
               mutate={mutate}
               activeView="directory"
-              onViewChange={setExpertView}
-              onOpenEdit={setSelectedExpertId}
+              onViewChange={(view) => navigateBusinessSubView(`experts:${view}`)}
+              onOpenEdit={(id) => navigateBusinessSubView(`experts:edit:${id}`)}
               focusedExpert={selectedExpert}
               onExitFocusedEdit={() => {
-                setSelectedExpertId(null);
-                setExpertView("directory");
+                returnFromBusinessSubView("experts:directory", () => {
+                  setSelectedExpertId(null);
+                  setExpertView("directory");
+                });
               }}
             />
           </section>
@@ -802,8 +857,10 @@ export default function BusinessConsole({
               type="button"
               className="btn-sm btn-secondary admin-back-button transportation-plan-detail-back"
               onClick={() => {
-                setSelectedBlogId(null);
-                setBlogView("articles");
+                returnFromBusinessSubView("blogs:articles", () => {
+                  setSelectedBlogId(null);
+                  setBlogView("articles");
+                });
               }}
             >
               <ArrowLeft size={16} aria-hidden="true" />
@@ -820,12 +877,14 @@ export default function BusinessConsole({
               submitForm={submit}
               mutate={mutate}
               activeView="articles"
-              onViewChange={setBlogView}
-              onOpenEdit={setSelectedBlogId}
+              onViewChange={(view) => navigateBusinessSubView(`blogs:${view}`)}
+              onOpenEdit={(id) => navigateBusinessSubView(`blogs:edit:${id}`)}
               focusedBlog={selectedBlog}
               onExitFocusedEdit={() => {
-                setSelectedBlogId(null);
-                setBlogView("articles");
+                returnFromBusinessSubView("blogs:articles", () => {
+                  setSelectedBlogId(null);
+                  setBlogView("articles");
+                });
               }}
             />
           </section>
@@ -840,8 +899,10 @@ export default function BusinessConsole({
               type="button"
               className="btn-sm btn-secondary admin-back-button transportation-plan-detail-back"
               onClick={() => {
-                setSelectedCommissionId(null);
-                setCommissionView("records");
+                returnFromBusinessSubView("commissions:records", () => {
+                  setSelectedCommissionId(null);
+                  setCommissionView("records");
+                });
               }}
             >
               <ArrowLeft size={16} aria-hidden="true" />
@@ -857,8 +918,8 @@ export default function BusinessConsole({
                 mutate(`/commissions/${id}/approve`, "POST", {})
               }
               activeView="records"
-              onViewChange={setCommissionView}
-              onOpenRecord={setSelectedCommissionId}
+              onViewChange={(view) => navigateBusinessSubView(`commissions:${view}`)}
+              onOpenRecord={(id) => navigateBusinessSubView(`commissions:detail:${id}`)}
               focusedRecord={selectedCommission}
             />
           </section>
@@ -873,9 +934,11 @@ export default function BusinessConsole({
               type="button"
               className="btn-sm btn-secondary admin-back-button transportation-plan-detail-back"
               onClick={() => {
-                setSelectedTransportationPlanId(null);
-                setEditTransportationPlanOnOpen(false);
-                setTransportView("plans");
+                returnFromBusinessSubView("transport:plans", () => {
+                  setSelectedTransportationPlanId(null);
+                  setEditTransportationPlanOnOpen(false);
+                  setTransportView("plans");
+                });
               }}
             >
               <ArrowLeft size={16} aria-hidden="true" />
@@ -902,9 +965,7 @@ export default function BusinessConsole({
                   className={`subnav-pill ${section === id ? "active" : ""}`}
                   key={id}
                   onClick={() => {
-                    setSection(id);
-                    setMessage("");
-                    setError("");
+                    selectSection(id);
                     setSectionMenuOpen(false);
                   }}
                 >
@@ -963,9 +1024,7 @@ export default function BusinessConsole({
             className={section === id ? "bc-nav active" : "bc-nav"}
             key={id}
             onClick={() => {
-              setSection(id);
-              setMessage("");
-              setError("");
+              selectSection(id);
             }}
           >
             <Icon size={17} />

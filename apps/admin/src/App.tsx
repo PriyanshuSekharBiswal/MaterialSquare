@@ -98,6 +98,8 @@ export function App() {
     request,
   } = useAdminAuth();
   const [tab, setTab] = useState<WorkspaceTab>(workspaceTabFromUrl);
+  const [visitedTabs, setVisitedTabs] = useState<Set<WorkspaceTab>>(() => new Set([workspaceTabFromUrl()]));
+  const [historyRevision, setHistoryRevision] = useState(0);
   const [businessContentReady, setBusinessContentReady] = useState(false);
   const [salesContentReady, setSalesContentReady] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null),
@@ -133,22 +135,24 @@ export function App() {
     [draft, setDraft] = useState<Followup | null>(null);
   useEffect(() => {
     const restoreWorkspaceFromHistory = () => {
-      setTab(workspaceTabFromUrl());
+      setHistoryRevision((value) => value + 1);
+      const restoredTab = workspaceTabFromUrl();
+      setTab(restoredTab);
+      setVisitedTabs((current) => current.has(restoredTab) ? current : new Set(current).add(restoredTab));
       const params = new URLSearchParams(window.location.search);
       const restoredSearch = params.get("adminSearch") || "";
       setPage(Math.max(1, Number(params.get("adminPage")) || 1));
       setQuery(restoredSearch);
       setSearch(restoredSearch);
       setStatus(params.get("adminStatus") || "");
-      setSelected(null);
-      setDraft(null);
-      setNotice("");
-      setError("");
+      const customerId = params.get("adminCustomer");
+      if (!customerId) setSelected(null);
+      else void request<Customer>(`/workspace/customers/${customerId}`).then(setSelected).catch(() => setSelected(null));
     };
     window.addEventListener("popstate", restoreWorkspaceFromHistory);
     return () =>
       window.removeEventListener("popstate", restoreWorkspaceFromHistory);
-  }, []);
+  }, [request]);
   useEffect(() => {
     const url = new URL(window.location.href);
     if (tab === "customers" || tab === "followups") {
@@ -337,6 +341,7 @@ export function App() {
     completeReload();
   }, [isAuthenticated, loading, tab, businessContentReady, salesContentReady]);
   const navigate = (next: typeof tab) => {
+    if (next === tab) return;
     const url = new URL(window.location.href);
     url.searchParams.set("workspace", next);
     if (next !== "team") {
@@ -346,24 +351,35 @@ export function App() {
     url.searchParams.delete("adminPage");
     url.searchParams.delete("adminSearch");
     url.searchParams.delete("adminStatus");
+    url.searchParams.delete("adminCustomer");
+    url.searchParams.delete("adminRfq");
+    url.searchParams.delete("adminDraft");
+    url.searchParams.delete("businessSubView");
+    url.searchParams.delete("procurementView");
+    url.searchParams.delete("supplierView");
+    url.searchParams.delete("supplierId");
+    url.searchParams.delete("catalogueEditor");
+    url.searchParams.delete("catalogueView");
     // CMS section hashes are meaningful only inside Website Editor. Clear a
     // stale CMS anchor when moving to another top-level workspace page.
     url.hash = "";
     window.history.pushState({}, "", `${url.pathname}${url.search}${url.hash}`);
-    if (next === "business" && tab !== "business") setBusinessContentReady(false);
-    if (next === "sales" && tab !== "sales") setSalesContentReady(false);
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    setVisitedTabs((current) => current.has(next) ? current : new Set(current).add(next));
     setTab(next);
     setPage(1);
     setQuery("");
     setSearch("");
     setCatalogueInitialSearch("");
     setStatus("");
-    setSelected(null);
-    setDraft(null);
-    setNotice("");
-    setError("");
   };
-  const openCustomer = async (id: string) => {
+  const openCustomer = async (id: string, addHistoryEntry = true) => {
+    if (addHistoryEntry) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("adminCustomer", id);
+      url.searchParams.delete("adminRfq");
+      window.history.pushState({ ...(window.history.state ?? {}), adminCustomer: id }, "", `${url.pathname}${url.search}${url.hash}`);
+    }
     setBusy(true);
     setError("");
     try {
@@ -374,6 +390,10 @@ export function App() {
       setBusy(false);
     }
   };
+  useEffect(() => {
+    const customerId = new URLSearchParams(window.location.search).get("adminCustomer");
+    if (customerId) void openCustomer(customerId, false);
+  }, [token]);
   const save = async (e: FormEvent) => {
     e.preventDefault();
     if (!draft) return;
@@ -388,6 +408,11 @@ export function App() {
       );
       setDraft(null);
       setSelected(null);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("adminDraft");
+      url.searchParams.delete("adminCustomer");
+      url.searchParams.delete("adminRfq");
+      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
       setNotice("Follow-up saved.");
       setRevision((v) => v + 1);
     } catch (e) {
@@ -396,6 +421,26 @@ export function App() {
       setBusy(false);
     }
   };
+  const startFollowupDraft = (value = blankFollowup()) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("workspace", "followups");
+    url.searchParams.set("adminDraft", "new");
+    url.searchParams.delete("adminCustomer");
+    url.searchParams.delete("adminRfq");
+    window.history.pushState({ ...(window.history.state ?? {}), adminDraft: "new" }, "", `${url.pathname}${url.search}${url.hash}`);
+    setVisitedTabs((current) => current.has("followups") ? current : new Set(current).add("followups"));
+    setTab("followups");
+    setPage(1);
+    setQuery("");
+    setSearch("");
+    setStatus("");
+    setSelected(null);
+    setDraft(value);
+  };
+  const currentParams = new URLSearchParams(window.location.search);
+  void historyRevision;
+  const activeCustomer = currentParams.has("adminCustomer") ? selected : null;
+  const activeDraft = currentParams.has("adminDraft") ? draft : null;
   return (
     <AdminProtectedRoute marketplaceUrl={marketplaceUrl}>
     <>
@@ -438,7 +483,7 @@ export function App() {
       }}
       onSignOut={signOut}
     >
-      {tab === "overview" && (
+      {visitedTabs.has("overview") && <div hidden={tab !== "overview"}>
         <WorkspaceOverview
           stats={stats}
           websiteAnalytics={websiteAnalytics}
@@ -446,129 +491,49 @@ export function App() {
           recentChangesError={recentChangesError}
           staffRole={staff?.role || ""}
           onViewCustomers={() => navigate("customers")}
-          onViewFollowups={(filter) => {
-            navigate("followups");
-            setStatus(filter);
-          }}
+          onViewFollowups={(filter) => { navigate("followups"); setStatus(filter); }}
           onViewAudit={() => navigate("audit")}
           onOpenCatalogue={() => navigate("catalogue")}
           onOpenContent={() => navigate("content")}
           onOpenSales={() => navigate("sales")}
           onOpenBusiness={() => navigate("business")}
           onOpenStaff={() => navigate("team")}
-          onRecordEnquiry={() => {
-            navigate("followups");
-            setDraft(blankFollowup());
-          }}
+          onRecordEnquiry={() => { navigate("followups"); startFollowupDraft(); }}
         />
-      )}
-      {(tab === "customers" || tab === "followups") && (
-        <CustomerFollowupWorkspace
-          tab={tab}
-          customers={customers}
-          followups={followups}
-          query={query}
-          setQuery={setQuery}
-          setSearch={setSearch}
-          status={status}
-          setStatus={setStatus}
-          setPage={setPage}
-          page={page}
-          loading={loading}
-          busy={busy}
-          selected={selected}
-          setSelected={setSelected}
-          openCustomer={openCustomer}
-          draft={draft}
-          setDraft={setDraft}
-          setTab={navigate}
-          setError={setError}
-          save={save}
-        />
-      )}
-      <FeatureBoundary key={tab}>
-        {tab === "recent" && staff && (
-          <RecentActivity
-            token={token}
-            role={staff.role}
-            onOpenCatalogue={() => navigate("catalogue")}
-            onOpenContent={() => navigate("content")}
-            onOpenSales={() => navigate("sales")}
-            onOpenBusiness={() => navigate("business")}
-            onOpenStaff={() => navigate("team")}
-          />
-        )}
-        {tab === "audit" && <AuditLog token={token} revision={revision} />}
-        {tab === "trash" && (
-          <RecentlyDeleted token={token} onSignOut={signOut} />
-        )}
-        {tab === "notifications" && <NotificationStatus token={token} revision={revision} />}
-        {tab === "catalogue" && (
-          <CatalogueManager
-            token={token}
-            role={staff?.role || ""}
-            onSignOut={signOut}
-            initialSearch={catalogueInitialSearch}
-            customerUrl={marketplaceUrl}
-          />
-        )}
-        {tab === "sales" && staff && (
-          <SalesOperations
-            accessToken={token}
-            role={staff.role}
-            customerUrl={marketplaceUrl}
-            onBack={() => navigate("overview")}
-            onSignOut={signOut}
-            embedded
-            onContentReady={setSalesContentReady}
-          />
-        )}
-        {tab === "business" && staff && (
-          <BusinessConsole
-            token={token}
-            role={staff.role}
-            staffName={staff.name}
-            customerUrl={marketplaceUrl}
-            onBack={() => navigate("overview")}
-            onSignOut={signOut}
-            embedded
-            onContentReady={setBusinessContentReady}
-          />
-        )}
-        {tab === "reports" && staff && (
-          <OperationalReports
-            token={token}
-            role={staff.role}
-            onSignOut={signOut}
-          />
-        )}
-        {tab === "content" && (
-          <WebsiteContentManager
-            token={token}
-            onSignOut={signOut}
-            customerUrl={marketplaceUrl}
-          />
-        )}
-        {tab === "account" && staff && (
-          <StaffAccount
-            token={token}
-            staff={staff}
-            onSaved={(updated) => setStaff(updated)}
-            onTokenChanged={setToken}
-            onSignOut={signOut}
-          />
-        )}
-        {tab === "team" &&
-          (staff?.role === "SUPER_ADMIN" || staff?.role === "ADMIN") && (
-            <StaffManagement
-              token={token}
-              onBack={() => navigate("overview")}
-              onSignOut={signOut}
-              embedded={true}
-              currentStaffId={staff.id}
-            />
-        )}
-      </FeatureBoundary>
+      </div>}
+      {visitedTabs.has("customers") && <div hidden={tab !== "customers"}>
+        <CustomerFollowupWorkspace tab="customers" customers={customers} followups={followups} query={query} setQuery={setQuery} setSearch={setSearch} status={status} setStatus={setStatus} setPage={setPage} page={page} loading={loading} busy={busy} selected={activeCustomer} setSelected={setSelected} openCustomer={openCustomer} draft={null} setDraft={setDraft} startDraft={startFollowupDraft} setTab={navigate} setError={setError} save={save} />
+      </div>}
+      {visitedTabs.has("followups") && <div hidden={tab !== "followups"}>
+        <CustomerFollowupWorkspace tab="followups" customers={customers} followups={followups} query={query} setQuery={setQuery} setSearch={setSearch} status={status} setStatus={setStatus} setPage={setPage} page={page} loading={loading} busy={busy} selected={activeCustomer} setSelected={setSelected} openCustomer={openCustomer} draft={activeDraft} setDraft={setDraft} startDraft={startFollowupDraft} setTab={navigate} setError={setError} save={save} />
+      </div>}
+      {visitedTabs.has("recent") && <div hidden={tab !== "recent"}><FeatureBoundary>
+        {staff && <RecentActivity token={token} role={staff.role} onOpenCatalogue={() => navigate("catalogue")} onOpenContent={() => navigate("content")} onOpenSales={() => navigate("sales")} onOpenBusiness={() => navigate("business")} onOpenStaff={() => navigate("team")} />}
+      </FeatureBoundary></div>}
+      {visitedTabs.has("audit") && <div hidden={tab !== "audit"}><FeatureBoundary><AuditLog token={token} revision={revision} /></FeatureBoundary></div>}
+      {visitedTabs.has("trash") && <div hidden={tab !== "trash"}><FeatureBoundary><RecentlyDeleted token={token} onSignOut={signOut} /></FeatureBoundary></div>}
+      {visitedTabs.has("notifications") && <div hidden={tab !== "notifications"}><FeatureBoundary><NotificationStatus token={token} revision={revision} /></FeatureBoundary></div>}
+      {visitedTabs.has("catalogue") && <div hidden={tab !== "catalogue"}><FeatureBoundary>
+        <CatalogueManager token={token} role={staff?.role || ""} onSignOut={signOut} initialSearch={catalogueInitialSearch} customerUrl={marketplaceUrl} />
+      </FeatureBoundary></div>}
+      {visitedTabs.has("sales") && <div hidden={tab !== "sales"}><FeatureBoundary>
+        {staff && <SalesOperations accessToken={token} role={staff.role} customerUrl={marketplaceUrl} onBack={() => navigate("overview")} onSignOut={signOut} embedded onContentReady={setSalesContentReady} />}
+      </FeatureBoundary></div>}
+      {visitedTabs.has("business") && <div hidden={tab !== "business"}><FeatureBoundary>
+        {staff && <BusinessConsole token={token} role={staff.role} staffName={staff.name} customerUrl={marketplaceUrl} onBack={() => navigate("overview")} onSignOut={signOut} embedded onContentReady={setBusinessContentReady} />}
+      </FeatureBoundary></div>}
+      {visitedTabs.has("reports") && <div hidden={tab !== "reports"}><FeatureBoundary>
+        {staff && <OperationalReports token={token} role={staff.role} onSignOut={signOut} />}
+      </FeatureBoundary></div>}
+      {visitedTabs.has("content") && <div hidden={tab !== "content"}><FeatureBoundary>
+        <WebsiteContentManager token={token} onSignOut={signOut} customerUrl={marketplaceUrl} />
+      </FeatureBoundary></div>}
+      {visitedTabs.has("account") && <div hidden={tab !== "account"}><FeatureBoundary>
+        {staff && <StaffAccount token={token} staff={staff} onSaved={(updated) => setStaff(updated)} onTokenChanged={setToken} onSignOut={signOut} />}
+      </FeatureBoundary></div>}
+      {visitedTabs.has("team") && <div hidden={tab !== "team"}><FeatureBoundary>
+        {staff && (staff.role === "SUPER_ADMIN" || staff.role === "ADMIN") && <StaffManagement token={token} onBack={() => navigate("overview")} onSignOut={signOut} embedded currentStaffId={staff.id} />}
+      </FeatureBoundary></div>}
     </AdminWorkspaceLayout>
     </>
     </AdminProtectedRoute>

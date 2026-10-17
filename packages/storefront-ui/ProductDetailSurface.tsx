@@ -2,7 +2,6 @@ import type { FormEvent, ReactNode } from "react";
 import { ArrowRight, ChevronDown, PackagePlus } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { FaqEntry, WebsitePolicy } from "@material-square/types";
-import { formatQuantityUnit } from "./formatQuantityUnit";
 import "./product-detail-surface.css";
 
 export interface ProductDetailChoice {
@@ -175,7 +174,7 @@ export default function ProductDetailSurface({
       </div>
       {minimumOrder != null && Number(minimumOrder) > 0 && (
         <p className="shared-product-moq">
-          Minimum order: {formatQuantityUnit(minimumOrder, unit)}
+          Minimum order: {Number(minimumOrder).toLocaleString("en-IN", { maximumFractionDigits: 3 })}
         </p>
       )}
 
@@ -270,11 +269,11 @@ export default function ProductDetailSurface({
       {!preview && onQuantityChange && (
         <div className="shared-product-quantity-row">
           <label>
-            <span>Quantity ({unit})</span>
+            <span>Quantity</span>
             <input
               type="number"
               min={
-                minimumOrder && Number(minimumOrder) > 0 ? minimumOrder : 0.001
+                minimumOrder && Number(minimumOrder) > 0 ? minimumOrder : 1
               }
               max="1000000"
               step="any"
@@ -293,7 +292,7 @@ export default function ProductDetailSurface({
       {preview && (
         <>
           <label className="shared-product-quantity">
-            <span>Quantity ({unit})</span>
+            <span>Quantity</span>
             <input type="text" value={quantity} readOnly />
           </label>
           <button type="button" className="shared-product-action" disabled>

@@ -1,5 +1,5 @@
 import OrderDetails, { type OrderSummary } from "./OrderDetails";
-import { useState, useEffect, useCallback, useMemo, useRef, type FormEvent } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, type FormEvent } from "react";
 import {
   BarChart,
   Bar,
@@ -183,6 +183,11 @@ const rfqStatusFilters: { value: RfqStatusFilter; label: string }[] = [
   { value: "CLOSED", label: "Closed" },
 ];
 const salesSectionParam = "salesSection";
+const salesRfqParam = "salesRfq";
+const salesQuoteGroupParam = "salesQuoteGroup";
+const salesOrderGroupParam = "salesOrderGroup";
+const salesQuoteRequestParam = "salesQuoteRequest";
+const salesOrderRequestParam = "salesOrderRequest";
 function tabFromLocation(availableTabs: readonly Tab[]): Tab {
   const requested = new URLSearchParams(window.location.search).get(salesSectionParam);
   return availableTabs.includes(requested as Tab) ? requested as Tab : availableTabs[0] || "overview";
@@ -286,10 +291,14 @@ export default function SalesOperations({
   const [token, setToken] = useState(accessToken);
   const [staffName, setStaffName] = useState("");
   const [tab, setTab] = useState<Tab>(() => tabFromLocation(roleTabs[role] || ["overview"]));
+  const [visitedTabs, setVisitedTabs] = useState<Set<Tab>>(() => new Set([tabFromLocation(roleTabs[role] || ["overview"])]));
   const [operationsMenuOpen, setOperationsMenuOpen] = useState(false);
   const operationsMenuRef = useRef<HTMLDivElement>(null);
   const quoteEditorRef = useRef<HTMLDivElement>(null);
   const visibleTabs = roleTabs[role] || ["overview"];
+  useLayoutEffect(() => {
+    setVisitedTabs((current) => current.has(tab) ? current : new Set(current).add(tab));
+  }, [tab]);
   const auxiliaryTabs = visibleTabs.filter(
     (item) =>
       !(embedded && item === "inventory") &&
@@ -305,9 +314,10 @@ export default function SalesOperations({
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [quoteToSend, setQuoteToSend] = useState<Quote | null>(null);
   const [recentlySentQuoteId, setRecentlySentQuoteId] = useState("");
-  const [workflowRequestFilterId, setWorkflowRequestFilterId] = useState<string | null>(null);
-  const [openedQuoteGroupKey, setOpenedQuoteGroupKey] = useState<string | null>(null);
-  const [openedOrderGroupKey, setOpenedOrderGroupKey] = useState<string | null>(null);
+  const [quoteRequestFilterId, setQuoteRequestFilterId] = useState<string | null>(() => new URLSearchParams(window.location.search).get(salesQuoteRequestParam));
+  const [orderRequestFilterId, setOrderRequestFilterId] = useState<string | null>(() => new URLSearchParams(window.location.search).get(salesOrderRequestParam));
+  const [openedQuoteGroupKey, setOpenedQuoteGroupKey] = useState<string | null>(() => new URLSearchParams(window.location.search).get(salesQuoteGroupParam));
+  const [openedOrderGroupKey, setOpenedOrderGroupKey] = useState<string | null>(() => new URLSearchParams(window.location.search).get(salesOrderGroupParam));
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
@@ -315,30 +325,46 @@ export default function SalesOperations({
   const visibleRfqs = rfqStatusFilter === "ALL"
     ? rfqs
     : rfqs.filter((rfq) => rfq.status === rfqStatusFilter);
-  const selectTab = (next: Tab) => {
+  const selectTab = (next: Tab, requestId?: string | null) => {
     if (!visibleTabs.includes(next) || next === tab) return;
     const url = new URL(window.location.href);
     url.searchParams.set(salesSectionParam, next);
+    if (next === "quotes" && requestId !== undefined) {
+      if (requestId) url.searchParams.set(salesQuoteRequestParam, requestId);
+      else url.searchParams.delete(salesQuoteRequestParam);
+    }
+    if (next === "orders" && requestId !== undefined) {
+      if (requestId) url.searchParams.set(salesOrderRequestParam, requestId);
+      else url.searchParams.delete(salesOrderRequestParam);
+    }
     window.history.pushState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
     setTab(next);
   };
   const navigateWorkflowPage = (next: Tab, requestId: string | null = null) => {
-    setWorkflowRequestFilterId(requestId);
-    setOpenedQuoteGroupKey(null);
-    setOpenedOrderGroupKey(null);
-    setSelectedRfq(null);
-    setOpenedRfqId(null);
-    setRevision(null);
-    setEditingDraft(false);
-    setCreatingCustomQuote(false);
-    selectTab(next);
+    if (next === "quotes") {
+      setQuoteRequestFilterId(requestId);
+      if (requestId !== quoteRequestFilterId) setOpenedQuoteGroupKey(null);
+    }
+    if (next === "orders") {
+      setOrderRequestFilterId(requestId);
+      if (requestId !== orderRequestFilterId) setOpenedOrderGroupKey(null);
+    }
+    selectTab(next, requestId);
   };
   useEffect(() => setToken(accessToken), [accessToken]);
   useEffect(() => {
     if (!visibleTabs.includes(tab)) setTab(visibleTabs[0] || "overview");
   }, [role, tab, visibleTabs]);
   useEffect(() => {
-    const syncTabFromUrl = () => setTab(tabFromLocation(visibleTabs));
+    const syncTabFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      setTab(tabFromLocation(visibleTabs));
+      setOpenedRfqId(params.get(salesRfqParam));
+      setOpenedQuoteGroupKey(params.get(salesQuoteGroupParam));
+      setOpenedOrderGroupKey(params.get(salesOrderGroupParam));
+      setQuoteRequestFilterId(params.get(salesQuoteRequestParam));
+      setOrderRequestFilterId(params.get(salesOrderRequestParam));
+    };
     window.addEventListener("popstate", syncTabFromUrl);
     return () => window.removeEventListener("popstate", syncTabFromUrl);
   }, [visibleTabs]);
@@ -370,7 +396,41 @@ export default function SalesOperations({
   }, [operationsMenuOpen]);
   const [editorRevision, setEditorRevision] = useState(0);
   const [selectedRfq, setSelectedRfq] = useState<Rfq | null>(null);
-  const [openedRfqId, setOpenedRfqId] = useState<string | null>(null);
+  const [openedRfqId, setOpenedRfqId] = useState<string | null>(() => new URLSearchParams(window.location.search).get(salesRfqParam));
+  const openRfq = (id: string) => {
+    if (id === openedRfqId) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set(salesSectionParam, "rfqs");
+    url.searchParams.set(salesRfqParam, id);
+    window.history.pushState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    setOpenedRfqId(id);
+    setTab("rfqs");
+  };
+  const closeRfq = () => {
+    if (new URLSearchParams(window.location.search).has(salesRfqParam)) {
+      window.history.back();
+      return;
+    }
+    setOpenedRfqId(null);
+  };
+  const openSalesGroup = (type: "quote" | "order", key: string) => {
+    const param = type === "quote" ? salesQuoteGroupParam : salesOrderGroupParam;
+    if (new URLSearchParams(window.location.search).get(param) === key) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set(param, key);
+    window.history.pushState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    if (type === "quote") setOpenedQuoteGroupKey(key);
+    else setOpenedOrderGroupKey(key);
+  };
+  const closeSalesGroup = (type: "quote" | "order") => {
+    const param = type === "quote" ? salesQuoteGroupParam : salesOrderGroupParam;
+    if (new URLSearchParams(window.location.search).has(param)) {
+      window.history.back();
+      return;
+    }
+    if (type === "quote") setOpenedQuoteGroupKey(null);
+    else setOpenedOrderGroupKey(null);
+  };
   const [editingDraft, setEditingDraft] = useState(false);
   const [revision, setRevision] = useState<RevisionQuote | null>(null);
   const [creatingCustomQuote, setCreatingCustomQuote] = useState(false);
@@ -609,11 +669,12 @@ export default function SalesOperations({
       })
       .sort((a, b) => b.latestAt - a.latestAt);
   }, [quotes, rfqs]);
-  const requestPageFilter = workflowRequestFilterId
-    ? rfqs.find((rfq) => rfq.id === workflowRequestFilterId) || null
+  const activeRequestFilterId = tab === "orders" ? orderRequestFilterId : quoteRequestFilterId;
+  const requestPageFilter = activeRequestFilterId
+    ? rfqs.find((rfq) => rfq.id === activeRequestFilterId) || null
     : null;
-  const visibleQuoteGroups = workflowRequestFilterId
-    ? quoteRequestGroups.filter((group) => group.key === `request:${workflowRequestFilterId}`)
+  const visibleQuoteGroups = quoteRequestFilterId
+    ? quoteRequestGroups.filter((group) => group.key === `request:${quoteRequestFilterId}`)
     : quoteRequestGroups;
   const displayedQuoteGroups = openedQuoteGroupKey
     ? visibleQuoteGroups.filter((group) => group.key === openedQuoteGroupKey)
@@ -640,8 +701,8 @@ export default function SalesOperations({
       }))
       .sort((a, b) => b.latestAt - a.latestAt);
   }, [orders]);
-  const visibleOrderGroups = workflowRequestFilterId
-    ? orderRequestGroups.filter((group) => group.key === `request:${workflowRequestFilterId}`)
+  const visibleOrderGroups = orderRequestFilterId
+    ? orderRequestGroups.filter((group) => group.key === `request:${orderRequestFilterId}`)
     : orderRequestGroups;
   const displayedOrderGroups = openedOrderGroupKey
     ? visibleOrderGroups.filter((group) => group.key === openedOrderGroupKey)
@@ -683,11 +744,6 @@ export default function SalesOperations({
                   className={`subnav-pill ${tab === item ? "active" : ""}`}
                   onClick={() => {
                     selectTab(item);
-                    setWorkflowRequestFilterId(null);
-                    setSelectedRfq(null);
-                    setOpenedRfqId(null);
-                    setRevision(null);
-                    setCreatingCustomQuote(false);
                     setOperationsMenuOpen(false);
                   }}
                 >
@@ -716,7 +772,8 @@ export default function SalesOperations({
           {error}
         </p>
       )}
-      {tab === "overview" && analytics && (
+      {visitedTabs.has("overview") && <div hidden={tab !== "overview"}>
+      {visitedTabs.has("overview") && analytics && (
         <>
           <div className="kpi-grid">
             <article className="kpi-card">
@@ -730,10 +787,7 @@ export default function SalesOperations({
                 type="button"
                 className="kpi-card kpi-card-action"
                 onClick={() => {
-                  setSelectedRfq(null);
-                  setRevision(null);
-                  setCreatingCustomQuote(false);
-                  setTab("rfqs");
+                  selectTab("rfqs");
                 }}
                 aria-label={`View RFQ inbox, ${analytics.activeRfqsCount} new RFQs`}
               >
@@ -771,13 +825,15 @@ export default function SalesOperations({
           </section>
         </>
       )}
-      {tab === "rfqs" && (
+      </div>}
+      {visitedTabs.has("rfqs") && <div hidden={tab !== "rfqs"}>
+      {visitedTabs.has("rfqs") && (
         openedRfq ? (
           <section className="panel-card panel-body rfq-detail-page">
             <button
               type="button"
               className="rfq-detail-back admin-back-button"
-              onClick={() => setOpenedRfqId(null)}
+              onClick={closeRfq}
             >
               <ArrowLeft size={16} aria-hidden="true" /> Back to RFQ inbox
             </button>
@@ -951,7 +1007,7 @@ export default function SalesOperations({
             </section>
 
             <footer className="rfq-detail-actions">
-              <button type="button" className="btn-sm btn-secondary admin-back-button" onClick={() => setOpenedRfqId(null)}>Back to inbox</button>
+              <button type="button" className="btn-sm btn-secondary admin-back-button" onClick={closeRfq}>Back to inbox</button>
               <button
                 type="button"
                 className="btn-sm btn-primary"
@@ -959,8 +1015,7 @@ export default function SalesOperations({
                   setSelectedRfq(openedRfq);
                   setRevision(null);
                   setEditingDraft(false);
-                  setWorkflowRequestFilterId(openedRfq.id);
-                  setOpenedRfqId(null);
+                  setQuoteRequestFilterId(openedRfq.id);
                   selectTab("quotes");
                 }}
               >
@@ -1009,7 +1064,7 @@ export default function SalesOperations({
                     type="button"
                     className="rfq-inbox-row"
                     key={rfq.id}
-                    onClick={() => setOpenedRfqId(rfq.id)}
+                    onClick={() => openRfq(rfq.id)}
                     aria-label={`Open ${rfq.requestNumber}, ${rfq.customerName}`}
                   >
                     <span className="rfq-inbox-identity">
@@ -1029,7 +1084,9 @@ export default function SalesOperations({
           </section>
         )
       )}
-      {tab === "quotes" && (
+      </div>}
+      {visitedTabs.has("quotes") && <div hidden={tab !== "quotes"}>
+      {visitedTabs.has("quotes") && (
         <>
           {selectedRfq || revision || creatingCustomQuote ? (
             <div ref={quoteEditorRef} className="sales-quote-editor-anchor">
@@ -1077,8 +1134,15 @@ export default function SalesOperations({
                 <p>Draft, send, and track offers. Open a request group to review its quotation history.</p>
               </div>
               <div className="sales-saved-quotes-tools">
-                {workflowRequestFilterId && (
-                  <button type="button" className="btn-sm btn-secondary" onClick={() => { setWorkflowRequestFilterId(null); setOpenedQuoteGroupKey(null); }}>
+                {quoteRequestFilterId && (
+                  <button type="button" className="btn-sm btn-secondary" onClick={() => {
+                    setQuoteRequestFilterId(null);
+                    setOpenedQuoteGroupKey(null);
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete(salesQuoteRequestParam);
+                    url.searchParams.delete(salesQuoteGroupParam);
+                    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+                  }}>
                     Clear request filter
                   </button>
                 )}
@@ -1087,7 +1151,7 @@ export default function SalesOperations({
                   setRevision(null);
                   setEditingDraft(false);
                   setCreatingCustomQuote(true);
-                  setWorkflowRequestFilterId(null);
+                  setQuoteRequestFilterId(null);
                 }}>
                   Create custom quotation
                 </button>
@@ -1098,12 +1162,12 @@ export default function SalesOperations({
             </div>
             {!visibleQuoteGroups.length && (
               <p className="sales-saved-quotes-empty">
-                {workflowRequestFilterId ? `No quotations are linked to ${requestPageFilter?.requestNumber || "this request"} yet.` : "No quotations created yet."}
+                {quoteRequestFilterId ? `No quotations are linked to ${requestPageFilter?.requestNumber || "this request"} yet.` : "No quotations created yet."}
               </p>
             )}
             {openedQuoteGroupKey && (
               <div className="sales-quote-group-focus-bar">
-                <button type="button" className="btn-sm btn-secondary admin-back-button" onClick={() => setOpenedQuoteGroupKey(null)}>
+                  <button type="button" className="btn-sm btn-secondary admin-back-button" onClick={() => closeSalesGroup("quote")}>
                   <ArrowLeft size={15} aria-hidden="true" /> Back to all quotation groups
                 </button>
                 <span>Showing quotations from this group only</span>
@@ -1116,8 +1180,8 @@ export default function SalesOperations({
                 key={group.key}
                 open={openedQuoteGroupKey === group.key}
                 onToggle={(event) => {
-                  if (event.currentTarget.open) setOpenedQuoteGroupKey(group.key);
-                  else if (openedQuoteGroupKey === group.key) setOpenedQuoteGroupKey(null);
+                  if (event.currentTarget.open) openSalesGroup("quote", group.key);
+                  else if (openedQuoteGroupKey === group.key) closeSalesGroup("quote");
                 }}
               >
                 <summary className="sales-rfq-quote-group-summary">
@@ -1438,11 +1502,13 @@ export default function SalesOperations({
           )}
         </>
       )}
-      {tab === "orders" && (
+      </div>}
+      {visitedTabs.has("orders") && <div hidden={tab !== "orders"}>
+      {visitedTabs.has("orders") && (
         <section className={`panel-card panel-body sales-orders-page${openedOrderGroupKey ? " is-focused" : ""}`}>
           {openedOrderGroupKey && (
             <div className="sales-quote-group-focus-bar">
-              <button type="button" className="btn-sm btn-secondary admin-back-button" onClick={() => setOpenedOrderGroupKey(null)}>
+              <button type="button" className="btn-sm btn-secondary admin-back-button" onClick={() => closeSalesGroup("order")}>
                 <ArrowLeft size={15} aria-hidden="true" /> Back to all orders
               </button>
             </div>
@@ -1452,10 +1518,17 @@ export default function SalesOperations({
               <span className="sales-section-eyebrow">ORDERS</span>
               <h2>Orders & delivery</h2>
               <p>Track accepted quotations through payment, dispatch, and delivery.</p>
-              {workflowRequestFilterId && <span className="sales-active-request-filter">Request: {requestPageFilter?.requestNumber || "Selected RFQ"}</span>}
+              {orderRequestFilterId && <span className="sales-active-request-filter">Request: {requestPageFilter?.requestNumber || "Selected RFQ"}</span>}
             </div>
             <div className="sales-record-page-actions">
-              {workflowRequestFilterId && <button type="button" className="btn-sm btn-secondary" onClick={() => { setWorkflowRequestFilterId(null); setOpenedOrderGroupKey(null); }}>Show all orders</button>}
+              {orderRequestFilterId && <button type="button" className="btn-sm btn-secondary" onClick={() => {
+                setOrderRequestFilterId(null);
+                setOpenedOrderGroupKey(null);
+                const url = new URL(window.location.href);
+                url.searchParams.delete(salesOrderRequestParam);
+                url.searchParams.delete(salesOrderGroupParam);
+                window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+              }}>Show all orders</button>}
               <span className="sales-saved-quote-count">{displayedOrderGroups.reduce((total, group) => total + group.orders.length, 0)} {displayedOrderGroups.reduce((total, group) => total + group.orders.length, 0) === 1 ? "order" : "orders"}</span>
             </div>
           </header>
@@ -1464,15 +1537,15 @@ export default function SalesOperations({
               Read-only order access. Dispatch staff manage delivery actions.
             </p>
           )}
-          {!visibleOrderGroups.length && <p className="sales-saved-quotes-empty">{workflowRequestFilterId ? `No orders are linked to ${requestPageFilter?.requestNumber || "this request"} yet.` : "No orders recorded yet."}</p>}
+          {!visibleOrderGroups.length && <p className="sales-saved-quotes-empty">{orderRequestFilterId ? `No orders are linked to ${requestPageFilter?.requestNumber || "this request"} yet.` : "No orders recorded yet."}</p>}
           {displayedOrderGroups.map((group) => (
             <details
               className="sales-rfq-order-group"
               key={group.key}
               open={openedOrderGroupKey === group.key}
               onToggle={(event) => {
-                if (event.currentTarget.open) setOpenedOrderGroupKey(group.key);
-                else if (openedOrderGroupKey === group.key) setOpenedOrderGroupKey(null);
+                  if (event.currentTarget.open) openSalesGroup("order", group.key);
+                  else if (openedOrderGroupKey === group.key) closeSalesGroup("order");
               }}
             >
               <summary className="sales-rfq-order-group-summary">
@@ -1613,10 +1686,14 @@ export default function SalesOperations({
           ))}
         </section>
       )}
-      {tab === "inventory" && (
+      </div>}
+      {visitedTabs.has("inventory") && <div hidden={tab !== "inventory"}>
+      {visitedTabs.has("inventory") && (
         <CatalogueManager token={token} role={role} onSignOut={onSignOut} customerUrl={customerUrl} />
       )}
-      {tab === "inquiries" && (
+      </div>}
+      {visitedTabs.has("inquiries") && <div hidden={tab !== "inquiries"}>
+      {visitedTabs.has("inquiries") && (
         <section className="panel-card panel-body">
           {!inquiries.length && <p>No contact enquiries received yet.</p>}
           {inquiries.map((i) => (
@@ -1630,6 +1707,7 @@ export default function SalesOperations({
           ))}
         </section>
       )}
+      </div>}
     </>
   );
 
@@ -1664,9 +1742,6 @@ export default function SalesOperations({
                 className={`nav-item ${tab === item ? "active" : ""}`}
                 onClick={() => {
                   selectTab(item);
-                  setSelectedRfq(null);
-                  setRevision(null);
-                  setCreatingCustomQuote(false);
                 }}
               >
                 <Icon size={18} className="nav-item-icon" />

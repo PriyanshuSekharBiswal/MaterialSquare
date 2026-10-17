@@ -23,6 +23,9 @@ import {
   X,
 } from "lucide-react";
 import {
+  catalogueCategoryLabel,
+  formatContactPhone,
+  normalizeCatalogueCategory,
   resolveCatalogueCategoryId,
   sanitizePublicSiteContent,
   SITE_CONTENT_DEFAULTS,
@@ -268,7 +271,7 @@ const boundedFeature = (title: string, description: string) => {
 const customerPriceNote = (note: string | null | undefined) => {
   const value = String(note || "").trim();
   return !value ||
-    /reference|observed|confirm local price|seller listing|local price and taxes may differ/i.test(
+    /(?:online )?reference|observed|source listing|rate can change|confirm.{0,80}(?:price|availability|ordering)|(?:price|availability).{0,80}confirm|local availability|availability before ordering|seller listing|local price and taxes may differ/i.test(
       value,
     )
     ? ""
@@ -277,12 +280,14 @@ const customerPriceNote = (note: string | null | undefined) => {
 const customerProductDescription = (description: string | null | undefined) => {
   const value = String(description || "").trim();
   return !value ||
-    /online reference|reference listing|confirm the exact grade|current client price|reference price/i.test(
+    /(?:online )?reference|source listing|rate can change|confirm.{0,80}(?:price|availability|ordering)|(?:price|availability).{0,80}confirm|local availability|availability before ordering|reference price/i.test(
       value,
     )
     ? ""
     : value;
 };
+const customerCardFeatures = (features: string[] | null | undefined) =>
+  (features || []).filter((feature) => Boolean(customerProductDescription(feature)));
 const specsFromLines = (value: FormDataEntryValue | null) =>
   visibleSpecs(
     Object.fromEntries(
@@ -318,6 +323,8 @@ export default function CatalogueManager({
   customerUrl?: string;
 }) {
   const [listings, setListings] = useState<Listing[]>([]);
+  const listingsRef = useRef<Listing[]>([]);
+  listingsRef.current = listings;
   const [editing, setEditing] = useState<Listing | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -331,7 +338,10 @@ export default function CatalogueManager({
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [catalogueQuery, setCatalogueQuery] = useState(() => new URLSearchParams(window.location.search).get("catalogueSearch") || initialSearch);
   const [brandFilter, setBrandFilter] = useState(() => new URLSearchParams(window.location.search).get("catalogueBrand") || "all");
-  const [categoryFilter, setCategoryFilter] = useState(() => new URLSearchParams(window.location.search).get("catalogueCategory") || "all");
+  const [categoryFilter, setCategoryFilter] = useState(() => {
+    const value = new URLSearchParams(window.location.search).get("catalogueCategory") || "all";
+    return value === "all" ? value : normalizeCatalogueCategory(value);
+  });
   const [publicationFilter, setPublicationFilter] = useState(() => new URLSearchParams(window.location.search).get("cataloguePublication") || "all");
   const [availabilityFilter, setAvailabilityFilter] = useState(() => new URLSearchParams(window.location.search).get("catalogueAvailability") || "all");
   const [catalogueSort, setCatalogueSort] = useState(() => new URLSearchParams(window.location.search).get("catalogueSort") || "recent");
@@ -340,6 +350,13 @@ export default function CatalogueManager({
     Record<string, number>
   >({});
   const [managingBrands, setManagingBrands] = useState(() => new URLSearchParams(window.location.search).get("catalogueView") === "brands");
+  const selectCatalogueView = (showBrands: boolean) => {
+    const url = new URL(window.location.href);
+    if (showBrands) url.searchParams.set("catalogueView", "brands");
+    else url.searchParams.delete("catalogueView");
+    window.history.pushState({ ...(window.history.state ?? {}), catalogueView: showBrands ? "brands" : "products" }, "", `${url.pathname}${url.search}${url.hash}`);
+    setManagingBrands(showBrands);
+  };
   const [addProductChooserOpen, setAddProductChooserOpen] = useState(false);
   const [partnerBrandOptions, setPartnerBrandOptions] = useState<string[]>([]);
   const [catalogueCategoryOptions, setCatalogueCategoryOptions] = useState<ManagedCatalogueCategory[]>(() => STOREFRONT_CATEGORIES.map(({ id, label }) => ({ id, label, active: true, aliases: [] })));
@@ -489,7 +506,10 @@ export default function CatalogueManager({
     ...new Map(
       listings
         .filter((product) => product.category?.trim())
-        .map((product) => [product.category, product.categoryLabel]),
+        .map((product) => {
+          const value = product.categoryLabel || product.category;
+          return [normalizeCatalogueCategory(value), catalogueCategoryLabel(value)] as const;
+        }),
     ).entries(),
   ].sort((a, b) => a[1].localeCompare(b[1]));
   const normalizedQuery = catalogueQuery.trim().toLocaleLowerCase();
@@ -522,7 +542,7 @@ export default function CatalogueManager({
       !normalizedQuery || searchable.includes(normalizedQuery);
     const matchesBrand = brandFilter === "all" || product.brand === brandFilter;
     const matchesCategory =
-      categoryFilter === "all" || product.category === categoryFilter;
+      categoryFilter === "all" || normalizeCatalogueCategory(product.categoryLabel || product.category) === categoryFilter;
     const matchesPublication =
       publicationFilter === "all" ||
       (publicationFilter === "published"
@@ -606,9 +626,6 @@ export default function CatalogueManager({
     previewListing?.price != null && previewListing.price !== ""
       ? previewListing.price
       : (pricedPreviewVariant?.price ?? null);
-  const previewCardPriceNote = customerPriceNote(
-    previewListing?.priceNote || pricedPreviewVariant?.priceNote,
-  );
   const previewDetailPrice =
     detailPreviewVariant?.price ?? previewListing?.price ?? null;
   const previewDetailPriceNote = customerPriceNote(
@@ -1170,6 +1187,7 @@ export default function CatalogueManager({
       setExitPromptOpen(true);
       return;
     }
+    clearCatalogueEditorLocation();
     setEditing(null);
     setPreviewListing(null);
   }
@@ -1181,6 +1199,7 @@ export default function CatalogueManager({
       // Browser recovery storage is optional.
     }
     setExitPromptOpen(false);
+    clearCatalogueEditorLocation();
     setEditing(null);
     setDraftSavedAt(null);
     setRecoveredDraft(null);
@@ -1210,6 +1229,41 @@ export default function CatalogueManager({
     } catch {
       return null;
     }
+  }
+
+  function clearCatalogueEditorLocation() {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("catalogueEditor")) return;
+    url.searchParams.delete("catalogueEditor");
+    const state = { ...(window.history.state ?? {}) } as Record<string, unknown>;
+    delete state.catalogueEditor;
+    window.history.replaceState(state, "", `${url.pathname}${url.search}${url.hash}`);
+  }
+
+  function restoreCatalogueEditorFromLocation() {
+    const editorId = new URLSearchParams(window.location.search).get("catalogueEditor");
+    if (!editorId) {
+      setEditing(null);
+      setPreviewListing(null);
+      setPreviewOpen(false);
+      setExitPromptOpen(false);
+      return;
+    }
+    const currentListings = listingsRef.current;
+    const base = editorId === "new"
+      ? { ...blank, sortOrder: currentListings.length ? Math.max(...currentListings.map((product) => product.sortOrder)) + 1 : 0 }
+      : currentListings.find((product) => product.id === editorId);
+    if (!base) return;
+    const recovery = recoverableDraftFor(base);
+    const restored = {
+      ...base,
+      ...(recovery ? { image: recovery.image, galleryImages: recovery.galleryImages, variants: nonEmptyVariants(recovery.variants) } : {}),
+    };
+    setEditing(restored);
+    setPreviewListing(restored);
+    setPreviewMode("card");
+    setRecoveredDraft(recovery);
+    setDraftSavedAt(recovery?.savedAt ?? null);
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -1381,6 +1435,7 @@ export default function CatalogueManager({
           message: "Saved. Checking that it is visible on the storefront…",
           state: "working",
         });
+        clearCatalogueEditorLocation();
         setEditing(null);
         setExitPromptOpen(false);
         setDraftSavedAt(null);
@@ -1430,6 +1485,7 @@ export default function CatalogueManager({
         }
       }
       if (!savedProduct.isPublished) {
+        clearCatalogueEditorLocation();
         setEditing(null);
         setExitPromptOpen(false);
         setDraftSavedAt(null);
@@ -1512,6 +1568,9 @@ export default function CatalogueManager({
     setEditing(next);
     setRecoveredDraft(recovery);
     setDraftSavedAt(recovery?.savedAt ?? null);
+    const url = new URL(window.location.href);
+    url.searchParams.set("catalogueEditor", product.id);
+    window.history.pushState({ ...(window.history.state ?? {}), catalogueEditor: product.id }, "", `${url.pathname}${url.search}${url.hash}`);
   };
   const startNew = () => {
     setAddProductChooserOpen(false);
@@ -1537,7 +1596,24 @@ export default function CatalogueManager({
     setEditing(next);
     setRecoveredDraft(recovery);
     setDraftSavedAt(recovery?.savedAt ?? null);
+    const url = new URL(window.location.href);
+    url.searchParams.set("catalogueEditor", "new");
+    window.history.pushState({ ...(window.history.state ?? {}), catalogueEditor: "new" }, "", `${url.pathname}${url.search}${url.hash}`);
   };
+  useEffect(() => {
+    const restoreEditor = () => restoreCatalogueEditorFromLocation();
+    window.addEventListener("popstate", restoreEditor);
+    if (new URLSearchParams(window.location.search).has("catalogueEditor")) restoreEditor();
+    return () => window.removeEventListener("popstate", restoreEditor);
+  }, []);
+  useEffect(() => {
+    if (!editing && new URLSearchParams(window.location.search).has("catalogueEditor")) restoreCatalogueEditorFromLocation();
+  }, [editing, listings]);
+  useEffect(() => {
+    const restoreCatalogueView = () => setManagingBrands(new URLSearchParams(window.location.search).get("catalogueView") === "brands");
+    window.addEventListener("popstate", restoreCatalogueView);
+    return () => window.removeEventListener("popstate", restoreCatalogueView);
+  }, []);
   const showDraftListings = () => {
     setAddProductChooserOpen(false);
     setPublicationFilter("draft");
@@ -1659,7 +1735,10 @@ export default function CatalogueManager({
         token={token}
         role={role}
         onSignOut={onSignOut}
-        onBack={() => setManagingBrands(false)}
+        onBack={() => {
+          if (window.history.state?.catalogueView === "brands") window.history.back();
+          else setManagingBrands(false);
+        }}
         customerUrl={customerUrl}
       />
     );
@@ -1679,7 +1758,7 @@ export default function CatalogueManager({
         <div className="catalogue-manager-actions">
           <button
             className="btn-sm btn-secondary btn-orange-outline"
-            onClick={() => setManagingBrands(true)}
+            onClick={() => selectCatalogueView(true)}
           >
             <Tags size={15} /> Partner brands
           </button>
@@ -2240,12 +2319,10 @@ export default function CatalogueManager({
                         {siteContent["contact.location"].trim() && (
                           <span>{siteContent["contact.location"].trim()}</span>
                         )}
-                        {(siteContent["contact.phoneDisplay"].trim() ||
-                          siteContent["contact.phone"].trim()) && (
+                        {siteContent["contact.phone"].trim() && (
                           <strong>
                             ☎{" "}
-                            {siteContent["contact.phoneDisplay"].trim() ||
-                              siteContent["contact.phone"].trim()}
+                            {formatContactPhone(siteContent["contact.phone"])}
                           </strong>
                         )}
                       </div>
@@ -2421,9 +2498,9 @@ export default function CatalogueManager({
                                     </div>
                                   ) : null;
                                 })()}
-                                {previewListing.features.length > 0 && (
+                                {customerCardFeatures(previewListing.features).length > 0 && (
                                   <ul>
-                                    {previewListing.features
+                                    {customerCardFeatures(previewListing.features)
                                       .slice(0, 2)
                                       .map((feature, index) => (
                                         <li key={`${feature}-${index}`}>
@@ -2479,9 +2556,6 @@ export default function CatalogueManager({
                                         <strong>Request a quote</strong>
                                       )}
                                     </div>
-                                    {previewCardPriceNote && (
-                                      <small>{previewCardPriceNote}</small>
-                                    )}
                                   </div>
                                   <span className="store-preview-moq">
                                     MOQ:{" "}
@@ -2523,7 +2597,7 @@ export default function CatalogueManager({
                                 (listing.isInStock
                                   ? "IN_STOCK"
                                   : "CHECK_AVAILABILITY");
-                              const listingFeatures = listing.features || [];
+                              const listingFeatures = customerCardFeatures(listing.features);
                               return (
                                 <article
                                   className="store-preview-card store-preview-context-product"
@@ -2638,15 +2712,6 @@ export default function CatalogueManager({
                                             <strong>Request a quote</strong>
                                           )}
                                         </div>
-                                        {customerPriceNote(
-                                          listing.priceNote,
-                                        ) && (
-                                          <small>
-                                            {customerPriceNote(
-                                              listing.priceNote,
-                                            )}
-                                          </small>
-                                        )}
                                       </div>
                                       <span className="store-preview-moq">
                                         MOQ: {formatQuantityUnitText(listing.minOrderQty, listing.unit) || "Confirm"}
@@ -2700,7 +2765,7 @@ export default function CatalogueManager({
                           quantity={previewListing.minOrderQty?.match(/[\d.]+/)?.[0] || "1"}
                           description={previewDescription || previewListing.description}
                           highlights={Object.entries(visibleSpecs(previewListing.specifications))}
-                          features={previewListing.features}
+                          features={customerCardFeatures(previewListing.features)}
                           applications={previewListing.applications}
                           actionDisabled
                           preview
@@ -2998,9 +3063,6 @@ export default function CatalogueManager({
                     ₹{Number(product.price).toLocaleString("en-IN")} /{" "}
                     {product.unit}
                   </strong>
-                )}
-                {customerPriceNote(product.priceNote) && (
-                  <span>{customerPriceNote(product.priceNote)}</span>
                 )}
                 {product.offerLabel && (
                   <span className="catalogue-offer">{product.offerLabel}</span>

@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { buildCatalogueCategoryDirectory, normalizeCatalogueCategory, partnerBrandDefaultLogoUrl, resolveCatalogueCategoryId, STOREFRONT_CATEGORIES, type ManagedCatalogueCategory } from "@material-square/types";
+import { buildCatalogueCategoryDirectory, catalogueCategoryLabel, normalizeCatalogueCategory, partnerBrandDefaultLogoUrl, resolveCatalogueCategoryId, STOREFRONT_CATEGORIES, type ManagedCatalogueCategory } from "@material-square/types";
 import { PrismaService } from "../prisma/prisma.service";
 
 function auditText(value: unknown): string {
@@ -466,6 +466,8 @@ export class ProductsService {
               : "CHECK_AVAILABILITY";
         return {
           ...listing,
+          category: normalizeCatalogueCategory(listing.categoryLabel || listing.category),
+          categoryLabel: catalogueCategoryLabel(listing.categoryLabel || listing.category),
           availabilityStatus: publicAvailability,
           code: updatedCodes.get(listing.id) || listing.code || listing.slug,
           brand: listing.brand || "",
@@ -535,6 +537,8 @@ export class ProductsService {
     const updatedCodes = updatedLegacyCatalogueCodes(listings);
     return listings.map((listing) => ({
       ...listing,
+      category: normalizeCatalogueCategory(listing.categoryLabel || listing.category),
+      categoryLabel: catalogueCategoryLabel(listing.categoryLabel || listing.category),
       code: updatedCodes.get(listing.id) || listing.code,
     }));
   }

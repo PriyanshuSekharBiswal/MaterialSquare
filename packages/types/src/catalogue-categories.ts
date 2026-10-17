@@ -79,6 +79,12 @@ export function normalizeCatalogueCategory(value: string): string {
   return key.replace(/\s+/g, "-");
 }
 
+/** Customer-facing label for a built-in category, including legacy aliases. */
+export function catalogueCategoryLabel(value: string): string {
+  const id = normalizeCatalogueCategory(value);
+  return STOREFRONT_CATEGORIES.find((category) => category.id === id)?.label || value.trim();
+}
+
 /** Merge saved category settings with category labels used by partner brands. */
 export function buildCatalogueCategoryDirectory(
   settings: readonly ManagedCatalogueCategory[] = [],
@@ -96,13 +102,15 @@ export function buildCatalogueCategoryDirectory(
   };
 
   for (const setting of settings) {
-    const id = setting.id.trim() || findId(setting.label);
+    const sourceId = setting.id.trim();
+    const id = findId(sourceId || setting.label);
+    const legacyAlias = Boolean(sourceId && sourceId !== id);
     const existing = categories.get(id);
     categories.set(id, {
       id,
-      label: setting.label.trim() || existing?.label || id,
-      active: setting.active !== false,
-      aliases: [...new Set([...(existing?.aliases || []), ...(setting.aliases || []), ...(existing && existing.label !== setting.label ? [existing.label] : [])].map((alias) => alias.trim()).filter(Boolean))],
+      label: legacyAlias ? existing?.label || catalogueCategoryLabel(id) : setting.label.trim() || existing?.label || id,
+      active: legacyAlias ? existing?.active !== false : setting.active !== false,
+      aliases: [...new Set([...(existing?.aliases || []), ...(setting.aliases || []), ...(legacyAlias ? [sourceId, setting.label] : existing && existing.label !== setting.label ? [existing.label] : [])].map((alias) => alias.trim()).filter(Boolean))],
     });
   }
 

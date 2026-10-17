@@ -3,7 +3,7 @@ import type { SiteContent } from "@material-square/types";
 import {
   SEO_ROUTE_DESCRIPTIONS,
   SEO_SERVICE_AREA_PAGES,
-  parseSocialLinks,
+  siteSocialLinks,
   serviceAreaSlugs,
 } from "./runtime-types.js";
 import { canonicalSiteOrigin } from "./seo-origin.js";
@@ -50,7 +50,7 @@ function renderHomepage(shell: string, content: SiteContent, origin: string, noI
   const coveredAreas = SEO_SERVICE_AREA_PAGES
     .filter((area) => serviceAreaSlugs(content["contact.location"]).includes(area.slug))
     .map((area) => area.name);
-  const officialProfiles = parseSocialLinks(content["footer.socialLinks"])
+  const officialProfiles = siteSocialLinks(content)
     .map(({ url }) => url);
 
   shell = shell.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);

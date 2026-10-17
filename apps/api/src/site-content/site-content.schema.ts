@@ -353,6 +353,32 @@ export const SiteContentSchema = z
         message: "Enter a 10-digit Indian mobile number",
       });
     if (
+      content["contact.whatsappPhone"] &&
+      !/^[6-9]\d{9}$/.test(content["contact.whatsappPhone"])
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["contact.whatsappPhone"],
+        message: "Enter a 10-digit Indian WhatsApp number",
+      });
+    if (content["contact.instagramUrl"]) {
+      try {
+        const instagram = new URL(content["contact.instagramUrl"]);
+        if (
+          instagram.protocol !== "https:" ||
+          (instagram.hostname !== "instagram.com" && !instagram.hostname.endsWith(".instagram.com")) ||
+          instagram.username ||
+          instagram.password
+        ) throw new Error("Invalid Instagram profile URL");
+      } catch {
+        ctx.addIssue({
+          code: "custom",
+          path: ["contact.instagramUrl"],
+          message: "Enter a valid HTTPS Instagram profile URL",
+        });
+      }
+    }
+    if (
       content["contact.email"] &&
       !z.string().email().safeParse(content["contact.email"]).success
     )

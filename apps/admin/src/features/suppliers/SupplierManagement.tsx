@@ -111,6 +111,16 @@ export default function SupplierManagement({
     return requested === "list" || requested === "edit" || requested === "details" ? requested : "add";
   });
   const [supplierDetailId, setSupplierDetailId] = useState(() => new URLSearchParams(window.location.search).get("supplierId") || "");
+  const navigateSupplierView = (nextView: "add" | "list" | "edit" | "details", supplierId = "") => {
+    const url = new URL(window.location.href);
+    if (nextView === "add") url.searchParams.delete("supplierView");
+    else url.searchParams.set("supplierView", nextView);
+    if ((nextView === "details" || nextView === "edit") && supplierId) url.searchParams.set("supplierId", supplierId);
+    else url.searchParams.delete("supplierId");
+    window.history.pushState({ ...(window.history.state ?? {}), supplierView: nextView, supplierId }, "", `${url.pathname}${url.search}${url.hash}`);
+    setSupplierDetailId(supplierId);
+    setView(nextView);
+  };
   const [directoryQuery, setDirectoryQuery] = useState("");
   const [directoryResults, setDirectoryResults] = useState<SupplierRecord[] | null>(null);
   const [directoryBusy, setDirectoryBusy] = useState(false);
@@ -301,9 +311,12 @@ export default function SupplierManagement({
           type="button"
           className="bc-button btn-orange-outline supplier-page-back admin-back-button"
           onClick={() => {
-            setSupplierDetailId("");
-            setEditingSupplier(null);
-            setView("list");
+            if (window.history.state?.supplierView) window.history.back();
+            else {
+              setSupplierDetailId("");
+              setEditingSupplier(null);
+              setView("list");
+            }
           }}
         >
           <ArrowLeft size={15} aria-hidden="true" /> Back to registered suppliers
@@ -324,7 +337,7 @@ export default function SupplierManagement({
         <button
           type="button"
           className={`supplier-page-tab${view === "list" ? " active" : ""}`}
-          onClick={() => { setSupplierDetailId(""); setEditingSupplier(null); setSelectedProductNames([]); setSelectedBrandCatalog([]); setView("list"); }}
+          onClick={() => { setEditingSupplier(null); setSelectedProductNames([]); setSelectedBrandCatalog([]); navigateSupplierView("list"); }}
         >
           Registered suppliers
         </button>
@@ -702,9 +715,8 @@ export default function SupplierManagement({
               className="bc-button btn-orange-outline"
               disabled={busy}
               onClick={() => {
-              setSupplierDetailId(s.id);
                 setEditingSupplier(s);
-                setView("edit");
+                navigateSupplierView("edit", s.id);
               }}
             >
               Edit supplier
@@ -743,8 +755,7 @@ export default function SupplierManagement({
             disabled={busy}
             onClick={() => {
               setEditingSupplier(null);
-              setSupplierDetailId(s.id);
-              setView("details");
+              navigateSupplierView("details", s.id);
             }}
           >
             View supplier products & ratings

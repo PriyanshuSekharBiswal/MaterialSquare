@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { parsePolicy, publicFaqEntries, type PolicyKind } from "@material-square/types";
+import { formatContactPhone, parsePolicy, publicFaqEntries, type PolicyKind } from "@material-square/types";
 import { useSiteContent } from "../site-content";
 const policyTitles: Record<PolicyKind, string> = {
   privacy: "Privacy notice",
@@ -11,7 +11,9 @@ function PolicyPage({ kind }: { kind: PolicyKind }) {
   const content = useSiteContent();
   const policy = parsePolicy(content[`policy.${kind}`], kind);
   const plainText = (value: string) =>
-    value.replaceAll("{{contactEmail}}", content["contact.email"]);
+    value
+      .replaceAll("{{contactEmail}}", content["contact.email"])
+      .replaceAll("{{contactPhone}}", formatContactPhone(content["contact.phone"]));
   if (!policy.published) {
     return (
       <article className="legal-page container">
@@ -64,12 +66,12 @@ export function FaqPage() {
       <span className="badge-pill">Help &amp; support</span>
       <h1>Frequently asked questions</h1>
       <p className="legal-updated">Answers to common questions about products, quotations, availability and delivery.</p>
-      {entries.length ? entries.map((entry) => (
-        <details className="faq-page-entry" key={entry.question}>
+      {entries.length ? <div className="faq-list">{entries.map((entry) => (
+        <details className="faq-entry" key={entry.question}>
           <summary>{entry.question}</summary>
-          <div className="shared-product-accordion-content"><p>{entry.answer}</p></div>
+          <div className="faq-answer"><p>{entry.answer}</p></div>
         </details>
-      )) : <p>There are no published FAQs at the moment.</p>}
+      ))}</div> : <p>There are no published FAQs at the moment.</p>}
       <Link className="btn btn-secondary" to="/contact">Contact Material Square</Link>
     </article>
   );

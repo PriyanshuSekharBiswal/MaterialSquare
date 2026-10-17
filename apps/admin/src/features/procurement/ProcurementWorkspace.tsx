@@ -10,6 +10,10 @@ import type { FormSubmit, Mutate } from "../business/form-contracts";
 type Filter = "all" | "matching" | "quotes" | "approval" | "ordered";
 type View = "rfqs" | "purchase-requests" | "manual-request";
 type Request = <T>(path: string, method?: string, body?: unknown) => Promise<T>;
+const procurementViewFromLocation = (): View => {
+  const value = new URLSearchParams(window.location.search).get("procurementView");
+  return value === "purchase-requests" || value === "manual-request" ? value : "rfqs";
+};
 
 export default function ProcurementWorkspace({
   records,
@@ -26,9 +30,24 @@ export default function ProcurementWorkspace({
   submit: FormSubmit;
   download: (path: string, filename: string) => Promise<void>;
 }) {
-  const [view, setView] = useState<View>("rfqs");
+  const [view, setView] = useState<View>(procurementViewFromLocation);
   const [filter, setFilter] = useState<Filter>("all");
   const secondaryTasksRef = useRef<HTMLDetailsElement>(null);
+  const selectView = (next: View, replace = false) => {
+    if (next === view && !replace) return;
+    const url = new URL(window.location.href);
+    if (next === "rfqs") url.searchParams.delete("procurementView");
+    else url.searchParams.set("procurementView", next);
+    const state = { ...(window.history.state ?? {}), procurementView: next };
+    const method = replace ? "replaceState" : "pushState";
+    window.history[method](state, "", `${url.pathname}${url.search}${url.hash}`);
+    setView(next);
+  };
+  useEffect(() => {
+    const restoreView = () => setView(procurementViewFromLocation());
+    window.addEventListener("popstate", restoreView);
+    return () => window.removeEventListener("popstate", restoreView);
+  }, []);
   useEffect(() => {
     const closeOnOutsideClick = (event: PointerEvent) => {
       const details = secondaryTasksRef.current;
@@ -65,7 +84,10 @@ export default function ProcurementWorkspace({
   const secondaryView = view !== "rfqs";
   const pageTitle = view === "purchase-requests" ? "Purchase requests" : "Create manual request";
   return <section className="procurement-workspace" aria-labelledby="procurement-workspace-title">
-    {secondaryView && <button type="button" className="procurement-back-link admin-back-button" onClick={() => setView("rfqs")}>
+    {secondaryView && <button type="button" className="procurement-back-link admin-back-button" onClick={() => {
+      if (window.history.state?.procurementView) window.history.back();
+      else selectView("rfqs", true);
+    }}>
       <ArrowLeft size={15} aria-hidden="true" /> Back to customer requests
     </button>}
 
@@ -79,10 +101,10 @@ export default function ProcurementWorkspace({
         <details ref={secondaryTasksRef} className="procurement-secondary-tasks">
           <summary>Other procurement tasks</summary>
           <div>
-            <button className="procurement-secondary-task-option" type="button" onClick={() => { setFilter("all"); setView("purchase-requests"); }}>
+            <button className="procurement-secondary-task-option" type="button" onClick={() => { setFilter("all"); selectView("purchase-requests"); }}>
               Purchase requests <span>{records.length}</span>
             </button>
-            <button className="procurement-secondary-task-option" type="button" onClick={() => setView("manual-request")}>
+            <button className="procurement-secondary-task-option" type="button" onClick={() => selectView("manual-request")}>
               Create manual request
             </button>
           </div>
@@ -101,7 +123,7 @@ export default function ProcurementWorkspace({
       </header>
       {view === "manual-request" && (
         <div className="procurement-manual-request">
-          <PurchaseRequestForm busy={busy} submit={submit} request={request} onSaved={() => setView("purchase-requests")} />
+        <PurchaseRequestForm busy={busy} submit={submit} request={request} onSaved={() => selectView("purchase-requests", true)} />
         </div>
       )}
       {view === "purchase-requests" && <section className="procurement-queue" aria-labelledby="procurement-queue-title">

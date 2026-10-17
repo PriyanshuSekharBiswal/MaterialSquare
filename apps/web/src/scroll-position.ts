@@ -5,9 +5,25 @@ let initialReloadPosition: { key: string; position: ScrollPosition } | null = nu
 let initialReloadKey: string | null = null;
 let restoringInitialPosition = false;
 let cancelPendingRestore: (() => void) | null = null;
+let activePositionKey = "";
+let historyPersistenceInstalled = false;
 
 function locationKey() {
   return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+}
+
+function stateEntryId(state: unknown) {
+  if (!state || typeof state !== "object") return "";
+  const record = state as { key?: unknown; __msScrollKey?: unknown };
+  return typeof record.key === "string" && record.key
+    ? record.key
+    : typeof record.__msScrollKey === "string" && record.__msScrollKey
+      ? record.__msScrollKey
+      : "";
+}
+
+function currentPositionKey() {
+  return `entry:${stateEntryId(window.history.state) || locationKey()}`;
 }
 
 function readPosition(key: string): ScrollPosition | null {
@@ -34,10 +50,51 @@ function savePosition(key = locationKey(), position = { left: window.scrollX, to
 export function installScrollPositionPersistence() {
   if (typeof window === "undefined") return;
   window.history.scrollRestoration = "manual";
+  if (!historyPersistenceInstalled) {
+    historyPersistenceInstalled = true;
+    const nativePushState = window.history.pushState.bind(window.history);
+    const nativeReplaceState = window.history.replaceState.bind(window.history);
+    window.history.pushState = ((data: unknown, unused: string, url?: string | URL | null) => {
+      if (!restoringInitialPosition) savePosition(activePositionKey || currentPositionKey());
+      const nextState = data && typeof data === "object" ? { ...(data as object) } as Record<string, unknown> : {};
+      const nextEntryId = stateEntryId(nextState);
+      if (!nextEntryId || nextEntryId === stateEntryId(window.history.state)) {
+        if (nextState.key === nextEntryId) delete nextState.key;
+        nextState.__msScrollKey = crypto.randomUUID();
+      }
+      nativePushState(nextState, unused, url);
+      activePositionKey = currentPositionKey();
+      savePosition(activePositionKey, { left: 0, top: 0 });
+    }) as History["pushState"];
+    window.history.replaceState = ((data: unknown, unused: string, url?: string | URL | null) => {
+      const currentState = window.history.state;
+      const nextState = data && typeof data === "object" ? { ...(data as object) } as Record<string, unknown> : {};
+      if (!stateEntryId(nextState)) {
+        const existingId = stateEntryId(currentState);
+        if (existingId) {
+          const currentRecord = currentState as Record<string, unknown>;
+          if (typeof currentRecord.key === "string") nextState.key = currentRecord.key;
+          else nextState.__msScrollKey = existingId;
+        } else nextState.__msScrollKey = crypto.randomUUID();
+      }
+      nativeReplaceState(nextState, unused, url);
+      activePositionKey = currentPositionKey();
+    }) as History["replaceState"];
+    window.addEventListener("popstate", () => {
+      if (!restoringInitialPosition) savePosition(activePositionKey || currentPositionKey());
+      cancelPendingRestore?.();
+      restoringInitialPosition = false;
+      initialReloadPosition = null;
+      initialReloadKey = null;
+      activePositionKey = currentPositionKey();
+      restoreAfterHistoryNavigation(readPosition(activePositionKey) || { left: 0, top: 0 });
+    });
+  }
+  activePositionKey = currentPositionKey();
   document.documentElement.dataset.msScrollReady = "false";
   const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
   initialReloadPosition = navigation?.type === "reload"
-    ? { key: locationKey(), position: readPosition(locationKey()) || { left: 0, top: 0 } }
+    ? { key: locationKey(), position: readPosition(activePositionKey) || readPosition(locationKey()) || { left: 0, top: 0 } }
     : null;
   initialReloadKey = initialReloadPosition?.key || null;
   restoringInitialPosition = Boolean(initialReloadPosition);
@@ -53,11 +110,11 @@ export function installScrollPositionPersistence() {
     if (saveFrame) cancelAnimationFrame(saveFrame);
     saveFrame = requestAnimationFrame(() => {
       saveFrame = 0;
-      savePosition();
+      savePosition(activePositionKey || currentPositionKey());
     });
   };
   const flushPosition = () => {
-    if (!restoringInitialPosition) savePosition();
+    if (!restoringInitialPosition) savePosition(activePositionKey || currentPositionKey());
   };
   const userMoved = () => {
     if (!restoringInitialPosition) return;
@@ -70,6 +127,57 @@ export function installScrollPositionPersistence() {
   window.addEventListener("wheel", userMoved, { passive: true, once: true });
   window.addEventListener("touchstart", userMoved, { passive: true, once: true });
   window.addEventListener("keydown", userMoved, { once: true });
+}
+
+function restoreAfterHistoryNavigation(position: ScrollPosition) {
+  let cancelled = false;
+  let completed = false;
+  let frame = 0;
+  const startedAt = Date.now();
+  let interval = 0;
+  let lastHeight = -1;
+  let heightStableSince = startedAt;
+  let mutations: MutationObserver;
+  let observer: ResizeObserver;
+  const cleanup = () => {
+    cancelled = true;
+    observer.disconnect();
+    mutations.disconnect();
+    window.clearInterval(interval);
+    if (frame) window.cancelAnimationFrame(frame);
+    if (cancelPendingRestore === cleanup) cancelPendingRestore = null;
+  };
+  const finish = () => {
+    if (cancelled || completed) return;
+    completed = true;
+    const maxTop = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    const maxLeft = Math.max(0, document.documentElement.scrollWidth - window.innerWidth);
+    window.scrollTo({ left: Math.min(position.left, maxLeft), top: Math.min(position.top, maxTop), behavior: "instant" });
+    savePosition(activePositionKey, { left: window.scrollX, top: window.scrollY });
+    cleanup();
+  };
+  const attempt = () => {
+    if (cancelled || completed) return;
+    const height = document.documentElement.scrollHeight;
+    if (height !== lastHeight) {
+      lastHeight = height;
+      heightStableSince = Date.now();
+    }
+    const ready = document.documentElement.dataset.msScrollReady !== "false";
+    if ((ready && Date.now() - heightStableSince >= 250) || Date.now() - startedAt >= 10000) finish();
+  };
+  observer = new ResizeObserver(() => {
+    if (!frame) frame = requestAnimationFrame(() => { frame = 0; attempt(); });
+  });
+  mutations = new MutationObserver(() => {
+    if (!frame) frame = requestAnimationFrame(() => { frame = 0; attempt(); });
+  });
+  observer.observe(document.documentElement);
+  mutations.observe(document.body, { childList: true, subtree: true });
+  interval = window.setInterval(attempt, 150);
+  frame = requestAnimationFrame(() => { frame = 0; attempt(); });
+  cancelPendingRestore?.();
+  cancelPendingRestore = cleanup;
 }
 
 /** Restore only a hard reload, waiting until the saved location can exist in the rendered page. */

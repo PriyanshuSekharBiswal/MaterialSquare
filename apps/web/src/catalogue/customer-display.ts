@@ -1,4 +1,5 @@
 const privateSpecificationKey = /(?:^|\s)(?:image source|price source|reference(?: note| price source| source updated| mrp)?|price observed)$/i;
+const internalCatalogueCopy = /(?:online reference|reference listing|source listing|rate can change|confirm.{0,80}(?:price|availability|ordering)|(?:price|availability).{0,80}confirm|local availability|availability before ordering|seller reference|manufacturer mrp reference|reference price)/i;
 
 export function customerProductTitle(
   name: string,
@@ -20,12 +21,16 @@ export function customerSpecifications(
 
 export function customerPriceNote(note: string | null | undefined): string {
   const value = String(note || "").trim();
-  if (!value || /reference|observed|confirm local price|seller listing|local price and taxes may differ/i.test(value)) return "";
+  if (!value || internalCatalogueCopy.test(value)) return "";
   return value;
 }
 
 export function customerProductDescription(description: string | null | undefined): string {
   const value = String(description || "").trim();
-  if (!value || /online reference|reference listing|confirm the exact grade|current client price|reference price/i.test(value)) return "";
+  if (!value || internalCatalogueCopy.test(value)) return "";
   return value;
+}
+
+export function customerCardFeatures(features: string[] | null | undefined): string[] {
+  return (features || []).filter((feature) => !internalCatalogueCopy.test(String(feature || "")));
 }

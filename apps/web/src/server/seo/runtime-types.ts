@@ -12,6 +12,7 @@ export const {
   guideTabContent,
   parsePolicy,
   parseSocialLinks,
+  siteSocialLinks,
   publicFaqEntries,
   serviceAreaSlugs,
   visibleGuideTabs,

@@ -1,5 +1,5 @@
 import {
-  parseSocialLinks,
+  siteSocialLinks,
   SEO_SERVICE_AREA_PAGES,
   serviceAreaSlugs,
 } from "./runtime-types.js";
@@ -30,7 +30,7 @@ export function setSiteIdentityStructuredData(
     ? `+${phoneDigits.startsWith("91") ? phoneDigits : `91${phoneDigits}`}`
     : "";
   const areas = serviceAreaSlugs(text(content, "contact.location"));
-  const socialProfiles = parseSocialLinks(text(content, "footer.socialLinks"))
+  const socialProfiles = siteSocialLinks(content)
     .map(({ url }) => url);
   const organization: SchemaEntry = {
     "@type": "Organization",

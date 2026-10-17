@@ -25,7 +25,7 @@ export const DEFAULT_POLICIES: Record<PolicyKind, WebsitePolicy> = {
     sections: [
       {
         heading: "Who this notice covers",
-        body: "This notice applies when you browse the Material Square website, use a customer account, prepare or send an enquiry, request a quotation, or buy from the business through a separately confirmed transaction. Material Square is the public-facing brand used on this site. The website settings currently identify the contact email as {{contactEmail}} and the contact telephone as +91 77355 27252. The operating business’s full legal name and registered or principal address are not identified in the website settings; they should be confirmed and displayed on the production site.",
+        body: "This notice applies when you browse the Material Square website, use a customer account, prepare or send an enquiry, request a quotation, or buy from the business through a separately confirmed transaction. Material Square is the public-facing brand used on this site. The website settings currently identify the contact email as {{contactEmail}} and the contact telephone as {{contactPhone}}. The operating business’s full legal name and registered or principal address are not identified in the website settings; they should be confirmed and displayed on the production site.",
       },
       {
         heading: "Information you provide",
@@ -65,7 +65,7 @@ export const DEFAULT_POLICIES: Record<PolicyKind, WebsitePolicy> = {
       },
       {
         heading: "Your choices and requests",
-        body: "You can browse without an account, leave optional profile fields blank, remove a guest material list by clearing browser storage, sign out, or stop using the site. You may contact us to request access to, correction of, or deletion of personal information, or to withdraw consent where consent is the basis for processing. We will review requests under applicable law, verify the requester where appropriate, and explain if some records must be retained. To make a privacy request or complaint, email {{contactEmail}} or call +91 77355 27252. The production site should identify the appointed grievance contact and the operating business before launch.",
+        body: "You can browse without an account, leave optional profile fields blank, remove a guest material list by clearing browser storage, sign out, or stop using the site. You may contact us to request access to, correction of, or deletion of personal information, or to withdraw consent where consent is the basis for processing. We will review requests under applicable law, verify the requester where appropriate, and explain if some records must be retained. To make a privacy request or complaint, email {{contactEmail}} or call {{contactPhone}}. The production site should identify the appointed grievance contact and the operating business before launch.",
       },
       {
         heading: "External services, security and changes",
@@ -77,7 +77,7 @@ export const DEFAULT_POLICIES: Record<PolicyKind, WebsitePolicy> = {
       },
     ],
     reviewNote:
-      "Before production launch, confirm the operating legal name and principal address, appointed grievance officer name/designation, customer-support process, actual production vendors and processing regions, retention schedule and deletion workflow, any cookies/analytics added outside this app, and lawyer review. Contact currently configured: admin@materialsquare.in / +91 77355 27252. Do not treat this copy as a guarantee of legal compliance.",
+      "Before production launch, confirm the operating legal name and principal address, appointed grievance officer name/designation, customer-support process, actual production vendors and processing regions, retention schedule and deletion workflow, any cookies/analytics added outside this app, and lawyer review. Contact currently configured: {{contactEmail}} / {{contactPhone}}. Do not treat this copy as a guarantee of legal compliance.",
   },
   terms: {
     title: "Terms and Conditions",
@@ -86,7 +86,7 @@ export const DEFAULT_POLICIES: Record<PolicyKind, WebsitePolicy> = {
     sections: [
       {
         heading: "About these terms",
-        body: "These terms apply to your use of the Material Square website, catalogue, account and enquiry tools. Material Square is the public-facing brand used on this site. The website currently lists {{contactEmail}} and +91 77355 27252 for contact. The legal name and principal address of the business operating the site must be confirmed and displayed on the production website. These website terms do not replace a written quotation, tax invoice, purchase order or other terms agreed for a particular sale.",
+        body: "These terms apply to your use of the Material Square website, catalogue, account and enquiry tools. Material Square is the public-facing brand used on this site. The website currently lists {{contactEmail}} and {{contactPhone}} for contact. The legal name and principal address of the business operating the site must be confirmed and displayed on the production website. These website terms do not replace a written quotation, tax invoice, purchase order or other terms agreed for a particular sale.",
       },
       {
         heading: "Catalogue and product information",
@@ -130,7 +130,7 @@ export const DEFAULT_POLICIES: Record<PolicyKind, WebsitePolicy> = {
       },
       {
         heading: "Complaints, liability and applicable law",
-        body: "For an enquiry or complaint, contact {{contactEmail}} or +91 77355 27252 and include your quotation or order reference if available. We will review the matter under applicable law. Nothing in these terms removes consumer rights, remedies, guarantees or liability that cannot lawfully be excluded or limited. These terms are governed by the laws applicable in India, and disputes may be brought before a forum with jurisdiction under applicable law. Contact details and the appointed grievance officer should be confirmed on the production site.",
+        body: "For an enquiry or complaint, contact {{contactEmail}} or {{contactPhone}} and include your quotation or order reference if available. We will review the matter under applicable law. Nothing in these terms removes consumer rights, remedies, guarantees or liability that cannot lawfully be excluded or limited. These terms are governed by the laws applicable in India, and disputes may be brought before a forum with jurisdiction under applicable law. Contact details and the appointed grievance officer should be confirmed on the production site.",
       },
     ],
     reviewNote:

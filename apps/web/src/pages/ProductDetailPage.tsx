@@ -5,14 +5,14 @@ import { materialId } from "../ids";
 import { useCustomer } from "../customer";
 import { trackWebsiteEvent } from "../analytics";
 import type { CatalogueProduct, MaterialItem } from "../types";
-import { parsePolicy, publicFaqEntries } from "@material-square/types";
+import { catalogueCategoryLabel, normalizeCatalogueCategory, parsePolicy, publicFaqEntries } from "@material-square/types";
 import ProductDetailSurface, { type ProductDetailChoiceGroup } from "../../../../packages/storefront-ui/ProductDetailSurface";
 import { getBrandMeta } from "../components/icons/BrandBadges";
 import PartnerBrandLogo from "../components/PartnerBrandLogo";
 import ProductRecommendationCarousel from "../components/ProductRecommendationCarousel";
 import { bestMatchingVariant } from "../search/variant-match";
 import { partnerBrandMatchesProduct, usePartnerBrands } from "../partner-brands";
-import { customerPriceNote, customerProductDescription, customerSpecifications } from "../catalogue/customer-display";
+import { customerCardFeatures, customerPriceNote, customerProductDescription, customerSpecifications } from "../catalogue/customer-display";
 import { useSiteContent } from "../site-content";
 
 export default function ProductDetailPage({ products, loading = false, catalogueUnavailable = false, onRetryCatalogue }: { products: CatalogueProduct[]; loading?: boolean; catalogueUnavailable?: boolean; onRetryCatalogue?: () => void }) {
@@ -118,11 +118,13 @@ export default function ProductDetailPage({ products, loading = false, catalogue
   const returnPolicy = parsePolicy(siteContent["policy.returns"], "returns");
   const availability = selectedVariant?.availabilityStatus || product.availabilityStatus || ((selectedVariant?.inStock ?? product.inStock) ? "IN_STOCK" : "CHECK_AVAILABILITY");
   const minimumOrder = Number(selectedVariant?.minOrderQuantity || product.minOrderQty?.match(/[\d.]+/)?.[0] || 0) || 0;
+  const productCategoryId = normalizeCatalogueCategory(product.categoryLabel || product.category);
+  const productCategoryLabel = catalogueCategoryLabel(product.categoryLabel || product.category);
   const relatedVariants = variants
     .filter((variant) => variant.id !== selectedVariant?.id)
     .slice()
     .sort((a, b) => a.sortOrder - b.sortOrder);
-  const relatedProducts = products.filter((item) => item.id !== product.id && item.category === product.category).slice(0, 10);
+  const relatedProducts = products.filter((item) => item.id !== product.id && normalizeCatalogueCategory(item.categoryLabel || item.category) === productCategoryId).slice(0, 10);
   const complementaryCategories: Record<string, string[]> = {
     cement: ["paints", "pipes", "adhesives", "steel"],
     pipes: ["sanitary", "paints", "adhesives", "cement"],
@@ -132,17 +134,19 @@ export default function ProductDetailPage({ products, loading = false, catalogue
     steel: ["cement", "pipes", "paints", "adhesives"],
     adhesives: ["paints", "pipes", "cement", "sanitary"],
   };
-  const availableCategories = Array.from(new Set(products.map((item) => item.category).filter((category) => category !== product.category)));
-  const complementaryCategoryOrder = Array.from(new Set([...(complementaryCategories[product.category] || []), ...availableCategories]));
+  // Keep recommendations within the curated catalogue taxonomy. Raw product
+  // category slugs (for example "paints-wall-prep") are internal and should
+  // not create customer-facing sections on the product page.
+  const complementaryCategoryOrder = complementaryCategories[productCategoryId] || [];
   const complementaryByCategory = complementaryCategoryOrder.map((category) => products
-    .filter((item) => item.category === category && item.id !== product.id && !relatedProducts.some((related) => related.id === item.id)));
+    .filter((item) => normalizeCatalogueCategory(item.categoryLabel || item.category) === category && item.id !== product.id && !relatedProducts.some((related) => related.id === item.id)));
   const complementaryProducts = Array.from({ length: 10 }, (_, round) => complementaryByCategory.flatMap((categoryProducts) => categoryProducts[round] ? [categoryProducts[round]] : []))
     .flat()
     .slice(0, 10);
   const additionalCategorySections = complementaryCategoryOrder
     .map((category) => ({
       category,
-      products: products.filter((item) => item.category === category && item.id !== product.id).slice(0, 10),
+      products: products.filter((item) => normalizeCatalogueCategory(item.categoryLabel || item.category) === category && item.id !== product.id).slice(0, 10),
     }))
     .filter((section) => section.products.length > 0)
     .slice(0, 3);
@@ -194,12 +198,13 @@ export default function ProductDetailPage({ products, loading = false, catalogue
   function addSelection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const value = Number(quantity);
-    if (availability === "OUT_OF_STOCK" || !ready || !Number.isFinite(value) || value <= 0 || value > 1_000_000) return;
+    const requiredMinimum = minimumOrder > 0 ? minimumOrder : 1;
+    if (availability === "OUT_OF_STOCK" || !ready || !Number.isFinite(value) || value < requiredMinimum || value > 1_000_000) return;
     const accepted = updateItems((old) => {
       const existing = old.find((item) => (item.catalogueId || item.id) === currentProduct.id && (item.variantId || "") === (selectedVariant?.id || "") && (item.specification || "") === selectedLabel);
       const item: MaterialItem = {
         ...currentProduct,
-        ...(selectedVariant ? { code: selectedVariant.code || currentProduct.code, price, compareAtPrice: selectedVariant.compareAtPrice, priceNote: selectedVariant.priceNote, unit, inStock: selectedVariant.inStock, variantId: selectedVariant.id, minOrderQuantity: selectedVariant.minOrderQuantity, image: selectedVariant.image || currentProduct.image, galleryImages: selectedVariant.galleryImages || currentProduct.galleryImages } : {}),
+        ...(selectedVariant ? { code: selectedVariant.code || currentProduct.code, price, compareAtPrice: selectedVariant.compareAtPrice, priceNote: selectedVariant.priceNote, unit, inStock: selectedVariant.inStock, variantId: selectedVariant.id, minOrderQuantity: selectedVariant.minOrderQuantity ?? (minimumOrder > 0 ? minimumOrder : undefined), image: selectedVariant.image || currentProduct.image, galleryImages: selectedVariant.galleryImages || currentProduct.galleryImages } : minimumOrder > 0 ? { minOrderQuantity: minimumOrder } : {}),
         catalogueId: currentProduct.id,
         id: existing?.id || `${currentProduct.id}-${materialId()}`,
         specification: selectedLabel,
@@ -251,7 +256,7 @@ export default function ProductDetailPage({ products, loading = false, catalogue
         title={product.name}
         brand={displayBrand.name}
         brandTagline={partnerBrand?.tagline || product.brandTagline}
-        category={product.categoryLabel}
+        category={productCategoryLabel}
         code={selectedVariant?.code || product.code}
         grade={product.grade}
         brandMark={<PartnerBrandLogo brand={displayBrand} className="mini shared-product-brand-logo" />}
@@ -277,7 +282,7 @@ export default function ProductDetailPage({ products, loading = false, catalogue
         faqEntries={faqEntries}
         returnPolicy={returnPolicy.published ? returnPolicy : null}
         highlights={technicalSpecs.map(([key, value]) => [key, String(value)])}
-        features={product.features}
+        features={customerCardFeatures(product.features)}
         applications={product.applications}
         quantityBreaks={quantityBreaks}
         actionLabel={availability === "OUT_OF_STOCK" ? "Out of stock" : inList ? "Update cart" : "Add to cart"}
@@ -296,8 +301,8 @@ export default function ProductDetailPage({ products, loading = false, catalogue
       {(relatedProducts.length > 0 || relatedVariants.length > 0) && <section className="product-page-related" aria-label="Similar products">
         <ProductRecommendationCarousel
           eyebrow="Continue browsing"
-          title={`Similar ${product.categoryLabel.toLowerCase()} products`}
-          browseHref={`/marketplace?category=${encodeURIComponent(product.category)}`}
+          title={`Similar ${productCategoryLabel.toLowerCase()} products`}
+          browseHref={`/marketplace?category=${encodeURIComponent(productCategoryId)}`}
           browseLabel="View all"
           products={relatedProducts}
           variantProduct={relatedVariants.length ? product : undefined}
@@ -320,7 +325,7 @@ export default function ProductDetailPage({ products, loading = false, catalogue
         />
       </section>}
       {additionalCategorySections.map(({ category, products: categoryProducts }) => {
-        const categoryLabel = categoryProducts[0].categoryLabel;
+        const categoryLabel = catalogueCategoryLabel(categoryProducts[0].categoryLabel || categoryProducts[0].category);
         return <section className="product-page-related" aria-label={`${categoryLabel} products`} key={category}>
           <ProductRecommendationCarousel
             eyebrow="Explore more materials"

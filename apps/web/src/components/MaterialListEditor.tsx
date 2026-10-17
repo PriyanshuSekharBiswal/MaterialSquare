@@ -4,10 +4,15 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useCustomer } from "../customer";
 import ProductImage from "./ProductImage";
-import { customerPriceNote } from "../catalogue/customer-display";
 import { BookmarkPlus, Check, ChevronDown, RotateCcw, Trash2 } from "lucide-react";
 
 const savedItemsStorageKey = "material-square-bom-saved";
+
+function parseMinimumOrder(value: number | string | null | undefined): number {
+  if (value == null) return Number.NaN;
+  const match = String(value).replace(/,/g, "").match(/^\s*(\d+(?:\.\d+)?)/);
+  return match ? Number(match[1]) : Number.NaN;
+}
 
 function readSavedItems(): MaterialItem[] {
   try {
@@ -26,6 +31,7 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
   const [savedItems, setSavedItems] = useState<MaterialItem[]>(readSavedItems);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(() => new Set());
   const [focusedItemId, setFocusedItemId] = useState("");
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({});
   const focusItemAvailable = items.some((item) => item.id === focusItemId);
   const uniqueProductCount = new Set(items.map((item) => item.catalogueId || item.id)).size;
   const selectedQuoteCount = items.filter((item) => item.includeInQuote !== false).length;
@@ -37,6 +43,29 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
       // Saved-for-later is a convenience; the active quote list remains available.
     }
   }, [savedItems]);
+
+  useEffect(() => {
+    updateItems((old) => {
+      let changed = false;
+      const normalized = old.map((item) => {
+        const product = products.find((candidate) => candidate.id === (item.catalogueId || item.id));
+        const variant = product?.variants?.find((candidate) => candidate.id === item.variantId);
+        const productMinimumOrder = product?.minOrderQty?.match(/[\d.]+/)?.[0];
+        const minimumOrderRaw = variant?.minOrderQuantity ?? item.minOrderQuantity ?? productMinimumOrder;
+        const minimumOrder = parseMinimumOrder(minimumOrderRaw);
+        const requiredMinimum = Number.isFinite(minimumOrder) && minimumOrder > 0 ? minimumOrder : 1;
+        const currentQuantity = Number(item.quantity ?? 1);
+        const quantity = Number.isFinite(currentQuantity) && currentQuantity >= requiredMinimum
+          ? currentQuantity
+          : requiredMinimum;
+        const storedMinimum = Number.isFinite(minimumOrder) && minimumOrder > 0 ? minimumOrder : undefined;
+        if (quantity === currentQuantity && String(item.minOrderQuantity ?? "") === String(storedMinimum ?? "")) return item;
+        changed = true;
+        return { ...item, quantity, minOrderQuantity: storedMinimum };
+      });
+      return changed ? normalized : old;
+    });
+  }, [items, products, updateItems]);
 
   useEffect(() => {
     if (!focusItemId || !focusItemAvailable) return;
@@ -107,6 +136,18 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
         const selectedVariant = product?.variants?.find((variant) => variant.id === item.variantId);
         const productHref = product ? `/product/${encodeURIComponent(product.id)}` : undefined;
         const optionsExpanded = expandedItems.has(item.id);
+        const itemPrice = item.price == null ? null : Number(item.price);
+        const lineEstimate = itemPrice != null && Number.isFinite(itemPrice)
+          ? itemPrice * Number(item.quantity || 1)
+          : null;
+        const productMinimumOrder = product?.minOrderQty?.match(/[\d.]+/)?.[0];
+        const minimumOrderRaw = selectedVariant?.minOrderQuantity ?? item.minOrderQuantity ?? productMinimumOrder;
+        const minimumOrderNumber = parseMinimumOrder(minimumOrderRaw);
+        const hasMinimumOrder = Number.isFinite(minimumOrderNumber) && minimumOrderNumber > 0;
+        const requiredMinimum = hasMinimumOrder ? minimumOrderNumber : 1;
+        const minimumOrderLabel = hasMinimumOrder
+          ? minimumOrderNumber.toLocaleString("en-IN", { maximumFractionDigits: 3 })
+          : "Confirm";
         const optionLabel = (variant: CatalogueVariant) => [
           variant.label,
           ...Object.entries(variant.attributes || {}).map(([key, value]) => `${key}: ${value}`),
@@ -132,11 +173,10 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
         const productDescription = <div className="material-item-description">
             <h3>{item.name}</h3>
             <span className="material-item-brand">{item.brand}{product?.code ? ` · ${product.code}` : !item.variantId && item.code ? ` · ${item.code}` : ""}</span>
-            {selectedVariant && <span className="material-selected-option"><Check size={14} aria-hidden="true" /> Selected option: {optionLabel(selectedVariant)}</span>}
+            {selectedVariant && <span className="material-selected-option"><Check size={14} aria-hidden="true" /> Selected option: {selectedVariant.label}</span>}
             {!selectedVariant && item.specification && <span className="material-selected-option">Specification: {item.specification}</span>}
             {item.price != null && <p className="catalogue-price-caveat">
-              Indicative estimate: ₹{Number(item.price).toLocaleString("en-IN")} / {item.unit}
-              {customerPriceNote(item.priceNote) ? ` · ${customerPriceNote(item.priceNote)}` : " · Confirm current price with staff"}
+              Indicative estimate: ₹{Number(item.price).toLocaleString("en-IN")}
             </p>}
           </div>;
         return (
@@ -161,27 +201,42 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
             </div>
           </div>
           <div className="material-fields">
+            {lineEstimate != null && <div className="material-line-estimate">
+              <span>Estimated line total</span>
+              <strong>₹{lineEstimate.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</strong>
+            </div>}
             <label className="material-quantity-field">
               <span className="material-quantity-label">
                 <span>Quantity</span>
-                <small>{formatQuantityUnit(item.quantity ?? 1, selectedVariant?.unit || item.unit)}</small>
+                <small className="material-min-order-pill">MOQ: {minimumOrderLabel}</small>
               </span>
               <input
                 aria-label={`Quantity for ${item.name}`}
                 type="number"
-                min={item.minOrderQuantity || 0.001}
+                min={requiredMinimum}
                 max="1000000"
                 step="any"
                 required
-                value={item.quantity ?? 1}
+                value={quantityDrafts[item.id] ?? String(Math.max(Number(item.quantity) || 1, requiredMinimum))}
                 onChange={(e) => {
-                  const n = Number(e.target.value);
-                  if (n > 0 && n <= 1000000)
+                  const value = e.target.value;
+                  setQuantityDrafts((old) => ({ ...old, [item.id]: value }));
+                  const n = Number(value);
+                  if (value !== "" && Number.isFinite(n) && n >= requiredMinimum && n <= 1000000)
                     updateItems((old) =>
                       old.map((i) =>
                         i.id === item.id ? { ...i, quantity: n } : i,
                       ),
                     );
+                }}
+                onBlur={() => {
+                  if (quantityDrafts[item.id] != null) {
+                    setQuantityDrafts((old) => {
+                      const next = { ...old };
+                      delete next[item.id];
+                      return next;
+                    });
+                  }
                 }}
               />
             </label>

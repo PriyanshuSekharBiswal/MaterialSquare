@@ -40,6 +40,16 @@ export default function ProductRecommendationCard({ product, variant, showCatego
     : product.price != null ? formatPrice(product.price)
     : lowestVariantPrice != null ? `From ${formatPrice(lowestVariantPrice)}`
     : "Request a quote";
+  const compareAtPrice = variant?.compareAtPrice ?? product.compareAtPrice;
+  const numericPrice = variant?.price ?? product.price;
+  const discountPercent = numericPrice != null && compareAtPrice != null && Number(compareAtPrice) > Number(numericPrice)
+    ? Math.round(((Number(compareAtPrice) - Number(numericPrice)) / Number(compareAtPrice)) * 100)
+    : 0;
+  const offerLabel = variant?.offerLabel || product.offerLabel || (discountPercent > 0 ? `${discountPercent}% OFF` : "");
+  const availabilityStatus = variant?.availabilityStatus || product.availabilityStatus || (addableVariant?.inStock ?? product.inStock ? "IN_STOCK" : "CHECK_AVAILABILITY");
+  const availabilityLabel = availabilityStatus === "IN_STOCK" ? "In stock"
+    : availabilityStatus === "OUT_OF_STOCK" ? "Out of stock"
+    : "Check availability";
   const unit = addableVariant?.unit || product.unit;
   const partnerBrand = partnerBrands.find((brand) => partnerBrandMatchesProduct(brand.name, product.brand, `${product.category} ${product.categoryLabel}`));
   const displayBrandName = partnerBrand?.name || product.brand;
@@ -84,10 +94,15 @@ export default function ProductRecommendationCard({ product, variant, showCatego
           <span className="product-related-brand-name">{displayBrandName}</span>
         </Link>
         <Link className="product-related-name" to={destination}>{variant ? variant.label : product.name}</Link>
+        {(offerLabel || availabilityLabel) && <div className="product-related-meta">
+          {offerLabel && <span className={`product-related-offer${variant?.offerLabel || product.offerLabel ? " is-explicit-offer" : ""}`}>{offerLabel}</span>}
+          <span className={`product-related-stock status-${availabilityStatus.toLocaleLowerCase().replaceAll("_", "-")}`}>{availabilityLabel}</span>
+        </div>}
         <div className="product-related-footer">
           <div className="product-related-price" aria-label={product.price != null || lowestVariantPrice != null ? `${price} per ${unit}` : price}>
             <strong>{price}</strong>
             {(product.price != null || lowestVariantPrice != null) && <small>/{unit}</small>}
+            {numericPrice != null && compareAtPrice != null && Number(compareAtPrice) > Number(numericPrice) && <del>₹{Number(compareAtPrice).toLocaleString("en-IN")}</del>}
           </div>
           {existingItem ? (
             <Link className="product-related-action is-added" to={destination} aria-label={`${product.name} is in your cart. Go to this item`}><Check size={14} /><span>Added</span></Link>

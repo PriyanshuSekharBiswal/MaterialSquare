@@ -1,4 +1,4 @@
-import { publicNavigation } from "@material-square/types";
+import { formatContactPhone, publicNavigation } from "@material-square/types";
 import type { MaterialItem, CatalogueProduct } from "../types";
 import React, { useState } from "react";
 import { NavLink, Link } from "react-router-dom";
@@ -23,7 +23,6 @@ export default function Header({
   const siteContent = useSiteContent();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const serviceArea = siteContent["contact.location"].trim();
-  const isDelhiNcr = /^(?:serving\s+)?delhi\s+ncr$/i.test(serviceArea);
 
   const navigation = publicNavigation(siteContent);
   const closeMenu = () => setMobileMenuOpen(false);
@@ -37,14 +36,7 @@ export default function Header({
             {serviceArea && (
               <span className="location-tag">
                 <MapPin size={12} className="loc-icon" />
-                {isDelhiNcr ? (
-                  <span>
-                    <strong className="top-bar-serving">Serving Delhi NCR</strong>
-                    <span className="top-bar-cities">: Noida, Greater Noida, Delhi, Gurugram, Ghaziabad &amp; Faridabad</span>
-                  </span>
-                ) : (
-                  <strong className="top-bar-serving">{serviceArea}</strong>
-                )}
+                <strong className="top-bar-serving">{serviceArea}</strong>
               </span>
             )}
           </div>
@@ -57,7 +49,7 @@ export default function Header({
             >
               <Phone size={12} />
               <span className="hotline-text">
-                {siteContent["contact.phoneDisplay"] || siteContent["contact.phone"]}
+                {formatContactPhone(siteContent["contact.phone"])}
               </span>
             </a>}
           </div>
