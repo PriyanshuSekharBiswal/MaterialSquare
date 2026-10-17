@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { formatEnumLabel } from "../../utils/formatEnumLabel";
 
 type Followup = {
   id: string;
@@ -49,7 +50,7 @@ export default function QuoteFollowups({
               {quote.quoteNumber} · {quote.customerName}
             </strong>
             <p>
-              {quote.status} · ₹
+              {formatEnumLabel(quote.status)} · ₹
               {Number(quote.totalAmount).toLocaleString("en-IN")}
             </p>
           </div>
@@ -147,7 +148,7 @@ function FollowupRow({
       <span>
         {followup.channel} ·{" "}
         {new Date(followup.scheduledAt).toLocaleString("en-IN")} ·{" "}
-        {followup.status}
+        {formatEnumLabel(followup.status)}
       </span>
       {followup.status === "SCHEDULED" && !rescheduling && (
         <>

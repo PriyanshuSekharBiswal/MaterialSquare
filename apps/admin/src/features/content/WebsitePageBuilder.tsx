@@ -4,15 +4,24 @@ import {
   type PageSection,
   type SiteContent,
 } from "@material-square/types";
+import ContentImageField from "../../components/ContentImageField";
 
 export default function WebsitePageBuilder({
   content,
   disabled,
   onChange,
+  token,
+  customerUrl,
+  onSignOut,
+  onBusyChange,
 }: {
   content: SiteContent;
   disabled: boolean;
   onChange: (content: SiteContent) => void;
+  token: string;
+  customerUrl: string;
+  onSignOut: () => void;
+  onBusyChange: (busy: boolean) => void;
 }) {
   // Parse permissively while editing so an incomplete field never discards a draft.
   let pages: WebsitePage[];
@@ -52,31 +61,34 @@ export default function WebsitePageBuilder({
         Create pages and arrange their sections. Save a draft and preview before
         publishing website content.
       </p>
-      <button
-        type="button"
-        disabled={disabled || pages.length >= 50}
-        onClick={() => {
-          const id = crypto.randomUUID();
-          save([
-            ...pages,
-            {
-              id,
-              path: `/page-${id.slice(0, 8)}`,
-              title: "New page",
-              description: "",
-              published: false,
-              sections: [],
-            },
-          ]);
-        }}
-      >
-        Add page
-      </button>
+      <div className="website-editor-actions-row">
+        <button
+          type="button"
+          className="btn-sm btn-secondary"
+          disabled={disabled || pages.length >= 50}
+          onClick={() => {
+            const id = crypto.randomUUID();
+            save([
+              ...pages,
+              {
+                id,
+                path: `/page-${id.slice(0, 8)}`,
+                title: "New page",
+                description: "",
+                published: false,
+                sections: [],
+              },
+            ]);
+          }}
+        >
+          Add page
+        </button>
+      </div>
       {pages.map((page) => (
         <fieldset
           key={page.id}
           disabled={disabled}
-          className="panel-card panel-body"
+          className="panel-card panel-body website-page-entry"
         >
           <legend>{page.title || "Untitled page"}</legend>
           <label>
@@ -103,7 +115,7 @@ export default function WebsitePageBuilder({
               onChange={(e) => update(page.id, { description: e.target.value })}
             />
           </label>
-          <label>
+          <label className="website-editor-check-row">
             <input
               type="checkbox"
               checked={page.published}
@@ -112,11 +124,12 @@ export default function WebsitePageBuilder({
             Include when website content is published
           </label>
           <p>Use Preview above and select this page to review its draft.</p>
-          <button
-            type="button"
-            disabled={pages.length >= 50}
-            onClick={() =>
-              save([
+          <div className="website-editor-actions-row">
+            <button
+              type="button"
+              className="btn-sm btn-secondary"
+              disabled={pages.length >= 50}
+              onClick={() => save([
                 ...pages,
                 {
                   ...page,
@@ -125,19 +138,12 @@ export default function WebsitePageBuilder({
                   title: `${page.title.slice(0, 90)} (copy)`,
                   published: false,
                 },
-              ])
-            }
-          >
-            Duplicate page
-          </button>
-          <button
-            type="button"
-            onClick={() => save(pages.filter((p) => p.id !== page.id))}
-          >
-            Delete page from draft
-          </button>
+              ])}
+            >Duplicate page</button>
+            <button type="button" className="btn-sm btn-secondary" onClick={() => save(pages.filter((p) => p.id !== page.id))}>Delete page from draft</button>
+          </div>
           {page.sections.map((section, index) => (
-            <fieldset key={section.id} className="panel-card panel-body">
+            <fieldset key={section.id} className="panel-card panel-body website-page-section">
               <legend>Section {index + 1}</legend>
               <label>
                 Section type
@@ -176,19 +182,16 @@ export default function WebsitePageBuilder({
                   }
                 />
               </label>
-              <label>
-                Image URL
-                <input
-                  maxLength={2000}
-                  type="url"
-                  value={section.imageUrl}
-                  onChange={(e) =>
-                    changeSection(page, section.id, {
-                      imageUrl: e.target.value,
-                    })
-                  }
-                />
-              </label>
+              <ContentImageField
+                token={token}
+                customerUrl={customerUrl}
+                value={section.imageUrl}
+                label="Section image"
+                recommendedSize="1200 × 800 px (3:2)"
+                onChange={(url) => changeSection(page, section.id, { imageUrl: url })}
+                onBusyChange={onBusyChange}
+                onSignOut={onSignOut}
+              />
               <label>
                 Image description
                 <input
@@ -225,7 +228,7 @@ export default function WebsitePageBuilder({
                   }
                 />
               </label>
-              <label>
+              <label className="website-editor-check-row">
                 <input
                   type="checkbox"
                   checked={section.visible}
@@ -237,68 +240,29 @@ export default function WebsitePageBuilder({
                 />{" "}
                 Show section
               </label>
-              <button
-                type="button"
-                disabled={!index}
-                onClick={() => move(page, index, -1)}
-              >
-                Move section up
-              </button>
-              <button
-                type="button"
-                disabled={index === page.sections.length - 1}
-                onClick={() => move(page, index, 1)}
-              >
-                Move section down
-              </button>
-              <button
-                type="button"
-                disabled={page.sections.length >= 30}
-                onClick={() =>
-                  sections(page, [
-                    ...page.sections.slice(0, index + 1),
-                    { ...section, id: crypto.randomUUID() },
-                    ...page.sections.slice(index + 1),
-                  ])
-                }
-              >
-                Duplicate section
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  sections(
-                    page,
-                    page.sections.filter((s) => s.id !== section.id),
-                  )
-                }
-              >
-                Delete section from draft
-              </button>
+              <div className="website-editor-actions-row">
+                <button type="button" className="btn-sm btn-secondary" disabled={!index} onClick={() => move(page, index, -1)}>Move section up</button>
+                <button type="button" className="btn-sm btn-secondary" disabled={index === page.sections.length - 1} onClick={() => move(page, index, 1)}>Move section down</button>
+                <button type="button" className="btn-sm btn-secondary" disabled={page.sections.length >= 30} onClick={() => sections(page, [
+                  ...page.sections.slice(0, index + 1),
+                  { ...section, id: crypto.randomUUID() },
+                  ...page.sections.slice(index + 1),
+                ])}>Duplicate section</button>
+                <button type="button" className="btn-sm btn-secondary" onClick={() => sections(page, page.sections.filter((s) => s.id !== section.id))}>Delete section from draft</button>
+              </div>
             </fieldset>
           ))}
-          <button
-            type="button"
-            disabled={page.sections.length >= 30}
-            onClick={() =>
-              sections(page, [
+          <div className="website-editor-actions-row">
+            <button
+              type="button"
+              className="btn-sm btn-secondary"
+              disabled={page.sections.length >= 30}
+              onClick={() => sections(page, [
                 ...page.sections,
-                {
-                  id: crypto.randomUUID(),
-                  kind: "text",
-                  title: "New section",
-                  body: "",
-                  imageUrl: "",
-                  imageAlt: "",
-                  buttonLabel: "",
-                  buttonPath: "",
-                  visible: true,
-                },
-              ])
-            }
-          >
-            Add section
-          </button>
+                { id: crypto.randomUUID(), kind: "text", title: "New section", body: "", imageUrl: "", imageAlt: "", buttonLabel: "", buttonPath: "", visible: true },
+              ])}
+            >Add section</button>
+          </div>
         </fieldset>
       ))}
     </section>

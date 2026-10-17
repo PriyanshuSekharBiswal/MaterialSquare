@@ -1,4 +1,10 @@
 import { publicRateLimit } from "./common/rate-limit";
+import {
+  securityHeadersMiddleware,
+  trustedOriginMiddleware,
+} from "./common/security.middleware";
+import { SecurityExceptionFilter } from "./common/http-exception.filter";
+import helmet from "helmet";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
@@ -12,6 +18,25 @@ async function bootstrap() {
   app.use(json({ limit: "5mb" }));
   app.use(urlencoded({ extended: true, limit: "5mb" }));
 
+  // HTTP Security headers via Helmet
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+      noSniff: true,
+      xssFilter: true,
+      hidePoweredBy: true,
+      hsts:
+        process.env.NODE_ENV === "production"
+          ? { maxAge: 31536000, includeSubDomains: true }
+          : false,
+    }),
+  );
+
+  // Custom defensive security headers
+  app.use(securityHeadersMiddleware());
+
   // Only enable proxy trust for an explicitly configured, private reverse-proxy hop count.
   const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0);
   if (!Number.isInteger(proxyHops) || proxyHops < 0 || proxyHops > 5)
@@ -23,13 +48,48 @@ async function bootstrap() {
   // Set global API prefix
   app.setGlobalPrefix("api");
 
-  // Allow the public customer website to call the API.
+  // Secure CORS origin resolution
+  const defaultDevOrigins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://127.0.0.1:5175",
+    "https://material-square.localtest.me:5173",
+    "https://material-square.localtest.me:5175",
+  ];
+  const defaultOrigins =
+    process.env.NODE_ENV === "production" ? "" : defaultDevOrigins.join(",");
+  const configuredOrigins = (process.env.CORS_ORIGINS || defaultOrigins)
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
   app.enableCors({
     origin: (
-      process.env.CORS_ORIGINS || "http://localhost:5173"
-    ).split(",").map((origin) => origin.trim()).filter(Boolean),
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      // Allow requests with no origin (e.g. mobile apps, curl, same-origin, supertest)
+      callback(null, !origin || configuredOrigins.includes(origin));
+    },
     credentials: true,
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Material-Square",
+      "X-Material-Account",
+      "Accept",
+      "Origin",
+    ],
   });
+
+  app.use(trustedOriginMiddleware(configuredOrigins));
+
+  // Global exception filter for leak prevention and consistent error contracts
+  app.useGlobalFilters(new SecurityExceptionFilter());
 
   // Global validation pipe
   app.useGlobalPipes(

@@ -53,46 +53,43 @@ export default function GuideControls({
           value: string,
         ) => onChange({ ...content, [key]: value });
         return (
-          <div className="website-content-fields" key={id}>
+          <article className="website-guide-item" key={id}>
             <h3>{tab.label}</h3>
-            <label>
-              Label for {id} guide
-              <input
-                maxLength={80}
-                required
-                disabled={disabled}
-                value={content[fields.label]}
-                onChange={(event) =>
-                  changeField(fields.label, event.target.value)
-                }
-              />
-            </label>
-            <label>
-              Heading for {id} guide
-              <input
-                maxLength={160}
-                required
-                disabled={disabled}
-                value={content[fields.title]}
-                onChange={(event) =>
-                  changeField(fields.title, event.target.value)
-                }
-              />
-            </label>
-            <label>
-              Introduction for {id} guide
-              <textarea
-                rows={3}
-                maxLength={800}
-                required
-                disabled={disabled}
-                value={content[fields.description]}
-                onChange={(event) =>
-                  changeField(fields.description, event.target.value)
-                }
-              />
-            </label>
-            <label>
+            <div className="website-content-fields website-guide-fields">
+              <label>
+                Label for {id} guide
+                <input
+                  maxLength={80}
+                  required
+                  disabled={disabled}
+                  value={content[fields.label]}
+                  onChange={(event) => changeField(fields.label, event.target.value)}
+                />
+              </label>
+              <label>
+                Heading for {id} guide
+                <input
+                  maxLength={160}
+                  required
+                  disabled={disabled}
+                  value={content[fields.title]}
+                  onChange={(event) => changeField(fields.title, event.target.value)}
+                />
+              </label>
+              <label className="website-guide-description">
+                Introduction for {id} guide
+                <textarea
+                  rows={3}
+                  maxLength={800}
+                  required
+                  disabled={disabled}
+                  value={content[fields.description]}
+                  onChange={(event) => changeField(fields.description, event.target.value)}
+                />
+              </label>
+            </div>
+            <div className="website-guide-item-actions">
+              <label className="website-editor-check-row">
               <input
                 type="checkbox"
                 aria-label={`Show ${id} guide in Tools`}
@@ -112,62 +109,60 @@ export default function GuideControls({
                 }
               />{" "}
               Show this guide
-            </label>
-            <button
-              type="button"
-              className="btn-sm btn-secondary"
-              disabled={disabled || index === 0}
-              onClick={() => {
-                const next = [...order];
-                [next[index - 1], next[index]] = [next[index], next[index - 1]];
-                onChange({ ...content, "guides.tabOrder": next.join(",") });
-              }}
-            >
-              Move {id} guide up
-            </button>
-            <button
-              type="button"
-              className="btn-sm btn-secondary"
-              disabled={disabled || index === order.length - 1}
-              onClick={() => {
-                const next = [...order];
-                [next[index + 1], next[index]] = [next[index], next[index + 1]];
-                onChange({ ...content, "guides.tabOrder": next.join(",") });
-              }}
-            >
-              Move {id} guide down
-            </button>
-          </div>
+              </label>
+              <div className="website-editor-actions-row">
+                <button
+                  type="button"
+                  className="btn-sm btn-secondary"
+                  disabled={disabled || index === 0}
+                  onClick={() => {
+                    const next = [...order];
+                    [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                    onChange({ ...content, "guides.tabOrder": next.join(",") });
+                  }}
+                >
+                  Move {id} guide up
+                </button>
+                <button
+                  type="button"
+                  className="btn-sm btn-secondary"
+                  disabled={disabled || index === order.length - 1}
+                  onClick={() => {
+                    const next = [...order];
+                    [next[index + 1], next[index]] = [next[index], next[index + 1]];
+                    onChange({ ...content, "guides.tabOrder": next.join(",") });
+                  }}
+                >
+                  Move {id} guide down
+                </button>
+              </div>
+            </div>
+          </article>
         );
       })}
-      <label>
-        Tools closing heading
-        <input
-          maxLength={160}
-          required
-          disabled={disabled}
-          value={content["guides.callout.title"]}
-          onChange={(event) =>
-            onChange({ ...content, "guides.callout.title": event.target.value })
-          }
-        />
-      </label>
-      <label>
-        Tools closing text
-        <textarea
-          rows={3}
-          maxLength={800}
-          required
-          disabled={disabled}
-          value={content["guides.callout.description"]}
-          onChange={(event) =>
-            onChange({
-              ...content,
-              "guides.callout.description": event.target.value,
-            })
-          }
-        />
-      </label>
+      <div className="website-content-fields website-guide-closing-fields">
+        <label>
+          Tools closing heading
+          <input
+            maxLength={160}
+            required
+            disabled={disabled}
+            value={content["guides.callout.title"]}
+            onChange={(event) => onChange({ ...content, "guides.callout.title": event.target.value })}
+          />
+        </label>
+        <label>
+          Tools closing text
+          <textarea
+            rows={3}
+            maxLength={800}
+            required
+            disabled={disabled}
+            value={content["guides.callout.description"]}
+            onChange={(event) => onChange({ ...content, "guides.callout.description": event.target.value })}
+          />
+        </label>
+      </div>
     </section>
   );
 }

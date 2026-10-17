@@ -250,11 +250,6 @@ export const SITE_CONTENT_GROUPS: {
   {
     label: "Homepage",
     fields: [
-      {
-        key: "home.heroImage",
-        label: "Homepage hero banner image",
-        image: true,
-      },
       { key: "home.eyebrow", label: "Hero badge" },
       { key: "home.title", label: "Main heading", multiline: true },
       { key: "home.description", label: "Introduction", multiline: true },

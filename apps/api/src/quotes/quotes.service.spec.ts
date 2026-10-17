@@ -42,7 +42,12 @@ describe("quotation business rules", () => {
     expect(notifications.create).toHaveBeenCalledWith({
       data: {
         type: "quote-expiry-reminder",
-        payload: { quoteId: "quote-1", phone: "9876543210" },
+        payload: {
+          quoteId: "quote-1",
+          phone: "9876543210",
+          quoteNumber: "MS-QT-2026-0001",
+          validUntil: validUntil.toISOString(),
+        },
         runAt: new Date(validUntil.getTime() - 6 * 60 * 60 * 1000),
       },
     });

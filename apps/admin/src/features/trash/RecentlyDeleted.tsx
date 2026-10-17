@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import { confirmAdminAction } from "../../components/confirmAdminAction";
 
+const PAGE_SIZE = 10;
+
 type DeletedRecord = {
   id: string;
   entityType: "CATALOG_PRODUCT" | "SUPPLIER" | "SUPPLIER_PRODUCT" | "STAFF_USER";
@@ -28,9 +30,16 @@ export default function RecentlyDeleted({
   onSignOut: () => void;
 }) {
   const [records, setRecords] = useState<DeletedRecord[]>([]);
+  const [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const pageCount = Math.max(1, Math.ceil(records.length / PAGE_SIZE));
+  const visibleRecords = records.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, pageCount));
+  }, [pageCount]);
 
   const request = useCallback(
     async <T,>(path: string, method = "GET"): Promise<T> => {
@@ -93,11 +102,12 @@ export default function RecentlyDeleted({
   }
 
   return (
+    <>
     <section className="panel-card panel-body recently-deleted">
       <header className="recently-deleted-header">
         <div>
           <span className="eyebrow">RECOVERY & RECORD HISTORY</span>
-          <h2><Trash2 size={20} /> Recently deleted</h2>
+          <h2><Trash2 size={20} /> Recovery history</h2>
           <p>Deleted items stay here for 30 days. Restore actions are recorded in the audit log.</p>
         </div>
         <button className="btn-sm btn-secondary btn-orange-outline" disabled={busy} onClick={() => void refresh()}>
@@ -114,7 +124,7 @@ export default function RecentlyDeleted({
         </div>
       )}
       <div className="recently-deleted-list">
-        {records.map((record) => (
+        {visibleRecords.map((record) => (
           <article className="recently-deleted-row" key={record.id}>
             <div className="recently-deleted-icon"><Trash2 size={18} /></div>
             <div className="recently-deleted-details">
@@ -138,6 +148,35 @@ export default function RecentlyDeleted({
           </article>
         ))}
       </div>
+      {records.length > 0 && (
+        <footer className="recently-deleted-footer">
+          <span>
+            Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, records.length)} of {records.length} deleted items
+          </span>
+        </footer>
+      )}
     </section>
+    {records.length > 0 && pageCount > 1 && (
+      <nav className="pagination recent-pagination recent-pagination-outside" aria-label="Recently deleted pages">
+        <button
+          type="button"
+          className="btn-sm btn-secondary"
+          disabled={page <= 1 || busy}
+          onClick={() => setPage((current) => Math.max(1, current - 1))}
+        >
+          Previous
+        </button>
+        <span aria-current="page">Page {page} of {pageCount}</span>
+        <button
+          type="button"
+          className="btn-sm btn-secondary"
+          disabled={page >= pageCount || busy}
+          onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+        >
+          Next
+        </button>
+      </nav>
+    )}
+    </>
   );
 }

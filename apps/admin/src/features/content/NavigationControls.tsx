@@ -174,24 +174,26 @@ export default function NavigationControls({
           </article>
         );
       })}
-      <button
-        type="button"
-        className="btn-sm btn-secondary"
-        disabled={disabled || custom.length >= 10}
-        onClick={() => {
-          const id = `custom-${crypto.randomUUID()}`;
-          onChange({
-            ...content,
-            "navigation.custom": JSON.stringify([
-              ...custom,
-              { id, label: "New link", url: "/" },
-            ]),
-            "navigation.order": [...order, id].join(","),
-          });
-        }}
-      >
-        Add custom link
-      </button>
+      <div className="website-editor-actions-row">
+        <button
+          type="button"
+          className="btn-sm btn-secondary"
+          disabled={disabled || custom.length >= 10}
+          onClick={() => {
+            const id = `custom-${crypto.randomUUID()}`;
+            onChange({
+              ...content,
+              "navigation.custom": JSON.stringify([
+                ...custom,
+                { id, label: "New link", url: "/" },
+              ]),
+              "navigation.order": [...order, id].join(","),
+            });
+          }}
+        >
+          Add custom link
+        </button>
+      </div>
     </section>
   );
 }

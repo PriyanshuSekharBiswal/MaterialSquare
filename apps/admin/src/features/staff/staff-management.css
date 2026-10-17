@@ -16,3 +16,11 @@
 .staff-search .staff-search-field{flex-direction:row;align-items:center;gap:12px}.staff-search .staff-search-field>svg{flex:0 0 auto}.staff-search .staff-search-field input{flex:1 1 auto;height:46px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;font-size:15px;line-height:1.4}
 
 .staff-search{width:100%}
+
+/* Render role permissions as readable full-width rows instead of narrow columns. */
+.staff-role-grid{grid-template-columns:minmax(0,1fr);gap:10px}
+.staff-role-card{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.8fr);grid-template-rows:auto auto;align-items:center;column-gap:24px;padding:18px 20px}
+.staff-role-card h3{grid-column:1;grid-row:1}
+.staff-role-card p{grid-column:1;grid-row:2;margin:7px 0 0}
+.staff-role-card small{grid-column:2;grid-row:1 / span 2;padding-left:20px;border-left:1px solid #e8edf3;line-height:1.6}
+@media(max-width:700px){.staff-role-card{grid-template-columns:minmax(0,1fr);row-gap:0;padding:16px}.staff-role-card h3,.staff-role-card p,.staff-role-card small{grid-column:1}.staff-role-card h3{grid-row:1}.staff-role-card p{grid-row:2}.staff-role-card small{grid-row:3;margin-top:10px;padding:10px 0 0;border-top:1px solid #e8edf3;border-left:0}}

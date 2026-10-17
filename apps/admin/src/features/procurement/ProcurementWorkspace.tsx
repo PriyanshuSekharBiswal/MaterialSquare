@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import ProcurementRequestCard, {
   type ProcurementRequest,
@@ -28,6 +28,17 @@ export default function ProcurementWorkspace({
 }) {
   const [view, setView] = useState<View>("rfqs");
   const [filter, setFilter] = useState<Filter>("all");
+  const secondaryTasksRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      const details = secondaryTasksRef.current;
+      if (details?.open && event.target instanceof Node && !details.contains(event.target)) {
+        details.open = false;
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, []);
   const counts = {
     matching: records.filter((record) => record.status === "OPEN").length,
     quotes: records.filter((record) => record.status === "COMPARING").length,
@@ -54,7 +65,7 @@ export default function ProcurementWorkspace({
   const secondaryView = view !== "rfqs";
   const pageTitle = view === "purchase-requests" ? "Purchase requests" : "Create manual request";
   return <section className="procurement-workspace" aria-labelledby="procurement-workspace-title">
-    {secondaryView && <button type="button" className="procurement-back-link" onClick={() => setView("rfqs")}>
+    {secondaryView && <button type="button" className="procurement-back-link admin-back-button" onClick={() => setView("rfqs")}>
       <ArrowLeft size={15} aria-hidden="true" /> Back to customer requests
     </button>}
 
@@ -65,13 +76,13 @@ export default function ProcurementWorkspace({
           <h2 id="procurement-workspace-title">Procurement</h2>
           <p>Match suppliers to the original customer request or any quotation prepared for that request.</p>
         </div>
-        <details className="procurement-secondary-tasks">
+        <details ref={secondaryTasksRef} className="procurement-secondary-tasks">
           <summary>Other procurement tasks</summary>
           <div>
-            <button type="button" onClick={() => { setFilter("all"); setView("purchase-requests"); }}>
+            <button className="procurement-secondary-task-option" type="button" onClick={() => { setFilter("all"); setView("purchase-requests"); }}>
               Purchase requests <span>{records.length}</span>
             </button>
-            <button type="button" onClick={() => setView("manual-request")}>
+            <button className="procurement-secondary-task-option" type="button" onClick={() => setView("manual-request")}>
               Create manual request
             </button>
           </div>

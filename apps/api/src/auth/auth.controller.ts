@@ -22,6 +22,7 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CUSTOMER_SESSION_TTL_MS } from "./customer-session";
 import { CUSTOMER_COOKIE } from "./customer.guard";
+import { STAFF_COOKIE, STAFF_SESSION_TTL_MS } from "./staff-auth-cookie";
 
 import { StaffLoginSchema } from "@material-square/types";
 
@@ -72,6 +73,27 @@ export class AuthController {
     res.setHeader("Cache-Control", "no-store");
   }
 
+  private setStaffSessionCookie(res: Response, accessToken: string) {
+    res.cookie(STAFF_COOKIE, accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/api",
+      maxAge: STAFF_SESSION_TTL_MS,
+    });
+    res.setHeader("Cache-Control", "no-store");
+  }
+
+  private clearStaffSessionCookie(res: Response) {
+    res.clearCookie(STAFF_COOKIE, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/api",
+    });
+    res.setHeader("Cache-Control", "no-store");
+  }
+
   @Post("customer/otp/verify-msg91")
   @HttpCode(HttpStatus.OK)
   async verifyCustomerOtp(
@@ -87,13 +109,25 @@ export class AuthController {
 
   @Post("staff/login")
   @HttpCode(HttpStatus.OK)
-  loginStaff(@Body() body: unknown) {
+  async loginStaff(
+    @Body() body: unknown,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const parsed = StaffLoginSchema.safeParse(body);
     if (!parsed.success)
       throw new BadRequestException(
         parsed.error.issues[0]?.message || "Check your sign-in details",
       );
-    return this.authService.loginStaff(parsed.data);
+    const result = await this.authService.loginStaff(parsed.data);
+    this.setStaffSessionCookie(res, result.accessToken);
+    return { ok: true, user: result.user };
+  }
+
+  @Post("staff/logout")
+  @HttpCode(HttpStatus.OK)
+  logoutStaff(@Res({ passthrough: true }) res: Response) {
+    this.clearStaffSessionCookie(res);
+    return { ok: true };
   }
 
   @Get("staff/me")
@@ -144,12 +178,18 @@ export class AuthController {
 
   @Patch("staff/me/password")
   @UseGuards(StaffGuard)
-  changeMyStaffPassword(@Req() req: StaffRequest, @Body() body: unknown) {
+  async changeMyStaffPassword(
+    @Req() req: StaffRequest,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const data = validate(staffPasswordChangeSchema, body);
-    return this.authService.changeStaffPassword(
+    const result = await this.authService.changeStaffPassword(
       req.user.userId,
       data.currentPassword,
       data.newPassword,
     );
+    this.setStaffSessionCookie(res, result.accessToken);
+    return { ok: true };
   }
 }

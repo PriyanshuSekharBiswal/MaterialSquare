@@ -3,6 +3,7 @@ import type { FormSubmit } from "../business/form-contracts";
 type TransportationPlanningFormsProps = {
   busy: boolean;
   submit: FormSubmit;
+  mode: "plan" | "challan";
 };
 
 const field = (form: FormData, name: string) =>
@@ -11,16 +12,20 @@ const field = (form: FormData, name: string) =>
 export default function TransportationPlanningForms({
   busy,
   submit,
+  mode,
 }: TransportationPlanningFormsProps) {
   return (
     <>
+      {mode === "plan" && (
       <form
-        className="bc-form"
+        className="bc-form transportation-planning-form"
         onSubmit={(event) =>
           submit(
             event,
             (form) => ({
               destination: field(form, "destination"),
+              recipientName: field(form, "recipientName") || null,
+              recipientPhone: field(form, "recipientPhone") || null,
               transporter: field(form, "transporter"),
               vehicleNumber: field(form, "vehicle"),
               driverName: field(form, "driver"),
@@ -53,6 +58,20 @@ export default function TransportationPlanningForms({
             <input name="destination" required />
           </label>
           <label>
+            Recipient name (optional)
+            <input name="recipientName" maxLength={150} placeholder="e.g. site contact name" />
+          </label>
+          <label>
+            Recipient number (optional)
+            <input
+              name="recipientPhone"
+              type="tel"
+              inputMode="tel"
+              maxLength={30}
+              placeholder="e.g. +91 98765 43210"
+            />
+          </label>
+          <label>
             Transporter
             <input name="transporter" />
           </label>
@@ -77,8 +96,10 @@ export default function TransportationPlanningForms({
           Save delivery plan
         </button>
       </form>
+      )}
+      {mode === "challan" && (
       <form
-        className="bc-form"
+        className="bc-form transportation-planning-form"
         onSubmit={(event) =>
           submit(
             event,
@@ -143,6 +164,7 @@ export default function TransportationPlanningForms({
           Issue delivery challan
         </button>
       </form>
+      )}
     </>
   );
 }

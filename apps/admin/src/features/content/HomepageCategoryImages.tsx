@@ -142,6 +142,7 @@ export default function HomepageCategoryImages({
                 customerUrl={customerUrl}
                 value={image}
                 label={`${category.categoryLabel} card image`}
+                recommendedSize="800 × 600 px (4:3)"
                 onChange={(url) => setImage(category.category, url)}
                 onBusyChange={onBusyChange}
                 onSignOut={onSignOut}

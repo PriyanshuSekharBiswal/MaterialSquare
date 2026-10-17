@@ -1,9 +1,7 @@
-import { StaffLoginSchema } from "@material-square/types";
 import {
   lazy,
   useCallback,
   useEffect,
-  useRef,
   useState,
   type FormEvent,
 } from "react";
@@ -15,9 +13,7 @@ import type {
   WorkspaceTab,
 } from "./features/customers/contracts";
 import { blankFollowup } from "./features/customers/contracts";
-import AdminWorkspaceLayout, {
-  type AdminStaff,
-} from "./components/AdminWorkspaceLayout";
+import AdminWorkspaceLayout from "./components/AdminWorkspaceLayout";
 import type { AdminSearchRecord } from "./components/GlobalAdminSearch";
 import "./workspace.css";
 import FeatureBoundary from "./components/FeatureBoundary";
@@ -27,8 +23,9 @@ import type {
   Stats,
   WebsiteAnalytics,
 } from "./features/overview/contracts";
-import StaffLogin from "./features/auth/StaffLogin";
 import { isInitialReloadForCurrentLocation } from "./scroll-position";
+import { useAdminAuth } from "./context/AdminAuthContext";
+import { AdminProtectedRoute } from "./components/AdminProtectedRoute";
 
 const NotificationStatus = lazy(
   () => import("./features/notifications/NotificationStatus"),
@@ -90,22 +87,16 @@ function workspaceTabFromUrl(): WorkspaceTab {
     : "overview";
 }
 
-function restoredToken() {
-  try {
-    const token = localStorage.getItem("ms-staff-token") || sessionStorage.getItem("ms-staff-token") || "";
-    if (token) {
-      localStorage.setItem("ms-staff-token", token);
-      sessionStorage.removeItem("ms-staff-token");
-    }
-    return token;
-  } catch {
-    return "";
-  }
-}
-
 export function App() {
-  const [token, setTokenState] = useState(restoredToken),
-    [staff, setStaff] = useState<AdminStaff | null>(null);
+  const {
+    token,
+    staff,
+    isAuthenticated,
+    setStaff,
+    setToken,
+    signOut,
+    request,
+  } = useAdminAuth();
   const [tab, setTab] = useState<WorkspaceTab>(workspaceTabFromUrl);
   const [businessContentReady, setBusinessContentReady] = useState(false);
   const [salesContentReady, setSalesContentReady] = useState(false);
@@ -140,10 +131,6 @@ export function App() {
     [revision, setRevision] = useState(0);
   const [selected, setSelected] = useState<Customer | null>(null),
     [draft, setDraft] = useState<Followup | null>(null);
-  const staffRequestRef = useRef<{
-    token: string;
-    promise: Promise<AdminStaff>;
-  } | null>(null);
   useEffect(() => {
     const restoreWorkspaceFromHistory = () => {
       setTab(workspaceTabFromUrl());
@@ -174,74 +161,6 @@ export function App() {
     }
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }, [page, search, status, tab]);
-  const setToken = useCallback((value: string) => {
-    setTokenState(value);
-    try {
-      if (value) localStorage.setItem("ms-staff-token", value);
-      else localStorage.removeItem("ms-staff-token");
-      sessionStorage.removeItem("ms-staff-token");
-    } catch {}
-  }, []);
-  const signOut = useCallback(() => {
-    setToken("");
-    setStaff(null);
-  }, [setToken]);
-  const request = useCallback(
-    async <T,>(path: string, method = "GET", body?: unknown, timeoutMs = 65000): Promise<T> => {
-      let r: Response;
-      try {
-        r = await fetch(`${import.meta.env.VITE_API_URL || "/api"}${path}`, {
-          method,
-          cache: "no-store",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: body === undefined ? undefined : JSON.stringify(body),
-          signal: AbortSignal.timeout(timeoutMs),
-        });
-      } catch {
-        throw new Error(
-          "The workspace is taking longer than usual to respond. Please try again shortly.",
-        );
-      }
-      const data = await r.json().catch(() => null);
-      if (!r.ok) {
-        if (r.status === 401) {
-          setToken("");
-          setStaff(null);
-        }
-        if (r.status >= 500)
-          throw new Error(
-            "The workspace is temporarily unavailable. Please try again shortly.",
-          );
-        const fieldErrors = data?.issues?.fieldErrors;
-        const loginField =
-          path === "/auth/staff/login" && fieldErrors
-            ? ["phone", "email", "password"].find(
-                (field) => fieldErrors[field]?.length,
-              )
-            : undefined;
-        const validationMessage =
-          loginField === "phone"
-            ? "Enter a valid 10-digit Indian mobile number (with optional +91)."
-            : loginField === "email"
-              ? "Enter a valid email address."
-              : loginField === "password"
-                ? "Check your password: use at least 8 characters."
-                : undefined;
-        throw new Error(
-          validationMessage ||
-            data?.message ||
-            "Unable to connect. Please try again.",
-        );
-      }
-      if (!data || typeof data !== "object")
-        throw new Error("The workspace is starting. Please try again shortly.");
-      return data as T;
-    },
-    [token, setToken],
-  );
   const searchAdminRecords = useCallback(
     async (term: string): Promise<AdminSearchRecord[]> => {
       const normalized = term.trim().toLocaleLowerCase();
@@ -332,7 +251,7 @@ export function App() {
     [request, staff],
   );
   useEffect(() => {
-    if (!token) return;
+    if (!token || !staff) return;
     let active = true;
     const needsWorkspaceData =
       tab === "overview" || tab === "customers" || tab === "followups";
@@ -365,46 +284,11 @@ export function App() {
               return null;
             })
         : Promise.resolve(null);
-    let staffRequest: Promise<AdminStaff>;
-    if (staff) {
-      staffRequest = Promise.resolve(staff);
-    } else if (staffRequestRef.current?.token === token) {
-      staffRequest = staffRequestRef.current.promise;
-    } else {
-      const loadStaff = async () => {
-        try {
-          return await request<AdminStaff>("/auth/staff/me", "GET", undefined, 8000);
-        } catch (cause) {
-          const message = cause instanceof Error ? cause.message : "";
-          const transient = [
-            "taking longer than usual",
-            "temporarily unavailable",
-            "Unable to connect",
-          ].some((part) => message.includes(part));
-          if (!transient) throw cause;
-          await new Promise((resolve) => window.setTimeout(resolve, 500));
-          return request<AdminStaff>("/auth/staff/me", "GET", undefined, 8000);
-        }
-      };
-      staffRequest = loadStaff();
-      staffRequestRef.current = { token, promise: staffRequest };
-      void staffRequest.then(
-        () => {
-          if (staffRequestRef.current?.promise === staffRequest)
-            staffRequestRef.current = null;
-        },
-        () => {
-          if (staffRequestRef.current?.promise === staffRequest)
-            staffRequestRef.current = null;
-        },
-      );
-    }
     const summaryRequest =
       tab === "overview" || tab === "followups"
         ? request<Stats>("/workspace/overview")
         : Promise.resolve(null);
     void Promise.all([
-      staffRequest,
       summaryRequest,
       analyticsRequest,
       recentChangesRequest,
@@ -414,9 +298,8 @@ export function App() {
           ? request<Page<Followup>>(`/workspace/followups?${params}`)
           : Promise.resolve(null),
     ])
-      .then(([user, summary, analyticsResult, changesResult, result]) => {
+      .then(([summary, analyticsResult, changesResult, result]) => {
         if (!active) return;
-        if (user) setStaff(user);
         if (summary) setStats(summary);
         if (analyticsResult) setWebsiteAnalytics(analyticsResult);
         if (changesResult) setRecentChanges(changesResult);
@@ -434,9 +317,13 @@ export function App() {
     return () => {
       active = false;
     };
-  }, [token, tab, page, search, status, revision, request]);
+  }, [token, staff, tab, page, search, status, revision, request]);
   useEffect(() => {
-    const ready = !token || (Boolean(staff) && !loading && (tab !== "business" || businessContentReady) && (tab !== "sales" || salesContentReady));
+    const ready =
+      !isAuthenticated ||
+      (!loading &&
+        (tab !== "business" || businessContentReady) &&
+        (tab !== "sales" || salesContentReady));
     document.documentElement.dataset.msScrollReady = ready ? "true" : "false";
     if (!ready) return;
     const completeReload = () => {
@@ -448,7 +335,7 @@ export function App() {
       return () => window.removeEventListener("ms-scroll-restored", completeReload);
     }
     completeReload();
-  }, [token, staff, loading, tab, businessContentReady, salesContentReady]);
+  }, [isAuthenticated, loading, tab, businessContentReady, salesContentReady]);
   const navigate = (next: typeof tab) => {
     const url = new URL(window.location.href);
     url.searchParams.set("workspace", next);
@@ -475,36 +362,6 @@ export function App() {
     setDraft(null);
     setNotice("");
     setError("");
-  };
-  const login = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    const data = new FormData(e.currentTarget);
-    try {
-      const parsed = StaffLoginSchema.safeParse({
-        ...(String(data.get("identifier") || "").includes("@")
-          ? { email: String(data.get("identifier")).trim().toLowerCase() }
-          : {
-              phone: String(data.get("identifier") || ""),
-            }),
-        password: data.get("password"),
-      });
-      if (!parsed.success)
-        throw new Error(
-          parsed.error.issues[0]?.message || "Check your sign-in details",
-        );
-      const result = await request<{ accessToken: string }>(
-        "/auth/staff/login",
-        "POST",
-        parsed.data,
-      );
-      setToken(result.accessToken);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
   };
   const openCustomer = async (id: string) => {
     setBusy(true);
@@ -539,17 +396,8 @@ export function App() {
       setBusy(false);
     }
   };
-  if (!token)
-    return (
-      <StaffLogin
-        busy={busy}
-        error={error}
-        marketplaceUrl={marketplaceUrl}
-        onSubmit={login}
-      />
-    );
-
   return (
+    <AdminProtectedRoute marketplaceUrl={marketplaceUrl}>
     <>
     {showRefreshSkeleton && <div className="boot-loading" role="status" aria-label="Loading workspace">
       <aside className="boot-sidebar"><div className="boot-mark" /><div className="boot-nav" /><div className="boot-nav" /><div className="boot-nav" /><div className="boot-nav" /><div className="boot-nav" /></aside>
@@ -679,6 +527,7 @@ export function App() {
           <BusinessConsole
             token={token}
             role={staff.role}
+            staffName={staff.name}
             customerUrl={marketplaceUrl}
             onBack={() => navigate("overview")}
             onSignOut={signOut}
@@ -722,6 +571,7 @@ export function App() {
       </FeatureBoundary>
     </AdminWorkspaceLayout>
     </>
+    </AdminProtectedRoute>
   );
 }
 export default App;

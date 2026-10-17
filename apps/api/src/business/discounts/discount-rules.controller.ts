@@ -5,6 +5,7 @@ import {
   Body,
   Controller,
   ConflictException,
+  Delete,
   Req,
   Get,
   NotFoundException,
@@ -22,10 +23,34 @@ import { ruleInput } from "../business.schemas";
 @UseGuards(StaffGuard)
 export class DiscountRulesController {
   constructor(private readonly prisma: PrismaService) {}
-  @Get() list() {
-    return this.prisma.discountRule.findMany({
+  @Get() async list() {
+    const rules = await this.prisma.discountRule.findMany({
       orderBy: [{ priority: "desc" }, { name: "asc" }],
     });
+    if (!rules.length) return rules;
+
+    const creationLogs = await this.prisma.auditLog.findMany({
+      where: {
+        action: "DISCOUNT_RULE_CREATED",
+        entityType: "DISCOUNT_RULE",
+        entityId: { in: rules.map(({ id }) => id) },
+      },
+      select: {
+        entityId: true,
+        staff: { select: { name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    const creatorByRuleId = new Map<string, string>();
+    for (const log of creationLogs) {
+      if (log.staff?.name && !creatorByRuleId.has(log.entityId)) {
+        creatorByRuleId.set(log.entityId, log.staff.name);
+      }
+    }
+    return rules.map((rule) => ({
+      ...rule,
+      createdBy: creatorByRuleId.get(rule.id) ?? null,
+    }));
   }
   @Post() create(@Body() body: unknown, @Req() req?: StaffRequest) {
     const data = validate(ruleInput, body);
@@ -72,6 +97,7 @@ export class DiscountRulesController {
       ruleInput.partial().extend({
         expectedUpdatedAt: z.string().datetime().optional(),
         description: ruleInput.shape.description.nullable(),
+        categories: ruleInput.shape.categories.optional(),
         category: ruleInput.shape.category.nullable(),
         minimumQuantity: ruleInput.shape.minimumQuantity.nullable(),
         maximumQuantity: ruleInput.shape.maximumQuantity.nullable(),
@@ -137,6 +163,30 @@ export class DiscountRulesController {
         },
       });
       return tx.discountRule.findUniqueOrThrow({ where: { id } });
+    });
+  }
+
+  @Delete(":id") async delete(
+    @Param("id") id: string,
+    @Req() req: StaffRequest,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.discountRule.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundException("Discount rule not found");
+      await tx.discountRule.delete({ where: { id } });
+      await tx.auditLog.create({
+        data: {
+          staffId: req.user.userId,
+          action: "DISCOUNT_RULE_DELETED",
+          entityType: "DISCOUNT_RULE",
+          entityId: id,
+          metadata: {
+            name: existing.name,
+            wasActive: existing.isActive,
+          },
+        },
+      });
+      return { success: true };
     });
   }
 }

@@ -15,8 +15,11 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
-    "strict": false
+    "strict": false,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
-  "include": ["src", "../../packages/storefront-ui"],
-  "exclude": ["src/**/* 2.ts", "src/**/* 2.tsx"]
+  "include": ["src", "../../packages/storefront-ui"]
 }

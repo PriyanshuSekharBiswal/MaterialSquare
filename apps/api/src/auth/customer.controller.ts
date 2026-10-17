@@ -300,6 +300,7 @@ export class CustomerController {
         take: 100,
         select: {
           id: true,
+          requestNumber: true,
           customerName: true,
           siteLocation: true,
           projectStage: true,
@@ -338,6 +339,7 @@ export class CustomerController {
         select: {
           id: true,
           requestId: true,
+          request: { select: { requestNumber: true } },
           quoteNumber: true,
           status: true,
           subtotal: true,

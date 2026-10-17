@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { formatEnumLabel } from "../../utils/formatEnumLabel";
 export type RevisablePurchaseOrder = {
   id: string;
   revisionNumber: number;
@@ -147,7 +148,7 @@ export default function PurchaseOrderRevision({
           <summary>PO revision history</summary>
           {order.revisionHistory.map((version) => (
             <p key={version.revisionNumber}>
-              Revision {version.revisionNumber} · {version.status} · ₹
+              Revision {version.revisionNumber} · {formatEnumLabel(version.status)} · ₹
               {Number(version.totalAmount).toLocaleString("en-IN")} ·{" "}
               {version.reason} ·{" "}
               {new Date(version.revisedAt).toLocaleString("en-IN")}

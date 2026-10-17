@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import ServiceAreaPincodes from "../suppliers/ServiceAreaPincodes";
 import { formatQuantityUnit } from "../../quantity-format";
+import { formatEnumLabel } from "../../utils/formatEnumLabel";
 
 type Material = {
   productName: string;
@@ -249,7 +250,7 @@ export default function ProcurementRequestCard({
         <div className="procurement-request-title-row">
           <h3>{record.requestNumber}</h3>
           <span className={`procurement-request-status procurement-status-${record.status.toLowerCase()}`}>
-            {statusLabel[record.status] || record.status.replaceAll("_", " ")}
+            {statusLabel[record.status] || formatEnumLabel(record.status)}
           </span>
         </div>
         <p>
@@ -641,7 +642,7 @@ export default function ProcurementRequestCard({
         <div className="business-candidate" key={po.id}>
           <strong>
             {po.purchaseOrderNumber} · Revision {po.revisionNumber || 1} ·{" "}
-            {money(po.totalAmount)} · {po.status}
+            {money(po.totalAmount)} · {formatEnumLabel(po.status)}
           </strong>
           <ul>
             {Array.isArray(po.items) &&

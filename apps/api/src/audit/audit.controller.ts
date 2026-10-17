@@ -8,6 +8,7 @@ import type { StaffRequest } from "../auth/staff-request";
 const filters = z
   .object({
     page: z.coerce.number().int().min(1).max(100000).default(1),
+    actorScope: z.enum(["all", "mine"]).default("all"),
     action: z.string().trim().max(100).optional(),
     entityType: z.string().trim().max(100).optional(),
     entityId: z.string().trim().max(200).optional(),
@@ -120,12 +121,13 @@ export class AuditController {
   }
 
   @Get()
-  async list(@Query() query: unknown) {
-    const { page, action, entityType, entityId, from, to } = validate(
+  async list(@Req() req: StaffRequest, @Query() query: unknown) {
+    const { page, actorScope, action, entityType, entityId, from, to } = validate(
       filters,
       query,
     );
     const where = {
+      ...(actorScope === "mine" ? { staffId: req.user.userId } : {}),
       ...(action ? { action } : {}),
       ...(entityType ? { entityType } : {}),
       ...(entityId ? { entityId } : {}),

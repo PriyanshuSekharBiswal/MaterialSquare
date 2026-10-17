@@ -230,8 +230,8 @@ export default function PartnerBrandsManager({ token, role, onSignOut, onBack, o
   return <section className="catalogue-manager partner-brands-manager">
     <header className="catalogue-manager-head">
       <div>
-        {!embedded && view === "list" && <button className="btn-sm btn-secondary" type="button" onClick={onBack}><ArrowLeft size={14} /> Products</button>}
-        {view !== "list" && <button className="btn-sm btn-secondary" type="button" onClick={() => { setView("list"); setError(""); setNotice(""); }}><ArrowLeft size={14} /> Back to brands</button>}
+        {!embedded && view === "list" && <button className="btn-sm btn-secondary admin-back-button" type="button" onClick={onBack}><ArrowLeft size={14} /> Products</button>}
+        {view !== "list" && <button className="btn-sm btn-secondary admin-back-button" type="button" onClick={() => { setView("list"); setError(""); setNotice(""); }}><ArrowLeft size={14} /> Back to brands</button>}
         <span className="eyebrow">WEBSITE CATALOGUE</span>
         <h2>{view === "add" ? "Add brand" : view === "edit" ? "Edit brand" : view === "categories" ? "Manage categories" : "Partner brands"}</h2>
         <p>{view === "list" ? "Manage partner brands, category assignments, and storefront visibility." : view === "add" ? "Add a brand to make it available across the catalogue and customer search." : view === "edit" ? "Update this brand’s details, categories, logo, or customer visibility." : "Rename categories and control which ones appear in admin pickers and the storefront."}</p>

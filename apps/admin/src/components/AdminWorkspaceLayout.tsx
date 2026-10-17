@@ -19,6 +19,7 @@ import {
 import type { WorkspaceTab } from "../features/customers/contracts";
 import MaterialSquareLogo from "./MaterialSquareLogo";
 import GlobalAdminSearch, { type AdminSearchRecord } from "./GlobalAdminSearch";
+import { formatEnumLabel } from "../utils/formatEnumLabel";
 
 export type AdminStaff = {
   id?: string;
@@ -244,7 +245,7 @@ export default function AdminWorkspaceLayout({
           <div className="staff-meta">
             <span className="staff-name">{staff.name || "Staff Member"}</span>
             <span className="staff-role-chip">
-              {staff.role ? staff.role.replace(/_/g, " ") : "Operator"}
+              {staff.role ? formatEnumLabel(staff.role) : "Operator"}
             </span>
           </div>
         </div>

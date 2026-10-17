@@ -148,7 +148,7 @@ export default function CatalogueVariantsEditor({
                   </div>;
                 })}
               </div>
-              <small>PNG, JPEG or WebP · Up to 20 MB each</small>
+              <small>Recommended size: 1200 × 1200 px (1:1) · PNG, JPEG or WebP · Up to 20 MB each</small>
             </fieldset>
             <fieldset className="catalogue-variant-attributes">
               <legend>Add variations <span>(Optional)</span></legend>

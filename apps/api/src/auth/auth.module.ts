@@ -25,9 +25,9 @@ import { StorageModule } from "../storage/storage.module";
     JwtModule.registerAsync({
       useFactory: () => ({
         secret: jwtSecret(),
-        // Admin sign-in is remembered by the admin app across browser restarts.
-        // Keep a finite server-side lifetime so abandoned devices still expire.
-        signOptions: { expiresIn: "30d" },
+        // Staff JWTs are stored in an HttpOnly cookie and expire during an
+        // unattended workday.
+        signOptions: { expiresIn: "12h" },
       }),
     }),
   ],

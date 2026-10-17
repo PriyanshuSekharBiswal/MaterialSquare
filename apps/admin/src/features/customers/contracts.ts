@@ -6,6 +6,39 @@ export type Material = {
   specification: string;
 };
 
+export type CustomerDeliveryHistory = {
+  deliveryNumber: string;
+  deliveredAt: string;
+  notes?: string | null;
+};
+
+export type CustomerOrderHistory = {
+  orderNumber: string;
+  status: string;
+  grandTotal: string | number;
+  createdAt: string;
+  deliveries: CustomerDeliveryHistory[];
+};
+
+export type CustomerQuotationHistory = {
+  quoteNumber: string;
+  status: string;
+  totalAmount: string | number;
+  createdAt: string;
+  publishedAt?: string | null;
+  orders: CustomerOrderHistory[];
+};
+
+export type CustomerRequestHistory = {
+  id: string;
+  requestNumber: string;
+  customerName: string;
+  status: string;
+  siteLocation: string;
+  createdAt: string;
+  quotations: CustomerQuotationHistory[];
+};
+
 export type Customer = {
   id: string;
   name: string;
@@ -16,6 +49,8 @@ export type Customer = {
   city: string;
   pincode: string;
   createdAt?: string;
+  rfqs?: CustomerRequestHistory[];
+  quotations?: CustomerQuotationHistory[];
 };
 
 export type Followup = {

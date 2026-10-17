@@ -4,6 +4,7 @@ import {
   type TransportationStatus,
 } from "@material-square/types";
 import { formatQuantityUnit } from "../../quantity-format";
+import { formatEnumLabel } from "../../utils/formatEnumLabel";
 export type TransportationPlan = {
   id: string;
   orderId: string;
@@ -20,6 +21,8 @@ export type TransportationPlan = {
   };
   status: string;
   destination: string;
+  recipientName: string | null;
+  recipientPhone: string | null;
   transporter: string | null;
   vehicleNumber: string | null;
   driverName: string | null;
@@ -27,6 +30,8 @@ export type TransportationPlan = {
   currentLocation: string | null;
   estimatedArrival: string | null;
   notes: string | null;
+  createdAt: string;
+  createdBy?: string | null;
 };
 
 function localDateTimeValue(value: string | null) {
@@ -41,12 +46,16 @@ export default function TransportationPlanCard({
   plan,
   busy,
   mutate,
+  openForEdit = false,
+  onOpenForEdit,
 }: {
   plan: TransportationPlan;
   busy: boolean;
   mutate: (path: string, method: string, body: unknown) => Promise<boolean>;
+  openForEdit?: boolean;
+  onOpenForEdit?: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(openForEdit);
   const [deliveryError, setDeliveryError] = useState("");
   const allowed = (
     TRANSPORTATION_TRANSITIONS[plan.status as TransportationStatus] || []
@@ -58,6 +67,8 @@ export default function TransportationPlanCard({
     if (
       await mutate(`/transportation/${plan.orderId}`, "PUT", {
         status: values.get("status"),
+        recipientName: values.get("recipientName") || null,
+        recipientPhone: values.get("recipientPhone") || null,
         transporter: values.get("transporter") || null,
         vehicleNumber: values.get("vehicleNumber") || null,
         driverName: values.get("driverName") || null,
@@ -100,19 +111,75 @@ export default function TransportationPlanCard({
     "DELAYED",
     "PARTIALLY_DELIVERED",
   ].includes(plan.status);
+  const destinationParts = plan.destination.split(";");
+  const destinationContext =
+    destinationParts.length > 1 ? destinationParts.shift()?.trim() : undefined;
+  const destinationAddress = destinationParts.join(";").trim();
   return (
     <article className="business-record bc-record-block bc-transport-plan">
-      <h3>{plan.order?.orderNumber || plan.orderId}</h3>
-      <p>
-        {plan.destination} · {plan.vehicleNumber || "Vehicle pending"} ·{" "}
-        {plan.status.replaceAll("_", " ")}
-      </p>
-      <p>
-        {plan.driverName || "Driver pending"} · ETA{" "}
-        {plan.estimatedArrival
-          ? new Date(plan.estimatedArrival).toLocaleString("en-IN")
-          : "Not set"}
-      </p>
+      <div className="bc-transport-plan-heading">
+        <h3>{plan.order?.orderNumber || plan.orderId}</h3>
+        <div className="bc-transport-plan-actions">
+          {!!allowed.length && (
+            <button
+              className="bc-button bc-transport-status-toggle"
+              disabled={busy}
+              onClick={() => {
+                if (!editing && onOpenForEdit) {
+                  onOpenForEdit();
+                  return;
+                }
+                setEditing((current) => !current);
+              }}
+            >
+              {editing ? "Cancel delivery update" : "Update delivery status"}
+            </button>
+          )}
+        </div>
+      </div>
+      <section className="bc-transport-plan-summary" aria-label="Delivery summary">
+        <div className="bc-transport-destination">
+          {destinationContext && (
+            <p className="bc-transport-destination-context">{destinationContext}</p>
+          )}
+          <span className="bc-transport-detail-label">Delivery address</span>
+          <p>{destinationAddress || plan.destination}</p>
+          <div className="bc-transport-recipient">
+            <div>
+              <span className="bc-transport-detail-label">Recipient name</span>
+              <p>{plan.recipientName || "Not provided"}</p>
+            </div>
+            <div>
+              <span className="bc-transport-detail-label">Recipient number</span>
+              <p>{plan.recipientPhone || "Not provided"}</p>
+            </div>
+          </div>
+        </div>
+        <dl className="bc-transport-meta">
+          <div>
+            <dt>Vehicle</dt>
+            <dd>{plan.vehicleNumber || "Pending"}</dd>
+          </div>
+          <div>
+            <dt>Delivery status</dt>
+            <dd className={`bc-transport-status bc-transport-status-${plan.status.toLowerCase()}`}>
+              {formatEnumLabel(plan.status)}
+            </dd>
+          </div>
+          <div>
+            <dt>Driver</dt>
+            <dd>{plan.driverName || "Pending"}</dd>
+          </div>
+          <div>
+            <dt>Estimated arrival</dt>
+            <dd>
+              {plan.estimatedArrival
+                ? new Date(plan.estimatedArrival).toLocaleString("en-IN")
+                : "Not set"}
+            </dd>
+          </div>
+        </dl>
+      </section>
       {plan.currentLocation && <p>Current location: {plan.currentLocation}</p>}
       {plan.notes && <p>{plan.notes}</p>}
       {orderItems.map((item) => {
@@ -174,17 +241,28 @@ export default function TransportationPlanCard({
           </button>
         </form>
       )}
-      {!!allowed.length && (
-        <button
-          className="bc-button"
-          disabled={busy}
-          onClick={() => setEditing((current) => !current)}
-        >
-          {editing ? "Cancel delivery update" : "Update delivery status"}
-        </button>
-      )}
       {editing && (
         <form className="bc-fields" onSubmit={(event) => void update(event)}>
+          <label>
+            Recipient name
+            <input
+              name="recipientName"
+              maxLength={150}
+              placeholder="e.g. site contact name"
+              defaultValue={plan.recipientName || ""}
+            />
+          </label>
+          <label>
+            Recipient number
+            <input
+              name="recipientPhone"
+              type="tel"
+              inputMode="tel"
+              maxLength={30}
+              placeholder="e.g. +91 98765 43210"
+              defaultValue={plan.recipientPhone || ""}
+            />
+          </label>
           <label>
             Transporter
             <input
@@ -230,11 +308,11 @@ export default function TransportationPlanCard({
             Delivery status
             <select name="status" defaultValue={plan.status}>
               <option value={plan.status}>
-                {plan.status.replaceAll("_", " ")}
+                {formatEnumLabel(plan.status)}
               </option>
               {allowed.map((status) => (
                 <option key={status} value={status}>
-                  {status.replaceAll("_", " ")}
+                  {formatEnumLabel(status)}
                 </option>
               ))}
             </select>
@@ -255,11 +333,24 @@ export default function TransportationPlanCard({
               defaultValue={plan.notes || ""}
             />
           </label>
-          <button className="bc-primary" disabled={busy}>
+          <button
+            className="bc-primary bc-transport-save-update"
+            disabled={busy}
+          >
             Save delivery update
           </button>
         </form>
       )}
+      <footer className="bc-transport-plan-created">
+        <span>Created by <strong>{plan.createdBy || "Unknown"}</strong></span>
+        <time dateTime={plan.createdAt}>
+          {new Date(plan.createdAt).toLocaleString("en-IN", {
+            dateStyle: "medium",
+            timeStyle: "short",
+            timeZone: "Asia/Kolkata",
+          })}
+        </time>
+      </footer>
     </article>
   );
 }

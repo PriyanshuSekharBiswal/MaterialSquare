@@ -59,32 +59,36 @@ export default function SocialLinksEditor({
               }
             />
           </label>
-          <button
-            type="button"
-            className="btn-sm btn-secondary"
-            onClick={() => save(links.filter((entry) => entry.id !== link.id))}
-          >
-            Remove social link {index + 1}
-          </button>
+          <div className="website-editor-actions-row">
+            <button
+              type="button"
+              className="btn-sm btn-secondary"
+              onClick={() => save(links.filter((entry) => entry.id !== link.id))}
+            >
+              Remove social link {index + 1}
+            </button>
+          </div>
         </fieldset>
       ))}
-      <button
-        type="button"
-        className="btn-sm btn-secondary"
-        disabled={disabled || links.length >= 8}
-        onClick={() =>
-          save([
-            ...links,
-            {
-              id: `social-${crypto.randomUUID()}`,
-              label: "Follow us",
-              url: "https://example.com",
-            },
-          ])
-        }
-      >
-        Add social link
-      </button>
+      <div className="website-editor-actions-row">
+        <button
+          type="button"
+          className="btn-sm btn-secondary"
+          disabled={disabled || links.length >= 8}
+          onClick={() =>
+            save([
+              ...links,
+              {
+                id: `social-${crypto.randomUUID()}`,
+                label: "Follow us",
+                url: "https://example.com",
+              },
+            ])
+          }
+        >
+          Add social link
+        </button>
+      </div>
     </section>
   );
 }

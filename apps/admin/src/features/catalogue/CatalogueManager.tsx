@@ -2028,7 +2028,7 @@ export default function CatalogueManager({
                   })}
                 </div>
                 <p className="catalogue-photo-note">
-                  {Number(Boolean(formProduct.image)) + formProduct.galleryImages.filter(Boolean).length} of {MAX_PRODUCT_PHOTOS} photos · PNG, JPEG or WebP · Up to 20 MB each. One photo is enough; the other three are optional.
+                  {Number(Boolean(formProduct.image)) + formProduct.galleryImages.filter(Boolean).length} of {MAX_PRODUCT_PHOTOS} photos · Recommended size: 1200 × 1200 px (1:1) · PNG, JPEG or WebP · Up to 20 MB each. One photo is enough; the other three are optional.
                 </p>
               </div>
               <div className="catalogue-form-section-heading catalogue-wide">
@@ -2186,7 +2186,7 @@ export default function CatalogueManager({
                       >
                         <button
                           type="button"
-                          className={previewMode === "card" ? "active" : ""}
+                          className={`catalogue-preview-option${previewMode === "card" ? " active" : ""}`}
                           aria-pressed={previewMode === "card"}
                           onClick={() => setPreviewMode("card")}
                         >
@@ -2194,7 +2194,7 @@ export default function CatalogueManager({
                         </button>
                         <button
                           type="button"
-                          className={previewMode === "detail" ? "active" : ""}
+                          className={`catalogue-preview-option${previewMode === "detail" ? " active" : ""}`}
                           aria-pressed={previewMode === "detail"}
                           onClick={() => setPreviewMode("detail")}
                         >
@@ -2208,9 +2208,7 @@ export default function CatalogueManager({
                       >
                         <button
                           type="button"
-                          className={
-                            previewViewport === "desktop" ? "active" : ""
-                          }
+                          className={`catalogue-preview-option${previewViewport === "desktop" ? " active" : ""}`}
                           aria-pressed={previewViewport === "desktop"}
                           onClick={() => setPreviewViewport("desktop")}
                         >
@@ -2218,9 +2216,7 @@ export default function CatalogueManager({
                         </button>
                         <button
                           type="button"
-                          className={
-                            previewViewport === "mobile" ? "active" : ""
-                          }
+                          className={`catalogue-preview-option${previewViewport === "mobile" ? " active" : ""}`}
                           aria-pressed={previewViewport === "mobile"}
                           onClick={() => setPreviewViewport("mobile")}
                         >

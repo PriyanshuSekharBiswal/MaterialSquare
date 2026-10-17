@@ -31,10 +31,21 @@ export class BusinessRulesController {
 
   @Get()
   async get() {
-    const saved = await this.prisma.businessRuleSetting.findUnique({
-      where: { id: "global" },
-    });
-    return saved ?? DEFAULT_BUSINESS_RULES;
+    const [saved, initialUpdate] = await Promise.all([
+      this.prisma.businessRuleSetting.findUnique({
+        where: { id: "global" },
+      }),
+      this.prisma.auditLog.findFirst({
+        where: { action: "BUSINESS_RULES_UPDATED", entityId: "global" },
+        orderBy: { createdAt: "asc" },
+        include: { staff: { select: { name: true } } },
+      }),
+    ]);
+    return {
+      ...(saved ?? DEFAULT_BUSINESS_RULES),
+      createdBy: initialUpdate?.staff?.name ?? null,
+      createdAt: initialUpdate?.createdAt ?? saved?.updatedAt ?? null,
+    };
   }
 
   @Put()

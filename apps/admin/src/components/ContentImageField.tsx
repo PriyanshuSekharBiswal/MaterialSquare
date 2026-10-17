@@ -7,6 +7,7 @@ export default function ContentImageField({
   value,
   onChange,
   label,
+  recommendedSize = "1200 × 800 px (3:2)",
   customerUrl,
   onSignOut,
   onBusyChange,
@@ -16,6 +17,7 @@ export default function ContentImageField({
   value?: string;
   onChange?: (url: string) => void;
   label: string;
+  recommendedSize?: string;
   customerUrl?: string;
   onSignOut: () => void;
   onBusyChange: (value: boolean) => void;
@@ -49,8 +51,8 @@ export default function ContentImageField({
   };
 
   async function upload(file: File, input: HTMLInputElement) {
-    if (!new Set(["image/png", "image/jpeg", "image/webp"]).has(file.type) || file.size > 5 * 1024 * 1024) {
-      setError("Choose a PNG, JPEG or WebP image up to 5 MB.");
+    if (!new Set(["image/png", "image/jpeg", "image/webp"]).has(file.type) || file.size > 20 * 1024 * 1024) {
+      setError("Choose a PNG, JPEG or WebP image up to 20 MB.");
       input.value = "";
       return;
     }
@@ -85,20 +87,9 @@ export default function ContentImageField({
   return (
     <fieldset className="content-image-field">
       <legend>{label}</legend>
-      <p className="content-image-field-intro">Choose one main image for this section. You can paste an approved image link or upload a file.</p>
+      <p className="content-image-field-intro">Choose how to add the image shown on your website.</p>
       <div className="content-image-field-options">
-        <label className="content-image-url-option">
-          <span className="content-image-option-heading"><Link2 size={16} /> Image URL <small>Use an approved public image link</small></span>
-          <input
-            name="image"
-            type="url"
-            value={currentUrl}
-            onChange={(event) => updateUrl(event.target.value)}
-            placeholder="https://example.com/image.jpg"
-            aria-label={`${label} image URL`}
-          />
-        </label>
-        <label className={`content-image-upload-option${busy ? " is-uploading" : ""}`}>
+        <label className={`content-image-upload-option is-primary${busy ? " is-uploading" : ""}`}>
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp"
@@ -110,8 +101,22 @@ export default function ContentImageField({
             }}
           />
           {busy ? <LoaderCircle className="spin" size={19} /> : <UploadCloud size={19} />}
-          <span>{busy ? "Uploading image…" : currentUrl ? "Replace with uploaded image" : "Upload an image"}</span>
-          <small>PNG, JPEG or WebP · Up to 5 MB</small>
+          <span>{busy ? "Uploading image…" : currentUrl ? "Upload replacement image" : "Upload an image"}</span>
+          <small>Recommended size: {recommendedSize}</small>
+          <small>PNG, JPEG or WebP · Up to 20 MB</small>
+        </label>
+        <label className="content-image-url-option">
+          <span className="content-image-option-heading"><Link2 size={16} /> Or use image URL</span>
+          <input
+            name="image"
+            type="url"
+            maxLength={2000}
+            value={currentUrl}
+            onChange={(event) => updateUrl(event.target.value)}
+            placeholder="https://example.com/image.jpg"
+            aria-label={`${label} image URL`}
+          />
+          <small className="content-image-url-help">Paste a direct link to a public image.</small>
         </label>
       </div>
       {error && <p role="alert" className="bc-error">{error}</p>}

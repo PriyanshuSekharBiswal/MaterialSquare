@@ -157,19 +157,21 @@ export default function PolicyEditor({
             </div>
           </section>
         ))}
-        <button
-          type="button"
-          className="btn-sm btn-secondary"
-          disabled={policy.sections.length >= 20}
-          onClick={() =>
-            save({
-              ...policy,
-              sections: [...policy.sections, { heading: "", body: "" }],
-            })
-          }
-        >
-          Add section
-        </button>
+        <div className="website-editor-actions-row">
+          <button
+            type="button"
+            className="btn-sm btn-secondary"
+            disabled={policy.sections.length >= 20}
+            onClick={() =>
+              save({
+                ...policy,
+                sections: [...policy.sections, { heading: "", body: "" }],
+              })
+            }
+          >
+            Add section
+          </button>
+        </div>
         <div className="website-policy-publish">
         <label className="website-policy-publish-toggle">
           <input

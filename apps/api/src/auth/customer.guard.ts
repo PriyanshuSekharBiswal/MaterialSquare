@@ -49,7 +49,19 @@ export class CustomerGuard implements CanActivate {
       )
         throw new ForbiddenException("Invalid customer request");
       const origin = req.get("origin");
-      const allowed = (process.env.CORS_ORIGINS || "http://localhost:5173")
+      const defaultDevOrigins = [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5175",
+        "https://material-square.localtest.me:5173",
+        "https://material-square.localtest.me:5175",
+      ];
+      const defaultOrigins =
+        process.env.NODE_ENV === "production" ? "" : defaultDevOrigins.join(",");
+      const allowed = (process.env.CORS_ORIGINS || defaultOrigins)
         .split(",")
         .map((item) => item.trim());
       if (origin && !allowed.includes(origin))

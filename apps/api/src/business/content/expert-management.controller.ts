@@ -19,10 +19,34 @@ import type { StaffRequest } from "../../auth/staff-request";
 @UseGuards(StaffGuard)
 export class ExpertManagementController {
   constructor(private readonly prisma: PrismaService) {}
-  @Get() list() {
-    return this.prisma.expertAdvisor.findMany({
+  @Get() async list() {
+    const experts = await this.prisma.expertAdvisor.findMany({
       orderBy: { updatedAt: "desc" },
     });
+    if (!experts.length) return experts;
+
+    const creationLogs = await this.prisma.auditLog.findMany({
+      where: {
+        action: { in: ["EXPERT_CREATED", "EXPERT_PUBLISHED"] },
+        entityType: "EXPERT_ADVISOR",
+        entityId: { in: experts.map(({ id }) => id) },
+      },
+      select: {
+        entityId: true,
+        staff: { select: { name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    const creatorByExpertId = new Map<string, string>();
+    for (const log of creationLogs) {
+      if (log.staff?.name && !creatorByExpertId.has(log.entityId)) {
+        creatorByExpertId.set(log.entityId, log.staff.name);
+      }
+    }
+    return experts.map((expert) => ({
+      ...expert,
+      createdBy: creatorByExpertId.get(expert.id) ?? null,
+    }));
   }
   @Post() create(@Req() req: StaffRequest, @Body() body: unknown) {
     const data = validate(

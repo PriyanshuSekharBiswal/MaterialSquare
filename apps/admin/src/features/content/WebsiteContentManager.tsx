@@ -11,7 +11,7 @@ import "./media-library.css";
 import ContentImageField from "../../components/ContentImageField";
 import HomepageCategoryImages from "./HomepageCategoryImages";
 import { useCallback, useEffect, useRef, useState, type SetStateAction } from "react";
-import { Clock3, RotateCcw, Save, RotateCw, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Clock3, ContactRound, Files, House, Images, Menu, PanelBottom, RotateCcw, Save, RotateCw, Search, Share2, ShieldCheck, CircleQuestionMark, Trash2, X } from "lucide-react";
 import {
   SITE_CONTENT_DEFAULTS,
   SITE_CONTENT_GROUPS,
@@ -20,7 +20,27 @@ import {
 
 const PREVIEW_MESSAGE = "material-square:site-content-preview";
 const RECOVERY_KEY = "material-square-website-content-recovery-v1";
+const WEBSITE_SECTION_KEY = "material-square-website-editor-section";
+const WEBSITE_SECTION_IDS = [
+  "content-pages", "content-homepage", "content-guides", "content-contact", "content-images",
+  "content-privacy", "content-social", "content-metadata", "content-footer",
+];
+const WEBSITE_SECTION_ITEMS = [
+  ["content-pages", "Pages & menus", Files], ["content-homepage", "Homepage", House], ["content-guides", "Guides & FAQs", CircleQuestionMark],
+  ["content-contact", "Contact & office", ContactRound], ["content-images", "Images", Images], ["content-privacy", "Policies", ShieldCheck],
+  ["content-social", "Social links", Share2], ["content-metadata", "Search & SEO", Search], ["content-footer", "Footer", PanelBottom],
+] as const;
+const readSavedWebsiteSection = () => {
+  if (typeof window === "undefined") return "content-pages";
+  try {
+    const savedSection = window.localStorage.getItem(WEBSITE_SECTION_KEY);
+    return savedSection && WEBSITE_SECTION_IDS.includes(savedSection) ? savedSection : "content-pages";
+  } catch {
+    return "content-pages";
+  }
+};
 const RECOVERY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const isUserCancelled = (cause: unknown) => cause instanceof DOMException && cause.name === "AbortError";
 const BUILT_IN_PREVIEW_PAGES = [
   { path: "/marketplace", title: "Marketplace" },
   { path: "/why-us", title: "Why Us" },
@@ -71,7 +91,11 @@ export default function WebsiteContentManager({
   const [recoveryPoints, setRecoveryPoints] = useState<RecoveryPoint[]>([]);
   const [restoringId, setRestoringId] = useState("");
   const [browserRecovery, setBrowserRecovery] = useState<SiteContent | null>(null);
-  const [activeContentSection, setActiveContentSection] = useState("content-pages");
+  const [activeContentSection, setActiveContentSection] = useState(readSavedWebsiteSection);
+  const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<"publish" | "discard" | "defaults" | null>(null);
+  const sectionMenuRef = useRef<HTMLDivElement>(null);
+  const restoringSection = useRef(true);
   const previewFrame = useRef<HTMLIFrameElement>(null);
   const hydrated = useRef(false);
   const lastSavedContent = useRef("");
@@ -81,27 +105,99 @@ export default function WebsiteContentManager({
   const autosaveQueue = useRef(Promise.resolve());
 
   useEffect(() => {
-    const sectionIds = ["content-pages", "content-homepage", "content-guides", "content-contact", "content-images", "content-privacy", "content-social", "content-metadata", "content-footer"];
-    const sections = sectionIds.map((id) => document.getElementById(id)).filter((node): node is HTMLElement => Boolean(node));
-    if (!sections.length || !("IntersectionObserver" in window)) return;
-    const observer = new IntersectionObserver(() => {
-      const marker = 180;
-      const positioned = sections.map((section) => ({
-        id: section.id,
-        rect: section.getBoundingClientRect(),
-      }));
-      const current = positioned
-        .filter(({ rect }) => rect.top <= marker && rect.bottom > marker)
-        .sort((a, b) => b.rect.top - a.rect.top)[0];
-      const next = positioned
-        .filter(({ rect }) => rect.top > marker)
-        .sort((a, b) => a.rect.top - b.rect.top)[0];
-      const active = current || next;
-      if (active?.id) setActiveContentSection(active.id);
-    }, { rootMargin: "-180px 0px -55% 0px", threshold: 0 });
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(""), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
+
+  const renderContentGroups = (labels: string[]) => {
+    if (loading) return <p role="status">Loading saved website copy…</p>;
+    return SITE_CONTENT_GROUPS.filter((group) => labels.includes(group.label)).map((group) => (
+      <section className="panel-card panel-body website-content-group" key={group.label}>
+        <h3>{group.label}</h3>
+        <div className="website-content-fields">
+          {group.fields.map(({ key, label, multiline, image }) => image ? (
+            <ContentImageField
+              key={key}
+              token={token}
+              customerUrl={customerUrl}
+              value={content[key]}
+              label={label}
+              recommendedSize="1200 × 800 px (3:2)"
+              onChange={(url) => updateContent((old) => ({ ...old, [key]: url }))}
+              onBusyChange={setMediaBusy}
+              onSignOut={onSignOut}
+            />
+          ) : (
+            <label key={key}>
+              {label}
+              {multiline ? (
+                <textarea
+                  rows={3}
+                  maxLength={key.startsWith("seo.") ? (key === "seo.description" ? 300 : 100) : 2000}
+                  value={content[key]}
+                  onChange={(event) => updateContent((old) => ({ ...old, [key]: event.target.value }))}
+                />
+              ) : (
+                <input
+                  maxLength={key.startsWith("seo.") ? (key === "seo.description" ? 300 : 100) : 2000}
+                  value={content[key]}
+                  onChange={(event) => updateContent((old) => ({ ...old, [key]: event.target.value }))}
+                />
+              )}
+            </label>
+          ))}
+        </div>
+      </section>
+    ));
+  };
+
+  useEffect(() => {
+    if (restoringSection.current) return;
+    try {
+      window.localStorage.setItem(WEBSITE_SECTION_KEY, activeContentSection);
+    } catch {
+      // Section memory is a convenience; the editor remains usable if storage is unavailable.
+    }
+  }, [activeContentSection]);
+
+  useEffect(() => {
+    if (loading) return;
+    const savedSection = readSavedWebsiteSection();
+    setActiveContentSection(savedSection);
+    const frame = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0 });
+      window.requestAnimationFrame(() => {
+        restoringSection.current = false;
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [loading]);
+
+  useEffect(() => {
+    if (!sectionMenuOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!sectionMenuRef.current?.contains(event.target as Node)) setSectionMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSectionMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [sectionMenuOpen]);
+
+  useEffect(() => {
+    if (!confirmAction) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setConfirmAction(null);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [confirmAction]);
 
   const request = useCallback(
     async (
@@ -269,6 +365,7 @@ export default function WebsiteContentManager({
       return;
     }
     setBusy(true);
+    setSaveState("saving");
     setError("");
     setNotice("");
     try {
@@ -293,6 +390,11 @@ export default function WebsiteContentManager({
           : "Draft saved. The live website has not changed.",
       );
     } catch (e) {
+      if (isUserCancelled(e)) {
+        setSaveState(JSON.stringify(content) === lastSavedContent.current ? "saved" : "saving");
+        return;
+      }
+      setSaveState("error");
       setError(
         e instanceof Error ? e.message : "Could not save website content.",
       );
@@ -302,7 +404,6 @@ export default function WebsiteContentManager({
   }
 
   async function discardDraft() {
-    if (!window.confirm("Discard the shared unpublished website draft and return the editor to the published version? Other content editors will see this change. Existing recovery points remain available for 7 days.")) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -333,6 +434,7 @@ export default function WebsiteContentManager({
       return;
     }
     setBusy(true);
+    setSaveState("saving");
     setError("");
     setNotice("");
     try {
@@ -351,6 +453,11 @@ export default function WebsiteContentManager({
         "Draft saved. The customer-site preview is private and has not been published.",
       );
     } catch (e) {
+      if (isUserCancelled(e)) {
+        setSaveState(JSON.stringify(content) === lastSavedContent.current ? "saved" : "saving");
+        return;
+      }
+      setSaveState("error");
       setError(
         e instanceof Error
           ? e.message
@@ -382,6 +489,7 @@ export default function WebsiteContentManager({
       const historyResponse = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/admin/site-content/draft/history`, { headers: { Authorization: `Bearer ${token}` } });
       if (historyResponse.ok) setRecoveryPoints(await historyResponse.json() as RecoveryPoint[]);
     } catch (cause) {
+      if (isUserCancelled(cause)) return;
       setError(cause instanceof Error ? cause.message : "Could not restore that recovery point.");
     } finally {
       setRestoringId("");
@@ -391,6 +499,18 @@ export default function WebsiteContentManager({
   function closePreview() {
     setPreview(false);
     setPreviewContent(null);
+  }
+
+  function confirmPendingAction() {
+    const action = confirmAction;
+    setConfirmAction(null);
+    setError("");
+    if (action === "publish") void save(true);
+    if (action === "discard") void discardDraft();
+    if (action === "defaults") {
+      updateContent({ ...SITE_CONTENT_DEFAULTS });
+      setNotice("Default website copy restored as a private draft. Save or publish when ready.");
+    }
   }
 
   let previewUrl = "";
@@ -428,7 +548,7 @@ export default function WebsiteContentManager({
             className="btn-sm btn-secondary btn-orange-outline"
             type="button"
             disabled={contentDisabled}
-            onClick={() => updateContent({ ...SITE_CONTENT_DEFAULTS })}
+            onClick={() => setConfirmAction("defaults")}
           >
             <RotateCcw size={16} /> Restore draft defaults
           </button>
@@ -452,7 +572,7 @@ export default function WebsiteContentManager({
             className="btn-sm btn-secondary btn-orange-outline"
             type="button"
             disabled={contentDisabled || saveState === "saving"}
-            onClick={() => void discardDraft()}
+            onClick={() => setConfirmAction("discard")}
           >
             <Trash2 size={16} /> Discard draft
           </button>
@@ -460,14 +580,20 @@ export default function WebsiteContentManager({
             className="btn-sm btn-primary"
             type="button"
             disabled={contentDisabled}
-            onClick={() => void save(true)}
+            onClick={() => {
+              if (previewedContent.current !== JSON.stringify(content)) {
+                setError("Save and preview the current draft before publishing it.");
+                return;
+              }
+              setConfirmAction("publish");
+            }}
           >
             {busy ? "Saving…" : "Publish"}
           </button>
         </div>
       </header>
       <section className={`website-content-save-status is-${saveState}`} aria-live="polite">
-        <div><Clock3 size={17} /><strong>{saveState === "saving" ? "Saving your draft…" : saveState === "error" ? "Automatic save needs attention" : "Draft saved privately"}</strong></div>
+        <div><Clock3 size={17} /><strong>{saveState === "saving" ? "Saving your draft…" : saveState === "error" ? "Automatic save needs attention" : hasServerDraft || lastSavedAt ? "Draft saved privately" : "Ready to edit"}</strong></div>
         <span>{saveState === "saved" && lastSavedAt ? `Last saved ${lastSavedAt.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })} · recovery points expire after 7 days` : saveState === "error" ? "Your browser recovery copy expires after 7 days." : hasServerDraft ? "The private draft stays until it is published or discarded. Recovery points expire after 7 days." : "No private draft yet. New edits save automatically; recovery points expire after 7 days."}</span>
         {browserRecovery && <button className="btn-sm btn-secondary" type="button" disabled={contentDisabled} onClick={() => { updateContent(browserRecovery); setBrowserRecovery(null); setNotice("Browser recovery copy selected. Saving it as the current private draft."); }}>Restore this browser copy</button>}
         {recoveryPoints.length > 0 && <details className="website-content-history">
@@ -515,190 +641,142 @@ export default function WebsiteContentManager({
         </p>
       )}
       {notice && (
-        <p className="saved-notice" role="status">
-          {notice}
-        </p>
-      )}
-      <nav className="website-content-jump-nav" aria-label="Website settings">
-        <span className="website-content-jump-current">Viewing <strong>{({ "content-pages": "Pages & menus", "content-homepage": "Homepage", "content-guides": "Guides & FAQs", "content-contact": "Contact & office", "content-images": "Images", "content-privacy": "Policies", "content-social": "Social links", "content-metadata": "Search & SEO", "content-footer": "Footer" } as Record<string, string>)[activeContentSection] || "Pages & menus"}</strong></span>
-        <div className="website-content-jump-links">
-          {[
-            ["content-pages", "Pages & menus"], ["content-homepage", "Homepage"], ["content-guides", "Guides & FAQs"],
-            ["content-contact", "Contact & office"], ["content-images", "Images"], ["content-privacy", "Policies"],
-            ["content-social", "Social links"], ["content-metadata", "Search & SEO"], ["content-footer", "Footer"],
-          ].map(([id, label]) => <a key={id} href={`#${id}`} onClick={() => setActiveContentSection(id)} aria-current={activeContentSection === id ? "location" : undefined}>{label}</a>)}
+        <div className="website-content-toast saved-notice" role="status">
+          <span>{notice}</span>
+          <button type="button" aria-label="Dismiss notification" onClick={() => setNotice("")}><X size={16} /></button>
         </div>
-      </nav>
-      <div id="content-privacy" className="website-content-anchor">
-        <PolicyEditor
-          kind="privacy"
-          content={content}
-          disabled={contentDisabled}
-          onChange={updateContent}
-        />
-        <PolicyEditor
-          kind="terms"
-          content={content}
-          disabled={contentDisabled}
-          onChange={updateContent}
-        />
-        <PolicyEditor
-          kind="shipping"
-          content={content}
-          disabled={contentDisabled}
-          onChange={updateContent}
-        />
-        <PolicyEditor
-          kind="returns"
-          content={content}
-          disabled={contentDisabled}
-          onChange={updateContent}
-        />
-      </div>
-      <div id="content-guides" className="website-content-anchor">
-        <FaqEditor
-          content={content}
-          disabled={contentDisabled}
-          onChange={updateContent}
-        />
-        <GuideControls
-          content={content}
-          disabled={contentDisabled}
-          onChange={updateContent}
-        />
-      </div>
-      <div id="content-pages" className="website-content-anchor">
-        <NavigationControls
-          content={content}
-          disabled={contentDisabled}
-          onChange={updateContent}
-        />
-        <WebsitePageBuilder
-          content={content}
-          disabled={busy || loading}
-          onChange={updateContent}
-        />
-      </div>
-      <div id="content-homepage" className="website-content-anchor">
-        <HomepageSectionControls
-          content={content}
-          disabled={contentDisabled}
-          onChange={updateContent}
-        />
-        <HomepageContentBlocks
-          content={content}
-          disabled={contentDisabled}
-          onChange={updateContent}
-        />
-        <HomepageCategoryImages
-          token={token}
-          content={content}
-          customerUrl={customerUrl}
-          onChange={(images) =>
-            updateContent((old) => ({
-              ...old,
-              "home.categoryImages": JSON.stringify(images),
-            }))
-          }
-          onBusyChange={setMediaBusy}
-          onSignOut={onSignOut}
-        />
-      </div>
-      <div id="content-social" className="website-content-anchor">
-        <SocialLinksEditor
-          content={content}
-          disabled={contentDisabled}
-          onChange={updateContent}
-        />
-      </div>
-      <div id="content-images" className="website-content-anchor">
-        <MediaLibrary token={token} onSignOut={onSignOut} />
-      </div>
-      {loading ? (
-        <p role="status">Loading saved website copy…</p>
-      ) : (
-        SITE_CONTENT_GROUPS.map((group) => (
-          <section
-            className="panel-card panel-body website-content-group"
-            key={group.label}
-            id={
-              group.label === "Homepage"
-                ? "content-homepage-copy"
-                : group.label === "Contact & business details"
-                  ? "content-contact"
-                  : group.label === "Page metadata"
-                    ? "content-metadata"
-                    : group.label === "Footer"
-                      ? "content-footer"
-                      : undefined
-            }
-          >
-            <h3>{group.label}</h3>
-            <div className="website-content-fields">
-              {group.fields.map(({ key, label, multiline, image }) =>
-                image ? (
-                  <ContentImageField
-                    key={key}
-                    token={token}
-                    customerUrl={customerUrl}
-                    value={content[key]}
-                    label={label}
-                    onChange={(url) =>
-                      updateContent((old) => ({ ...old, [key]: url }))
-                    }
-                    onBusyChange={setMediaBusy}
-                    onSignOut={onSignOut}
-                  />
-                ) : (
-                  <label key={key}>
-                    {label}
-                    {multiline ? (
-                      <textarea
-                        rows={3}
-                        maxLength={
-                          key.startsWith("seo.")
-                            ? key === "seo.description"
-                              ? 300
-                              : 100
-                            : 2000
-                        }
-                        value={content[key]}
-                        onChange={(event) =>
-                          updateContent((old) => ({
-                            ...old,
-                            [key]: event.target.value,
-                          }))
-                        }
-                      />
-                    ) : (
-                      <input
-                        maxLength={
-                          key.startsWith("seo.")
-                            ? key === "seo.description"
-                              ? 300
-                              : 100
-                            : 2000
-                        }
-                        value={content[key]}
-                        onChange={(event) =>
-                          updateContent((old) => ({
-                            ...old,
-                            [key]: event.target.value,
-                          }))
-                        }
-                      />
-                    )}
-                  </label>
-                ),
-              )}
+      )}
+      {confirmAction && (
+        <div className="website-editor-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setConfirmAction(null); }}>
+          <section className="website-editor-confirm" role="dialog" aria-modal="true" aria-labelledby="website-editor-confirm-title" aria-describedby="website-editor-confirm-copy">
+            <div className="website-editor-confirm-icon"><AlertTriangle size={21} aria-hidden="true" /></div>
+            <button className="website-editor-confirm-close" type="button" aria-label="Close confirmation" onClick={() => setConfirmAction(null)}><X size={18} /></button>
+            <h2 id="website-editor-confirm-title">
+              {confirmAction === "publish" ? "Publish website changes?" : confirmAction === "discard" ? "Discard the website draft?" : "Restore default website copy?"}
+            </h2>
+            <p id="website-editor-confirm-copy">
+              {confirmAction === "publish"
+                ? "This will make the current reviewed draft visible on the public website."
+                : confirmAction === "discard"
+                  ? "The shared unpublished draft will be removed and the editor will return to the published version. Other editors will see this change. Recovery points remain available for 7 days."
+                  : "All current draft edits will be replaced with the default website copy. The change will be saved privately and will not publish the website."}
+            </p>
+            <div className="website-editor-confirm-actions">
+              <button className="btn-sm btn-secondary" type="button" autoFocus onClick={() => setConfirmAction(null)}>Cancel</button>
+              <button className={`btn-sm ${confirmAction === "publish" ? "btn-primary" : "btn-secondary btn-orange-outline"}`} type="button" onClick={confirmPendingAction}>
+                {confirmAction === "publish" ? "Publish website" : confirmAction === "discard" ? "Discard draft" : "Restore defaults"}
+              </button>
             </div>
           </section>
-        ))
+        </div>
       )}
-      <p className="website-content-note">
-        Text is stored as plain text. Page layout, product images, prices and
-        availability are managed separately.
-      </p>
+      <div className="embedded-subnav-bar website-content-section-bar" ref={sectionMenuRef}>
+        <h2 className="operations-current-section">{({ "content-pages": "Pages & menus", "content-homepage": "Homepage", "content-guides": "Guides & FAQs", "content-contact": "Contact & office", "content-images": "Images", "content-privacy": "Policies", "content-social": "Social links", "content-metadata": "Search & SEO", "content-footer": "Footer" } as Record<string, string>)[activeContentSection] || "Pages & menus"}</h2>
+        {sectionMenuOpen && (
+          <div className="embedded-subnav-items website-content-section-menu" id="website-section-menu">
+            {WEBSITE_SECTION_ITEMS.map(([id, label, Icon]) => (
+              <button
+                type="button"
+                key={id}
+                className={`subnav-pill ${activeContentSection === id ? "active" : ""}`}
+                aria-current={activeContentSection === id ? "page" : undefined}
+                onClick={() => {
+                  setActiveContentSection(id);
+                  try {
+                    window.localStorage.setItem(WEBSITE_SECTION_KEY, id);
+                  } catch {
+                    // Section memory is a convenience; navigation should still work without storage.
+                  }
+                  setSectionMenuOpen(false);
+                  window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${id}`);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+              >
+                <Icon size={16} aria-hidden="true" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <button
+          type="button"
+          className="operations-menu-trigger"
+          aria-label="Open website editor sections"
+          aria-expanded={sectionMenuOpen}
+          aria-controls="website-section-menu"
+          title="Open website editor sections"
+          onClick={() => setSectionMenuOpen((open) => !open)}
+        >
+          <Menu size={22} aria-hidden="true" />
+        </button>
+      </div>
+      {activeContentSection !== "content-pages" && (
+        <div className="website-content-section-backrow">
+          <button
+            type="button"
+            className="btn-sm btn-secondary admin-back-button"
+            onClick={() => {
+              setActiveContentSection("content-pages");
+              try {
+                window.localStorage.setItem(WEBSITE_SECTION_KEY, "content-pages");
+              } catch {
+                // The focused view can still close when storage is unavailable.
+              }
+              window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#content-pages`);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          >
+            <ArrowLeft size={16} aria-hidden="true" /> Back to Pages & menus
+          </button>
+        </div>
+      )}
+      <div id={activeContentSection} className="website-content-focused-view website-content-anchor">
+        {activeContentSection === "content-pages" && <>
+          <NavigationControls content={content} disabled={contentDisabled} onChange={updateContent} />
+          <WebsitePageBuilder
+            content={content}
+            disabled={contentDisabled}
+            onChange={updateContent}
+            token={token}
+            customerUrl={customerUrl}
+            onSignOut={onSignOut}
+            onBusyChange={setMediaBusy}
+          />
+          {renderContentGroups(["Why Us", "Get Quote"])}
+        </>}
+        {activeContentSection === "content-homepage" && <>
+          <HomepageSectionControls content={content} disabled={contentDisabled} onChange={updateContent} />
+          <HomepageContentBlocks content={content} disabled={contentDisabled} onChange={updateContent} />
+          <HomepageCategoryImages
+            token={token}
+            content={content}
+            customerUrl={customerUrl}
+            onChange={(images) => updateContent((old) => ({ ...old, "home.categoryImages": JSON.stringify(images) }))}
+            onBusyChange={setMediaBusy}
+            onSignOut={onSignOut}
+          />
+          {renderContentGroups(["Homepage"])}
+        </>}
+        {activeContentSection === "content-guides" && <>
+          <FaqEditor content={content} disabled={contentDisabled} onChange={updateContent} />
+          <GuideControls content={content} disabled={contentDisabled} onChange={updateContent} />
+          {renderContentGroups(["Tools & Guides"])}
+        </>}
+        {activeContentSection === "content-contact" && renderContentGroups(["Contact & business details"])}
+        {activeContentSection === "content-images" && <MediaLibrary token={token} onSignOut={onSignOut} />}
+        {activeContentSection === "content-privacy" && <>
+          <PolicyEditor kind="privacy" content={content} disabled={contentDisabled} onChange={updateContent} />
+          <PolicyEditor kind="terms" content={content} disabled={contentDisabled} onChange={updateContent} />
+          <PolicyEditor kind="shipping" content={content} disabled={contentDisabled} onChange={updateContent} />
+          <PolicyEditor kind="returns" content={content} disabled={contentDisabled} onChange={updateContent} />
+        </>}
+        {activeContentSection === "content-social" && <SocialLinksEditor content={content} disabled={contentDisabled} onChange={updateContent} />}
+        {activeContentSection === "content-metadata" && renderContentGroups(["Page metadata"])}
+        {activeContentSection === "content-footer" && renderContentGroups(["Footer"])}
+        {!loading && activeContentSection !== "content-images" && activeContentSection !== "content-social" && activeContentSection !== "content-privacy" && (
+          <p className="website-content-note">Text is stored as plain text. Page layout, product images, prices and availability are managed separately.</p>
+        )}
+      </div>
     </div>
   );
 }

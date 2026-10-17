@@ -4,10 +4,12 @@ import { Link } from "react-router-dom";
 import { ArrowRight, ClipboardList, Pencil, ShoppingBag } from "lucide-react";
 import { useCustomer } from "../customer";
 import RequestContactForm from "../components/RequestContactForm";
+import MaterialCartFinder from "../components/MaterialCartFinder";
 import { useSiteContent } from "../site-content";
 export default function GetQuotePage(props: {
   bomList?: MaterialItem[];
   products?: CatalogueProduct[];
+  catalogueLoading?: boolean;
 }) {
   const siteContent = useSiteContent();
   const { items } = useCustomer();
@@ -43,6 +45,10 @@ export default function GetQuotePage(props: {
             <Link className="btn btn-secondary" to="/material-list"><Pencil size={15} /> Edit cart</Link>
             <Link to="/marketplace">Browse materials <ArrowRight size={15} /></Link>
           </div>
+          <MaterialCartFinder
+            products={props.products}
+            loading={props.catalogueLoading}
+          />
         </section>
         <div>
           <RequestContactForm products={props.products} />

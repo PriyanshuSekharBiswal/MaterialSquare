@@ -1,3 +1,6 @@
+import { MapPin } from "lucide-react";
+import { formatEnumLabel } from "../../utils/formatEnumLabel";
+
 type Amount = string | number;
 export type OrderSummary = {
   deliverySite?: string;
@@ -32,51 +35,70 @@ const money = (value: Amount) =>
   Number(value).toLocaleString("en-IN", { style: "currency", currency: "INR" });
 
 export default function OrderDetails({ order }: { order: OrderSummary }) {
+  const receivedTotal = order.payments?.reduce(
+    (sum, payment) => sum + Number(payment.amountInr),
+    0,
+  ) || 0;
+  const balance = order.grandTotal == null
+    ? null
+    : Math.max(0, Number(order.grandTotal) - receivedTotal);
+
   return (
     <>
       {order.manualPaymentStatus && (
-        <p className="order-payment-status" role="status">
-          Payment: <strong>{order.manualPaymentStatus.replaceAll("_", " ")}</strong>
-          {order.manualPaymentMethod &&
-            ` · ${order.manualPaymentMethod === "OTHER" ? "Other offline method" : order.manualPaymentMethod}`}
-          {order.manualPaymentRecordedAt &&
-            ` · recorded ${new Date(order.manualPaymentRecordedAt).toLocaleString("en-IN")}`}
-          {order.manualPaymentRecordedBy?.name &&
-            ` by ${order.manualPaymentRecordedBy.name}`}
-          {order.manualPaymentReference &&
-            ` · reference ${order.manualPaymentReference}`}
-        </p>
+        <div className="order-payment-status" role="status">
+          <span className="order-payment-status-badge" data-status={order.manualPaymentStatus}>
+            {formatEnumLabel(order.manualPaymentStatus)}
+          </span>
+          <span>
+            {order.manualPaymentMethod &&
+              `${order.manualPaymentMethod === "OTHER" ? "Other offline method" : order.manualPaymentMethod}`}
+            {order.manualPaymentRecordedAt &&
+              ` · recorded ${new Date(order.manualPaymentRecordedAt).toLocaleString("en-IN")}`}
+            {order.manualPaymentRecordedBy?.name &&
+              ` by ${order.manualPaymentRecordedBy.name}`}
+            {order.manualPaymentReference &&
+              ` · reference ${order.manualPaymentReference}`}
+          </span>
+        </div>
       )}
-    <details>
+    <details className="sales-order-details">
       <summary>View order materials and delivery details</summary>
-      {order.deliverySite && (
-        <p>
-          Delivery: {order.deliverySite}
-          {order.pincode ? ` · ${order.pincode}` : ""}
-        </p>
-      )}
-      {order.grandTotal != null && (
-        <p>Order total: {money(order.grandTotal)}</p>
-      )}
-      {order.payments?.length ? (
-        <section aria-label="Offline payment history">
-          <p>
-            Received: {money(order.payments.reduce((sum, payment) => sum + Number(payment.amountInr), 0))}
-            {order.grandTotal != null && ` · balance ${money(Math.max(0, Number(order.grandTotal) - order.payments.reduce((sum, payment) => sum + Number(payment.amountInr), 0)))}`}
-          </p>
-          <ul>
-            {order.payments.map((payment) => (
-              <li key={payment.paymentNumber}>
-                {payment.paymentNumber} · {money(payment.amountInr)} · {payment.method}
-                {payment.reference && ` · ${payment.reference}`}
-                {payment.recordedBy?.name && ` · recorded by ${payment.recordedBy.name}`}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      <div className="sales-order-details-content">
+        {order.deliverySite && (
+          <section className="sales-order-delivery" aria-label="Delivery address">
+            <span className="sales-order-delivery-icon"><MapPin size={18} aria-hidden="true" /></span>
+            <div>
+              <span className="sales-order-detail-label">DELIVERY ADDRESS</span>
+              <p>{order.deliverySite}</p>
+            </div>
+            {order.pincode && <span className="sales-order-pincode">PIN {order.pincode}</span>}
+          </section>
+        )}
+        {(order.grandTotal != null || order.payments?.length) && (
+          <section className="sales-order-finance" aria-label="Order totals">
+            {order.grandTotal != null && (
+              <div><span>Order total</span><strong>{money(order.grandTotal)}</strong></div>
+            )}
+            <div><span>Received</span><strong>{money(receivedTotal)}</strong></div>
+            {balance != null && <div><span>Balance</span><strong>{money(balance)}</strong></div>}
+          </section>
+        )}
+        {order.payments?.length ? (
+          <section className="sales-order-payment-history" aria-label="Offline payment history">
+            <h4>Payment history</h4>
+            <ul>
+              {order.payments.map((payment) => (
+                <li key={payment.paymentNumber}>
+                  <span><strong>{payment.paymentNumber}</strong><small>{payment.method}{payment.reference && ` · ${payment.reference}`}</small></span>
+                  <span><strong>{money(payment.amountInr)}</strong><small>{new Date(payment.recordedAt).toLocaleString("en-IN")}{payment.recordedBy?.name && ` · ${payment.recordedBy.name}`}</small></span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
       {!!order.items?.length && (
-        <div className="table-scroll">
+        <div className="table-scroll sales-order-items-table">
           <table>
             <thead>
               <tr>
@@ -107,6 +129,7 @@ export default function OrderDetails({ order }: { order: OrderSummary }) {
           </table>
         </div>
       )}
+      </div>
     </details>
     </>
   );

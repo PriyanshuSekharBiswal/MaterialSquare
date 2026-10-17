@@ -1,5 +1,5 @@
-import type { Dispatch, FormEvent, SetStateAction } from "react";
-import { ArrowLeft, ArrowRight, Plus, Search } from "lucide-react";
+import { useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { ArrowLeft, ArrowRight, PackageCheck, Plus, Search } from "lucide-react";
 import {
   blankFollowup,
   followupStatuses,
@@ -9,6 +9,24 @@ import {
   type Page,
   type WorkspaceTab,
 } from "./contracts";
+import { formatEnumLabel } from "../../utils/formatEnumLabel";
+
+const isAcceptedQuote = (status: string) =>
+  ["ACCEPTED", "APPROVED", "CONVERTED_TO_ORDER"].includes(status.toUpperCase());
+const historyStatusLabel = (status: string) => formatEnumLabel(status);
+
+const historyMoney = (value: string | number) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(
+    Number(value || 0),
+  );
+const historyDate = (value: string) =>
+  new Date(value).toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 
 type CustomerFollowupWorkspaceProps = {
   tab: "customers" | "followups";
@@ -56,6 +74,14 @@ export default function CustomerFollowupWorkspace({
   save,
 }: CustomerFollowupWorkspaceProps) {
   const result = tab === "customers" ? customers : followups;
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const selectedRequest = selected?.rfqs?.find((request) => request.id === selectedRequestId);
+  const requests = selected?.rfqs ?? [];
+  const requestQuotes = requests.flatMap((request) => request.quotations);
+  const allQuotes = [...requestQuotes, ...(selected?.quotations ?? [])];
+  const acceptedQuotes = allQuotes.filter((quote) => isAcceptedQuote(quote.status));
+  const allOrders = allQuotes.flatMap((quote) => quote.orders);
+  const allDeliveries = allOrders.flatMap((order) => order.deliveries);
 
   return (
     <>
@@ -207,16 +233,21 @@ export default function CustomerFollowupWorkspace({
       {selected && !draft && (
         <section className="panel-card panel-body">
           <div className="customer-profile-header">
-            <h2>{selected.name || "Profile not completed"}</h2>
             <button
-              className="btn-sm btn-secondary btn-orange-outline"
-              onClick={() => setSelected(null)}
+              className="btn-sm btn-secondary btn-orange-outline admin-back-button"
+              onClick={() => selectedRequest ? setSelectedRequestId(null) : setSelected(null)}
             >
               <ArrowLeft size={16} />
-              Back to customers
+              {selectedRequest ? "Back to customer history" : "Back to customers"}
             </button>
+            <div>
+              <span className="customer-history-eyebrow">
+                {selectedRequest ? "CUSTOMER WORK HISTORY" : "CUSTOMER HISTORY"}
+              </span>
+              <h2>{selectedRequest?.requestNumber || selected.name || "Profile not completed"}</h2>
+            </div>
           </div>
-          <div className="customer-summary">
+          {!selectedRequest && <div className="customer-summary">
             <p>
               <strong>Mobile</strong>+91 {selected.phone}
             </p>
@@ -240,8 +271,8 @@ export default function CustomerFollowupWorkspace({
                 ? new Date(selected.createdAt).toLocaleString("en-IN")
                 : "Not available"}
             </p>
-          </div>
-          <div className="workspace-actions">
+          </div>}
+          {!selectedRequest && <div className="workspace-actions">
             <button
               className="btn-sm btn-primary"
               onClick={() => {
@@ -272,7 +303,109 @@ export default function CustomerFollowupWorkspace({
             >
               Open WhatsApp
             </a>
-          </div>
+          </div>}
+          {selectedRequest ? (
+            <div className="customer-request-page">
+              <div className="customer-history-section-heading">
+                <div>
+                  <span className="customer-history-eyebrow">WORK REQUEST</span>
+                  <h3>{selectedRequest.customerName}</h3>
+                  <p>{selectedRequest.siteLocation || "Delivery site not provided"}</p>
+                </div>
+                <span className="customer-history-status">{historyStatusLabel(selectedRequest.status)}</span>
+              </div>
+              <div className="customer-history-kpis">
+                <div><strong>{selectedRequest.quotations.length}</strong><span>Quotations</span></div>
+                <div><strong>{selectedRequest.quotations.filter((quote) => isAcceptedQuote(quote.status)).length}</strong><span>Accepted</span></div>
+                <div><strong>{selectedRequest.quotations.flatMap((quote) => quote.orders).length}</strong><span>Orders</span></div>
+                <div><strong>{selectedRequest.quotations.flatMap((quote) => quote.orders).flatMap((order) => order.deliveries).length}</strong><span>Deliveries</span></div>
+              </div>
+              <div className="customer-history-list">
+                <h3>Quotations under this request</h3>
+                {!selectedRequest.quotations.length && <p className="empty">No quotations have been created for this request yet.</p>}
+                {selectedRequest.quotations.map((quote) => (
+                  <article className="customer-history-card" key={quote.quoteNumber}>
+                    <div className="customer-history-card-heading">
+                      <div><span className="customer-history-eyebrow">QUOTATION</span><h4>{quote.quoteNumber}</h4></div>
+                      <span className={`customer-history-status ${isAcceptedQuote(quote.status) ? "is-complete" : ""}`}>{historyStatusLabel(quote.status)}</span>
+                    </div>
+                    <div className="customer-history-meta">
+                      <span>Total <strong>{historyMoney(quote.totalAmount)}</strong></span>
+                      <span>Created <strong>{historyDate(quote.createdAt)}</strong></span>
+                      {quote.publishedAt && <span>Sent <strong>{historyDate(quote.publishedAt)}</strong></span>}
+                    </div>
+                    {quote.orders.map((order) => (
+                      <div className="customer-order-history" key={order.orderNumber}>
+                        <div className="customer-history-card-heading">
+                          <div><span className="customer-history-eyebrow">ORDER</span><h4>{order.orderNumber}</h4></div>
+                          <span className="customer-history-status">{historyStatusLabel(order.status)}</span>
+                        </div>
+                        <div className="customer-history-meta"><span>Order total <strong>{historyMoney(order.grandTotal)}</strong></span><span>Placed <strong>{historyDate(order.createdAt)}</strong></span></div>
+                        <div className="customer-delivery-history">
+                          <strong><PackageCheck size={16} /> Deliveries ({order.deliveries.length})</strong>
+                          {order.deliveries.length ? order.deliveries.map((delivery) => (
+                            <p key={delivery.deliveryNumber}><b>{delivery.deliveryNumber}</b> · {historyDate(delivery.deliveredAt)}{delivery.notes ? ` · ${delivery.notes}` : ""}</p>
+                          )) : <p>No delivery recorded yet.</p>}
+                        </div>
+                      </div>
+                    ))}
+                    {!quote.orders.length && <p className="customer-history-empty-note">No order has been created from this quotation.</p>}
+                  </article>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="customer-history-kpis">
+                <div><strong>{requests.length}</strong><span>Work requests</span></div>
+                <div><strong>{allQuotes.length}</strong><span>Total quotations</span></div>
+                <div><strong>{acceptedQuotes.length}</strong><span>Accepted</span></div>
+                <div><strong>{allDeliveries.length}</strong><span>Deliveries</span></div>
+              </div>
+              <div className="customer-history-list">
+                <div className="customer-history-section-heading">
+                  <div><h3>Work requests</h3><p>Each request has its own number and history page.</p></div>
+                  <span className="customer-history-count">{requests.length} {requests.length === 1 ? "request" : "requests"}</span>
+                </div>
+                {!requests.length && <p className="empty">No website requests are linked to this customer yet.</p>}
+                {requests.map((request) => {
+                  const acceptedCount = request.quotations.filter((quote) => isAcceptedQuote(quote.status)).length;
+                  const orderCount = request.quotations.reduce((count, quote) => count + quote.orders.length, 0);
+                  const deliveryCount = request.quotations.flatMap((quote) => quote.orders).reduce((count, order) => count + order.deliveries.length, 0);
+                  return (
+                    <article className="customer-request-card" key={request.id}>
+                      <div className="customer-request-card-main">
+                        <span className="customer-history-eyebrow">REQUEST NUMBER</span>
+                        <h4>{request.requestNumber}</h4>
+                        <p>{request.customerName}{request.siteLocation ? ` · ${request.siteLocation}` : ""}</p>
+                        <small>{historyDate(request.createdAt)} · {historyStatusLabel(request.status)}</small>
+                      </div>
+                      <div className="customer-request-card-stats">
+                        <span><strong>{request.quotations.length}</strong> quotes</span>
+                        <span><strong>{acceptedCount}</strong> accepted</span>
+                        <span><strong>{orderCount}</strong> orders</span>
+                        <span><strong>{deliveryCount}</strong> deliveries</span>
+                      </div>
+                      <button className="btn-sm btn-primary" onClick={() => setSelectedRequestId(request.id)}>
+                        View request <ArrowRight size={15} />
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+              {!!selected?.quotations?.length && (
+                <div className="customer-history-list customer-custom-quotes">
+                  <div className="customer-history-section-heading"><div><h3>Custom quotations</h3><p>These quotations were created without a linked website request.</p></div></div>
+                  {selected.quotations.map((quote) => (
+                    <article className="customer-history-card" key={quote.quoteNumber}>
+                      <div className="customer-history-card-heading"><div><span className="customer-history-eyebrow">CUSTOM QUOTATION</span><h4>{quote.quoteNumber}</h4></div><span className={`customer-history-status ${isAcceptedQuote(quote.status) ? "is-complete" : ""}`}>{historyStatusLabel(quote.status)}</span></div>
+                      <div className="customer-history-meta"><span>Total <strong>{historyMoney(quote.totalAmount)}</strong></span><span>Created <strong>{historyDate(quote.createdAt)}</strong></span>{quote.publishedAt && <span>Sent <strong>{historyDate(quote.publishedAt)}</strong></span>}</div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </section>
       )}
       {draft && (

@@ -38,6 +38,7 @@ import type {
 import { emptyActivity } from "../features/customer-account/model";
 import { AccountContent } from "./CustomerAccountContent";
 import { useCustomer } from "../customer";
+import { useCustomerAuth } from "../context/CustomerAuthContext";
 import ClientActionConfirmation from "../components/ClientActionConfirmation";
 
 const nav = [
@@ -71,9 +72,8 @@ export default function CustomerAccountPage() {
     /^\/account\/quotations\/([^/]+)$/,
   )?.[1];
   const orderId = location.pathname.match(/^\/account\/orders\/([^/]+)$/)?.[1];
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const { profile, setProfile, checking, refresh } = useCustomerAuth();
   const [activity, setActivity] = useState<Activity>(emptyActivity);
-  const [checking, setChecking] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -89,36 +89,15 @@ export default function CustomerAccountPage() {
   const [pendingFailed, setPendingFailed] = useState(false);
   const [pendingInquiryFailed, setPendingInquiryFailed] = useState(false);
 
-  const refresh = useCallback(async () => {
-    setChecking(true);
-    setError("");
-    try {
-      // Only the session endpoint decides which account screen to show. Loading
-      // history in parallel used to keep the whole page on "Loading account…"
-      // when the activity endpoint was slow or unavailable.
-      const me = await customerApi<Profile>(
-        "/customer/me",
-        "GET",
-        undefined,
-        undefined,
-        12000,
-      );
-      setProfile(me);
-      setChecking(false);
-      void customerApi<Activity>("/customer/activity")
-        .then(setActivity)
-        .catch((e) => setError((e as Error).message));
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 401) setProfile(null);
-      else setError((e as Error).message);
-    } finally {
-      setChecking(false);
-    }
-  }, []);
-
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (!profile) {
+      setActivity(emptyActivity);
+      return;
+    }
+    void customerApi<Activity>("/customer/activity")
+      .then(setActivity)
+      .catch((e) => setError((e as Error).message));
+  }, [profile]);
   useEffect(() => {
     // Account routes can be opened from a page that was already scrolled.
     // Reset to the start of the new screen so its heading is not hidden behind

@@ -43,11 +43,18 @@ export class LoyaltyManagementController {
 
   @Get("settings")
   async getSettings() {
-    const settings = await this.prisma.loyaltyProgramSetting.findUnique({
-      where: { id: "default" },
-    });
-    return (
-      settings ?? {
+    const [settings, initialUpdate] = await Promise.all([
+      this.prisma.loyaltyProgramSetting.findUnique({
+        where: { id: "default" },
+      }),
+      this.prisma.auditLog.findFirst({
+        where: { action: "LOYALTY_SETTINGS_UPDATED", entityId: "default" },
+        orderBy: { createdAt: "asc" },
+        include: { staff: { select: { name: true } } },
+      }),
+    ]);
+    return {
+      ...(settings ?? {
         id: "default",
         enabled: false,
         pointsPer100Inr: 0,
@@ -55,8 +62,10 @@ export class LoyaltyManagementController {
         redemptionValuePerPoint: 0,
         minimumRedemptionPoints: 0,
         expiryAfterDays: null,
-      }
-    );
+      }),
+      createdBy: initialUpdate?.staff?.name ?? null,
+      createdAt: initialUpdate?.createdAt ?? settings?.updatedAt ?? null,
+    };
   }
 
   @Put("settings")

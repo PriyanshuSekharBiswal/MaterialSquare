@@ -115,6 +115,25 @@ export class QuotationAcceptanceService {
       )
         throw new ConflictException("A selected material is unavailable");
 
+      // Quotes linked to one RFQ are competing offers. Serialize acceptance
+      // by locking the RFQ row, then reject any offer after one has converted.
+      // This also prevents two concurrent accepts from creating two orders.
+      if (quote.requestId) {
+        await tx.$queryRaw`SELECT "id" FROM "rfqs" WHERE "id" = ${quote.requestId} FOR UPDATE`;
+        const acceptedAlternative = await tx.quotation.findFirst({
+          where: {
+            requestId: quote.requestId,
+            id: { not: quote.id },
+            status: { in: ["ACCEPTED", "CONVERTED_TO_ORDER"] },
+          },
+          select: { quoteNumber: true },
+        });
+        if (acceptedAlternative)
+          throw new ConflictException(
+            `Quotation ${acceptedAlternative.quoteNumber} was already accepted for this request. Only one quotation can be accepted per request.`,
+          );
+      }
+
       const selectedItems = quote.items.map((item) => {
         const selection = selections.find(
           (candidate) => candidate.itemId === item.id,

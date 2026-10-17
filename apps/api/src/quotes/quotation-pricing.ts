@@ -1,6 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
 import { CreateQuoteInput } from "@material-square/types";
 import { DiscountRule, Prisma } from "@prisma/client";
+import { normalizeCatalogueCategory } from "@material-square/types";
 
 type InventoryProduct = Prisma.ProductSKUGetPayload<{
   include: { brand: true };
@@ -115,6 +116,9 @@ export function buildQuotationItems(
 
 export type QuotationLine = ReturnType<typeof buildQuotationItems>[number];
 
+const candidateCategories = (rule: DiscountRule) =>
+  rule.categories?.length ? rule.categories : rule.category ? [rule.category] : [];
+
 /** Apply the first matching rule in priority order, cap discounts, then round tax. */
 export function calculateQuotationTotals(
   items: QuotationLine[],
@@ -127,7 +131,9 @@ export function calculateQuotationTotals(
   ) => {
     const rule = rules.find(
       (candidate) =>
-        (!candidate.category || candidate.category === line.categoryName) &&
+        (!candidateCategories(candidate).length || candidateCategories(candidate).some((category) =>
+          normalizeCatalogueCategory(category) === normalizeCatalogueCategory(line.categoryName),
+        )) &&
         (!candidate.deliveryPincodes.length ||
           candidate.deliveryPincodes.includes(input.sitePincode)) &&
         (!candidate.minimumQuantity ||

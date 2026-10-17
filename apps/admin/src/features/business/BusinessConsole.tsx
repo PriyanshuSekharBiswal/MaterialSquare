@@ -35,14 +35,18 @@ import SupplierManagement, {
 import PartnerBrandsManager from "../catalogue/PartnerBrandsManager";
 import ExpertDirectoryPanel from "../content/ExpertDirectoryPanel";
 import type { ExpertProfile } from "../content/ExpertDirectoryPanel";
-import BlogManagementPanel, { type BlogPost } from "../content/BlogManagementPanel";
+import BlogManagementPanel, {
+  type BlogPost,
+} from "../content/BlogManagementPanel";
 import CommissionManagement, {
   type CommissionRecord,
 } from "../commissions/CommissionManagement";
 import LoyaltySettings, {
+  LoyaltyProgramOverview,
   type LoyaltySettingsValues,
 } from "../loyalty/LoyaltySettings";
 import QuotationRules, {
+  QuotationRulesOverview,
   type QuotationRulesSettings,
 } from "../sales/QuotationRules";
 import "../catalogue/catalogue-manager.css";
@@ -134,8 +138,16 @@ type LoyaltySettings = {
   redemptionValuePerPoint: number | string;
   minimumRedemptionPoints: number | string;
   expiryAfterDays: number | string | null;
+  createdBy?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 type ConsoleSettings = Partial<LoyaltySettings & QuotationRulesSettings>;
+type LoyaltyAuditPage = {
+  items: Array<{ createdAt: string; staff: { name: string } | null }>;
+  total: number;
+  pageSize: number;
+};
 const sectionRoles: Record<Section, string[]> = {
   suppliers: ["SUPER_ADMIN", "ADMIN", "PROCUREMENT_HEAD"],
   procurement: ["SUPER_ADMIN", "ADMIN", "PROCUREMENT_HEAD"],
@@ -151,9 +163,14 @@ const sectionRoles: Record<Section, string[]> = {
 };
 
 function sectionFromLocation(role: string): Section {
-  const requested = new URLSearchParams(window.location.search).get("businessSection");
+  const requested = new URLSearchParams(window.location.search).get(
+    "businessSection",
+  );
   return (
-    sections.find((entry) => entry.id === requested && sectionRoles[entry.id].includes(role))?.id ||
+    sections.find(
+      (entry) =>
+        entry.id === requested && sectionRoles[entry.id].includes(role),
+    )?.id ||
     sections.find((entry) => sectionRoles[entry.id].includes(role))?.id ||
     "suppliers"
   );
@@ -164,6 +181,7 @@ import MaterialSquareLogo from "../../components/MaterialSquareLogo";
 export default function BusinessConsole({
   token,
   role,
+  staffName,
   customerUrl,
   onBack,
   onSignOut,
@@ -172,6 +190,7 @@ export default function BusinessConsole({
 }: {
   token: string;
   role: string;
+  staffName?: string;
   customerUrl?: string;
   onBack: () => void;
   onSignOut: () => void;
@@ -181,7 +200,28 @@ export default function BusinessConsole({
   const visibleSections = sections.filter((entry) =>
     sectionRoles[entry.id].includes(role),
   );
-  const [section, setSection] = useState<Section>(() => sectionFromLocation(role));
+  const [section, setSection] = useState<Section>(() =>
+    sectionFromLocation(role),
+  );
+  const [transportView, setTransportView] = useState<
+    "plan" | "challan" | "plans"
+  >("plan");
+  const [selectedTransportationPlanId, setSelectedTransportationPlanId] =
+    useState<string | null>(null);
+  const [editTransportationPlanOnOpen, setEditTransportationPlanOnOpen] =
+    useState(false);
+  const [expertView, setExpertView] = useState<"add" | "directory">("add");
+  const [selectedExpertId, setSelectedExpertId] = useState<string | null>(null);
+  const [blogView, setBlogView] = useState<"write" | "articles">("write");
+  const [selectedBlogId, setSelectedBlogId] = useState<string | null>(null);
+  const [commissionView, setCommissionView] = useState<"record" | "records">("record");
+  const [selectedCommissionId, setSelectedCommissionId] = useState<string | null>(null);
+  const [loyaltyView, setLoyaltyView] = useState<"overview" | "settings">("overview");
+  const [quotationRulesView, setQuotationRulesView] = useState<"overview" | "settings">("overview");
+  const [loyaltyCreationOverride, setLoyaltyCreationOverride] = useState<{
+    createdBy: string;
+    createdAt: string;
+  } | null>(null);
   const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
   const sectionMenuRef = useRef<HTMLDivElement>(null);
   const [records, setRecords] = useState<unknown[]>([]);
@@ -212,6 +252,27 @@ export default function BusinessConsole({
   useEffect(() => {
     onContentReady(false);
   }, [section, onContentReady]);
+  useEffect(() => {
+    if (section !== "experts") {
+      setSelectedExpertId(null);
+      setExpertView("add");
+    }
+  }, [section]);
+  useEffect(() => {
+    if (section !== "blogs") {
+      setSelectedBlogId(null);
+      setBlogView("write");
+    }
+  }, [section]);
+  useEffect(() => {
+    if (section !== "commissions") {
+      setSelectedCommissionId(null);
+      setCommissionView("record");
+    }
+  }, [section]);
+  useEffect(() => {
+    if (section !== "loyalty") setLoyaltyView("overview");
+  }, [section]);
   const active =
     visibleSections.find((entry) => entry.id === section) ||
     visibleSections[0] ||
@@ -233,6 +294,12 @@ export default function BusinessConsole({
         redemptionValuePerPoint: settings.redemptionValuePerPoint ?? 0,
         minimumRedemptionPoints: settings.minimumRedemptionPoints ?? 0,
         expiryAfterDays: settings.expiryAfterDays ?? null,
+        createdBy: settings.createdBy ?? loyaltyCreationOverride?.createdBy ?? null,
+        createdAt:
+          settings.createdAt ??
+          loyaltyCreationOverride?.createdAt ??
+          settings.updatedAt ??
+          null,
       }
     : null;
   const request = useCallback(
@@ -274,7 +341,47 @@ export default function BusinessConsole({
         }
       } else if (section === "loyalty" || section === "quote-rules") {
         const value = await request<ConsoleSettings>(active.endpoint);
-        if (sequence === loadSequence.current) setSettings(value);
+        let resolved = value;
+        if (section === "loyalty" && (!value.createdBy || !value.createdAt)) {
+          try {
+            const auditQuery = new URLSearchParams({
+              page: "1",
+              actorScope: "all",
+              action: "LOYALTY_SETTINGS_UPDATED",
+              entityType: "LOYALTY_SETTINGS",
+              entityId: "default",
+            });
+            const firstPage = await request<LoyaltyAuditPage>(
+              `/admin/audit?${auditQuery.toString()}`,
+            );
+            const lastPageNumber = Math.ceil(
+              firstPage.total / Math.max(1, firstPage.pageSize),
+            );
+            const auditPage =
+              lastPageNumber > 1
+                ? await request<LoyaltyAuditPage>(
+                    `/admin/audit?${new URLSearchParams({
+                      page: String(lastPageNumber),
+                      actorScope: "all",
+                      action: "LOYALTY_SETTINGS_UPDATED",
+                      entityType: "LOYALTY_SETTINGS",
+                      entityId: "default",
+                    }).toString()}`,
+                  )
+                : firstPage;
+            const initialUpdate = auditPage.items.at(-1);
+            if (initialUpdate) {
+              resolved = {
+                ...value,
+                createdBy: value.createdBy ?? initialUpdate.staff?.name ?? null,
+                createdAt: value.createdAt ?? initialUpdate.createdAt,
+              };
+            }
+          } catch {
+            // Settings stay available if the current role cannot view audit history.
+          }
+        }
+        if (sequence === loadSequence.current) setSettings(resolved);
       } else {
         const value = await request<unknown[]>(active.endpoint);
         if (sequence === loadSequence.current) {
@@ -324,6 +431,19 @@ export default function BusinessConsole({
     } finally {
       setBusy(false);
     }
+  }
+  async function saveLoyaltySettings(
+    values: LoyaltySettingsValues,
+  ): Promise<boolean> {
+    const firstSetup = !settings?.updatedAt && !settings?.createdAt;
+    const saved = await mutate(active.endpoint, "PUT", values);
+    if (saved && firstSetup) {
+      setLoyaltyCreationOverride({
+        createdBy: staffName || "Unknown",
+        createdAt: new Date().toISOString(),
+      });
+    }
+    return saved;
   }
   async function download(url: string, filename: string) {
     setError("");
@@ -381,16 +501,81 @@ export default function BusinessConsole({
       )}
       {section === "transport" && (
         <>
-          <TransportationPlanningForms busy={busy} submit={submit} />
-          <h2>Transportation plans</h2>
-          {(visibleRecords as TransportationPlan[]).map((plan) => (
-            <TransportationPlanCard
-              key={`${plan.id}-${plan.status}`}
-              plan={plan}
+          <div
+            className="transportation-workflow-tabs"
+            role="group"
+            aria-label="Transportation tasks"
+          >
+            <button
+              type="button"
+              className={`transportation-workflow-tab${transportView === "plan" ? " active" : ""}`}
+              aria-pressed={transportView === "plan"}
+              onClick={() => {
+                setTransportView("plan");
+                setSelectedTransportationPlanId(null);
+                setEditTransportationPlanOnOpen(false);
+              }}
+            >
+              Plan delivery
+            </button>
+            <button
+              type="button"
+              className={`transportation-workflow-tab${transportView === "challan" ? " active" : ""}`}
+              aria-pressed={transportView === "challan"}
+              onClick={() => {
+                setTransportView("challan");
+                setSelectedTransportationPlanId(null);
+                setEditTransportationPlanOnOpen(false);
+              }}
+            >
+              Issue challan
+            </button>
+            <button
+              type="button"
+              className={`transportation-workflow-tab${transportView === "plans" ? " active" : ""}`}
+              aria-pressed={transportView === "plans"}
+              onClick={() => {
+                setTransportView("plans");
+                setSelectedTransportationPlanId(null);
+                setEditTransportationPlanOnOpen(false);
+              }}
+            >
+              Transportation plans{" "}
+              <span>{(visibleRecords as TransportationPlan[]).length}</span>
+            </button>
+          </div>
+          <div hidden={transportView !== "plan"}>
+            <TransportationPlanningForms
               busy={busy}
-              mutate={mutate}
+              submit={submit}
+              mode="plan"
             />
-          ))}
+          </div>
+          <div hidden={transportView !== "challan"}>
+            <TransportationPlanningForms
+              busy={busy}
+              submit={submit}
+              mode="challan"
+            />
+          </div>
+          <div hidden={transportView !== "plans"}>
+            <h2>Transportation plans</h2>
+            {!(visibleRecords as TransportationPlan[]).length && (
+              <p className="bc-helper">No transportation plans yet.</p>
+            )}
+            {(visibleRecords as TransportationPlan[]).map((plan) => (
+              <TransportationPlanCard
+                key={`${plan.id}-${plan.status}`}
+                plan={plan}
+                busy={busy}
+                mutate={mutate}
+                onOpenForEdit={() => {
+                  setEditTransportationPlanOnOpen(true);
+                  setSelectedTransportationPlanId(plan.id);
+                }}
+              />
+            ))}
+          </div>
         </>
       )}
       {section === "discounts" && (
@@ -431,6 +616,9 @@ export default function BusinessConsole({
           onSignOut={onSignOut}
           submitForm={submit}
           mutate={mutate}
+          activeView={expertView}
+          onViewChange={setExpertView}
+          onOpenEdit={setSelectedExpertId}
         />
       )}
       {section === "blogs" && (
@@ -444,6 +632,9 @@ export default function BusinessConsole({
           onSignOut={onSignOut}
           submitForm={submit}
           mutate={mutate}
+          activeView={blogView}
+          onViewChange={setBlogView}
+          onOpenEdit={setSelectedBlogId}
         />
       )}
       {section === "commissions" && (
@@ -452,40 +643,254 @@ export default function BusinessConsole({
           busy={busy}
           onCreate={(commission) => mutate(active.endpoint, "POST", commission)}
           onApprove={(id) => mutate(`/commissions/${id}/approve`, "POST", {})}
+          activeView={commissionView}
+          onViewChange={setCommissionView}
+          onOpenRecord={setSelectedCommissionId}
         />
       )}
       {section === "quote-rules" && settings && (
-        <QuotationRules
-          settings={{
-            quotationValidityHours: Number(
-              settings.quotationValidityHours ?? 48,
-            ),
-            sendQuotePublishedNotification:
-              settings.sendQuotePublishedNotification ?? true,
-            sendQuoteExpiryReminder: settings.sendQuoteExpiryReminder ?? true,
-            expiryReminderHoursBefore: Number(
-              settings.expiryReminderHoursBefore ?? 24,
-            ),
-          }}
-          busy={busy}
-          onSave={(rules) => {
-            void mutate(active.endpoint, "PUT", rules);
-          }}
-        />
+        quotationRulesView === "overview" ? (
+          <QuotationRulesOverview
+            settings={{
+              quotationValidityHours: Number(settings.quotationValidityHours ?? 48),
+              sendQuotePublishedNotification: settings.sendQuotePublishedNotification ?? true,
+              sendQuoteExpiryReminder: settings.sendQuoteExpiryReminder ?? true,
+              expiryReminderHoursBefore: Number(settings.expiryReminderHoursBefore ?? 24),
+              createdBy: settings.createdBy,
+              createdAt: settings.createdAt,
+            }}
+            onEdit={() => setQuotationRulesView("settings")}
+          />
+        ) : (
+          <QuotationRules
+            settings={{
+              quotationValidityHours: Number(settings.quotationValidityHours ?? 48),
+              sendQuotePublishedNotification: settings.sendQuotePublishedNotification ?? true,
+              sendQuoteExpiryReminder: settings.sendQuoteExpiryReminder ?? true,
+              expiryReminderHoursBefore: Number(settings.expiryReminderHoursBefore ?? 24),
+            }}
+            busy={busy}
+            onSave={(rules) => mutate(active.endpoint, "PUT", rules)}
+            onSaved={() => setQuotationRulesView("overview")}
+          />
+        )
       )}
       {section === "loyalty" && loyaltySettings && (
-        <LoyaltySettings
-          settings={loyaltySettings}
-          busy={busy}
-          onSave={(values) => {
-            void mutate(active.endpoint, "PUT", values);
-          }}
-        />
+        loyaltyView === "overview" ? (
+          <LoyaltyProgramOverview
+            settings={loyaltySettings}
+            onEdit={() => setLoyaltyView("settings")}
+          />
+        ) : (
+          <LoyaltySettings
+            settings={loyaltySettings}
+            busy={busy}
+            onSave={saveLoyaltySettings}
+            onSaved={() => setLoyaltyView("overview")}
+          />
+        )
       )}
     </>
   );
 
+  const selectedTransportationPlan = (
+    visibleRecords as TransportationPlan[]
+  ).find((plan) => plan.id === selectedTransportationPlanId);
+  const selectedExpert = (visibleRecords as ExpertProfile[]).find(
+    (expert) => expert.id === selectedExpertId,
+  );
+  const selectedBlog = (visibleRecords as BlogPost[]).find(
+    (blog) => blog.id === selectedBlogId,
+  );
+  const selectedCommission = (visibleRecords as CommissionRecord[]).find(
+    (commission) => commission.id === selectedCommissionId,
+  );
+
   if (embedded) {
+    if (section === "quote-rules" && settings && quotationRulesView === "settings") {
+      return (
+        <div className="embedded-business-view">
+          <section className="panel-card panel-body quotation-rules-detail-page">
+            <button
+              type="button"
+              className="btn-sm btn-secondary admin-back-button transportation-plan-detail-back"
+              onClick={() => setQuotationRulesView("overview")}
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              Back to quotation rules
+            </button>
+            <QuotationRules
+              settings={{
+                quotationValidityHours: Number(settings.quotationValidityHours ?? 48),
+                sendQuotePublishedNotification: settings.sendQuotePublishedNotification ?? true,
+                sendQuoteExpiryReminder: settings.sendQuoteExpiryReminder ?? true,
+                expiryReminderHoursBefore: Number(settings.expiryReminderHoursBefore ?? 24),
+              }}
+              busy={busy}
+              onSave={(rules) => mutate(active.endpoint, "PUT", rules)}
+              onSaved={() => setQuotationRulesView("overview")}
+            />
+          </section>
+        </div>
+      );
+    }
+    if (section === "loyalty" && loyaltySettings && loyaltyView === "settings") {
+      return (
+        <div className="embedded-business-view">
+          <section className="panel-card panel-body loyalty-detail-page">
+            <button
+              type="button"
+              className="btn-sm btn-secondary admin-back-button transportation-plan-detail-back"
+              onClick={() => setLoyaltyView("overview")}
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              Back to loyalty program
+            </button>
+            <LoyaltySettings
+              settings={loyaltySettings}
+              busy={busy}
+              onSave={saveLoyaltySettings}
+              onSaved={() => setLoyaltyView("overview")}
+            />
+          </section>
+        </div>
+      );
+    }
+    if (section === "experts" && selectedExpert) {
+      return (
+        <div className="embedded-business-view">
+          <section className="panel-card panel-body expert-detail-page">
+            <button
+              type="button"
+              className="btn-sm btn-secondary admin-back-button transportation-plan-detail-back"
+              onClick={() => {
+                setSelectedExpertId(null);
+                setExpertView("directory");
+              }}
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              Back to directory
+            </button>
+            <ExpertDirectoryPanel
+              records={visibleRecords as ExpertProfile[]}
+              token={token}
+              customerUrl={customerUrl}
+              busy={busy}
+              mediaBusy={mediaBusy}
+              setMediaBusy={setMediaBusy}
+              onSignOut={onSignOut}
+              submitForm={submit}
+              mutate={mutate}
+              activeView="directory"
+              onViewChange={setExpertView}
+              onOpenEdit={setSelectedExpertId}
+              focusedExpert={selectedExpert}
+              onExitFocusedEdit={() => {
+                setSelectedExpertId(null);
+                setExpertView("directory");
+              }}
+            />
+          </section>
+        </div>
+      );
+    }
+    if (section === "blogs" && selectedBlog) {
+      return (
+        <div className="embedded-business-view">
+          <section className="panel-card panel-body blog-detail-page">
+            <button
+              type="button"
+              className="btn-sm btn-secondary admin-back-button transportation-plan-detail-back"
+              onClick={() => {
+                setSelectedBlogId(null);
+                setBlogView("articles");
+              }}
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              Back to articles
+            </button>
+            <BlogManagementPanel
+              records={visibleRecords as BlogPost[]}
+              token={token}
+              customerUrl={customerUrl}
+              busy={busy}
+              mediaBusy={mediaBusy}
+              setMediaBusy={setMediaBusy}
+              onSignOut={onSignOut}
+              submitForm={submit}
+              mutate={mutate}
+              activeView="articles"
+              onViewChange={setBlogView}
+              onOpenEdit={setSelectedBlogId}
+              focusedBlog={selectedBlog}
+              onExitFocusedEdit={() => {
+                setSelectedBlogId(null);
+                setBlogView("articles");
+              }}
+            />
+          </section>
+        </div>
+      );
+    }
+    if (section === "commissions" && selectedCommission) {
+      return (
+        <div className="embedded-business-view">
+          <section className="panel-card panel-body commission-detail-page">
+            <button
+              type="button"
+              className="btn-sm btn-secondary admin-back-button transportation-plan-detail-back"
+              onClick={() => {
+                setSelectedCommissionId(null);
+                setCommissionView("records");
+              }}
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              Back to commission records
+            </button>
+            <CommissionManagement
+              records={visibleRecords as CommissionRecord[]}
+              busy={busy}
+              onCreate={(commission) =>
+                mutate(active.endpoint, "POST", commission)
+              }
+              onApprove={(id) =>
+                mutate(`/commissions/${id}/approve`, "POST", {})
+              }
+              activeView="records"
+              onViewChange={setCommissionView}
+              onOpenRecord={setSelectedCommissionId}
+              focusedRecord={selectedCommission}
+            />
+          </section>
+        </div>
+      );
+    }
+    if (section === "transport" && selectedTransportationPlan) {
+      return (
+        <div className="embedded-business-view">
+          <section className="panel-card panel-body transportation-plan-detail-page">
+            <button
+              type="button"
+              className="btn-sm btn-secondary admin-back-button transportation-plan-detail-back"
+              onClick={() => {
+                setSelectedTransportationPlanId(null);
+                setEditTransportationPlanOnOpen(false);
+                setTransportView("plans");
+              }}
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              Back to transportation plans
+            </button>
+            <TransportationPlanCard
+              plan={selectedTransportationPlan}
+              busy={busy}
+              mutate={mutate}
+              openForEdit={editTransportationPlanOnOpen}
+            />
+          </section>
+        </div>
+      );
+    }
     return (
       <div className="embedded-business-view">
         <div className="embedded-subnav-bar" ref={sectionMenuRef}>
@@ -546,7 +951,10 @@ export default function BusinessConsole({
             tagline="BUSINESS CONSOLE"
           />
         </div>
-        <button className="bc-button bc-back" onClick={onBack}>
+        <button
+          className="bc-button bc-back admin-back-button"
+          onClick={onBack}
+        >
           <ArrowLeft size={16} /> Main workspace
         </button>
         <strong>Business management</strong>

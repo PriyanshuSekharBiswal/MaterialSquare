@@ -105,9 +105,9 @@ export default function StaffAccount({
             ? result.message
             : "Could not change your password.",
         );
-      if (typeof result?.accessToken !== "string")
+      if (result?.ok !== true)
         throw new Error("Your password changed, but we could not refresh this session. Please sign in again.");
-      onTokenChanged(result.accessToken);
+      onTokenChanged("staff-cookie-session");
       formElement.reset();
       setPasswordNotice("Your password has been changed. Other signed-in sessions have been signed out.");
     } catch (cause) {

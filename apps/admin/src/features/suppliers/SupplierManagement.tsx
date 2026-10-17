@@ -123,7 +123,7 @@ export default function SupplierManagement({
   const [supplierCityFilter, setSupplierCityFilter] = useState("all");
   const [catalogueVariants, setCatalogueVariants] = useState<SupplierCatalogueVariant[]>([]);
   const [catalogueBrandOptions, setCatalogueBrandOptions] = useState<SupplierBrandOption[]>([]);
-  const [selectedProductVariantIds, setSelectedProductVariantIds] = useState<string[]>([]);
+  const [selectedProductNames, setSelectedProductNames] = useState<string[]>([]);
   const [selectedBrandCatalog, setSelectedBrandCatalog] = useState<SupplierBrandCatalogEntry[]>([]);
   const [ratingEditorSupplier, setRatingEditorSupplier] = useState<SupplierRecord | null>(null);
   const [ratingHasChanges, setRatingHasChanges] = useState(false);
@@ -230,7 +230,6 @@ export default function SupplierManagement({
     const supplier = records.find((entry) => entry.id === supplierDetailId);
     if (supplier) setEditingSupplier(supplier);
   }, [editingSupplier?.id, records, supplierDetailId, view]);
-  const selectedProducts = catalogueVariants.filter((variant) => selectedProductVariantIds.includes(variant.id));
   const sourceRecords = directoryResults ?? records;
   const supplierCities = [...new Set(sourceRecords.map((supplier) => supplier.city.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const supplierRows = [...sourceRecords]
@@ -300,7 +299,7 @@ export default function SupplierManagement({
       {view === "edit" || view === "details" ? (
         <button
           type="button"
-          className="bc-button btn-orange-outline supplier-page-back"
+          className="bc-button btn-orange-outline supplier-page-back admin-back-button"
           onClick={() => {
             setSupplierDetailId("");
             setEditingSupplier(null);
@@ -316,7 +315,7 @@ export default function SupplierManagement({
           onClick={() => {
             setSupplierDetailId("");
             setEditingSupplier(null);
-            setSelectedProductVariantIds([]);
+            setSelectedProductNames([]);
             setView("add");
           }}
         >
@@ -325,7 +324,7 @@ export default function SupplierManagement({
         <button
           type="button"
           className={`supplier-page-tab${view === "list" ? " active" : ""}`}
-          onClick={() => { setSupplierDetailId(""); setEditingSupplier(null); setView("list"); }}
+          onClick={() => { setSupplierDetailId(""); setEditingSupplier(null); setSelectedProductNames([]); setSelectedBrandCatalog([]); setView("list"); }}
         >
           Registered suppliers
         </button>
@@ -355,19 +354,18 @@ export default function SupplierManagement({
               status: field(f, "status"),
               ...(!editingSupplier ? {
                 brandCatalog: selectedBrandCatalog,
-                products: selectedProducts.map((variant) => ({
-                  catalogVariantId: variant.id,
-                  productName: variant.productName,
-                  brand: catalogueBrandLabel(variant.brand),
-                  category: variant.category,
-                  unit: variant.unit,
+                products: selectedProductNames.map((productName) => ({
+                  productName,
+                  brand: selectedBrandCatalog.length === 1 ? catalogueBrandLabel(selectedBrandCatalog[0].brand) : "",
+                  category: selectedBrandCatalog.length === 1 && selectedBrandCatalog[0].categories.length === 1 ? selectedBrandCatalog[0].categories[0] : "",
+                  unit: "",
                 })),
               } : {}),
             }),
             editingSupplier ? `/suppliers/${editingSupplier.id}` : "/suppliers",
             editingSupplier ? "PATCH" : "POST",
           ).then((saved) => {
-            if (saved) { setSupplierDetailId(""); setEditingSupplier(null); setSelectedProductVariantIds([]); setSelectedBrandCatalog([]); setView("list"); }
+            if (saved) { setSupplierDetailId(""); setEditingSupplier(null); setSelectedProductNames([]); setSelectedBrandCatalog([]); setView("list"); }
           });
         }}
       >
@@ -485,8 +483,8 @@ export default function SupplierManagement({
         {!editingSupplier && <SupplierCataloguePicker
           variants={catalogueVariants}
           brandOptions={catalogueBrandOptions}
-          selectedIds={selectedProductVariantIds}
-          onChange={setSelectedProductVariantIds}
+          selectedProductNames={selectedProductNames}
+          onProductNamesChange={setSelectedProductNames}
           onBrandCatalogChange={setSelectedBrandCatalog}
           saveLabel="Save supplier"
         />}
@@ -525,7 +523,7 @@ export default function SupplierManagement({
               type="button"
             className="bc-button btn-orange-outline"
             disabled={busy}
-            onClick={() => { setSupplierDetailId(""); setEditingSupplier(null); setSelectedProductVariantIds([]); setView("list"); }}
+            onClick={() => { setSupplierDetailId(""); setEditingSupplier(null); setSelectedProductNames([]); setView("list"); }}
             >
               Cancel supplier edit
             </button>
@@ -668,7 +666,7 @@ export default function SupplierManagement({
               {[s.city, s.state, s.pincode].filter(Boolean).join(" · ")}
             </p>
             <div className="bc-supplier-record-meta">
-              <span className={`bc-supplier-status is-${s.status.toLowerCase()}`}>{s.status}</span>
+              <span className={`bc-supplier-status is-${s.status.toLowerCase()}`}>{s.status.charAt(0) + s.status.slice(1).toLowerCase()}</span>
               <span className="bc-supplier-created">
                 Registered{registeredBy?.name ? ` by ${registeredBy.name}` : ""} · On {new Date(s.createdAt).toLocaleString("en-IN", {
                   dateStyle: "medium",

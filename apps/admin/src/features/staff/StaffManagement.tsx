@@ -10,6 +10,7 @@ import {
   Search,
 } from "lucide-react";
 import { confirmAdminAction } from "../../components/confirmAdminAction";
+import { formatEnumLabel } from "../../utils/formatEnumLabel";
 import "./staff-management.css";
 
 type Role = {
@@ -313,7 +314,7 @@ export default function StaffManagement({
         <div>
           {!embedded && (
             <button
-              className="btn-sm btn-secondary"
+              className="btn-sm btn-secondary admin-back-button"
               onClick={onBack}
               style={{ marginBottom: "8px" }}
             >
@@ -325,7 +326,7 @@ export default function StaffManagement({
           <p>{selectedStaff ? "Manage this staff account and its access." : isStaffAccountsPage ? "View and manage staff access, account details and security." : "Manage team profiles, access, passwords and role permissions."}</p>
         </div>
         <div className="staff-management-header-actions">
-          {(selectedStaff || isStaffAccountsPage) && <button className="btn-sm btn-secondary btn-orange-outline" onClick={selectedStaff ? backToStaffList : backToStaffRoles}><ArrowLeft size={16} /> {selectedStaff ? "Back to staff accounts" : "Back to Staff & roles"}</button>}
+          {(selectedStaff || isStaffAccountsPage) && <button className="btn-sm btn-secondary btn-orange-outline admin-back-button" onClick={selectedStaff ? backToStaffList : backToStaffRoles}><ArrowLeft size={16} /> {selectedStaff ? "Back to staff accounts" : "Back to Staff & roles"}</button>}
           <button className="btn-sm btn-secondary btn-orange-outline" disabled={busy} onClick={() => void refresh()}>
             <RefreshCw size={16} className={busy ? "spin" : ""} />
             {busy ? "Loading…" : "Refresh"}
@@ -432,7 +433,7 @@ export default function StaffManagement({
         <dl className="staff-account-detail-grid">
           <div><dt>Sign-in</dt><dd>{selectedStaff.phone || selectedStaff.email || "Not provided"}</dd></div>
           {selectedStaff.phone && selectedStaff.email && <div><dt>Email address</dt><dd>{selectedStaff.email}</dd></div>}
-          <div><dt>Role</dt><dd>{selectedStaff.role === "SUPER_ADMIN" ? "Owner / Main client" : roles.find((role) => role.role === selectedStaff.role)?.label || selectedStaff.role}</dd></div>
+          <div><dt>Role</dt><dd>{selectedStaff.role === "SUPER_ADMIN" ? "Owner / Main client" : roles.find((role) => role.role === selectedStaff.role)?.label || formatEnumLabel(selectedStaff.role)}</dd></div>
           <div><dt>Added</dt><dd>{new Date(selectedStaff.createdAt).toLocaleDateString("en-IN")}</dd></div>
         </dl>
         <div className="staff-account-detail-actions">
@@ -498,7 +499,7 @@ export default function StaffManagement({
                   onClick={() => openStaffAccount(record.id)}
                 >
                   <span><strong>{record.name}</strong><small>{record.phone || record.email || "No sign-in details"}</small></span>
-                  <span className="staff-suggestion-role">{roles.find((role) => role.role === record.role)?.label || record.role}</span>
+                  <span className="staff-suggestion-role">{roles.find((role) => role.role === record.role)?.label || formatEnumLabel(record.role)}</span>
                 </button>
               </li>
             ))}

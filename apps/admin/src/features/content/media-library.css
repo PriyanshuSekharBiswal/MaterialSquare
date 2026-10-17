@@ -1,6 +1,4 @@
-.media-library-heading,
-.media-library-pagination,
-.media-library-pagination > div {
+.media-library-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -26,10 +24,13 @@
 .media-library-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  align-items: stretch;
   gap: 16px;
 }
 
 .media-library-item {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   overflow: hidden;
   border: 1px solid #dbe2ea;
@@ -46,7 +47,9 @@
 }
 
 .media-library-item-info {
-  display: grid;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   gap: 8px;
   padding: 12px;
 }
@@ -69,6 +72,10 @@
   font-size: 12px;
 }
 
+.media-library-item-info > label { margin-top: auto; }
+
+.media-library-item-info > button { align-self: flex-end; min-width: 120px; }
+
 .media-library-usage {
   display: grid;
   gap: 4px;
@@ -85,13 +92,40 @@
 }
 
 .media-library-pagination {
-  margin-top: 18px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  margin-top: 0;
+  gap: 12px;
+  padding: 0 8px;
+}
+
+.media-library-pagination > span {
+  color: #526179;
+  font-weight: 650;
+  text-align: center;
+}
+
+.media-library-pagination > button:first-child { justify-self: start; }
+.media-library-pagination > button:last-child { justify-self: end; }
+
+.media-library-pagination > button:disabled {
+  cursor: not-allowed;
+  opacity: .48;
 }
 
 @media (max-width: 560px) {
   .media-library-search {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .media-library-pagination {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .media-library-pagination > span {
+    grid-column: 1 / -1;
+    grid-row: 1;
   }
 }

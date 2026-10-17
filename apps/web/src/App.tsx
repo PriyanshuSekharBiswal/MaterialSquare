@@ -1,5 +1,7 @@
 import PageMetadata from "./components/PageMetadata";
 import { CustomerProvider, useCustomer } from './customer';
+import { CustomerAuthProvider } from './context/CustomerAuthContext';
+import { CustomerProtectedRoute } from './components/CustomerProtectedRoute';
 import './customer.css';
 import './customer-portal.css';
 import type { CatalogueProduct, MaterialItem } from './types';
@@ -201,7 +203,15 @@ function AppShell() {
 
               <Route path="/product/:productId" element={<ProductDetailPage products={catalogue} loading={!catalogueLoaded} catalogueUnavailable={catalogueUnavailable} onRetryCatalogue={retryCatalogue} />} />
               <Route path="/material-list" element={<MaterialListPage products={catalogue} catalogueLoading={!catalogueLoaded} />} />
-              <Route path="/account/*" element={<CustomerAccountPage />} />
+              <Route path="/account" element={<CustomerAccountPage />} />
+              <Route
+                path="/account/*"
+                element={
+                  <CustomerProtectedRoute>
+                    <CustomerAccountPage />
+                  </CustomerProtectedRoute>
+                }
+              />
 
               {/* 3. Why Material Square (5 Calls vs 1 Call) */}
               <Route
@@ -231,6 +241,7 @@ function AppShell() {
                   <GetQuotePage
                     bomList={bomList}
                     products={catalogue}
+                    catalogueLoading={!catalogueLoaded}
                   />
                 }
               />
@@ -301,7 +312,13 @@ function AppShell() {
 export default function App() {
   return (
     <Router>
-      <SiteContentProvider><CustomerProvider><AppShell /></CustomerProvider></SiteContentProvider>
+      <SiteContentProvider>
+        <CustomerAuthProvider>
+          <CustomerProvider>
+            <AppShell />
+          </CustomerProvider>
+        </CustomerAuthProvider>
+      </SiteContentProvider>
     </Router>
   );
 }

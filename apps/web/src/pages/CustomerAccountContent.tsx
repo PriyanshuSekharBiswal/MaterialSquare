@@ -16,8 +16,9 @@ import type {
   Profile,
   Quote,
 } from "../features/customer-account/model";
-import { formatDate, money } from "../features/customer-account/model";
+import { formatDate, formatDateTime, money } from "../features/customer-account/model";
 import { formatQuantityUnit } from "../quantity-format";
+import { formatEnumLabel } from "../utils/formatEnumLabel";
 
 export function AccountContent({
   path,
@@ -41,9 +42,52 @@ export function AccountContent({
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState("");
   const [attachmentDownloadError, setAttachmentDownloadError] = useState("");
+  const [quoteSearch, setQuoteSearch] = useState("");
+  const [quoteStatusFilter, setQuoteStatusFilter] = useState<"ALL" | "REVIEW" | "ORDERED" | "OTHER">("ALL");
+  const [quoteRequestFilter, setQuoteRequestFilter] = useState("");
+  const [acceptedRequests, setAcceptedRequests] = useState<Record<string, string>>({});
+  const [activityView, setActivityView] = useState<"EVERYTHING" | "QUOTATIONS" | "ORDERS" | "REQUESTS">("EVERYTHING");
+  const sortedQuotes = [...activity.quotations].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  const sortedOrders = [...activity.orders].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  const sortedRequests = [...activity.requests].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  const quoteBucket = (q: Quote) => {
+    const expired = q.status === "EXPIRED" || (q.status === "QUOTE_SENT" && Date.parse(q.validUntil) < Date.now());
+    if (expired) return "OTHER";
+    if (q.status === "QUOTE_SENT") return "REVIEW";
+    if (["ACCEPTED", "CONVERTED_TO_ORDER"].includes(q.status)) return "ORDERED";
+    return "OTHER";
+  };
+  const quoteCounts = {
+    ALL: sortedQuotes.length,
+    REVIEW: sortedQuotes.filter((q) => quoteBucket(q) === "REVIEW").length,
+    ORDERED: sortedQuotes.filter((q) => quoteBucket(q) === "ORDERED").length,
+    OTHER: sortedQuotes.filter((q) => quoteBucket(q) === "OTHER").length,
+  };
+  const normalizedQuoteSearch = quoteSearch.trim().toLocaleLowerCase();
+  const visibleQuotes = sortedQuotes.filter((q) => {
+    const requestNumber = q.request?.requestNumber || activity.requests.find((request) => request.id === q.requestId)?.requestNumber || "";
+    const searchable = [q.quoteNumber, requestNumber, ...q.items.flatMap((item) => [item.productName, item.brandName])].join(" ").toLocaleLowerCase();
+    return activityView !== "QUOTATIONS" || (
+      (quoteStatusFilter === "ALL" || quoteBucket(q) === quoteStatusFilter)
+      && (!quoteRequestFilter || q.requestId === quoteRequestFilter)
+      && (!normalizedQuoteSearch || searchable.includes(normalizedQuoteSearch))
+    );
+  });
   useEffect(() => {
     if (path === "/account/profile") setIsEditingProfile(false);
   }, [path]);
+  useEffect(() => {
+    const handleAccepted = (event: Event) => {
+      const detail = (event as CustomEvent<{ requestId?: string; quoteNumber?: string }>).detail;
+      if (detail?.requestId && detail.quoteNumber)
+        setAcceptedRequests((current) => ({
+          ...current,
+          [detail.requestId!]: detail.quoteNumber!,
+        }));
+    };
+    window.addEventListener("material-square:quotation-accepted", handleAccepted);
+    return () => window.removeEventListener("material-square:quotation-accepted", handleAccepted);
+  }, []);
   const downloadRequestAttachment = async (
     requestId: string,
     attachment: Activity["requests"][number]["attachments"][number],
@@ -118,8 +162,8 @@ export function AccountContent({
           </div>
           {quote.requestId && (
             <p className="account-quote-source">
-              This quotation responds to request #
-              {quote.requestId.slice(0, 8).toUpperCase()}.{" "}
+              This quotation responds to request{" "}
+              {quote.request?.requestNumber || activity.requests.find((request) => request.id === quote.requestId)?.requestNumber || "details"}.{" "}
               <Link to={`/account/quotations#request-${quote.requestId}`}>
                 View request details
               </Link>
@@ -187,7 +231,21 @@ export function AccountContent({
             <StatusBadge status={quote.status} />
           </div>
         </div>
-        <QuotationResponse key={quote.id} quote={quote} />
+        <QuotationResponse
+          key={quote.id}
+          quote={quote}
+          acceptedAlternativeNumber={
+            (quote.requestId && acceptedRequests[quote.requestId]) ||
+            (quote.requestId
+              ? activity.quotations.find(
+                  (candidate) =>
+                    candidate.requestId === quote.requestId &&
+                    candidate.id !== quote.id &&
+                    ["ACCEPTED", "CONVERTED_TO_ORDER"].includes(candidate.status),
+                )?.quoteNumber
+              : undefined)
+          }
+        />
       </>
     );
   if (path.startsWith("/account/orders/") && order)
@@ -498,85 +556,25 @@ export function AccountContent({
           title="Your requests and quotations"
           subtitle="Track each material request. When our team prepares its quotation, you can open it from the matching request below."
         />
-        <section
-          className="account-quote-list"
-          aria-labelledby="customer-quotes-title"
-        >
-          <div className="account-quote-list-heading">
-            <div>
-              <span className="account-eyebrow">
-                PRICES & OPTIONS FROM OUR TEAM
-              </span>
-              <h2 id="customer-quotes-title">Quotations prepared for you</h2>
-            </div>
-            <span className="account-quote-count">
-              {activity.quotations.length} quotation
-              {activity.quotations.length === 1 ? "" : "s"}
-            </span>
-          </div>
-          {activity.quotations.length ? (
-            activity.quotations.map((q) => (
-              <article className="account-panel account-quote-card" key={q.id}>
-                <div className="account-panel-title">
-                  <div>
-                    <span className="account-eyebrow">{q.quoteNumber}</span>
-                    <h3>
-                      {q.items.length} quoted material
-                      {q.items.length === 1 ? "" : "s"}
-                    </h3>
-                  </div>
-                  <StatusBadge status={q.status} />
-                </div>
-                <p className="account-quote-meta">
-                  Issued {formatDate(q.createdAt)} · Valid until{" "}
-                  {formatDate(q.validUntil)}
-                </p>
-                <ul className="account-quote-items">
-                  {q.items.map((item) => (
-                    <li key={item.id}>
-                      <span>
-                        {item.productName} · {item.brandName}
-                      </span>
-                      <small>
-                        {formatQuantityUnit(item.quantityMt, item.unit)} × {money(item.unitPrice)}
-                      </small>
-                    </li>
-                  ))}
-                </ul>
-                <div className="account-quote-card-footer">
-                  <div>
-                    <span>Total</span>
-                    <strong>{money(q.totalAmount)}</strong>
-                  </div>
-                  <Link
-                    className="account-open-quote-button"
-                    to={`/account/quotations/${q.id}`}
-                  >
-                    Open quotation <ArrowRight size={16} />
-                  </Link>
-                </div>
-                {q.requestId && (
-                  <p className="account-quote-request-link">
-                    For request #{q.requestId.slice(0, 8).toUpperCase()} ·{" "}
-                    <a href={`#request-${q.requestId}`}>View request</a>
-                  </p>
-                )}
-              </article>
-            ))
-          ) : (
-            <div className="account-no-quote-yet">
-              <FileText size={20} />
-              <div>
-                <strong>No quotation has been issued yet</strong>
-                <p>
-                  We’ll show your team’s prices and availability here as soon as
-                  a quotation is ready.
-                </p>
-              </div>
-            </div>
-          )}
-        </section>
-        {activity.requests.length > 0 && (
+        <nav className="account-activity-filter-tabs" aria-label="Filter account activity">
+          {([
+            ["EVERYTHING", "Everything", sortedQuotes.length + sortedOrders.length + sortedRequests.length],
+            ["REQUESTS", "Requests", sortedRequests.length],
+            ["QUOTATIONS", "Quotations received", sortedQuotes.length],
+            ["ORDERS", "Orders", sortedOrders.length],
+          ] as const).map(([value, label, count]) => (
+            <button
+              type="button"
+              key={value}
+              className={activityView === value ? "is-active" : ""}
+              aria-pressed={activityView === value}
+              onClick={() => setActivityView(value)}
+            >
+              {label}<span>{count}</span>
+            </button>
+          ))}
+        </nav>
+        {sortedRequests.length > 0 && (activityView === "EVERYTHING" || activityView === "REQUESTS") && (
           <section
             className="account-request-list"
             aria-labelledby="customer-requests-title"
@@ -587,7 +585,7 @@ export function AccountContent({
                 <h2 id="customer-requests-title">Your material requests</h2>
               </div>
             </div>
-            {activity.requests.map((request) => (
+            {sortedRequests.map((request) => (
               <article
                 className="account-panel account-request-card"
                 key={request.id}
@@ -596,11 +594,9 @@ export function AccountContent({
                 <div className="account-request-card-header">
                   <div className="account-request-reference">
                     <span className="account-eyebrow">MATERIAL REQUEST</span>
-                    <strong>
-                      #{request.id.slice(0, 8).toUpperCase()}
-                    </strong>
+                    <strong>{request.requestNumber}</strong>
                     <time dateTime={request.createdAt}>
-                      Submitted {formatDate(request.createdAt)}
+                      Submitted {formatDateTime(request.createdAt)}
                     </time>
                   </div>
                   <StatusBadge status={request.status} />
@@ -699,7 +695,7 @@ export function AccountContent({
                             {q.quoteNumber} · {money(q.totalAmount)} ·{" "}
                             {q.status === "REJECTED"
                               ? "Declined"
-                              : q.status.replaceAll("_", " ")}
+                              : formatEnumLabel(q.status)}
                             <ArrowRight size={15} />
                           </Link>
                         ))}
@@ -733,6 +729,161 @@ export function AccountContent({
                 })()}
               </article>
             ))}
+          </section>
+        )}
+        {activityView !== "ORDERS" && activityView !== "REQUESTS" && (
+        <section
+          className="account-quote-list"
+          aria-labelledby="customer-quotes-title"
+        >
+          <div className="account-quote-list-heading">
+            <div>
+              <span className="account-eyebrow">
+                PRICES & OPTIONS FROM OUR TEAM
+              </span>
+              <h2 id="customer-quotes-title">Quotations received</h2>
+            </div>
+            <span className="account-quote-count">
+              {visibleQuotes.length === activity.quotations.length && !normalizedQuoteSearch && quoteStatusFilter === "ALL" && !quoteRequestFilter
+                ? `${activity.quotations.length} quotations`
+                : `Showing ${visibleQuotes.length} of ${activity.quotations.length}`}
+            </span>
+          </div>
+          {activityView === "QUOTATIONS" && (
+            <>
+              <div className="account-quote-filters">
+                <label className="account-quote-search">
+                  <FileText size={16} aria-hidden="true" />
+                  <input
+                    type="search"
+                    aria-label="Search quotations"
+                    placeholder="Search quote number, request number or material"
+                    value={quoteSearch}
+                    onChange={(event) => setQuoteSearch(event.target.value)}
+                  />
+                </label>
+                <label className="account-quote-request-filter">
+                  <span>Request</span>
+                  <select aria-label="Filter quotations by request" value={quoteRequestFilter} onChange={(event) => setQuoteRequestFilter(event.target.value)}>
+                    <option value="">All requests</option>
+                    {activity.requests.map((request) => (
+                      <option value={request.id} key={request.id}>{request.requestNumber}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="account-quote-filter-tabs" role="group" aria-label="Filter quotations by status">
+                {([
+                  ["ALL", "All"],
+                  ["REVIEW", "Ready to review"],
+                  ["ORDERED", "Accepted / ordered"],
+                  ["OTHER", "Other"],
+                ] as const).map(([value, label]) => (
+                  <button
+                    type="button"
+                    key={value}
+                    className={quoteStatusFilter === value ? "is-active" : ""}
+                    aria-pressed={quoteStatusFilter === value}
+                    onClick={() => setQuoteStatusFilter(value)}
+                  >
+                    {label}<span>{quoteCounts[value]}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          {activity.quotations.length ? (
+            visibleQuotes.length ? visibleQuotes.map((q) => (
+              <article className="account-panel account-quote-card" key={q.id}>
+                <div className="account-panel-title">
+                  <div>
+                    <span className="account-eyebrow">{q.quoteNumber}</span>
+                    <h3>
+                      {q.items.length} quoted material
+                      {q.items.length === 1 ? "" : "s"}
+                    </h3>
+                  </div>
+                  <StatusBadge status={q.status} />
+                </div>
+                <p className="account-quote-meta">
+                  Issued {formatDate(q.createdAt)} · Valid until{" "}
+                  {formatDate(q.validUntil)}
+                </p>
+                <ul className="account-quote-items">
+                  {q.items.map((item) => (
+                    <li key={item.id}>
+                      <span>
+                        {item.productName} · {item.brandName}
+                      </span>
+                      <small>
+                        {formatQuantityUnit(item.quantityMt, item.unit)} × {money(item.unitPrice)}
+                      </small>
+                    </li>
+                  ))}
+                </ul>
+                <div className="account-quote-card-footer">
+                  <div>
+                    <span>Total</span>
+                    <strong>{money(q.totalAmount)}</strong>
+                  </div>
+                  <Link
+                    className="account-open-quote-button"
+                    to={`/account/quotations/${q.id}`}
+                  >
+                    Open quotation <ArrowRight size={16} />
+                  </Link>
+                </div>
+                {q.requestId && (
+                  <p className="account-quote-request-link">
+                    For request{" "}
+                    {q.request?.requestNumber || activity.requests.find((request) => request.id === q.requestId)?.requestNumber || "details"} ·{" "}
+                    <a href={`#request-${q.requestId}`}>View request</a>
+                  </p>
+                )}
+              </article>
+            )) : (
+              <div className="account-no-quote-yet account-quote-no-results">
+                <FileText size={20} />
+                <div>
+                  <strong>No quotations match these filters</strong>
+                  <p>Try another status, request number or search term.</p>
+                  <button type="button" className="account-inline-link" onClick={() => { setQuoteSearch(""); setQuoteRequestFilter(""); setQuoteStatusFilter("ALL"); }}>Clear filters</button>
+                </div>
+              </div>
+            )
+          ) : (
+            <div className="account-no-quote-yet">
+              <FileText size={20} />
+              <div>
+                <strong>No quotation has been issued yet</strong>
+                <p>
+                  We’ll show your team’s prices and availability here as soon as
+                  a quotation is ready.
+                </p>
+              </div>
+            </div>
+          )}
+        </section>
+        )}
+        {(activityView === "EVERYTHING" || activityView === "ORDERS") && (
+          <section className="account-request-list" aria-labelledby="customer-orders-title">
+            <div className="account-quote-list-heading">
+              <div>
+                <span className="account-eyebrow">ACCEPTED QUOTATIONS</span>
+                <h2 id="customer-orders-title">Your orders</h2>
+              </div>
+              <span className="account-quote-count">{sortedOrders.length} orders</span>
+            </div>
+            {sortedOrders.length ? (
+              <div className="account-order-list">
+                {sortedOrders.map((customerOrder) => <OrderCard order={customerOrder} key={customerOrder.id} />)}
+              </div>
+            ) : (
+              <div className="account-no-quote-yet">
+                <PackageCheck size={20} />
+                <div><strong>No orders yet</strong><p>Orders will appear here after you accept a quotation.</p></div>
+              </div>
+            )}
           </section>
         )}
       </>
@@ -1156,7 +1307,7 @@ function StatusBadge({ status }: { status: string }) {
     <span
       className={`account-status status-${status.toLowerCase().replaceAll("_", "-")}`}
     >
-      {labels[status] || status.replaceAll("_", " ")}
+      {labels[status] || formatEnumLabel(status)}
     </span>
   );
 }
@@ -1175,7 +1326,7 @@ function orderProgressLabel(order: Order) {
   return (
     order.dispatch?.currentLocation?.trim() ||
     orderProgressLabels[order.status] ||
-    order.status.replaceAll("_", " ").toLowerCase()
+    formatEnumLabel(order.status)
   );
 }
 

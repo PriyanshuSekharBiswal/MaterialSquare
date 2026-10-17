@@ -175,6 +175,7 @@ export default function QuoteEditor({
   inventory,
   request,
   initialRequest,
+  linkedRequestNumber,
   revision,
   customQuotation = false,
   editing = false,
@@ -185,6 +186,7 @@ export default function QuoteEditor({
   inventory: Inventory[];
   request: Request;
   initialRequest: Rfq | null;
+  linkedRequestNumber?: string;
   revision?: RevisionQuote | null;
   customQuotation?: boolean;
   editing?: boolean;
@@ -713,7 +715,7 @@ export default function QuoteEditor({
   }
   return (
     <div className="sales-quote-editor-shell">
-      <button type="button" className="sales-quote-back" onClick={onCancel}>
+      <button type="button" className="sales-quote-back admin-back-button" onClick={onCancel}>
         <ArrowLeft size={16} aria-hidden="true" /> Back to quotations
       </button>
     <section className="panel-card panel-body sales-quote-composer">
@@ -738,7 +740,9 @@ export default function QuoteEditor({
       {(initialRequest || revision?.requestId) && (
         <p className="sales-source-request-note" role="status">
           <span>FROM CUSTOMER REQUEST</span>
-          <strong>#{(initialRequest?.id || revision?.requestId || "").slice(0, 8).toUpperCase()}</strong>
+          {(initialRequest?.requestNumber || linkedRequestNumber) && (
+            <strong>{initialRequest?.requestNumber || linkedRequestNumber}</strong>
+          )}
           <span>The customer will see this quotation after it is published.</span>
         </p>
       )}
@@ -1313,7 +1317,7 @@ export default function QuoteEditor({
                 .filter(Boolean)
                 .join(", ");
               setPreviewSnapshot({
-                requestNumber: initialRequest?.requestNumber || initialRequest?.id || "",
+                requestNumber: initialRequest?.requestNumber || linkedRequestNumber || "",
                 customerName: String(form.get("name") || "").trim(),
                 customerPhone: String(form.get("phone") || "").trim(),
                 customerEmail: String(form.get("email") || "").trim(),

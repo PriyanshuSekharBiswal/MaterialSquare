@@ -65,6 +65,7 @@ export type Line = {
 export type Quote = {
   id: string;
   requestId?: string | null;
+  request?: { requestNumber: string } | null;
   quoteNumber: string;
   status: string;
   subtotal: string | number;
@@ -104,6 +105,7 @@ export type Order = {
 export type Activity = {
   requests: {
     id: string;
+    requestNumber: string;
     status: string;
     siteLocation: string;
     projectStage: string | null;
@@ -159,3 +161,9 @@ export const formatDate = (value: string) =>
   new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(
     new Date(value),
   );
+
+export const formatDateTime = (value: string) =>
+  new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));

@@ -10,6 +10,7 @@ describe("audit review", () => {
     $transaction: (queries: Promise<unknown>[]) => Promise.all(queries),
   };
   const controller = new AuditController(db as never);
+  const auditRequest = { user: { userId: "admin-1", role: "SUPER_ADMIN" } } as never;
   beforeEach(() => jest.clearAllMocks());
 
   it("shows the latest seven days across workspace activity with safe labels", async () => {
@@ -107,7 +108,7 @@ describe("audit review", () => {
 
   it("paginates and applies exact filters without returning staff secrets", async () => {
     await expect(
-      controller.list({
+      controller.list(auditRequest, {
         page: "2",
         action: "QUOTATION_PUBLISHED",
         entityType: "QUOTATION",
@@ -156,7 +157,7 @@ describe("audit review", () => {
     ]);
     count.mockResolvedValueOnce(1);
 
-    const result = await controller.list({ page: "1" });
+    const result = await controller.list(auditRequest, { page: "1" });
     const metadata = result.items[0].metadata as Record<string, any>;
 
     expect(metadata).toEqual({
@@ -192,7 +193,7 @@ describe("audit review", () => {
   it.each(["0", "-1", "1.5", "invalid", "100001"])(
     "rejects invalid page %s",
     async (page) => {
-      await expect(controller.list({ page })).rejects.toBeInstanceOf(
+      await expect(controller.list(auditRequest, { page })).rejects.toBeInstanceOf(
         BadRequestException,
       );
       expect(findMany).not.toHaveBeenCalled();
@@ -219,7 +220,7 @@ describe("audit review", () => {
     ).toThrow(ForbiddenException);
   });
   it("uses inclusive Indian calendar dates with an exclusive next-day bound", async () => {
-    await controller.list({ from: "2026-10-04", to: "2026-10-04" });
+    await controller.list(auditRequest, { from: "2026-10-04", to: "2026-10-04" });
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
@@ -233,7 +234,7 @@ describe("audit review", () => {
   });
   it("rejects reversed date ranges", async () => {
     await expect(
-      controller.list({ from: "2026-10-05", to: "2026-10-04" }),
+      controller.list(auditRequest, { from: "2026-10-05", to: "2026-10-04" }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(findMany).not.toHaveBeenCalled();
   });

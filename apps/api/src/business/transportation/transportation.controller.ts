@@ -25,6 +25,8 @@ import { OrderDeliveriesService } from "./order-deliveries.service";
 
 const transportationInput = z.object({
   transporter: z.string().trim().max(150).nullable().optional(),
+  recipientName: z.string().trim().max(150).nullable().optional(),
+  recipientPhone: z.string().trim().max(30).nullable().optional(),
   vehicleNumber: z.string().trim().max(30).nullable().optional(),
   driverName: z.string().trim().max(150).nullable().optional(),
   driverPhone: z
@@ -80,9 +82,10 @@ export class TransportationController {
   ) {}
 
   @Get()
-  list() {
-    return this.prisma.transportationPlan.findMany({
+  async list() {
+    const plans = await this.prisma.transportationPlan.findMany({
       include: {
+        createdBy: { select: { name: true } },
         order: {
           include: {
             items: { include: { product: true, deliveries: true } },
@@ -95,6 +98,31 @@ export class TransportationController {
       },
       orderBy: [{ status: "asc" }, { estimatedArrival: "asc" }],
     });
+    if (!plans.length) return plans;
+
+    const creationLogs = await this.prisma.auditLog.findMany({
+      where: {
+        action: "TRANSPORTATION_PLAN_CREATED",
+        entityType: "ORDER",
+        entityId: { in: plans.map((plan) => plan.orderId) },
+      },
+      select: {
+        entityId: true,
+        staff: { select: { name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    const creatorByOrderId = new Map<string, string>();
+    for (const log of creationLogs) {
+      if (log.staff?.name && !creatorByOrderId.has(log.entityId)) {
+        creatorByOrderId.set(log.entityId, log.staff.name);
+      }
+    }
+    return plans.map((plan) => ({
+      ...plan,
+      createdBy:
+        plan.createdBy?.name ?? creatorByOrderId.get(plan.orderId) ?? null,
+    }));
   }
 
   @Post(":orderId/deliveries")
@@ -152,6 +180,7 @@ export class TransportationController {
           data: {
             orderId,
             destination: data.destination || order.deliverySite,
+            createdById: req.user.userId,
             ...mapped,
           },
         });

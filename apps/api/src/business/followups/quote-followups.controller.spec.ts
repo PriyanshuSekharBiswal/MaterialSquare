@@ -40,6 +40,7 @@ describe("quotation reminder updates", () => {
       customerPhone: "9999999999",
       customerEmail: "customer@example.invalid",
       quoteNumber: "MS-QT-1",
+      validUntil: new Date("2026-10-10T12:00:00.000Z"),
     });
   });
 

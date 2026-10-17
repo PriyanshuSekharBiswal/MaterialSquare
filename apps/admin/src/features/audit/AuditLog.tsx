@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { formatEnumLabel } from "../../utils/formatEnumLabel";
 
 type Entry = {
   id: string;
@@ -11,6 +12,7 @@ type Entry = {
 };
 type Page = { items: Entry[]; total: number; page: number; pageSize: number };
 type Filters = {
+  actorScope: "all" | "mine";
   action: string;
   entityType: string;
   entityId: string;
@@ -18,8 +20,99 @@ type Filters = {
   to: string;
 };
 
+function labelForKey(value: string) {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[._-]+/g, " ")
+    .replace(/^\w/, (character) => character.toUpperCase());
+}
+
+function humanizeCode(value: string) {
+  return formatEnumLabel(value);
+}
+
+function scalarLabel(value: unknown) {
+  if (value === null || value === undefined || value === "") return "(empty)";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "string") {
+    return /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/.test(value)
+      ? formatEnumLabel(value)
+      : value;
+  }
+  if (typeof value === "number") return String(value);
+  return null;
+}
+
+function AuditValue({ value }: { value: unknown }) {
+  const scalar = scalarLabel(value);
+  if (typeof value === "string" && /^[\s]*[\[{]/.test(value)) {
+    try {
+      return <AuditValue value={JSON.parse(value)} />;
+    } catch {
+      // Preserve strings that only happen to start with a bracket.
+    }
+  }
+  if (scalar !== null) return <span className="audit-metadata-value">{scalar}</span>;
+  if (Array.isArray(value) && value.every((item) => scalarLabel(item) !== null)) {
+    return (
+      <span className="audit-metadata-value">
+        {value.map((item) => scalarLabel(item)).join(", ") || "(none)"}
+      </span>
+    );
+  }
+  const count = Array.isArray(value) ? value.length : Object.keys(value as object).length;
+  const label = Array.isArray(value) ? `${count} ${count === 1 ? "item" : "items"}` : "View values";
+  return (
+    <details className="audit-nested-details">
+      <summary>{label}</summary>
+      <pre>{JSON.stringify(value, null, 2)}</pre>
+    </details>
+  );
+}
+
+function AuditMetadata({ metadata }: { metadata: unknown }) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata))
+    return <AuditValue value={metadata} />;
+
+  const values = metadata as Record<string, unknown>;
+  const changes = Array.isArray(values.changes)
+    ? values.changes.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item))
+    : [];
+  const otherValues = Object.entries(values).filter(([key]) => key !== "changes");
+
+  return (
+    <div className="audit-metadata-content">
+      {changes.length > 0 && (
+        <details className="audit-changes-details">
+          <summary>{changes.length} {changes.length === 1 ? "field changed" : "fields changed"}</summary>
+          <div className="audit-change-list">
+            {changes.map((change, index) => (
+              <article className="audit-change-card" key={`${String(change.field || "field")}-${index}`}>
+                <strong>{labelForKey(String(change.field || "Field"))}</strong>
+                <div><span>Before</span><AuditValue value={change.before} /></div>
+                <div><span>After</span><AuditValue value={change.after} /></div>
+              </article>
+            ))}
+          </div>
+        </details>
+      )}
+      {otherValues.length > 0 && (
+        <dl className="audit-metadata-grid">
+          {otherValues.map(([key, value]) => (
+            <div className="audit-metadata-item" key={key}>
+              <dt>{labelForKey(key)}</dt>
+              <dd><AuditValue value={value} /></dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
 export default function AuditLog({ token, revision }: { token: string; revision: number }) {
   const [filters, setFilters] = useState<Filters>({
+    actorScope: new URLSearchParams(window.location.search).get("auditScope") === "all" ? "all" : "mine",
     from: new URLSearchParams(window.location.search).get("auditFrom") || "",
     to: new URLSearchParams(window.location.search).get("auditTo") || "",
     action: new URLSearchParams(window.location.search).get("auditAction") || "",
@@ -34,6 +127,7 @@ export default function AuditLog({ token, revision }: { token: string; revision:
   useEffect(() => {
     const url = new URL(window.location.href);
     const values: Array<[string, string]> = [
+      ["auditScope", filters.actorScope === "mine" ? "mine" : "all"],
       ["auditFrom", filters.from], ["auditTo", filters.to], ["auditAction", filters.action],
       ["auditEntityType", filters.entityType], ["auditEntityId", filters.entityId],
     ];
@@ -87,6 +181,7 @@ export default function AuditLog({ token, revision }: { token: string; revision:
     setFilters({
       from: String(data.get("from") || ""),
       to: String(data.get("to") || ""),
+      actorScope: data.get("actorScope") === "all" ? "all" : "mine",
       action: String(data.get("action") || "").trim(),
       entityType: String(data.get("entityType") || "").trim(),
       entityId: String(data.get("entityId") || "").trim(),
@@ -94,32 +189,37 @@ export default function AuditLog({ token, revision }: { token: string; revision:
     setPage(1);
   }
   return (
-    <section className="audit-log-page">
-      <h2>Audit log</h2>
-      <p>
-        Recorded staff and system actions. Filters match exact action names and
-        entity references.
-      </p>
+    <section className="audit-log-page" aria-label="Audit log records">
       <form onSubmit={search} className="filter-bar audit-log-filter-form">
         <label>
+          Activity by
+          <select name="actorScope" value={filters.actorScope} onChange={(event) => {
+            setFilters((current) => ({ ...current, actorScope: event.target.value === "all" ? "all" : "mine" }));
+            setPage(1);
+          }}>
+            <option value="mine">My actions</option>
+            <option value="all">All staff</option>
+          </select>
+        </label>
+        <label>
           From date (IST)
-          <input name="from" type="date" />
+          <input name="from" type="date" defaultValue={filters.from} />
         </label>
         <label>
           Through date (IST)
-          <input name="to" type="date" />
+          <input name="to" type="date" defaultValue={filters.to} />
         </label>
         <label>
           Action
-          <input name="action" maxLength={100} />
+          <input name="action" maxLength={100} defaultValue={filters.action} />
         </label>
         <label>
           Entity type
-          <input name="entityType" maxLength={100} />
+          <input name="entityType" maxLength={100} defaultValue={filters.entityType} />
         </label>
         <label>
           Entity reference
-          <input name="entityId" maxLength={200} />
+          <input name="entityId" maxLength={200} defaultValue={filters.entityId} />
         </label>
         <div className="audit-log-filter-actions">
           <button className="btn-sm btn-secondary btn-orange-outline" disabled={loading}>
@@ -132,10 +232,12 @@ export default function AuditLog({ token, revision }: { token: string; revision:
       {result && (
         <>
           <div className="audit-log-results-heading">
-            <p><strong>{result.total}</strong> recorded actions</p>
+            <p><strong>{result.total}</strong> {filters.actorScope === "mine" ? "actions by you" : "recorded actions"}</p>
           </div>
           {result.items.length === 0 ? (
-            <p className="empty">No audit records match these filters.</p>
+            <p className="empty">
+              {filters.actorScope === "mine" ? "No actions by you match these filters. Choose All staff to review other activity." : "No audit records match these filters."}
+            </p>
           ) : (
             <div className="table-scroll">
               <table>
@@ -156,36 +258,19 @@ export default function AuditLog({ token, revision }: { token: string; revision:
                       </td>
                       <td>
                         {entry.staff
-                          ? `${entry.staff.name} · ${entry.staff.role}`
+                          ? `${entry.staff.name} · ${humanizeCode(entry.staff.role)}`
                           : "System / former staff"}
                       </td>
-                      <td>{entry.action}</td>
+                      <td>{humanizeCode(entry.action)}</td>
                       <td>
-                        {entry.entityType}
+                        {humanizeCode(entry.entityType)}
                         <small>{entry.entityId}</small>
                       </td>
                       <td>
                         {entry.metadata !== null && (
-                          <details>
+                          <details className="audit-entry-details">
                             <summary>View details</summary>
-                            {(entry.entityType === "WEBSITE_CONTENT" || entry.entityType === "CATALOG_PRODUCT" || entry.entityType === "PRODUCT_SKU" || entry.entityType === "STAFF_USER") &&
-                            typeof entry.metadata === "object" &&
-                            entry.metadata !== null &&
-                            Array.isArray((entry.metadata as { changes?: unknown }).changes) ? (
-                              <ul className="audit-change-list">
-                                {(entry.metadata as { changes: Array<{ field?: string; before?: string; after?: string }> }).changes.map((change, index) => (
-                                  <li key={`${change.field}-${index}`}>
-                                    <strong>{(change.field || "Field").replace(/[._]/g, " ")}</strong>
-                                    <span>Before: {change.before ?? "(empty)"}</span>
-                                    <span>After: {change.after ?? "(empty)"}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxWidth: 400 }}>
-                                {JSON.stringify(entry.metadata, null, 2)}
-                              </pre>
-                            )}
+                            <AuditMetadata metadata={entry.metadata} />
                           </details>
                         )}
                       </td>
@@ -195,23 +280,25 @@ export default function AuditLog({ token, revision }: { token: string; revision:
               </table>
             </div>
           )}
-          <div className="admin-pagination-controls">
+          {result.items.length > 0 && <nav className="pagination recent-pagination recent-pagination-outside" aria-label="Audit log pages">
             <button
-              className="btn-sm"
-              disabled={page === 1}
-              onClick={() => setPage((value) => value - 1)}
+              type="button"
+              className="btn-sm btn-secondary"
+              disabled={page <= 1 || loading}
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
             >
-              Previous audit page
+              Previous
             </button>
-            <span>Page {page}</span>
+            <span aria-current="page">Page {page} of {Math.max(1, Math.ceil(result.total / result.pageSize))}</span>
             <button
-              className="btn-sm"
-              disabled={page * result.pageSize >= result.total}
-              onClick={() => setPage((value) => value + 1)}
+              type="button"
+              className="btn-sm btn-secondary"
+              disabled={page * result.pageSize >= result.total || loading}
+              onClick={() => setPage((value) => Math.min(Math.ceil(result.total / result.pageSize), value + 1))}
             >
-              Next audit page
+              Next
             </button>
-          </div>
+          </nav>}
         </>
       )}
     </section>

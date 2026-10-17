@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, ChevronDown } from "lucide-react";
 import { formatQuantityUnit } from "../../quantity-format";
+import { formatEnumLabel } from "../../utils/formatEnumLabel";
 
 type RfqItem = {
   material: string;
@@ -112,6 +113,14 @@ type Request = <T>(path: string) => Promise<T>;
 const isApproved = (quotation: CustomerQuotation) =>
   ["ACCEPTED", "CONVERTED_TO_ORDER"].includes(quotation.status);
 
+function preserveCardPosition(card: Element | null) {
+  if (!card) return;
+  const cardTop = card.getBoundingClientRect().top;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    window.scrollBy(0, card.getBoundingClientRect().top - cardTop);
+  }));
+}
+
 function quotationItems(quotation: CustomerQuotation): RfqItem[] {
   return quotation.items.flatMap((item) => [
     {
@@ -185,7 +194,7 @@ export default function CustomerRfqSourcing({ request }: { request: Request }) {
 
   const activeItems = activeQuotation ? quotationItems(activeQuotation) : active?.items ?? [];
   if (active) return <section className="customer-rfq-page" aria-labelledby="customer-rfq-sourcing-title">
-    <button type="button" className="procurement-back-link" onClick={closeActive}>
+    <button type="button" className="procurement-back-link admin-back-button" onClick={closeActive}>
       <ArrowLeft size={16} aria-hidden="true" /> Back to customer requests
     </button>
     <header className="procurement-page-header">
@@ -196,7 +205,7 @@ export default function CustomerRfqSourcing({ request }: { request: Request }) {
         <h2 id="customer-rfq-sourcing-title">{active.requestNumber}</h2>
         <p>{activeQuotation ? `${activeQuotation.quoteNumber} · Revision ${activeQuotation.revisionNumber || 1}` : active.siteLocation}</p>
       </div>
-      <span className="procurement-request-status">{activeQuotation?.status || active.status}</span>
+      <span className="procurement-request-status">{formatEnumLabel(activeQuotation?.status || active.status)}</span>
     </header>
     <section className="procurement-rfq-request-items">
       <h3>{activeQuotation ? "Quotation products" : "Requested products"} <span>{activeItems.length} items</span></h3>
@@ -306,10 +315,17 @@ export default function CustomerRfqSourcing({ request }: { request: Request }) {
               const hasAlternatives = alternativeCount > 0;
               return <article className="customer-rfq-sourcing-card" key={rfq.id}>
                 <div className="customer-rfq-card-copy">
+                  {hasAlternatives && <button type="button" className="procurement-back-link admin-back-button customer-rfq-options-back" onClick={(event) => {
+                    const card = event.currentTarget.closest(".customer-rfq-sourcing-card");
+                    preserveCardPosition(card);
+                    card?.querySelector<HTMLDetailsElement>(".customer-rfq-alternatives")?.removeAttribute("open");
+                  }}>
+                    <ArrowLeft size={16} aria-hidden="true" /> Back to customer requests
+                  </button>}
                   <div className="customer-rfq-card-title">
                     <strong>{rfq.requestNumber}</strong>
                     <span className={`procurement-request-status${primaryQuotation ? " procurement-status-approved" : ""}`}>
-                      {primaryQuotation ? "CLIENT APPROVED" : rfq.status.replaceAll("_", " ")}
+                      {primaryQuotation ? "CLIENT APPROVED" : formatEnumLabel(rfq.status)}
                     </span>
                   </div>
                   <p>{rfq.siteLocation}</p>
@@ -327,8 +343,8 @@ export default function CustomerRfqSourcing({ request }: { request: Request }) {
                       {rfq.matchSummary.matchedSupplierCount} supplier{rfq.matchSummary.matchedSupplierCount === 1 ? "" : "s"} match at least one item · {rfq.matchSummary.requestedItems.filter((item) => item.coverage === "covered").length}/{rfq.matchSummary.requestedItems.length} items have full recent quantity coverage nearby.
                     </small>
                   )}
-                  {hasAlternatives && <details className="customer-rfq-alternatives">
-                    <summary>
+                  {hasAlternatives && <details className="customer-rfq-alternatives" name="customer-rfq-alternatives">
+                    <summary onClick={(event) => preserveCardPosition(event.currentTarget.closest(".customer-rfq-sourcing-card"))}>
                       <span>{showOriginalInDropdown ? "Other quotations and original request" : "Other quotations"}</span>
                       <span>{alternativeCount} {alternativeCount === 1 ? "option" : "options"} <ChevronDown size={15} aria-hidden="true" /></span>
                     </summary>
@@ -348,7 +364,7 @@ export default function CustomerRfqSourcing({ request }: { request: Request }) {
                         return <article className="customer-rfq-alternative" key={quotation.id}>
                           <div>
                             <strong>{quotation.quoteNumber} · Revision {quotation.revisionNumber || 1}</strong>
-                            <span>{quotation.status.replaceAll("_", " ")} · ₹{Number(quotation.totalAmount).toLocaleString("en-IN")}</span>
+                            <span>{formatEnumLabel(quotation.status)} · ₹{Number(quotation.totalAmount).toLocaleString("en-IN")}</span>
                             <ul>{items.slice(0, 4).map((item, index) => <li key={`${item.material}-${index}`}>{item.material} — {formatQuantityUnit(item.quantity, item.unit)}</li>)}</ul>
                           </div>
                         <button type="button" className="bc-button" disabled={!/^[1-9]\d{5}$/.test(quotation.sitePincode) || !items.length} onClick={() => void showSuggestions(rfq, quotation)}>

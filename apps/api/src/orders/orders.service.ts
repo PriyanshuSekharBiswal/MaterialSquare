@@ -19,6 +19,14 @@ export class OrdersService {
     return this.prisma.order.findMany({
       include: {
         dispatch: true,
+        quotation: {
+          select: {
+            id: true,
+            quoteNumber: true,
+            requestId: true,
+            request: { select: { requestNumber: true } },
+          },
+        },
         manualPaymentRecordedBy: { select: { name: true } },
         payments: { include: { recordedBy: { select: { name: true } } }, orderBy: { recordedAt: "asc" } },
         items: { include: { product: true, deliveries: true } },
@@ -171,6 +179,7 @@ export class OrdersService {
         where: { orderId: order.id },
         create: {
           orderId: order.id,
+          createdById: staffId,
           vehicleNumber: input.truckNumber,
           driverName: input.driverName,
           driverPhone: input.driverPhone,

@@ -2532,3 +2532,29 @@
   .catalogue-publish-status-spin { animation: none; }
   .catalogue-publish-status-track > span { transition: none; }
 }
+
+/* Keep preview mode toggles aligned with the admin panel's selected-tab style. */
+.catalogue-preview-switch button {
+  color: #e65308;
+  transition: border-color .16s ease, background .16s ease, color .16s ease, box-shadow .16s ease;
+}
+.catalogue-preview-switch button:not(.active):hover {
+  background: #fff5ed;
+  color: #d94b00;
+}
+.catalogue-preview-switch button.active,
+.catalogue-preview-device button.active {
+  border: 1px solid #e65308;
+  background: #f05a0a;
+  color: #fff;
+  box-shadow: 0 4px 10px rgb(240 90 10 / 20%);
+}
+.catalogue-preview-switch button.active:hover,
+.catalogue-preview-device button.active:hover {
+  border-color: #d94b00;
+  background: #d94b00;
+}
+.catalogue-preview-switch button:focus-visible {
+  outline: 3px solid rgb(242 103 34 / 28%);
+  outline-offset: 2px;
+}

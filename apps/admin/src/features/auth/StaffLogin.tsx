@@ -64,9 +64,8 @@ export default function StaffLogin({
           </div>
         </div>
         <p className="login-session-note">
-          Stay signed in on this browser when you close or refresh it. Sign out
-          from the workspace when you’re finished. For security, remembered
-          sessions expire after 30 days.
+          Your sign-in is kept in a protected browser cookie and expires after
+          12 hours. Sign out from the workspace when you’re finished.
         </p>
         {error && (
           <p role="alert" className="admin-error">

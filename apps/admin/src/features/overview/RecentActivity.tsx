@@ -9,6 +9,7 @@ import {
   Upload,
 } from "lucide-react";
 import type { RecentChanges } from "./contracts";
+import { formatEnumLabel } from "../../utils/formatEnumLabel";
 
 const BUSINESS_ENTITIES = [
   "PROCUREMENT_REQUEST",
@@ -213,7 +214,7 @@ export default function RecentActivity({
                   <span className="recent-change-staff">
                     {item.staff?.name || "System"}
                     {item.staff?.role
-                      ? ` · ${item.staff.role.replaceAll("_", " ").toLowerCase()}`
+                      ? ` · ${formatEnumLabel(item.staff.role)}`
                       : ""}
                   </span>
                   <time

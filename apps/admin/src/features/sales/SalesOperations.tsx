@@ -1,5 +1,5 @@
 import OrderDetails, { type OrderSummary } from "./OrderDetails";
-import { Fragment, useState, useEffect, useCallback, useMemo, useRef, type FormEvent } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type FormEvent } from "react";
 import {
   BarChart,
   Bar,
@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import MaterialSquareLogo from "../../components/MaterialSquareLogo";
 import { formatQuantityUnit } from "../../quantity-format";
+import { formatEnumLabel } from "../../utils/formatEnumLabel";
 import QuoteEditor, { type RevisionQuote } from "./QuoteEditor";
 import RfqOwnershipControls from "./RfqOwnershipControls";
 import CatalogueManager from "../catalogue/CatalogueManager";
@@ -61,23 +62,6 @@ type Rfq = {
     quantity: number;
     unit: string;
   }[];
-};
-const distinctRfqItems = (items: Rfq["items"]) => {
-  const grouped = new Map<string, Rfq["items"][number]>();
-  for (const item of items) {
-    const normalize = (value?: string | null) =>
-      (value || "").trim().toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
-    const key = [
-      item.catalogueId || normalize(item.material),
-      item.variantId || normalize(item.specification),
-      normalize(item.brand),
-      normalize(item.unit),
-    ].join("|");
-    const existing = grouped.get(key);
-    if (existing) existing.quantity += item.quantity;
-    else grouped.set(key, { ...item });
-  }
-  return [...grouped.values()];
 };
 type RfqCatalogue = {
   id: string;
@@ -158,8 +142,15 @@ type Order = OrderSummary & {
   id: string;
   orderNumber: string;
   customerName: string;
+  createdAt: string;
   status: string;
   manualPaymentStatus: "UNPAID" | "PARTIALLY_PAID" | "PAID";
+  quotation?: {
+    id: string;
+    quoteNumber: string;
+    requestId?: string | null;
+    request?: { requestNumber: string } | null;
+  } | null;
   dispatch?: { currentStep: number; truckNumber: string } | null;
 };
 type Inquiry = {
@@ -183,6 +174,14 @@ const tabs = [
   "inquiries",
 ] as const;
 type Tab = (typeof tabs)[number];
+type RfqStatusFilter = "ALL" | "NEW" | "CONTACTED" | "QUOTED" | "CLOSED";
+const rfqStatusFilters: { value: RfqStatusFilter; label: string }[] = [
+  { value: "ALL", label: "All" },
+  { value: "NEW", label: "New" },
+  { value: "CONTACTED", label: "Contacted" },
+  { value: "QUOTED", label: "Quoted" },
+  { value: "CLOSED", label: "Closed" },
+];
 const salesSectionParam = "salesSection";
 function tabFromLocation(availableTabs: readonly Tab[]): Tab {
   const requested = new URLSearchParams(window.location.search).get(salesSectionParam);
@@ -191,9 +190,9 @@ function tabFromLocation(availableTabs: readonly Tab[]): Tab {
 type AcceptanceChannel = "WHATSAPP" | "EMAIL" | "PHONE";
 const labels: Record<Tab, string> = {
   overview: "Overview",
-  rfqs: "RFQ inbox",
+  rfqs: "Requests",
   quotes: "Quotations",
-  orders: "Orders & dispatch",
+  orders: "Orders",
   inventory: "Catalogue pricing",
   inquiries: "Contact enquiries",
 };
@@ -217,13 +216,7 @@ const roleTabs: Record<string, Tab[]> = {
 };
 const money = (value: number | string) =>
   Number(value).toLocaleString("en-IN", { style: "currency", currency: "INR" });
-const rfqStatusLabel = (status: string) =>
-  status === "NEW"
-    ? "New"
-    : status
-        .replaceAll("_", " ")
-        .toLocaleLowerCase()
-        .replace(/^./, (letter) => letter.toUpperCase());
+const rfqStatusLabel = (status: string) => formatEnumLabel(status);
 const rfqReceivedLabel = (value: string) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
@@ -297,25 +290,48 @@ export default function SalesOperations({
   const operationsMenuRef = useRef<HTMLDivElement>(null);
   const quoteEditorRef = useRef<HTMLDivElement>(null);
   const visibleTabs = roleTabs[role] || ["overview"];
+  const auxiliaryTabs = visibleTabs.filter(
+    (item) =>
+      !(embedded && item === "inventory") &&
+      (embedded || !(["rfqs", "quotes", "orders"] as Tab[]).includes(item)),
+  );
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [rfqs, setRfqs] = useState<Rfq[]>([]);
+  const [rfqStatusFilter, setRfqStatusFilter] = useState<RfqStatusFilter>("ALL");
   const [rfqsLoaded, setRfqsLoaded] = useState(false);
   const [rfqCatalogue, setRfqCatalogue] = useState<RfqCatalogue[]>([]);
   const [rfqAssignees, setRfqAssignees] = useState<RfqAssignee[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [expandedQuoteCustomers, setExpandedQuoteCustomers] = useState<Set<string>>(() => new Set());
-  const [quoteView, setQuoteView] = useState<"prepare" | "quotations">("prepare");
+  const [quoteToSend, setQuoteToSend] = useState<Quote | null>(null);
+  const [recentlySentQuoteId, setRecentlySentQuoteId] = useState("");
+  const [workflowRequestFilterId, setWorkflowRequestFilterId] = useState<string | null>(null);
+  const [openedQuoteGroupKey, setOpenedQuoteGroupKey] = useState<string | null>(null);
+  const [openedOrderGroupKey, setOpenedOrderGroupKey] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const visibleRfqs = rfqStatusFilter === "ALL"
+    ? rfqs
+    : rfqs.filter((rfq) => rfq.status === rfqStatusFilter);
   const selectTab = (next: Tab) => {
     if (!visibleTabs.includes(next) || next === tab) return;
     const url = new URL(window.location.href);
     url.searchParams.set(salesSectionParam, next);
     window.history.pushState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
     setTab(next);
+  };
+  const navigateWorkflowPage = (next: Tab, requestId: string | null = null) => {
+    setWorkflowRequestFilterId(requestId);
+    setOpenedQuoteGroupKey(null);
+    setOpenedOrderGroupKey(null);
+    setSelectedRfq(null);
+    setOpenedRfqId(null);
+    setRevision(null);
+    setEditingDraft(false);
+    setCreatingCustomQuote(false);
+    selectTab(next);
   };
   useEffect(() => setToken(accessToken), [accessToken]);
   useEffect(() => {
@@ -411,14 +427,18 @@ export default function SalesOperations({
       if (tab === "overview")
         setAnalytics(await request<Analytics>("/analytics/dashboard"));
       if (tab === "rfqs") {
-        const [requests, assignees, catalogue] = await Promise.all([
+        const [requests, assignees, catalogue, savedQuotes, linkedOrders] = await Promise.all([
           request<Rfq[]>("/rfqs"),
           request<RfqAssignee[]>("/rfqs/assignees"),
           request<RfqCatalogue[]>("/products/catalogue"),
+          request<Quote[]>("/quotes"),
+          request<Order[]>("/orders"),
         ]);
         setRfqs(requests);
         setRfqAssignees(assignees);
         setRfqCatalogue(catalogue);
+        setQuotes(savedQuotes);
+        setOrders(linkedOrders);
         setRfqsLoaded(true);
       }
       if (tab === "quotes") {
@@ -465,15 +485,13 @@ export default function SalesOperations({
     setError("");
     const form = new FormData(event.currentTarget);
     try {
-      const result = await request<{
-        accessToken: string;
-        user: { name: string };
-      }>("/auth/staff/login", "POST", {
+      await request<{ ok: true }>("/auth/staff/login", "POST", {
         email: form.get("email"),
         password: form.get("password"),
       });
-      setStaffName(result.user.name);
-      setToken(result.accessToken);
+      const user = await request<{ name: string }>("/auth/staff/me");
+      setStaffName(user.name);
+      setToken("staff-cookie-session");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Login failed");
     } finally {
@@ -508,6 +526,21 @@ export default function SalesOperations({
     }
   };
   const openedRfq = rfqs.find((record) => record.id === openedRfqId) || null;
+  const openedRfqQuotes = openedRfq
+    ? quotes
+        .filter((quote) => quote.requestId === openedRfq.id)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    : [];
+  const openedRfqOrders = openedRfq
+    ? orders.filter((order) => order.quotation?.requestId === openedRfq.id)
+    : [];
+  const openedRfqAcceptedQuotes = openedRfqQuotes.filter((quote) =>
+    ["ACCEPTED", "CONVERTED_TO_ORDER"].includes(quote.status),
+  );
+  const openedRfqSentQuotes = openedRfqQuotes.filter((quote) =>
+    Boolean(quote.publishedAt) ||
+    ["QUOTE_SENT", "EXPIRED", "REJECTED", "ACCEPTED", "CONVERTED_TO_ORDER"].includes(quote.status),
+  );
   const openedRfqAddress = openedRfq
     ? (() => {
         const rawAddress = openedRfq.siteLocation || "";
@@ -528,21 +561,15 @@ export default function SalesOperations({
         ].filter(([, value]) => Boolean(value)) as [string, string][];
       })()
     : [];
-  const quoteRequests = rfqs.filter((record) =>
-    ["NEW", "CONTACTED"].includes(record.status),
-  );
-  const draftStatuses = ["DRAFT", "PENDING_REVIEW", "MARGIN_ADJUSTED"];
-  const linkedDraftFor = (requestId: string) =>
-    quotes.find(
-      (quote) => quote.requestId === requestId && draftStatuses.includes(quote.status),
-    );
-  const quoteCustomerGroups = useMemo(() => {
+  const quoteRequestGroups = useMemo(() => {
     const groups = new Map<string, Quote[]>();
     for (const quote of quotes) {
       const phone = quote.customerPhone.replace(/\D/g, "");
-      const key = quote.customerId
-        ? `customer:${quote.customerId}`
-        : `phone:${phone || quote.customerName.trim().toLocaleLowerCase() || quote.id}`;
+      const key = quote.requestId
+        ? `request:${quote.requestId}`
+        : quote.customerId
+          ? `custom-customer:${quote.customerId}`
+          : `custom-phone:${phone || quote.customerName.trim().toLocaleLowerCase() || quote.id}`;
       groups.set(key, [...(groups.get(key) || []), quote]);
     }
     const timestamp = (quote: Quote) =>
@@ -561,34 +588,94 @@ export default function SalesOperations({
           );
         const primary = approved[0] || null;
         const others = chronological.filter((quote) => quote.id !== primary?.id);
+        const sentCount = customerQuotes.filter(
+          (quote) =>
+            Boolean(quote.publishedAt) ||
+            ["QUOTE_SENT", "EXPIRED", "REJECTED", "ACCEPTED", "CONVERTED_TO_ORDER"].includes(quote.status),
+        ).length;
+        const requestId = customerQuotes[0]?.requestId;
+        const linkedRequest = rfqs.find((rfq) => rfq.id === requestId);
         return {
           key,
           primary,
           quotes: primary ? [primary, ...others] : chronological,
-          otherCount: others.length,
+          totalCount: customerQuotes.length,
+          sentCount,
+          unsentCount: customerQuotes.length - sentCount,
+          requestNumber: linkedRequest?.requestNumber || null,
+          customerName: chronological[0]?.customerName || linkedRequest?.customerName || "Customer",
           latestAt: Math.max(...customerQuotes.map(timestamp)),
         };
       })
       .sort((a, b) => b.latestAt - a.latestAt);
-  }, [quotes]);
-  const quoteEntries = quoteCustomerGroups.flatMap((group) =>
-    group.quotes.map((quote, index) => ({
-      quote,
-      groupKey: group.key,
-      isApprovedMain: Boolean(group.primary && index === 0),
-      isSecondary: Boolean(group.primary && index > 0),
-      otherCount: group.otherCount,
-    })),
-  );
+  }, [quotes, rfqs]);
+  const requestPageFilter = workflowRequestFilterId
+    ? rfqs.find((rfq) => rfq.id === workflowRequestFilterId) || null
+    : null;
+  const visibleQuoteGroups = workflowRequestFilterId
+    ? quoteRequestGroups.filter((group) => group.key === `request:${workflowRequestFilterId}`)
+    : quoteRequestGroups;
+  const displayedQuoteGroups = openedQuoteGroupKey
+    ? visibleQuoteGroups.filter((group) => group.key === openedQuoteGroupKey)
+    : visibleQuoteGroups;
+  const orderRequestGroups = useMemo(() => {
+    const groups = new Map<string, Order[]>();
+    for (const order of orders) {
+      const requestId = order.quotation?.requestId;
+      const key = requestId
+        ? `request:${requestId}`
+        : `unlinked:${order.quotation?.id || order.id}`;
+      groups.set(key, [...(groups.get(key) || []), order]);
+    }
+    return [...groups.entries()]
+      .map(([key, customerOrders]) => ({
+        key,
+        requestNumber: customerOrders[0]?.quotation?.request?.requestNumber || null,
+        customerName: customerOrders[0]?.customerName || "Customer",
+        orders: customerOrders,
+        paymentStatus: [...new Set(customerOrders.map((order) => order.manualPaymentStatus || "UNPAID"))].length === 1
+          ? customerOrders[0]?.manualPaymentStatus || "UNPAID"
+          : "MIXED",
+        latestAt: Math.max(...customerOrders.map((order) => new Date(order.createdAt).getTime() || 0)),
+      }))
+      .sort((a, b) => b.latestAt - a.latestAt);
+  }, [orders]);
+  const visibleOrderGroups = workflowRequestFilterId
+    ? orderRequestGroups.filter((group) => group.key === `request:${workflowRequestFilterId}`)
+    : orderRequestGroups;
+  const displayedOrderGroups = openedOrderGroupKey
+    ? visibleOrderGroups.filter((group) => group.key === openedOrderGroupKey)
+    : visibleOrderGroups;
   if (!token) return null;
 
   const innerContent = (
     <>
-      <div className="embedded-subnav-bar" ref={operationsMenuRef}>
-        <h1 className="operations-current-section">{labels[tab]}</h1>
+      {!(tab === "orders" && openedOrderGroupKey) && <div className={`embedded-subnav-bar embedded-sales-navigation${embedded ? " has-page-indicator" : ""}`} ref={operationsMenuRef}>
+        {embedded ? (
+          <h1 className="operations-current-section">{labels[tab]}</h1>
+        ) : <nav className="sales-workflow-nav" aria-label="Quotation and order pages">
+          {(["rfqs", "quotes", "orders"] as Tab[])
+            .filter((item) => visibleTabs.includes(item))
+            .map((item) => {
+              const Icon = icons[tabs.indexOf(item)];
+              return (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === item}
+                  className={`sales-workflow-nav-link${tab === item ? " is-active" : ""}`}
+                  key={item}
+                  onClick={() => navigateWorkflowPage(item)}
+                >
+                  <Icon size={16} aria-hidden="true" />
+                  <span>{labels[item]}</span>
+                </button>
+              );
+            })}
+        </nav>}
         {operationsMenuOpen && (
           <div className="embedded-subnav-items" id="operations-section-menu">
-            {visibleTabs.map((item) => {
+            {auxiliaryTabs.map((item) => {
               const Icon = icons[tabs.indexOf(item)];
               return (
                 <button
@@ -596,6 +683,7 @@ export default function SalesOperations({
                   className={`subnav-pill ${tab === item ? "active" : ""}`}
                   onClick={() => {
                     selectTab(item);
+                    setWorkflowRequestFilterId(null);
                     setSelectedRfq(null);
                     setOpenedRfqId(null);
                     setRevision(null);
@@ -610,18 +698,18 @@ export default function SalesOperations({
             })}
           </div>
         )}
-        <button
+        {auxiliaryTabs.length > 0 && <button
           type="button"
           className="operations-menu-trigger"
-          aria-label="Open operations sections"
+          aria-label="Open more operations pages"
           aria-expanded={operationsMenuOpen}
           aria-controls="operations-section-menu"
-          title="Open operations sections"
+          title="More operations pages"
           onClick={() => setOperationsMenuOpen((open) => !open)}
         >
           <Menu size={22} aria-hidden="true" />
-        </button>
-      </div>
+        </button>}
+      </div>}
 
       {error && (
         <p role="alert" className="admin-error">
@@ -688,7 +776,7 @@ export default function SalesOperations({
           <section className="panel-card panel-body rfq-detail-page">
             <button
               type="button"
-              className="rfq-detail-back"
+              className="rfq-detail-back admin-back-button"
               onClick={() => setOpenedRfqId(null)}
             >
               <ArrowLeft size={16} aria-hidden="true" /> Back to RFQ inbox
@@ -710,6 +798,31 @@ export default function SalesOperations({
                 <p>{openedRfq.notes}</p>
               </aside>
             )}
+
+            <section className="rfq-journey-summary" aria-label="Request journey">
+              <div className="rfq-journey-heading">
+                <strong>Request journey</strong>
+                <span>{openedRfq.requestNumber}</span>
+              </div>
+              <ol className="rfq-journey-steps">
+                <li className="is-complete">
+                  <span className="rfq-journey-step-number">1</span>
+                  <span><strong>Request received</strong><small>{rfqReceivedLabel(openedRfq.createdAt)}</small></span>
+                </li>
+                <li className={openedRfqQuotes.length ? "is-complete" : ""}>
+                  <span className="rfq-journey-step-number">2</span>
+                  <span><strong>{openedRfqQuotes.length} {openedRfqQuotes.length === 1 ? "quotation" : "quotations"}</strong><small>{openedRfqSentQuotes.length} sent · {openedRfqQuotes.length - openedRfqSentQuotes.length} draft</small></span>
+                </li>
+                <li className={openedRfqAcceptedQuotes.length ? "is-complete" : ""}>
+                  <span className="rfq-journey-step-number">3</span>
+                  <span><strong>{openedRfqAcceptedQuotes.length} accepted</strong><small>{openedRfqAcceptedQuotes.length ? "Customer accepted a quotation" : "Waiting for customer response"}</small></span>
+                </li>
+                <li className={openedRfqOrders.length ? "is-complete" : ""}>
+                  <span className="rfq-journey-step-number">4</span>
+                  <span><strong>{openedRfqOrders.length} {openedRfqOrders.length === 1 ? "order" : "orders"}</strong><small>{openedRfqOrders.length ? [...new Set(openedRfqOrders.map((order) => formatEnumLabel(order.status)))].join(" · ") : "Created after quote acceptance"}</small></span>
+                </li>
+              </ol>
+            </section>
 
             <section className="rfq-detail-card" aria-labelledby="rfq-customer-info-heading">
               <header><h3 id="rfq-customer-info-heading">Customer information</h3></header>
@@ -787,6 +900,21 @@ export default function SalesOperations({
               </div>
             </section>
 
+            <section className="rfq-related-pages" aria-label="Related quotation and order pages">
+              <div>
+                <strong>Quotation and order history</strong>
+                <p>View each record on its own page, grouped under this request number.</p>
+              </div>
+              <div className="rfq-related-page-actions">
+                <button type="button" className="btn-sm btn-secondary" onClick={() => navigateWorkflowPage("quotes", openedRfq.id)}>
+                  Quotations <span>{openedRfqQuotes.length}</span><ArrowRight size={15} aria-hidden="true" />
+                </button>
+                <button type="button" className="btn-sm btn-secondary" onClick={() => navigateWorkflowPage("orders", openedRfq.id)}>
+                  Orders <span>{openedRfqOrders.length}</span><ArrowRight size={15} aria-hidden="true" />
+                </button>
+              </div>
+            </section>
+
             {(openedRfq.attachments ?? []).length > 0 && (
               <section className="rfq-detail-card" aria-label="Request attachments">
                 <header><h3>Project files</h3></header>
@@ -823,7 +951,7 @@ export default function SalesOperations({
             </section>
 
             <footer className="rfq-detail-actions">
-              <button type="button" className="btn-sm btn-secondary" onClick={() => setOpenedRfqId(null)}>Back to inbox</button>
+              <button type="button" className="btn-sm btn-secondary admin-back-button" onClick={() => setOpenedRfqId(null)}>Back to inbox</button>
               <button
                 type="button"
                 className="btn-sm btn-primary"
@@ -831,9 +959,9 @@ export default function SalesOperations({
                   setSelectedRfq(openedRfq);
                   setRevision(null);
                   setEditingDraft(false);
-                  setQuoteView("prepare");
+                  setWorkflowRequestFilterId(openedRfq.id);
                   setOpenedRfqId(null);
-                  setTab("quotes");
+                  selectTab("quotes");
                 }}
               >
                 Prepare quotation <ArrowRight size={15} aria-hidden="true" />
@@ -850,13 +978,33 @@ export default function SalesOperations({
               </div>
               <span className="rfq-inbox-total">{rfqs.length} {rfqs.length === 1 ? "request" : "requests"}</span>
             </header>
+            <div className="rfq-status-filters" role="group" aria-label="Filter requests by status">
+              {rfqStatusFilters.map((filter) => {
+                const count = filter.value === "ALL"
+                  ? rfqs.length
+                  : rfqs.filter((rfq) => rfq.status === filter.value).length;
+                return (
+                  <button
+                    type="button"
+                    key={filter.value}
+                    className={`rfq-status-filter${rfqStatusFilter === filter.value ? " is-active" : ""}`}
+                    aria-pressed={rfqStatusFilter === filter.value}
+                    onClick={() => setRfqStatusFilter(filter.value)}
+                  >
+                    {filter.label}<span>{count}</span>
+                  </button>
+                );
+              })}
+            </div>
             {!rfqsLoaded ? (
               <p role="status">{busy ? "Loading customer requests…" : "Loading customer requests…"}</p>
             ) : !rfqs.length ? (
               <p className="rfq-inbox-empty">No RFQs received yet.</p>
+            ) : !visibleRfqs.length ? (
+              <p className="rfq-inbox-empty">No {rfqStatusFilter.toLocaleLowerCase()} requests.</p>
             ) : (
               <div className="rfq-inbox-list">
-                {rfqs.map((rfq) => (
+                {visibleRfqs.map((rfq) => (
                   <button
                     type="button"
                     className="rfq-inbox-row"
@@ -895,6 +1043,10 @@ export default function SalesOperations({
                 inventory={products}
                 request={request}
                 initialRequest={selectedRfq}
+                linkedRequestNumber={
+                  selectedRfq?.requestNumber ||
+                  rfqs.find((rfq) => rfq.id === revision?.requestId)?.requestNumber
+                }
                 revision={revision}
                 customQuotation={creatingCustomQuote}
                 editing={editingDraft}
@@ -910,140 +1062,81 @@ export default function SalesOperations({
                   setRevision(null);
                   setEditingDraft(false);
                   setCreatingCustomQuote(false);
-                  setQuoteView("quotations");
                   setEditorRevision((value) => value + 1);
                   await refresh();
                 }}
               />
             </div>
-          ) : (
-            <section className="panel-card panel-body sales-quote-inbox">
-              <header className="sales-quote-inbox-heading">
-                <div>
-                  <span className="sales-section-eyebrow">QUOTATIONS</span>
-                  <h2>Prepare customer quotations</h2>
-                  <p>Choose a customer request to build a clear, itemized offer.</p>
-                </div>
-                <div className="sales-quote-inbox-heading-actions">
-                  <button
-                    type="button"
-                    className="btn-sm btn-primary sales-create-custom-quote"
-                    onClick={() => {
-                      setSelectedRfq(null);
-                      setRevision(null);
-                      setEditingDraft(false);
-                      setCreatingCustomQuote(true);
-                    }}
-                  >
-                    Create custom quotation
-                  </button>
-                  <span className="sales-saved-quote-count">
-                    {quoteView === "prepare"
-                      ? `${quoteRequests.length} to prepare`
-                      : `${quotes.length} saved`}
-                  </span>
-                </div>
-              </header>
-              <div className="sales-quote-inbox-tabs" role="tablist" aria-label="Quotation views">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={quoteView === "prepare"}
-                  className={quoteView === "prepare" ? "is-active" : ""}
-                  onClick={() => setQuoteView("prepare")}
-                >
-                  To prepare <span>{quoteRequests.length}</span>
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={quoteView === "quotations"}
-                  className={quoteView === "quotations" ? "is-active" : ""}
-                  onClick={() => setQuoteView("quotations")}
-                >
-                  Saved quotations <span>{quotes.length}</span>
-                </button>
-              </div>
-              {quoteView === "prepare" ? (
-                !rfqsLoaded ? (
-                  <p role="status">Loading requests…</p>
-                ) : quoteRequests.length ? (
-                  <div className="sales-quote-request-list">
-                    {quoteRequests.map((record) => {
-                      const draft = linkedDraftFor(record.id);
-                      const uniqueItems = distinctRfqItems(record.items || []);
-                      return (
-                        <button
-                          className="sales-quote-request-card"
-                          type="button"
-                          key={record.id}
-                          onClick={() => {
-                            setSelectedRfq(record);
-                            setRevision(draft || null);
-                            setEditingDraft(Boolean(draft));
-                            setCreatingCustomQuote(false);
-                          }}
-                        >
-                          <span className="sales-quote-request-main">
-                            <span className="sales-quote-request-id">{record.requestNumber}</span>
-                            <strong>{record.customerName}</strong>
-                            <span>{record.customer?.companyName || record.customerPhone}</span>
-                          </span>
-                          <span className="sales-quote-request-items">
-                            {uniqueItems.slice(0, 3).map((item, index) => (
-                              <span key={`${record.id}-item-${index}`}>
-                                {item.material}{item.quantity ? ` · ${formatQuantityUnit(item.quantity, item.unit)}` : ""}
-                              </span>
-                            ))}
-                            {uniqueItems.length > 3 && <small>+{uniqueItems.length - 3} more items</small>}
-                          </span>
-                          <span className="sales-quote-request-meta">
-                            <span className="rfq-status-badge" data-status={record.status}>
-                              {draft ? "Draft in progress" : rfqStatusLabel(record.status)}
-                            </span>
-                            <small>{rfqReceivedLabel(record.createdAt)}</small>
-                          </span>
-                          <span className="sales-quote-request-action">
-                            {draft ? "Continue draft" : "Prepare quotation"}
-                            <ArrowRight size={16} aria-hidden="true" />
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="sales-quote-inbox-empty">
-                    <FileText size={24} aria-hidden="true" />
-                    <strong>You’re all caught up</strong>
-                    <span>New customer requests will appear here when they’re ready for a quotation.</span>
-                  </div>
-                )
-              ) : (
-                <p className="sales-quote-inbox-hint">Review the quotations below to edit drafts, publish offers, record acceptance, or download PDFs.</p>
-              )}
-            </section>
-          )}
-          {!selectedRfq && !revision && quoteView === "quotations" && (
+          ) : null}
+          {!selectedRfq && !revision && !creatingCustomQuote && (
           <section className="panel-card panel-body sales-saved-quotes">
             <div className="sales-saved-quotes-heading">
               <div>
-                <span className="sales-section-eyebrow">QUOTE WORKSPACE</span>
-                <h2>Saved quotations</h2>
-                <p>Review quote details, revise drafts, or download a PDF.</p>
+                <span className="sales-section-eyebrow">QUOTATIONS</span>
+                <h2>Quotation register</h2>
+                <p>Draft, send, and track offers. Open a request group to review its quotation history.</p>
               </div>
-              <span className="sales-saved-quote-count">
-                {quotes.length} {quotes.length === 1 ? "quotation" : "quotations"}
-              </span>
+              <div className="sales-saved-quotes-tools">
+                {workflowRequestFilterId && (
+                  <button type="button" className="btn-sm btn-secondary" onClick={() => { setWorkflowRequestFilterId(null); setOpenedQuoteGroupKey(null); }}>
+                    Clear request filter
+                  </button>
+                )}
+                <button type="button" className="btn-sm btn-primary" onClick={() => {
+                  setSelectedRfq(null);
+                  setRevision(null);
+                  setEditingDraft(false);
+                  setCreatingCustomQuote(true);
+                  setWorkflowRequestFilterId(null);
+                }}>
+                  Create custom quotation
+                </button>
+                <span className="sales-saved-quote-count">
+                  {displayedQuoteGroups.reduce((total, group) => total + group.totalCount, 0)} {displayedQuoteGroups.reduce((total, group) => total + group.totalCount, 0) === 1 ? "quotation" : "quotations"}
+                </span>
+              </div>
             </div>
-            {!quotes.length && (
-              <p className="sales-saved-quotes-empty">No quotations created yet.</p>
+            {!visibleQuoteGroups.length && (
+              <p className="sales-saved-quotes-empty">
+                {workflowRequestFilterId ? `No quotations are linked to ${requestPageFilter?.requestNumber || "this request"} yet.` : "No quotations created yet."}
+              </p>
+            )}
+            {openedQuoteGroupKey && (
+              <div className="sales-quote-group-focus-bar">
+                <button type="button" className="btn-sm btn-secondary admin-back-button" onClick={() => setOpenedQuoteGroupKey(null)}>
+                  <ArrowLeft size={15} aria-hidden="true" /> Back to all quotation groups
+                </button>
+                <span>Showing quotations from this group only</span>
+              </div>
             )}
             <div className="sales-saved-quote-list">
-            {quoteEntries.map(({ quote: q, groupKey, isApprovedMain, isSecondary, otherCount }) => {
-              if (isSecondary && !expandedQuoteCustomers.has(groupKey)) return null;
-              return (
-              <Fragment key={q.id}>
-              <article className={`record-card sales-saved-quote${isApprovedMain ? " sales-saved-quote-approved" : ""}`}>
+            {displayedQuoteGroups.map((group) => (
+              <details
+                className={`sales-rfq-quote-group${openedQuoteGroupKey === group.key ? " is-focused" : ""}`}
+                key={group.key}
+                open={openedQuoteGroupKey === group.key}
+                onToggle={(event) => {
+                  if (event.currentTarget.open) setOpenedQuoteGroupKey(group.key);
+                  else if (openedQuoteGroupKey === group.key) setOpenedQuoteGroupKey(null);
+                }}
+              >
+                <summary className="sales-rfq-quote-group-summary">
+                  <span className="sales-rfq-quote-group-identity">
+                    <span className="sales-section-eyebrow">
+                      {group.requestNumber || "CUSTOM QUOTATIONS · NOT LINKED TO AN RFQ"}
+                    </span>
+                    <strong>{group.customerName}</strong>
+                  </span>
+                  <span className="sales-rfq-quote-group-counts">
+                    {group.totalCount} {group.totalCount === 1 ? "quotation" : "quotations"}
+                    {group.sentCount > 0 && ` · ${group.sentCount} sent`}
+                    {group.unsentCount > 0 && ` · ${group.unsentCount} draft${group.unsentCount === 1 ? "" : "s"}`}
+                  </span>
+                </summary>
+                <div className="sales-rfq-quote-group-quotes">
+                {group.quotes.map((q) => {
+                  return (
+              <article key={q.id} className="record-card sales-saved-quote">
                 <header className="sales-saved-quote-header">
                   <div className="sales-saved-quote-identity">
                     <span className="sales-quote-number">{q.quoteNumber}</span>
@@ -1051,23 +1144,21 @@ export default function SalesOperations({
                     <span className="sales-quote-revision">
                       Revision {q.revisionNumber || 1}
                     </span>
+                    <span className="sales-quote-revision">
+                      {q.publishedAt ? `Sent ${new Date(q.publishedAt).toLocaleString("en-IN")}` : "Not sent"}
+                    </span>
                   </div>
                   <span
                     className="sales-quote-status"
-                    data-status={isApprovedMain ? "ACCEPTED" : q.status}
+                    data-status={q.status}
                   >
-                    {isApprovedMain ? "APPROVED" : q.status.replaceAll("_", " ")}
+                    {formatEnumLabel(q.status)}
                   </span>
                   <div className="sales-quote-total">
                     <span>Quote total</span>
                     <strong>{money(q.totalAmount)}</strong>
                   </div>
                 </header>
-                {q.requestId && (
-                  <div className="sales-request-link-copy">
-                    Linked request <strong>#{q.requestId.slice(0, 8).toUpperCase()}</strong>
-                  </div>
-                )}
                 <details className="sales-quote-breakdown">
                   <summary>
                     <span>Review materials and totals</span>
@@ -1158,11 +1249,9 @@ export default function SalesOperations({
                   <button
                     className="btn-sm btn-primary"
                     disabled={busy}
-                    onClick={() =>
-                      void mutate(`/quotes/${q.id}/publish`, "POST")
-                    }
+                    onClick={() => setQuoteToSend(q)}
                   >
-                    Publish & queue notification
+                    Send to customer
                   </button>
                 )}
                 {q.status === "CONVERTED_TO_ORDER" && (
@@ -1172,48 +1261,54 @@ export default function SalesOperations({
                 )}
                 {q.status === "QUOTE_SENT" && (
                   <span className="sales-quote-publish-state" role="status">
-                    Published · awaiting customer response
+                    {recentlySentQuoteId === q.id
+                      ? "Sent successfully · available in the customer’s website account"
+                      : "Sent to customer · awaiting response"}
                   </span>
                 )}
-                <button
-                  className="btn-sm btn-secondary"
-                  onClick={() =>
-                    void download(
-                      `/quotes/${q.id}/pdf`,
-                      `Quotation-${q.id}.pdf`,
-                    )
-                  }
-                >
-                  Download PDF
-                </button>
-                <button
-                  className="btn-sm btn-secondary"
-                  title="Opens WhatsApp with a ready message. Attach the downloaded PDF before sending."
-                  onClick={() => {
-                    const text = `Hello ${q.customerName}, please find your Material Square quotation ${q.quoteNumber} attached. The quotation total is ${money(q.totalAmount)}. Please let us know if you have any questions.`;
-                    window.open(
-                      `https://wa.me/91${q.customerPhone}?text=${encodeURIComponent(text)}`,
-                      "_blank",
-                      "noopener,noreferrer",
-                    );
-                  }}
-                >
-                  WhatsApp customer
-                </button>
-                {q.customerEmail && (
-                  <button
-                    className="btn-sm btn-secondary"
-                    title="Opens an email draft. Attach the downloaded PDF before sending."
-                    onClick={() => {
-                      const subject = `Material Square quotation ${q.quoteNumber}`;
-                      const body = `Hello ${q.customerName},\n\nPlease find your Material Square quotation ${q.quoteNumber} attached. The quotation total is ${money(q.totalAmount)}. Please let us know if you have any questions.\n\nMaterial Square`;
-                      window.location.href = `mailto:${encodeURIComponent(q.customerEmail!)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-                    }}
-                  >
-                    Email customer
-                  </button>
-                )}
-                <span className="sales-quote-share-note">Attach the downloaded PDF before sending.</span>
+                <div className="sales-quote-share-actions">
+                  <span className="sales-quote-share-note">Attach the downloaded PDF before sending.</span>
+                  <div className="sales-quote-share-buttons">
+                    <button
+                      className="btn-sm btn-secondary"
+                      onClick={() =>
+                        void download(
+                          `/quotes/${q.id}/pdf`,
+                          `Quotation-${q.id}.pdf`,
+                        )
+                      }
+                    >
+                      Download PDF
+                    </button>
+                    <button
+                      className="btn-sm btn-secondary"
+                      title="Opens WhatsApp with a ready message. Attach the downloaded PDF before sending."
+                      onClick={() => {
+                        const text = `Hello ${q.customerName}, please find your Material Square quotation ${q.quoteNumber} attached. The quotation total is ${money(q.totalAmount)}. Please let us know if you have any questions.`;
+                        window.open(
+                          `https://wa.me/91${q.customerPhone}?text=${encodeURIComponent(text)}`,
+                          "_blank",
+                          "noopener,noreferrer",
+                        );
+                      }}
+                    >
+                      WhatsApp customer
+                    </button>
+                    {q.customerEmail && (
+                      <button
+                        className="btn-sm btn-secondary"
+                        title="Opens an email draft. Attach the downloaded PDF before sending."
+                        onClick={() => {
+                          const subject = `Material Square quotation ${q.quoteNumber}`;
+                          const body = `Hello ${q.customerName},\n\nPlease find your Material Square quotation ${q.quoteNumber} attached. The quotation total is ${money(q.totalAmount)}. Please let us know if you have any questions.\n\nMaterial Square`;
+                          window.location.href = `mailto:${encodeURIComponent(q.customerEmail!)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                        }}
+                      >
+                        Email customer
+                      </button>
+                    )}
+                  </div>
+                </div>
                 </div>
                 {q.status === "QUOTE_SENT" && (
                   <>
@@ -1296,46 +1391,113 @@ export default function SalesOperations({
                   </>
                 )}
               </article>
-              {isApprovedMain && otherCount > 0 && (
-                <button
-                  type="button"
-                  className="sales-saved-quote-more"
-                  aria-expanded={expandedQuoteCustomers.has(groupKey)}
-                  onClick={() => setExpandedQuoteCustomers((current) => {
-                    const next = new Set(current);
-                    if (next.has(groupKey)) next.delete(groupKey);
-                    else next.add(groupKey);
-                    return next;
-                  })}
-                >
-                  {expandedQuoteCustomers.has(groupKey)
-                    ? "Show fewer quotations"
-                    : `See ${otherCount} more quotation${otherCount === 1 ? "" : "s"}`}
-                </button>
-              )}
-              </Fragment>
-              );
-            })}
+                  );
+                })}
+                </div>
+              </details>
+            ))}
             </div>
+            {quoteToSend && (
+              <div className="sales-send-quote-overlay">
+                <section
+                  className="sales-send-quote-dialog"
+                  role="alertdialog"
+                  aria-modal="true"
+                  aria-labelledby="sales-send-quote-title"
+                  aria-describedby="sales-send-quote-description"
+                >
+                  <span className="sales-section-eyebrow">SEND QUOTATION</span>
+                  <h3 id="sales-send-quote-title">Send this quotation to the customer?</h3>
+                  <p id="sales-send-quote-description">
+                    <strong>{quoteToSend.quoteNumber}</strong> for {quoteToSend.customerName} will become available in their website account. The configured customer notification will be queued if enabled.
+                  </p>
+                  <p className="sales-send-quote-total">Quote total: <strong>{money(quoteToSend.totalAmount)}</strong></p>
+                  <div className="sales-send-quote-actions">
+                    <button type="button" className="btn-sm btn-secondary" disabled={busy} onClick={() => setQuoteToSend(null)}>
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-sm btn-primary"
+                      disabled={busy}
+                      onClick={async () => {
+                        const sent = await mutate(`/quotes/${quoteToSend.id}/publish`, "POST");
+                        if (sent) {
+                          setRecentlySentQuoteId(quoteToSend.id);
+                          setQuoteToSend(null);
+                        }
+                      }}
+                    >
+                      {busy ? "Sending…" : "Confirm send"}
+                    </button>
+                  </div>
+                </section>
+              </div>
+            )}
           </section>
           )}
         </>
       )}
       {tab === "orders" && (
-        <section className="panel-card panel-body">
+        <section className={`panel-card panel-body sales-orders-page${openedOrderGroupKey ? " is-focused" : ""}`}>
+          {openedOrderGroupKey && (
+            <div className="sales-quote-group-focus-bar">
+              <button type="button" className="btn-sm btn-secondary admin-back-button" onClick={() => setOpenedOrderGroupKey(null)}>
+                <ArrowLeft size={15} aria-hidden="true" /> Back to all orders
+              </button>
+            </div>
+          )}
+          <header className="sales-record-page-heading">
+            <div>
+              <span className="sales-section-eyebrow">ORDERS</span>
+              <h2>Orders & delivery</h2>
+              <p>Track accepted quotations through payment, dispatch, and delivery.</p>
+              {workflowRequestFilterId && <span className="sales-active-request-filter">Request: {requestPageFilter?.requestNumber || "Selected RFQ"}</span>}
+            </div>
+            <div className="sales-record-page-actions">
+              {workflowRequestFilterId && <button type="button" className="btn-sm btn-secondary" onClick={() => { setWorkflowRequestFilterId(null); setOpenedOrderGroupKey(null); }}>Show all orders</button>}
+              <span className="sales-saved-quote-count">{displayedOrderGroups.reduce((total, group) => total + group.orders.length, 0)} {displayedOrderGroups.reduce((total, group) => total + group.orders.length, 0) === 1 ? "order" : "orders"}</span>
+            </div>
+          </header>
           {!["SUPER_ADMIN", "ADMIN", "DISPATCH_OFFICER"].includes(role) && (
             <p>
               Read-only order access. Dispatch staff manage delivery actions.
             </p>
           )}
-          {!orders.length && <p>No orders recorded yet.</p>}
-          {orders.map((o) => (
+          {!visibleOrderGroups.length && <p className="sales-saved-quotes-empty">{workflowRequestFilterId ? `No orders are linked to ${requestPageFilter?.requestNumber || "this request"} yet.` : "No orders recorded yet."}</p>}
+          {displayedOrderGroups.map((group) => (
+            <details
+              className="sales-rfq-order-group"
+              key={group.key}
+              open={openedOrderGroupKey === group.key}
+              onToggle={(event) => {
+                if (event.currentTarget.open) setOpenedOrderGroupKey(group.key);
+                else if (openedOrderGroupKey === group.key) setOpenedOrderGroupKey(null);
+              }}
+            >
+              <summary className="sales-rfq-order-group-summary">
+                <span>
+                  <span className="sales-section-eyebrow">
+                    {group.requestNumber || "ORDER · NO LINKED RFQ"}
+                  </span>
+                  <strong>{group.customerName}</strong>
+                </span>
+                <span className="sales-order-group-meta">
+                  <span className="sales-order-payment-pill" data-status={group.paymentStatus}>
+                    {group.paymentStatus === "MIXED" ? "Mixed payment" : formatEnumLabel(group.paymentStatus)}
+                  </span>
+                </span>
+              </summary>
+              <div className="sales-rfq-order-group-orders">
+          {group.orders.map((o) => (
             <article className="record-card" key={o.id}>
-              <h3>
-                {o.orderNumber} · {o.customerName}
+              <h3 className="sales-order-card-heading">
+                <span>{o.orderNumber}</span>
+                <span className="sales-order-state" data-status={o.status}>
+                  {formatEnumLabel(o.status)}
+                </span>
               </h3>
-              <p>
-                {o.status}{" "}
+              <p className="sales-order-dispatch-line">
                 {o.dispatch &&
                   `· ${o.dispatch.truckNumber} · Dispatch step ${o.dispatch.currentStep}/5`}
               </p>
@@ -1445,6 +1607,9 @@ export default function SalesOperations({
                   </>
                 )}
             </article>
+          ))}
+              </div>
+            </details>
           ))}
         </section>
       )}

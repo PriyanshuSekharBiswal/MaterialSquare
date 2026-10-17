@@ -23,18 +23,45 @@ const commissionApproverRoles = ["SUPER_ADMIN", "ADMIN", "ACCOUNTS_MANAGER"];
 export class CommissionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list() {
-    return this.prisma.commissionRecord.findMany({
+  async list() {
+    const records = await this.prisma.commissionRecord.findMany({
       select: {
         id: true,
         beneficiaryName: true,
+        beneficiaryPhone: true,
         amount: true,
         ratePct: true,
         basisAmount: true,
         status: true,
+        notes: true,
+        createdAt: true,
       },
       orderBy: { createdAt: "desc" },
     });
+    if (!records.length) return records;
+
+    const creationLogs = await this.prisma.auditLog.findMany({
+      where: {
+        action: "COMMISSION_CREATED",
+        entityType: "COMMISSION",
+        entityId: { in: records.map(({ id }) => id) },
+      },
+      select: {
+        entityId: true,
+        staff: { select: { name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    const creatorByRecordId = new Map<string, string>();
+    for (const log of creationLogs) {
+      if (log.staff?.name && !creatorByRecordId.has(log.entityId)) {
+        creatorByRecordId.set(log.entityId, log.staff.name);
+      }
+    }
+    return records.map((record) => ({
+      ...record,
+      createdBy: creatorByRecordId.get(record.id) ?? null,
+    }));
   }
 
   async create(input: CreateCommissionInput, staffId: string) {

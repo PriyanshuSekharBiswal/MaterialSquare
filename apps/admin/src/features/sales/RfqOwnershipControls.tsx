@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { formatEnumLabel } from "../../utils/formatEnumLabel";
 
 type Assignee = { id: string; name: string; role: string };
 
@@ -52,7 +53,7 @@ export default function RfqOwnershipControls({
           )}
           {assignees.map((staff) => (
             <option key={staff.id} value={staff.id}>
-              {staff.name} · {staff.role.replaceAll("_", " ")}
+              {staff.name} · {formatEnumLabel(staff.role)}
             </option>
           ))}
         </select>

@@ -104,7 +104,8 @@ export default function MediaLibrary({
   const pageCount = Math.max(1, Math.ceil(result.total / result.pageSize));
 
   return (
-    <section className="panel-card panel-body media-library">
+    <>
+      <section className="panel-card panel-body media-library">
       <div className="media-library-heading">
         <div>
           <h2>Media library</h2>
@@ -201,32 +202,30 @@ export default function MediaLibrary({
               </article>
             ))}
           </div>
-          <div className="media-library-pagination">
-            <span>
-              {result.total} image{result.total === 1 ? "" : "s"} · Page {page}{" "}
-              of {pageCount}
-            </span>
-            <div>
-              <button
-                type="button"
-                className="btn-sm btn-secondary"
-                disabled={loading || page <= 1}
-                onClick={() => setPage((current) => current - 1)}
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                className="btn-sm btn-secondary"
-                disabled={loading || page >= pageCount}
-                onClick={() => setPage((current) => current + 1)}
-              >
-                Next
-              </button>
-            </div>
-          </div>
         </>
       )}
-    </section>
+      </section>
+      {!loading && result.items.length > 0 && (
+        <nav className="media-library-pagination" aria-label="Image pages">
+          <button
+            type="button"
+            className="btn-sm btn-secondary"
+            disabled={page <= 1}
+            onClick={() => setPage((current) => current - 1)}
+          >
+            Previous
+          </button>
+          <span>Page {page} of {pageCount}</span>
+          <button
+            type="button"
+            className="btn-sm btn-secondary"
+            disabled={page >= pageCount}
+            onClick={() => setPage((current) => current + 1)}
+          >
+            Next
+          </button>
+        </nav>
+      )}
+    </>
   );
 }

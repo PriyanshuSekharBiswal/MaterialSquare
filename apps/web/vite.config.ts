@@ -90,6 +90,11 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
+    resolve: {
+      alias: {
+        "@": resolve(appRoot, "src"),
+      },
+    },
     plugins: [react(), redirectLocalhostForCaptcha(useLocalHttps)],
     server: {
       allowedHosts: ["material-square.localtest.me"],

@@ -4,9 +4,9 @@ export const supplierProductInput = z.object({
   catalogVariantId: z.string().trim().min(1).max(120).nullable().optional(),
   productName: z.string().trim().min(1).max(200),
   brand: z.string().max(100).default(""),
-  category: z.string().trim().min(1).max(100),
+  category: z.string().trim().max(100).default(""),
   supplierSku: z.string().max(100).optional(),
-  unit: z.string().trim().min(1).max(50),
+  unit: z.string().trim().max(50).default(""),
   minimumOrderQty: z.number().positive().optional(),
   availableQuantity: z.number().nonnegative().nullable().optional(),
   lastQuotedPrice: z.number().nonnegative().optional(),
@@ -106,6 +106,7 @@ export const ruleInput = z.object({
     .array(z.string().regex(/^[1-9]\d{5}$/))
     .max(500)
     .default([]),
+  categories: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
   category: z.string().max(100).optional(),
   minimumQuantity: z.number().positive().optional(),
   maximumQuantity: z.number().positive().optional(),

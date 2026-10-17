@@ -468,15 +468,17 @@ integration("API with isolated PostgreSQL", () => {
         .auth(oldToken, { type: "bearer" })
         .send({ currentPassword, newPassword })
         .expect(200);
-      expect(changed.body.accessToken).toEqual(expect.any(String));
-      expect(changed.body.accessToken).not.toBe(oldToken);
+      expect(changed.body).toEqual({ ok: true });
+      const changedCookie = changed.headers["set-cookie"]?.[0]?.split(";")[0];
+      expect(changedCookie).toMatch(/^ms_staff_session=/);
+      expect(changed.headers["set-cookie"]?.[0]).toContain("HttpOnly");
       await request(app.getHttpServer())
         .get("/api/auth/staff/me")
         .auth(oldToken, { type: "bearer" })
         .expect(401);
       await request(app.getHttpServer())
         .get("/api/auth/staff/me")
-        .auth(changed.body.accessToken, { type: "bearer" })
+        .set("Cookie", changedCookie!)
         .expect(200);
       await request(app.getHttpServer())
         .post("/api/auth/staff/login")
@@ -578,11 +580,24 @@ integration("API with isolated PostgreSQL", () => {
       role: "SUPER_ADMIN",
       name: "Integration",
     });
+    const staffCookie = staffByEmail.headers["set-cookie"]?.[0]?.split(";")[0];
+    expect(staffCookie).toMatch(/^ms_staff_session=/);
+    expect(staffByEmail.body).not.toHaveProperty("accessToken");
     await request(app.getHttpServer())
       .get("/api/auth/staff/me")
-      .set("Authorization", `Bearer ${staffByEmail.body.accessToken}`)
+      .set("Cookie", staffCookie!)
       .expect(200)
       .then(({ body }) => expect(body.id).toBe(staffByEmail.body.user.id));
+    const signedOut = await request(app.getHttpServer())
+      .post("/api/auth/staff/logout")
+      .set("Cookie", staffCookie!)
+      .expect(200);
+    expect(signedOut.body).toEqual({ ok: true });
+    expect(signedOut.headers["set-cookie"]?.[0]).toContain("Max-Age=0");
+    await request(app.getHttpServer())
+      .get("/api/auth/staff/me")
+      .set("Cookie", staffCookie!)
+      .expect(401);
     const staffByMobile = await request(app.getHttpServer())
       .post("/api/auth/staff/login")
       .send({ phone: "+91 98765 43212", password: "Integration-test-password-1!" })

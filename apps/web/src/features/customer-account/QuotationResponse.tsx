@@ -4,7 +4,13 @@ import type { Quote } from "./model";
 import { money } from "./model";
 import { formatQuantityUnit } from "../../quantity-format";
 
-export default function QuotationResponse({ quote }: { quote: Quote }) {
+export default function QuotationResponse({
+  quote,
+  acceptedAlternativeNumber,
+}: {
+  quote: Quote;
+  acceptedAlternativeNumber?: string;
+}) {
   const [selections, setSelections] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -12,6 +18,21 @@ export default function QuotationResponse({ quote }: { quote: Quote }) {
   const [confirming, setConfirming] = useState(false);
   if (quote.status !== "QUOTE_SENT" || new Date(quote.validUntil) <= new Date())
     return null;
+
+  if (acceptedAlternativeNumber)
+    return (
+      <section
+        className="account-panel account-quotation-response"
+        aria-label="Quotation response"
+      >
+        <h2>Another quotation was accepted</h2>
+        <p role="status">
+          Quotation {acceptedAlternativeNumber} was accepted for this request.
+          Only one quotation can be accepted for each request.
+        </p>
+        <LinkToOrders />
+      </section>
+    );
 
   async function respond(action: "ACCEPT" | "REJECT") {
     setBusy(true);
@@ -32,6 +53,12 @@ export default function QuotationResponse({ quote }: { quote: Quote }) {
           ? `Quotation accepted. Order ${result.orderNumber} created.`
           : "Quotation declined.",
       );
+      if (action === "ACCEPT" && quote.requestId)
+        window.dispatchEvent(
+          new CustomEvent("material-square:quotation-accepted", {
+            detail: { requestId: quote.requestId, quoteNumber: quote.quoteNumber },
+          }),
+        );
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -129,4 +156,8 @@ export default function QuotationResponse({ quote }: { quote: Quote }) {
       )}
     </section>
   );
+}
+
+function LinkToOrders() {
+  return <a href="/account/orders">View orders</a>;
 }

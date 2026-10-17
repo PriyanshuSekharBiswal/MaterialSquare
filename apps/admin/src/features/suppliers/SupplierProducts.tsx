@@ -67,9 +67,8 @@ export default function SupplierProducts({
   const [catalogueVariants, setCatalogueVariants] = useState<SupplierCatalogueVariant[]>([]);
   const [catalogueBrandOptions, setCatalogueBrandOptions] = useState<SupplierBrandOption[]>([]);
   const [adding, setAdding] = useState(false);
-  const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([]);
+  const [selectedProductNames, setSelectedProductNames] = useState<string[]>([]);
   const [selectedBrandCatalog, setSelectedBrandCatalog] = useState<SupplierBrandCatalogEntry[]>([]);
-  const selectedVariants = catalogueVariants.filter((variant) => selectedVariantIds.includes(variant.id));
   const brandGroups = useMemo(() => {
     const groups = new Map<string, { brand: string; categories: Set<string>; products: Set<string> }>();
     for (const entry of supplier?.brandCatalog ?? []) {
@@ -171,7 +170,7 @@ export default function SupplierProducts({
       if (event.key === "Escape" && !busy) {
         setAdding(false);
         setEditing(null);
-        setSelectedVariantIds([]);
+        setSelectedProductNames([]);
       }
     };
     document.addEventListener("keydown", closeOnEscape);
@@ -220,7 +219,7 @@ export default function SupplierProducts({
   }
   async function addProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedVariants.length && !selectedBrandCatalog.length) return;
+    if (!selectedProductNames.length && !selectedBrandCatalog.length) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -235,20 +234,19 @@ export default function SupplierProducts({
         });
       }
       await request(`/suppliers/${supplierId}`, "PATCH", { brandCatalog: [...brandCatalog.values()] });
-      for (const variant of selectedVariants) {
+      for (const productName of selectedProductNames) {
         await request(`/suppliers/${supplierId}/products`, "POST", {
-          catalogVariantId: variant.id,
-          productName: variant.productName,
-          brand: variant.brand,
-          category: variant.category,
-          unit: variant.unit,
+          productName,
+          brand: selectedBrandCatalog.length === 1 ? selectedBrandCatalog[0].brand : "",
+          category: selectedBrandCatalog.length === 1 && selectedBrandCatalog[0].categories.length === 1 ? selectedBrandCatalog[0].categories[0] : "",
+          unit: "",
         });
       }
       setAdding(false);
-      setSelectedVariantIds([]);
+      setSelectedProductNames([]);
       setSelectedBrandCatalog([]);
-      setNotice(selectedVariants.length
-        ? `${selectedVariants.length} supplied product${selectedVariants.length === 1 ? "" : "s"} added.`
+      setNotice(selectedProductNames.length
+        ? `${selectedProductNames.length} supplied product${selectedProductNames.length === 1 ? "" : "s"} added.`
         : "Supplier brands saved.");
       await refresh();
     } catch (cause) {
@@ -279,7 +277,7 @@ export default function SupplierProducts({
           <section className="bc-supplier-detail-section">
             <header className="bc-supplier-detail-section-heading">
               <div><h3>Products supplied</h3><p>Manage this supplier’s brands, products, and availability.</p></div>
-              <button type="button" className="bc-primary bc-supplier-add-product-button" disabled={busy || !catalogueVariants.length} onClick={() => { setAdding((current) => !current); setSelectedVariantIds([]); setSelectedBrandCatalog([]); setEditing(null); setError(""); setNotice(""); }}>
+              <button type="button" className="bc-primary bc-supplier-add-product-button" disabled={busy} onClick={() => { setAdding((current) => !current); setSelectedProductNames([]); setSelectedBrandCatalog([]); setEditing(null); setError(""); setNotice(""); }}>
                 <Plus size={16} aria-hidden="true" /> {adding ? "Close add product" : "Add supplied product"}
               </button>
             </header>
@@ -297,22 +295,22 @@ export default function SupplierProducts({
             {adding && (
               <div className="bc-product-add-modal-backdrop">
                 <section className="bc-product-add-modal" role="dialog" aria-modal="true" aria-labelledby="bc-product-add-modal-title">
-                  <button type="button" className="bc-product-add-modal-close" aria-label="Close add products" disabled={busy} onClick={() => { setAdding(false); setSelectedVariantIds([]); }}><X size={19} /></button>
+                  <button type="button" className="bc-product-add-modal-close" aria-label="Close add products" disabled={busy} onClick={() => { setAdding(false); setSelectedProductNames([]); }}><X size={19} /></button>
                   <div className="bc-product-modal-scroll-area">
                     <header className="bc-product-add-modal-header">
-                      <div><h3 id="bc-product-add-modal-title">Add supplied products</h3><p>Choose the brands, categories, and products this supplier carries.</p></div>
+                      <div><h3 id="bc-product-add-modal-title">Add supplied products</h3><p>Optionally list the brands, categories, and products this supplier carries.</p></div>
                     </header>
                     <form className="bc-supplier-product-add-form" onSubmit={addProduct}>
                       <SupplierCataloguePicker
                         variants={catalogueVariants.filter((variant) => !(supplier.products ?? []).some((product) => product.catalogVariantId === variant.id))}
                         brandOptions={catalogueBrandOptions}
-                        selectedIds={selectedVariantIds}
-                        onChange={setSelectedVariantIds}
+                        selectedProductNames={selectedProductNames}
+                        onProductNamesChange={setSelectedProductNames}
                         onBrandCatalogChange={setSelectedBrandCatalog}
                       />
                       <div className="bc-supplier-product-form-actions">
-                        <button className="bc-primary" disabled={busy || (!selectedVariants.length && !selectedBrandCatalog.length)}>{selectedVariants.length ? "Add selected products" : "Save selected brands"}</button>
-                        <button className="bc-button btn-orange-outline" type="button" disabled={busy} onClick={() => { setAdding(false); setSelectedVariantIds([]); }}>Cancel</button>
+                        <button className="bc-primary" disabled={busy || (!selectedProductNames.length && !selectedBrandCatalog.length)}>{selectedProductNames.length ? "Add listed products" : "Save selected brands"}</button>
+                        <button className="bc-button btn-orange-outline" type="button" disabled={busy} onClick={() => { setAdding(false); setSelectedProductNames([]); }}>Cancel</button>
                       </div>
                     </form>
                   </div>

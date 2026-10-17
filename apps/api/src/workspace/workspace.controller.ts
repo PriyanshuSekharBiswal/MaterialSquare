@@ -126,6 +126,72 @@ export class WorkspaceController {
         city: true,
         pincode: true,
         createdAt: true,
+        rfqs: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            requestNumber: true,
+            customerName: true,
+            status: true,
+            siteLocation: true,
+            createdAt: true,
+            quotations: {
+              orderBy: { createdAt: "desc" },
+              select: {
+                quoteNumber: true,
+                status: true,
+                totalAmount: true,
+                createdAt: true,
+                publishedAt: true,
+                orders: {
+                  orderBy: { createdAt: "desc" },
+                  select: {
+                    orderNumber: true,
+                    status: true,
+                    grandTotal: true,
+                    createdAt: true,
+                    deliveries: {
+                      orderBy: { deliveredAt: "desc" },
+                      select: {
+                        deliveryNumber: true,
+                        deliveredAt: true,
+                        notes: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        quotations: {
+          where: { requestId: null },
+          orderBy: { createdAt: "desc" },
+          select: {
+            quoteNumber: true,
+            status: true,
+            totalAmount: true,
+            createdAt: true,
+            publishedAt: true,
+            orders: {
+              orderBy: { createdAt: "desc" },
+              select: {
+                orderNumber: true,
+                status: true,
+                grandTotal: true,
+                createdAt: true,
+                deliveries: {
+                  orderBy: { deliveredAt: "desc" },
+                  select: {
+                    deliveryNumber: true,
+                    deliveredAt: true,
+                    notes: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
     if (!item) throw new NotFoundException("Customer not found");

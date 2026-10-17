@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { formatEnumLabel } from "../../utils/formatEnumLabel";
 
 type Entry = {
   id: string;
@@ -218,7 +219,7 @@ export default function NotificationStatus({ token, revision }: { token: string;
                       <td>{item.id}</td>
                       <td>{item.type}</td>
                       <td>{new Date(item.runAt).toLocaleString("en-IN")}</td>
-                      <td>{item.status}</td>
+                      <td>{formatEnumLabel(item.status)}</td>
                       <td>{item.skipReason || "—"}</td>
                     </tr>
                   ))}

@@ -16,14 +16,16 @@
     "noImplicitAny": true,
     "strictBindCallApply": true,
     "forceConsistentCasingInFileNames": false,
-    "noFallthroughCasesInSwitch": false,
-    "strict": true
+    "strict": true,
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
   "include": [
     "src/**/*"
   ],
   "exclude": [
-    "src/**/* 2.ts",
-    "src/**/* 2.tsx"
+    "node_modules",
+    "dist"
   ]
 }

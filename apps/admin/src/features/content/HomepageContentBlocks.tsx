@@ -136,7 +136,7 @@ export default function HomepageContentBlocks({
                   </button>
                 </div>
               </div>
-              <label>
+              <label className="website-editor-check-row">
                 <input
                   type="checkbox"
                   checked={block.visible}

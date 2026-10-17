@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
 
@@ -8,6 +9,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: env.VITE_ADMIN_BASE || process.env.VITE_ADMIN_BASE || '/',
+    resolve: {
+      alias: {
+        '@': resolve(appRoot, 'src'),
+      },
+    },
     plugins: [react()],
     server: {
       proxy: {

@@ -5,6 +5,7 @@ import './admin.css';
 import { confirmAdminAction } from './components/confirmAdminAction';
 import { installScrollPositionPersistence, restoreInitialScrollPosition } from './scroll-position';
 import { installUnsavedChangesGuard, runAdminAction } from './unsaved-changes';
+import { AdminAuthProvider } from './context/AdminAuthContext';
 
 const apiUrl = new URL(import.meta.env.VITE_API_URL || "/api", window.location.href);
 const apiBasePath = apiUrl.pathname.replace(/\/$/, "");
@@ -22,8 +23,18 @@ function adminMutationConfirmation(input: RequestInfo | URL, init?: RequestInit)
     return null;
 
   const path = requestUrl.pathname;
-  if (path.endsWith("/auth/staff/login") || requestUrl.searchParams.get("mode") === "autosave")
+  if (
+    path.endsWith("/auth/staff/login") ||
+    path.endsWith("/auth/staff/logout") ||
+    requestUrl.searchParams.get("mode") === "autosave"
+  )
     return null;
+  // The website editor presents a focused confirmation before publish/discard.
+  // Avoid stacking the generic workspace confirmation on top of those dialogs.
+  if (
+    (method === "POST" && /\/admin\/site-content\/publish$/.test(path)) ||
+    (method === "DELETE" && /\/admin\/site-content\/draft$/.test(path))
+  ) return null;
   // These actions already show a detailed confirmation with the affected record name.
   if (
     (method === "DELETE" && (/\/admin\/staff\/[^/]+$/.test(path) || /\/products\/catalogue\/[^/]+$/.test(path) || /\/suppliers\/[^/]+$/.test(path) || /\/suppliers\/[^/]+\/products\/[^/]+$/.test(path))) ||
@@ -84,6 +95,29 @@ function adminMutationConfirmation(input: RequestInfo | URL, init?: RequestInit)
   return { title, message, confirmLabel, tone };
 }
 
+function fetchAdminRequest(input: RequestInfo | URL, init?: RequestInit) {
+  const requestUrl = new URL(
+    typeof input === "string" || input instanceof URL ? input.toString() : input.url,
+    window.location.href,
+  );
+  const isApiRequest =
+    requestUrl.origin === apiUrl.origin &&
+    (!apiBasePath ||
+      requestUrl.pathname === apiBasePath ||
+      requestUrl.pathname.startsWith(`${apiBasePath}/`));
+  if (!isApiRequest) return originalFetch(input, init);
+
+  const headers = new Headers(input instanceof Request ? input.headers : undefined);
+  new Headers(init?.headers).forEach((value, name) => headers.set(name, value));
+  // Staff credentials are HttpOnly cookies. Legacy feature components still
+  // pass a token-shaped UI marker; never send it as a bearer credential.
+  headers.delete("Authorization");
+  return originalFetch(
+    input,
+    { ...init, headers, credentials: init?.credentials || "include" },
+  );
+}
+
 installScrollPositionPersistence();
 installUnsavedChangesGuard();
 
@@ -96,17 +130,20 @@ window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const confirmation = adminMutationConfirmation(input, init);
   if (confirmation && !(await confirmAdminAction(confirmation)))
     throw new DOMException("No changes were made.", "AbortError");
-  if (!isMutation) return originalFetch(input, init);
+  const apiRequest = () => fetchAdminRequest(input, init);
+  if (!isMutation) return apiRequest();
   return runAdminAction(
     form,
-    () => originalFetch(input, init),
+    apiRequest,
     (response) => response instanceof Response && response.ok,
   );
 }) as typeof window.fetch;
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    <AdminAuthProvider>
+      <App />
+    </AdminAuthProvider>
   </React.StrictMode>
 );
 restoreInitialScrollPosition();

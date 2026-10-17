@@ -20,10 +20,34 @@ import type { StaffRequest } from "../../auth/staff-request";
 @UseGuards(StaffGuard)
 export class BlogManagementController {
   constructor(private readonly prisma: PrismaService) {}
-  @Get() list() {
-    return this.prisma.blogPost.findMany({
+  @Get() async list() {
+    const articles = await this.prisma.blogPost.findMany({
       orderBy: [{ sortOrder: "asc" }, { publishedAt: "desc" }, { slug: "asc" }],
     });
+    if (!articles.length) return articles;
+
+    const creationLogs = await this.prisma.auditLog.findMany({
+      where: {
+        action: { in: ["BLOG_CREATED", "BLOG_PUBLISHED"] },
+        entityType: "BLOG_POST",
+        entityId: { in: articles.map(({ id }) => id) },
+      },
+      select: {
+        entityId: true,
+        staff: { select: { name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    const creatorByArticleId = new Map<string, string>();
+    for (const log of creationLogs) {
+      if (log.staff?.name && !creatorByArticleId.has(log.entityId)) {
+        creatorByArticleId.set(log.entityId, log.staff.name);
+      }
+    }
+    return articles.map((article) => ({
+      ...article,
+      createdBy: creatorByArticleId.get(article.id) ?? null,
+    }));
   }
   @Post()
   create(@Req() req: StaffRequest, @Body() body: unknown) {
