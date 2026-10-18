@@ -120,7 +120,9 @@ export default defineConfig(({ mode }) => {
       },
       port: useLocalHttps ? localHttpsPort : localHttpPort,
       strictPort: true,
-      host: true,
+      // This is a local development server. Binding to loopback keeps source,
+      // HMR and error-overlay details off other devices on the network.
+      host: "127.0.0.1",
     },
   };
 });

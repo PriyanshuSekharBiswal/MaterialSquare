@@ -44,7 +44,7 @@ export default function WhyUsPage({ onOpenBOMDrawer }: { onOpenBOMDrawer: () => 
             <p className="page-subtitle">
               {siteContent["whyUs.description"]}
             </p>
-            <div className="page-hero-actions">
+            <div className="page-hero-actions why-us-hero-actions">
               <Link to="/marketplace" className="btn btn-primary btn-lg">
                 Browse materials <ArrowRight size={16} />
               </Link>
@@ -95,7 +95,7 @@ export default function WhyUsPage({ onOpenBOMDrawer }: { onOpenBOMDrawer: () => 
           <p className="release-scope-note">
             A saved list or prepared WhatsApp/email message is not an accepted quotation, confirmed order, or delivery booking.
           </p>
-          <Link to="/contact" className="btn btn-primary">Contact the team</Link>
+          <Link to="/contact" className="btn btn-primary why-us-contact-cta">Contact the team</Link>
         </div>
       </section>
     </div>

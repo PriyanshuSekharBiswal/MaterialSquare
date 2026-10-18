@@ -119,7 +119,10 @@ async function bootstrap() {
   }
 
   const port = process.env.PORT || 4000;
-  await app.listen(port);
+  // Local development should not expose the API to the LAN. Production
+  // deployments still bind all interfaces so the platform proxy can reach it.
+  const host = process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1";
+  await app.listen(port, host);
   console.log(
     `🚀 Material Square NestJS API running on: http://localhost:${port}/api`,
   );

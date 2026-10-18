@@ -94,9 +94,9 @@
 }
 
 .trending-query-btn:hover {
-  background: #f8fafc;
+  background: #fff7ed;
   color: #ea580c;
-  padding-left: 1rem;
+  padding-left: 0.85rem;
 }
 
 .query-mag {
@@ -123,29 +123,43 @@
 
 /* Quick Category Pills */
 .quick-category-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
+  display: grid;
+  gap: 0.25rem;
   padding: 0 0.25rem;
 }
 
 .quick-cat-pill {
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  color: #334155;
-  padding: 0.4rem 0.85rem;
-  border-radius: 9999px;
-  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #fff;
+  color: #475569;
+  font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  text-align: left;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.quick-cat-pill > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .quick-cat-pill:hover {
   background: #fff7ed;
   border-color: #fed7aa;
-  color: #ea580c;
-  transform: translateY(-1px);
+  color: #c2410c;
+}
+
+.quick-cat-pill:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 1px;
 }
 
 /* Product Suggestions List */
@@ -172,6 +186,10 @@
 .product-suggestion-item:hover {
   background: #fff7ed;
   border-color: #fed7aa;
+}
+
+.product-suggestion-item:hover .suggest-title {
+  color: #c2410c;
 }
 
 .product-suggest-thumb {
@@ -251,20 +269,25 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: #fff;
+  border: 1px solid #fed7aa;
   border-radius: 8px;
   padding: 0.4rem 0.75rem;
   font-size: 0.84rem;
   cursor: pointer;
   transition: all 0.15s ease;
-  color: #1e293b;
+  color: #475569;
 }
 
 .brand-suggest-chip:hover {
-  background: #f0fdf4;
-  border-color: #86efac;
-  color: #166534;
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #c2410c;
+}
+
+.brand-suggest-chip:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
 }
 
 .brand-dot {
@@ -283,6 +306,7 @@
 .brands-suggestion-list { display: grid; gap: 3px; }
 .brand-suggestion-item { display: flex; align-items: center; gap: 11px; width: 100%; padding: 8px 10px; border: 1px solid transparent; border-radius: 10px; background: #fff; color: #172033; text-align: left; cursor: pointer; }
 .brand-suggestion-item:hover { background: #fff7ed; border-color: #fed7aa; }
+.brand-suggestion-item:hover .brand-suggest-info strong { color: #c2410c; }
 .brand-suggest-thumb { display: grid; place-items: center; flex: 0 0 46px; width: 46px; height: 42px; padding: 4px; border: 1px solid #e2e8f0; border-radius: 7px; background: #fff; }
 .brand-suggest-logo { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
 .brand-suggest-info { display: grid; gap: 3px; min-width: 0; flex: 1; }
@@ -303,10 +327,10 @@
   justify-content: space-between;
   width: 100%;
   padding: 0.65rem 0.85rem;
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
+  background: #fff;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
-  color: #0284c7;
+  color: #475569;
   font-size: 0.86rem;
   font-weight: 700;
   cursor: pointer;
@@ -314,9 +338,9 @@
 }
 
 .view-all-results-btn:hover {
-  background: #e0f2fe;
-  border-color: #38bdf8;
-  color: #0369a1;
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #c2410c;
 }
 
 /* No Results State */

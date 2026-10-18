@@ -42,13 +42,15 @@ export default function GetQuotePage(props: {
             })}
           </ul> : <div className="quotation-review-empty"><ShoppingBag size={20} /><span>No cart items are selected. You can still attach a project plan, or add materials first.</span></div>}
           <div className="quotation-review-actions">
-            <Link className="btn btn-secondary" to="/material-list"><Pencil size={15} /> Edit cart</Link>
-            <Link to="/marketplace">Browse materials <ArrowRight size={15} /></Link>
+            <Link className="btn btn-primary" to="/material-list"><Pencil size={15} /> Edit cart</Link>
           </div>
           <MaterialCartFinder
             products={props.products}
             loading={props.catalogueLoading}
           />
+          <div className="quotation-browse-action">
+            <Link to="/marketplace">Browse materials <ArrowRight size={15} /></Link>
+          </div>
         </section>
         <div>
           <RequestContactForm products={props.products} />

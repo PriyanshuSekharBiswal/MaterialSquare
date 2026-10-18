@@ -1022,6 +1022,8 @@ export default function CatalogueManager({
                   : Boolean(variant.isInStock),
               }))
             : [],
+          category: normalizeCatalogueCategory(row.categoryLabel || row.category),
+          categoryLabel: catalogueCategoryLabel(row.categoryLabel || row.category),
           features: Array.isArray(row.features) ? row.features : [],
           applications: Array.isArray(row.applications) ? row.applications : [],
           specifications:

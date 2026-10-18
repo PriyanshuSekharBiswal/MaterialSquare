@@ -8,6 +8,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Search,
+  X,
   ArrowRight,
   ShieldCheck,
   Truck,
@@ -217,22 +218,14 @@ export default function HomePage({
                 {searchQuery && (
                   <button
                     type="button"
-                    className="search-clear-btn"
+                    className="search-clear-btn hero-search-clear-btn"
                     onClick={() => {
                       setSearchQuery("");
                       setIsSuggestionsOpen(true);
                     }}
                     aria-label="Clear search input"
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      color: "#94a3b8",
-                      cursor: "pointer",
-                      padding: "0 8px",
-                      fontSize: "14px",
-                    }}
                   >
-                    ✕
+                    <X size={16} aria-hidden="true" />
                   </button>
                 )}
                 <button

@@ -32,7 +32,8 @@ export default defineConfig(({ mode }) => {
       },
       port: 5174,
       strictPort: true,
-      host: true,
+      // Keep the admin development app accessible only from this machine.
+      host: "127.0.0.1",
     },
   };
 });

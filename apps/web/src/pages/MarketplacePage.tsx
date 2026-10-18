@@ -46,6 +46,20 @@ const availabilityLabel = (status: NonNullable<CatalogueProduct['availabilitySta
   OUT_OF_STOCK: 'Out of stock',
   CHECK_AVAILABILITY: 'Check availability',
 })[status];
+const compactProductSpecification = (product: CatalogueProduct, variant?: NonNullable<CatalogueProduct['variants']>[number]) => {
+  const explicitSpecification = product.grade?.trim() || product.specs?.standard?.trim();
+  if (explicitSpecification) return explicitSpecification;
+
+  const technicalAttribute = /grade|standard|spec|volt|size|section|material|type|class|pressure|thickness|rating|insulation|fire|flame|core/i;
+  const values = [
+    ...Object.entries(product.specs || {}),
+    ...Object.entries(variant?.attributes || {}),
+  ]
+    .map(([key, value]) => [key, value?.trim() || ''] as const)
+    .filter(([key, value]) => technicalAttribute.test(key) && value)
+    .map(([, value]) => value);
+  return [...new Set(values)].slice(0, 3).join(' · ');
+};
 const getListingDealRank = (product: CatalogueProduct, variant?: NonNullable<CatalogueProduct['variants']>[number]) => {
   const price = variant?.price ?? product.price;
   const compareAtPrice = variant?.compareAtPrice ?? product.compareAtPrice;
@@ -446,10 +460,14 @@ export default function MarketplacePage({
                   examples={searchExamples}
                   visible={!searchQuery && !isSearchFocused}
                 />
-                {searchQuery && (
+                {(searchQuery || isSuggestionsOpen) && (
                   <button
                     type="button"
                     onClick={() => {
+                      if (!searchQuery) {
+                        setIsSuggestionsOpen(false);
+                        return;
+                      }
                       setSearchQuery('');
                       setIsSuggestionsOpen(true);
                       lastSearchParamRef.current = '';
@@ -460,7 +478,8 @@ export default function MarketplacePage({
                       });
                     }}
                     className="search-clear-btn"
-                    aria-label="Clear search"
+                    aria-label={searchQuery ? "Clear search" : "Close search suggestions"}
+                    title={searchQuery ? "Clear search" : "Close search suggestions"}
                   >
                     <X size={16} />
                   </button>
@@ -622,6 +641,7 @@ export default function MarketplacePage({
             <div className={`products-directory-grid${searchQuery.trim() ? ' is-search-results-list' : ''}`}>
               {visibleListingCards.map(({ product, variant }) => {
                 const queryVariant = variant || bestMatchingVariant(product, searchQuery);
+                const cardSpecification = compactProductSpecification(product, queryVariant);
                 const cardAvailability = getAvailabilityStatus(queryVariant || product);
                 const productParams = new URLSearchParams();
                 if (searchQuery.trim()) productParams.set("q", searchQuery.trim());
@@ -691,14 +711,9 @@ export default function MarketplacePage({
                       </div>
 
                       <h3 className="product-card-title"><Link to={productHref}>{product.name}</Link></h3>
+                      {cardSpecification && <div className="grade-badge-chip" aria-label={`Specification ${cardSpecification}`}><span>{cardSpecification}</span></div>}
                       {optionLabel && <div className="catalogue-marketplace-option" aria-label={`Option ${optionLabel}`}><span>Option</span><strong>{optionLabel}</strong></div>}
                       {!queryVariant && product.specs?.sizes && <p className="product-size-guide">Size guide: {product.specs.sizes}. Specify your requirement in product details.</p>}
-
-                      {product.grade && (
-                        <div className="grade-badge-chip">
-                          <span>{product.grade}</span>
-                        </div>
-                      )}
 
                       {(() => {
                         const colourValues = queryVariant ? [] : Array.from(new Set((product.variants || []).flatMap((variant) => Object.entries(variant.attributes || {})
@@ -731,14 +746,6 @@ export default function MarketplacePage({
                           );
                         })}
                       </ul>}
-
-                      {/* Technical Specs Preview */}
-                      {product.specs?.standard && <div className="product-spec-preview-box">
-                          <div className="spec-item">
-                            <span className="spec-label">IS Standard:</span>
-                            <span className="spec-val font-mono">{product.specs.standard}</span>
-                          </div>
-                      </div>}
 
                       <div className="marketplace-card-footer">
                       {/* Pricing & Min Order */}

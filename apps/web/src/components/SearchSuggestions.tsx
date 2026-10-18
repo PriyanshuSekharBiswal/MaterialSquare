@@ -15,7 +15,7 @@ import { matchesCatalogueSearch, scoreCatalogueSearch } from '../search/catalogu
 import PartnerBrandLogo from "./PartnerBrandLogo";
 import { partnerBrandCategories, partnerBrandMatchesProduct, type PartnerBrand } from "../partner-brands";
 import { bestMatchingVariant } from "../search/variant-match";
-import { resolveCatalogueCategoryId } from "@material-square/types";
+import { catalogueCategoryLabel, resolveCatalogueCategoryId } from "@material-square/types";
 import { useCatalogueCategories } from "../catalogue/useCatalogueCategories";
 
 export default function SearchSuggestions({
@@ -40,7 +40,19 @@ export default function SearchSuggestions({
     const known = new Set(directory.map((brand) => brand.name.toLocaleLowerCase()));
     const listed = Array.from(new Set(products.map((product) => product.brand).filter(Boolean)))
       .filter((name) => !known.has(name.toLocaleLowerCase()))
-      .map((name) => { const category = products.find((product) => product.brand === name)?.categoryLabel || ""; return { name, category, categories: category ? [category] : [], id: name, logoUrl: null }; });
+      .map((name) => {
+        const product = products.find((item) => item.brand === name);
+        const category = product
+          ? catalogueCategoryLabel(product.categoryLabel || product.category)
+          : "";
+        return {
+          name,
+          category,
+          categories: category ? [category] : [],
+          id: name,
+          logoUrl: null,
+        };
+      });
     return [...directory, ...listed];
   }, [partnerBrands, products, categories]);
 

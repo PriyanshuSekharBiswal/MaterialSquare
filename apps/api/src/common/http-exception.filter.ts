@@ -41,13 +41,12 @@ export class SecurityExceptionFilter implements ExceptionFilter {
       });
     }
 
-    // Do not leak stack traces or internal DB details to clients
+    // Keep internal exception details in server logs only. This applies in
+    // development too, so an accidentally exposed dev API cannot disclose
+    // filesystem paths, SQL details, or runtime configuration to a browser.
     return response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      message:
-        process.env.NODE_ENV === "production"
-          ? "An unexpected error occurred. Please try again later."
-          : (exception as Error)?.message || "Internal server error",
+      message: "An unexpected error occurred. Please try again later.",
     });
   }
 }

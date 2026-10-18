@@ -14,6 +14,7 @@ import { SiteContentProvider, useSiteContent } from './site-content';
 import { whatsappLink } from './messages';
 import { prefetchPublicContent } from './public-content-cache';
 import { isInitialReloadForCurrentLocation } from './scroll-position';
+import { catalogueCategoryLabel, normalizeCatalogueCategory } from '@material-square/types';
 
 // Global Shell Components
 import Header from './components/Header';
@@ -135,7 +136,14 @@ function AppShell() {
       })
       .then((items) => {
         if (!Array.isArray(items)) throw new Error("Catalogue response was invalid");
-        setCatalogue(items);
+        setCatalogue(items.map((item) => {
+          const categorySource = item.categoryLabel || item.category;
+          return {
+            ...item,
+            category: normalizeCatalogueCategory(categorySource),
+            categoryLabel: catalogueCategoryLabel(categorySource),
+          };
+        }));
         setCatalogueUnavailable(false);
         setCatalogueLoaded(true);
       })

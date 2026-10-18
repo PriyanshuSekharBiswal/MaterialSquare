@@ -68,6 +68,10 @@
   gap: 11px;
   padding: 22px 8px;
 }
+.account-side-person > div {
+  flex: 1;
+  min-width: 0;
+}
 .account-avatar {
   flex: 0 0 38px;
   height: 38px;
@@ -80,10 +84,9 @@
 }
 .account-side-person strong {
   font-size: 13px;
-  max-width: 168px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .account-side-person small {
   font-size: 11px;
@@ -289,6 +292,11 @@
   background: #fff;
   color: var(--ca-ink);
   font: inherit;
+}
+.account-quotation-response__field select {
+  color-scheme: light;
+  border-color: var(--ms-primary);
+  border-radius: 10px;
 }
 .account-quotation-response__notes {
   min-height: 116px;
@@ -1279,11 +1287,21 @@
   border: 1px solid transparent;
   border-radius: 9px;
   background: transparent;
-  color: #68768a;
+  color: var(--ca-accent);
   cursor: pointer;
   font: inherit;
   font-size: 13px;
   font-weight: 700;
+  outline: none;
+  transition: background-color .16s ease, color .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.account-activity-filter-tabs button:hover:not(.is-active) {
+  border-color: #ffd7c2;
+  background: var(--ca-accent-soft);
+  color: #d94f12;
+}
+.account-activity-filter-tabs button:focus-visible {
+  box-shadow: 0 0 0 3px rgb(242 103 34 / 22%);
 }
 .account-activity-filter-tabs button span {
   display: inline-grid;
@@ -1297,14 +1315,14 @@
   font-size: 11px;
 }
 .account-activity-filter-tabs button.is-active {
-  border-color: #ffd0b7;
-  background: #fff;
-  color: #cc4b12;
-  box-shadow: 0 1px 3px #1c2b3b12;
+  border-color: var(--ca-accent);
+  background: var(--ca-accent);
+  color: #fff;
+  box-shadow: 0 2px 6px rgb(242 103 34 / 24%);
 }
 .account-activity-filter-tabs button.is-active span {
-  background: #fff0e8;
-  color: #cc4b12;
+  background: rgb(255 255 255 / 20%);
+  color: #fff;
 }
 .account-quote-list-heading {
   display: flex;
@@ -1335,6 +1353,13 @@
   background: #fff;
   color: var(--ca-muted);
 }
+.account-quote-request-filter {
+  border-color: var(--ms-primary);
+  border-radius: 10px;
+}
+.account-quote-request-filter:focus-within {
+  box-shadow: 0 0 0 3px rgb(234 88 12 / 14%);
+}
 .account-quote-search input,
 .account-quote-request-filter select {
   width: 100%;
@@ -1345,6 +1370,9 @@
   color: var(--ca-ink);
   font: inherit;
   font-size: 13px;
+}
+.account-quote-request-filter select {
+  color-scheme: light;
 }
 .account-quote-request-filter > span {
   flex: 0 0 auto;
@@ -1371,11 +1399,21 @@
   border: 1px solid transparent;
   border-radius: 9px;
   background: transparent;
-  color: #68768a;
+  color: var(--ca-accent);
   cursor: pointer;
   font: inherit;
   font-size: 12px;
   font-weight: 700;
+  outline: none;
+  transition: background-color .16s ease, color .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.account-quote-filter-tabs button:hover:not(.is-active) {
+  border-color: #ffd7c2;
+  background: var(--ca-accent-soft);
+  color: #d94f12;
+}
+.account-quote-filter-tabs button:focus-visible {
+  box-shadow: 0 0 0 3px rgb(242 103 34 / 22%);
 }
 .account-quote-filter-tabs button span {
   display: inline-grid;
@@ -1389,14 +1427,14 @@
   font-size: 11px;
 }
 .account-quote-filter-tabs button.is-active {
-  border-color: #ffd0b7;
-  background: #fff;
-  color: #cc4b12;
-  box-shadow: 0 1px 3px #1c2b3b12;
+  border-color: var(--ca-accent);
+  background: var(--ca-accent);
+  color: #fff;
+  box-shadow: 0 2px 6px rgb(242 103 34 / 24%);
 }
 .account-quote-filter-tabs button.is-active span {
-  background: #fff0e8;
-  color: #cc4b12;
+  background: rgb(255 255 255 / 20%);
+  color: #fff;
 }
 .account-quote-no-results button {
   padding: 0;

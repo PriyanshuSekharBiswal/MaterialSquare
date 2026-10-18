@@ -2561,3 +2561,37 @@
   outline: 3px solid rgb(242 103 34 / 28%);
   outline-offset: 2px;
 }
+
+/* Center incomplete product rows in both catalogue preview surfaces. */
+.store-preview-marketplace-grid:not(.is-focused-preview) {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.store-preview-marketplace-grid:not(.is-focused-preview) > .store-preview-card {
+  flex: 0 1 calc((100% - 45px) / 4);
+  min-width: 0;
+}
+@media (max-width: 1240px) {
+  .catalogue-preview-overlay .store-preview-marketplace-grid:not(.is-focused-preview) > .store-preview-card {
+    flex-basis: calc((100% - 28px) / 3);
+  }
+}
+@media (max-width: 1100px) {
+  .store-preview-marketplace-grid:not(.is-focused-preview) > .store-preview-card {
+    flex-basis: calc((100% - 30px) / 3);
+  }
+}
+@media (max-width: 950px) {
+  .catalogue-preview-overlay .store-preview-marketplace-grid:not(.is-focused-preview) > .store-preview-card {
+    flex-basis: calc((100% - 14px) / 2);
+  }
+}
+@media (max-width: 760px) {
+  .store-preview-marketplace-grid:not(.is-focused-preview) > .store-preview-card {
+    flex-basis: 100%;
+  }
+  .catalogue-preview-overlay .preview-mobile .store-preview-marketplace-grid:not(.is-focused-preview) > .store-preview-card {
+    flex-basis: 100%;
+  }
+}

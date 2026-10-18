@@ -68,7 +68,7 @@ export function BlogIndexPage() {
       <h1>Ideas for a better-built project</h1>
       <p className="business-content-lead">Practical guidance on choosing construction materials, planning procurement, and managing a site.</p>
       <img className="journal-cover-image" src="/images/materials-editorial.webp" alt="Illustrative construction materials: cement, paint, wire and plumbing supplies" loading="lazy" decoding="async" />
-      <div className="business-content-grid">
+      <div className="business-content-grid blog-content-grid">
         {posts?.map((post) => (
           <article className="business-content-card" key={post.id}>
             {post.featuredImageUrl && <ProductImage src={post.featuredImageUrl} alt={post.title} loading="lazy" />}
@@ -129,7 +129,7 @@ export function ExpertsPage() {
         <label>Service<select value={service} onChange={event => setService(event.target.value)}><option value="">All services</option>{services.map(value => <option key={value}>{value}</option>)}</select></label>
         <label>Service PIN code<input inputMode="numeric" maxLength={6} value={pincode} onChange={event => setPincode(event.target.value.replace(/\D/g, ""))} placeholder="e.g. 201301"/></label>
       </div>
-      <div className="business-content-grid">
+      <div className="business-content-grid expert-directory-grid">
         {filtered?.map((expert) => (
           <article className="business-content-card expert-card" key={expert.id}>
             {expert.imageUrl && <img src={expert.imageUrl} alt={`${expert.name}${expert.serviceType ? ` — ${expert.serviceType}` : ""}`} loading="lazy" decoding="async" />}
