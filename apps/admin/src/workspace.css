@@ -997,3 +997,6 @@
 .admin-layout .admin-main .recently-deleted .recently-deleted-header{justify-content:space-between;align-items:center}
 .recently-deleted-footer{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-top:20px;padding-top:16px;border-top:1px solid #e7edf4;color:#74839a;font-size:.82rem}
 @media(max-width:640px){.admin-layout .admin-main .recently-deleted .recently-deleted-header{align-items:stretch;flex-direction:column;justify-content:flex-start}.recently-deleted-footer{align-items:stretch;flex-direction:column}}
+
+/* Environment variable names can be longer than a phone-width notice. */
+.notification-readiness-notice p { overflow-wrap: anywhere; }

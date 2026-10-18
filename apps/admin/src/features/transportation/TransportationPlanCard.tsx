@@ -111,7 +111,7 @@ export default function TransportationPlanCard({
     "DELAYED",
     "PARTIALLY_DELIVERED",
   ].includes(plan.status);
-  const destinationParts = plan.destination.split(";");
+  const destinationParts = String(plan.destination ?? "").split(";");
   const destinationContext =
     destinationParts.length > 1 ? destinationParts.shift()?.trim() : undefined;
   const destinationAddress = destinationParts.join(";").trim();

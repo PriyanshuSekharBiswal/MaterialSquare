@@ -1,6 +1,11 @@
 .sales-external-acceptance {
+  box-sizing: border-box;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   margin: 16px 0;
   padding: 18px;
   border: 1px solid #dbe4ee;
@@ -1998,6 +2003,7 @@
 
 .admin-main .sales-saved-quote {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   gap: 14px;
   margin: 0;
@@ -2348,6 +2354,12 @@
   justify-self: start;
 }
 
+.sales-external-acceptance > button {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+}
+
 .sales-external-acceptance form > button {
   grid-column: 1 / -1;
   justify-self: end;
@@ -2589,12 +2601,18 @@
 
 .sales-quote-editor-shell {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   min-width: 0;
 }
 
 .sales-quote-composer {
+  box-sizing: border-box;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   gap: 20px;
   padding: clamp(18px, 2.4vw, 30px);
   border-color: #dce4ee;
@@ -2603,6 +2621,8 @@
 
 .sales-quote-composer-header {
   display: flex;
+  min-width: 0;
+  max-width: 100%;
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
@@ -2698,6 +2718,7 @@
 
 .sales-quote-section {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 15px;
   min-width: 0;
   padding: clamp(15px, 2vw, 22px);
@@ -2840,6 +2861,9 @@
 }
 
 .sales-quote-composer .quote-customer-details {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   padding: 0;
   border: 0;
   background: transparent;

@@ -241,7 +241,7 @@ export default function SupplierManagement({
     if (supplier) setEditingSupplier(supplier);
   }, [editingSupplier?.id, records, supplierDetailId, view]);
   const sourceRecords = directoryResults ?? records;
-  const supplierCities = [...new Set(sourceRecords.map((supplier) => supplier.city.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const supplierCities = [...new Set(sourceRecords.map((supplier) => String(supplier.city ?? "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const supplierRows = [...sourceRecords]
     .filter((supplier) => supplierStatusFilter === "all" || supplier.status === supplierStatusFilter)
     .filter((supplier) => supplierCityFilter === "all" || supplier.city === supplierCityFilter)

@@ -1088,7 +1088,10 @@ textarea {
   }
   .recent-changes-filters {
     margin-right: 0;
+    flex-wrap: wrap;
+    overflow-x: visible;
   }
+  .recent-filter { flex: 1 1 auto; }
   .recent-activity-controls {
     display: grid;
   }
@@ -1097,6 +1100,10 @@ textarea {
   }
   .recent-activity-search {
     justify-self: end;
+  }
+  .sales-workflow-nav {
+    flex-wrap: wrap;
+    overflow-x: visible;
   }
   .recent-change-item {
     align-items: flex-start;
@@ -1924,7 +1931,7 @@ textarea:focus {
 .admin-error,
 .saved-notice { border-radius: 12px; box-shadow: var(--shadow-xs); }
 .admin-main > [role="status"] { color: var(--ms-slate-600); }
-.admin-main .table-scroll,
+.admin-main .table-scroll { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; border: 1px solid #e4e9f1; border-radius: 13px; background: #fff; }
 .admin-main .ops-table,
 .admin-main .staff-table { overflow: hidden; border: 1px solid #e4e9f1; border-radius: 13px; background: #fff; }
 .admin-main .table-scroll table,
