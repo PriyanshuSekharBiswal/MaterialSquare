@@ -195,14 +195,52 @@ export default function AdminWorkspaceLayout({
     <div className="admin-layout">
       <div className="mobile-top-bar">
         <MaterialSquareLogo size={32} showText={true} lightMode={false} />
-        <button
-          className="mobile-menu-btn"
-          onClick={() => onMobileNavChange(!mobileNavOpen)}
-          aria-label="Toggle navigation menu"
-          aria-expanded={mobileNavOpen}
-        >
-          {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
+        <details className="admin-top-menu">
+          <summary aria-label="Toggle admin menu">
+            <Menu className="admin-top-menu-open-icon" size={20} />
+            <X className="admin-top-menu-close-icon" size={20} />
+          </summary>
+          <nav aria-label="Admin workspace navigation">
+            {navigationSections.map((section) => {
+              const allowedItems = section.items.filter((item) =>
+                isTabPermitted(item.id, staff.role),
+              );
+              if (!allowedItems.length) return null;
+              return (
+                <div className="admin-top-menu-group" key={section.group}>
+                  <span>{section.group}</span>
+                  {allowedItems.map(({ id, label, icon: Icon }) => (
+                    <button
+                      key={id}
+                      className={`admin-top-menu-link ${tab === id ? "active" : ""}`}
+                      aria-current={tab === id ? "page" : undefined}
+                      onClick={(event) => {
+                        event.currentTarget.closest("details")?.removeAttribute("open");
+                        navigate(id);
+                      }}
+                    >
+                      <Icon size={18} aria-hidden="true" />
+                      <span>{label}</span>
+                      {id === "followups" && openFollowups > 0 && (
+                        <span className="nav-item-badge">{openFollowups}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              );
+            })}
+            <div className="admin-top-menu-footer">
+              {marketplaceUrl && (
+                <a href={marketplaceUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink size={15} /> Visit Marketplace
+                </a>
+              )}
+              <button onClick={onSignOut} disabled={busy}>
+                <LogOut size={16} /> Sign out
+              </button>
+            </div>
+          </nav>
+        </details>
       </div>
 
       <div

@@ -1231,6 +1231,12 @@
 .account-mobile-top {
   display: none;
 }
+.account-mobile-menu {
+  display: none;
+}
+.account-mobile-signout {
+  display: none;
+}
 .account-page-alert {
   margin-bottom: 16px;
 }
@@ -2023,12 +2029,11 @@
   }
   .account-mobile-top {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
     padding: 15px 0 20px;
   }
-  .account-mobile-top a,
-  .account-mobile-top button {
+  .account-mobile-top a {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -2039,6 +2044,106 @@
     font: inherit;
     font-size: 11px;
   }
+  .account-mobile-signout {
+    display: inline-flex;
+    min-height: 42px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 16px 0 0 auto;
+    padding: 0 14px;
+    border: 1px solid #ffd7c3;
+    border-radius: 10px;
+    background: #fff;
+    color: #c94b13;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+  .account-mobile-signout:hover {
+    background: #fff1e7;
+  }
+  .account-mobile-signout:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  .account-mobile-menu {
+    display: block;
+    margin: 0 0 22px;
+    border: 1px solid #111c2e;
+    border-radius: 13px;
+    background: #111c2e;
+    box-shadow: 0 8px 18px #111c2e20;
+  }
+  .account-mobile-menu summary {
+    min-height: 66px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    color: #ff7a3e;
+    cursor: pointer;
+    list-style: none;
+  }
+  .account-mobile-menu summary::-webkit-details-marker {
+    display: none;
+  }
+  .account-mobile-menu summary > span {
+    display: grid;
+    flex: 1;
+    gap: 3px;
+    color: #e9eef7;
+  }
+  .account-mobile-menu summary small {
+    color: #9cabc0;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+  }
+  .account-mobile-menu summary strong {
+    font-size: 15px;
+    line-height: 1.25;
+  }
+  .account-mobile-menu-chevron {
+    color: #b7c1d1;
+    transition: transform 0.18s ease;
+  }
+  .account-mobile-menu[open] .account-mobile-menu-chevron {
+    transform: rotate(180deg);
+  }
+  .account-mobile-menu nav {
+    display: grid;
+    gap: 4px;
+    padding: 0 9px 10px;
+    border-top: 1px solid #ffffff17;
+  }
+  .account-mobile-menu-link {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 11px;
+    border-radius: 9px;
+    color: #b7c1d1;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .account-mobile-menu-link:hover,
+  .account-mobile-menu-link.is-active {
+    color: #fff;
+    background: #26344a;
+  }
+  .account-mobile-menu-link.is-active {
+    box-shadow: inset 3px 0 0 #ff7a3e;
+  }
+  .account-mobile-menu-link.is-active {
+    font-weight: 700;
+  }
+  .account-mobile-menu-link.is-active svg {
+    color: #ff7a3e;
+  }
   .account-page-heading {
     margin-bottom: 19px;
   }
@@ -2046,23 +2151,36 @@
     font-size: 27px;
   }
   .account-stat-grid {
-    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
   .account-stat-card {
-    min-height: 110px;
+    min-height: 118px;
     padding: 12px;
-    grid-template-columns: 30px 1fr;
-    column-gap: 7px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 30px minmax(34px, auto) 1fr;
+    row-gap: 7px;
+    column-gap: 0;
   }
   .account-stat-icon {
     width: 29px;
     height: 29px;
   }
   .account-stat-card > span:nth-child(2) {
-    font-size: 10px;
+    min-width: 0;
+    font-size: 11px;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
   }
   .account-stat-card > strong {
-    font-size: 20px;
+    grid-column: 1;
+    align-self: end;
+    font-size: 21px;
+  }
+  .account-stat-card:last-child {
+    grid-column: 1 / -1;
+    width: calc(50% - 5px);
+    justify-self: center;
   }
   .account-panel {
     padding: 16px;

@@ -11,6 +11,7 @@ import {
   ArrowRight,
   BadgeCheck,
   Box,
+  ChevronDown,
   FileText,
   Gift,
   LayoutDashboard,
@@ -72,6 +73,11 @@ export default function CustomerAccountPage() {
     /^\/account\/quotations\/([^/]+)$/,
   )?.[1];
   const orderId = location.pathname.match(/^\/account\/orders\/([^/]+)$/)?.[1];
+  const activeAccountNav = nav.find(
+    ({ to }) =>
+      location.pathname === to ||
+      (to !== "/account" && location.pathname.startsWith(`${to}/`)),
+  ) ?? nav[0];
   const { profile, setProfile, checking, refresh } = useCustomerAuth();
   const [activity, setActivity] = useState<Activity>(emptyActivity);
   const [busy, setBusy] = useState(false);
@@ -517,10 +523,40 @@ export default function CustomerAccountPage() {
               <Link to="/" aria-label="Back to storefront">
                 <ArrowLeft size={18} /> Storefront
               </Link>
-              <button onClick={() => void logout()} disabled={busy}>
-                <LogOut size={16} /> Sign out
-              </button>
             </div>
+            <details className="account-mobile-menu">
+              <summary>
+                <activeAccountNav.icon size={19} aria-hidden="true" />
+                <span>
+                  <small>ACCOUNT SECTIONS</small>
+                  <strong>{activeAccountNav.label}</strong>
+                </span>
+                <ChevronDown className="account-mobile-menu-chevron" size={19} />
+              </summary>
+              <nav aria-label="Customer account navigation">
+                {nav.map(({ to, label, icon: Icon }) => {
+                  const current =
+                    location.pathname === to ||
+                    (to !== "/account" &&
+                      location.pathname.startsWith(`${to}/`));
+                  return (
+                    <Link
+                      key={to}
+                      to={to}
+                      className={`account-mobile-menu-link ${current ? "is-active" : ""}`}
+                      aria-current={current ? "page" : undefined}
+                      onClick={(event) => {
+                        const menu = event.currentTarget.closest("details");
+                        if (menu) menu.open = false;
+                      }}
+                    >
+                      <Icon size={18} aria-hidden="true" />
+                      <span>{label}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
+            </details>
             {error && (
               <div className="account-alert account-page-alert" role="alert">
                 {error}
@@ -560,6 +596,14 @@ export default function CustomerAccountPage() {
               onSaveProfile={saveProfile}
               busy={busy}
             />
+            <button
+              className="account-mobile-signout"
+              type="button"
+              onClick={() => void logout()}
+              disabled={busy}
+            >
+              <LogOut size={16} /> Sign out
+            </button>
           </main>
         </div>
       ) : null}
