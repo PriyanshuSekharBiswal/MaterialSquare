@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { formatContactPhone, type FaqEntry, type PolicyKind, type SiteContent } from "@material-square/types";
+import type { FaqEntry, PolicyKind, SiteContent } from "@material-square/types";
 import { canonicalSiteOrigin } from "../src/server/seo/seo-origin.js";
 import { isPreviewDeployment } from "../src/server/seo/seo-environment.js";
-import { parsePolicy, publicFaqEntries, SEO_ROUTE_DESCRIPTIONS, websitePageDescription } from "../src/server/seo/runtime-types.js";
+import { formatContactPhone, parsePolicy, publicFaqEntries, SEO_ROUTE_DESCRIPTIONS, websitePageDescription } from "../src/server/seo/runtime-types.js";
 import { setPageStructuredData } from "../src/server/seo/structured-data.js";
 import { setSocialCardMetadata } from "../src/server/seo/social-metadata.js";
 import { setSiteIdentityStructuredData } from "../src/server/seo/site-identity.js";

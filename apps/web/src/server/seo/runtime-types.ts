@@ -9,6 +9,7 @@ export const {
   SEO_INDEXABLE_SERVICE_AREA_SLUGS,
   SEO_ROUTE_DESCRIPTIONS,
   SEO_SERVICE_AREA_PAGES,
+  formatContactPhone,
   guideTabContent,
   parsePolicy,
   parseSocialLinks,
