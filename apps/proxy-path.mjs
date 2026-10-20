@@ -1,7 +1,7 @@
 export class InvalidApiProxyPathError extends Error {}
 
-export function parseApiProxyPath(requestUrl: string) {
-  let incoming: URL;
+export function parseApiProxyPath(requestUrl) {
+  let incoming;
   try {
     incoming = new URL(requestUrl, "http://localhost");
   } catch {
@@ -10,7 +10,7 @@ export function parseApiProxyPath(requestUrl: string) {
   const path = incoming.searchParams.get("path");
   let decodedPath = path || "";
   for (let pass = 0; pass < 3; pass += 1) {
-    let next: string;
+    let next;
     try {
       next = decodeURIComponent(decodedPath);
     } catch {

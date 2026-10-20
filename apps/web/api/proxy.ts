@@ -1,6 +1,6 @@
 import { request as httpsRequest } from "node:https";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { InvalidApiProxyPathError, parseApiProxyPath } from "../../proxy-path.js";
+import { InvalidApiProxyPathError, parseApiProxyPath } from "../../proxy-path.mjs";
 
 const hopByHop = new Set([
   "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
