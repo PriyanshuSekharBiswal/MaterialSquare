@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {
   serviceAreaSlugs,
+  SEO_SERVICE_AREA_PAGES,
   SEO_ROUTE_DESCRIPTIONS,
   SITE_CONTENT_DEFAULTS,
 } = require("@material-square/types");
@@ -104,7 +105,7 @@ function createCrawlerHtml({ title, description, route, noIndex = false }) {
           ? {
               areaServed: configuredServiceAreaSlugs.map((slug) => ({
                 "@type": "City",
-                name: seoAreaNames[slug],
+                name: SEO_SERVICE_AREA_PAGES.find((area) => area.slug === slug)?.name || slug,
               })),
             }
           : {}),

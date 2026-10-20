@@ -38,6 +38,3 @@ export default defineConfig({
     },
   ],
 });
-        VITE_MSG91_WIDGET_ID: "browser-test-widget",
-        VITE_MSG91_TOKEN_AUTH: "browser-test-token",
-        VITE_ALLOW_LOCALHOST_OTP_TESTS: "true",
