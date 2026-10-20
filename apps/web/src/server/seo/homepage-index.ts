@@ -61,10 +61,10 @@ function renderHomepage(shell: string, content: SiteContent, origin: string, noI
   shell = setMeta(shell, "property", "og:title", title);
   shell = setMeta(shell, "property", "og:description", description);
   shell = setMeta(shell, "property", "og:url", canonical);
-  shell = setMeta(shell, "property", "og:image", `${origin}/social-card.png`);
+  shell = setMeta(shell, "property", "og:image", `${origin}/social-card-v2.png`);
   shell = setMeta(shell, "name", "twitter:title", title);
   shell = setMeta(shell, "name", "twitter:description", description);
-  shell = setMeta(shell, "name", "twitter:image", `${origin}/social-card.png`);
+  shell = setMeta(shell, "name", "twitter:image", `${origin}/social-card-v2.png`);
   shell = shell.replace(/<link\s+rel=["']canonical["'][^>]*>\s*/gi, "");
   shell = shell.replace("</head>", `  <link rel="canonical" href="${escapeHtml(canonical)}" />\n</head>`);
 

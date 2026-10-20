@@ -68,7 +68,7 @@ function escapeHtml(value) {
 
 function createCrawlerHtml({ title, description, route, noIndex = false }) {
   const canonical = siteUrl ? `${siteUrl}${route === "/" ? "/" : route}` : "";
-  const image = siteUrl ? `${siteUrl}/social-card.png` : "/social-card.png";
+  const image = siteUrl ? `${siteUrl}/social-card-v2.png` : "/social-card-v2.png";
   const routeSchemas = [];
   if (siteUrl) {
     routeSchemas.push(
@@ -140,13 +140,13 @@ function createCrawlerHtml({ title, description, route, noIndex = false }) {
     `<meta property="og:image" content="${escapeHtml(image)}" />`,
     `<meta property="og:image:type" content="image/png" />`,
     `<meta property="og:image:width" content="1200" />`,
-    `<meta property="og:image:height" content="630" />`,
-    `<meta property="og:image:alt" content="Material Square social card about construction materials, material lists and project quotations." />`,
+    `<meta property="og:image:height" content="628" />`,
+    `<meta property="og:image:alt" content="Material Square social card showing construction materials organized for every project." />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
     `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
     `<meta name="twitter:image" content="${escapeHtml(image)}" />`,
-    `<meta name="twitter:image:alt" content="Material Square social card about construction materials, material lists and project quotations." />`,
+    `<meta name="twitter:image:alt" content="Material Square social card showing construction materials organized for every project." />`,
     canonical ? `<link rel="canonical" href="${escapeHtml(canonical)}" />` : "",
     canonical
       ? `<meta property="og:url" content="${escapeHtml(canonical)}" />`

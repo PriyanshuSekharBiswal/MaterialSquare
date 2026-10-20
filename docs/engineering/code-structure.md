@@ -9,7 +9,9 @@ The repository is organized by application and shared capability:
 - `packages/db` owns Prisma models and SQL migrations.
 - `packages/types` owns shared catalogue models, validation, and site content.
 - `deployment` contains container and managed-host deployment configuration.
-- `docs` contains product scope, operating requirements, and engineering notes.
+- `docs/product`, `docs/operations`, and `docs/engineering` contain product
+  scope, operating requirements, and engineering notes. UI design and audit
+  documents live under `docs/engineering/ui`.
 
 For runtime boundaries, trust relationships, and request flows, see [System
 design](design.md). Product behavior is described in the [PRD](../product/PRD.md).

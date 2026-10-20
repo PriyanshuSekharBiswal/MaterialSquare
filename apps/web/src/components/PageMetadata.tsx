@@ -221,7 +221,7 @@ function setPageMetadata({
   if (isDefaultSocialCard) {
     setMeta('meta[property="og:image:type"]', "property", "og:image:type", "image/png");
     setMeta('meta[property="og:image:width"]', "property", "og:image:width", "1200");
-    setMeta('meta[property="og:image:height"]', "property", "og:image:height", "630");
+    setMeta('meta[property="og:image:height"]', "property", "og:image:height", "628");
   } else {
     removeMeta('meta[property="og:image:type"]');
     removeMeta('meta[property="og:image:width"]');
@@ -279,8 +279,8 @@ export default function PageMetadata({ products = [], catalogueLoaded = false }:
   useEffect(() => {
     const controller = new AbortController();
     const metadataOrigin = canonicalOrigin();
-    const defaultImage = new URL("/social-card.png", metadataOrigin).href;
-    const defaultImageAlt = "Material Square social card about construction materials, material lists and project quotations.";
+    const defaultImage = new URL("/social-card-v2.png", metadataOrigin).href;
+    const defaultImageAlt = "Material Square social card showing construction materials organized for every project.";
     const defaultDescription = content["seo.description"];
     const policyPaths: Record<string, PolicyKind> = {
       "/privacy": "privacy",

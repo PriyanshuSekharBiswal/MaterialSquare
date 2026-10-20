@@ -141,10 +141,10 @@ export function renderProductHtml(shell: string, product: PublicProduct, origin:
   const description = visibleDescription(product, siteTitle);
   const productImage = product.image || product.galleryImages?.[0] || null;
   const productImageUrl = publicImageUrl(productImage, origin);
-  const image = productImageUrl || `${origin}/social-card.png`;
+  const image = productImageUrl || `${origin}/social-card-v2.png`;
   const imageAlt = productImageUrl
     ? product.name
-    : "Material Square social card about construction materials, material lists and project quotations.";
+    : "Material Square social card showing construction materials organized for every project.";
   const factualDescription = customerProductDescription(product.description);
   const publicSpecifications = customerSpecifications(product.specs);
   // The shell has a homepage WebPage node; retain only the shared site entities.

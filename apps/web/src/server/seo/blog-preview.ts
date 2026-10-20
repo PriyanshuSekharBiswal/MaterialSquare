@@ -64,7 +64,7 @@ export function renderArticleHtml(
 ) {
   const canonical = `${origin}/blogs/${encodeURIComponent(article.slug)}`;
   const articleImage = publicImageUrl(article.featuredImageUrl, origin);
-  const image = articleImage || `${origin}/social-card.png`;
+  const image = articleImage || `${origin}/social-card-v2.png`;
   const title = `${article.title} | ${siteTitle}`;
   // The shell has a homepage WebPage node; retain only the shared site entities.
   shell = retainSharedStructuredData(shell);
@@ -92,7 +92,7 @@ export function renderArticleHtml(
   }
   const imageAlt = articleImage
     ? article.title
-    : `${siteTitle} social card about construction materials, material lists and project quotations.`;
+    : `${siteTitle} social card showing construction materials organized for every project.`;
   html = setMeta(html, "property", "og:image:alt", imageAlt);
   html = setMeta(html, "property", "og:url", canonical);
   html = setMeta(html, "name", "twitter:card", "summary_large_image");

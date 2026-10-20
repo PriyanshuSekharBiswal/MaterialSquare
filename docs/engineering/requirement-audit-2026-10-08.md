@@ -122,8 +122,9 @@ checks remain open until the saved Codex setting actually permits access.
   and admin builds now pass. The storefront build reports that
   `VITE_PUBLIC_SITE_URL` is unset, so the crawler build omits absolute
   canonical URLs until the production build environment supplies it.
-- Remaining manual checks are still listed in `manual-qa-checklist.md`; in
-  particular, authenticated file upload/download, real OTP delivery, product
+- Remaining manual checks are still listed in the [manual QA
+  checklist](../operations/manual-qa-checklist.md); in particular, authenticated
+  file upload/download, real OTP delivery, product
   image selection, offline-payment write flow, and client-approved content/data
   still need separate verification.
 
@@ -236,7 +237,8 @@ the single-stack workflow.
   the same attachment; Chrome marked `20x45-Model (5).pdf` Done (155 KB).
   A new file selection is still blocked by the browser bridge, so a fresh
   upload and the 10-file/100 MB limits remain unverified in a live browser.
-- Remaining manual checks are in `manual-qa-checklist.md`, particularly a real
+- Remaining manual checks are in the [manual QA
+  checklist](../operations/manual-qa-checklist.md), particularly a real
   authenticated plan upload/download, a fresh MSG91 CAPTCHA and OTP,
   product-image upload through Chrome, offline-payment recording with a QA
   order, complete role-by-role permissions, and client-approved catalogue and

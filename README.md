@@ -137,8 +137,15 @@ production dependency audit, and verifies runtime dependencies.
   controls, secret inventory, dependency advisories, and release hardening.
 - [Code structure](docs/engineering/code-structure.md) — ownership and naming
   conventions for source files and features.
+- [UI design system](docs/engineering/ui/UI_DESIGN_SYSTEM.md),
+  [page inventory](docs/engineering/ui/UI_PAGE_INVENTORY.md),
+  [UX audit](docs/engineering/ui/UI_UX_AUDIT.md), and
+  [refactor plan](docs/engineering/ui/UI_REFACTOR_PLAN.md) — interface guidance
+  and follow-up work.
 - [Production readiness](docs/operations/production-readiness.md) —
   environment and release checks.
+- [Manual QA checklist](docs/operations/manual-qa-checklist.md) — local
+  storefront and admin release checks.
 - [Implementation status snapshot](docs/engineering/implementation-status.md) —
   historical local QA evidence recorded on 8 October 2026; not current deployment status.
 - [Deployment setup](deployment/vercel-render.md) — managed hosting details.

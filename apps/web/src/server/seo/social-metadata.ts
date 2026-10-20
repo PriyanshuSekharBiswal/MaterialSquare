@@ -16,13 +16,13 @@ function setMeta(html: string, kind: "name" | "property", key: string, value: st
 
 /** Ensure crawler and share previews always receive absolute image URLs. */
 export function setSocialCardMetadata(html: string, origin: string) {
-  const image = `${origin}/social-card.png`;
-  const alt = "Material Square social card about construction materials, material lists and project quotations.";
+  const image = `${origin}/social-card-v2.png`;
+  const alt = "Material Square social card showing construction materials organized for every project.";
   const tags: Array<["name" | "property", string, string]> = [
     ["property", "og:image", image],
     ["property", "og:image:type", "image/png"],
     ["property", "og:image:width", "1200"],
-    ["property", "og:image:height", "630"],
+    ["property", "og:image:height", "628"],
     ["property", "og:image:alt", alt],
     ["name", "twitter:card", "summary_large_image"],
     ["name", "twitter:image", image],
