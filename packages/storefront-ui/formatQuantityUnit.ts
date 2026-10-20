@@ -19,7 +19,7 @@ export function formatQuantityUnitText(
   fallbackUnit: string | null | undefined,
 ) {
   const raw = String(value ?? "").trim();
-  const match = raw.match(/^((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*(.*)$/);
+  const match = raw.match(/^((?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})*,\d{3}|\d+)(?:\.\d+)?)(?![\d,])\s*(.*)$/);
   if (!match) return raw;
 
   const quantity = Number(match[1].replace(/,/g, ""));

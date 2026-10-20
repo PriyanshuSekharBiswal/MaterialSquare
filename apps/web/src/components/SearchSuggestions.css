@@ -54,11 +54,11 @@
 }
 
 .trending-icon {
-  color: #ea580c;
+  color: var(--ms-primary);
 }
 
 .product-icon {
-  color: #0284c7;
+  color: var(--ms-primary);
 }
 
 .brand-icon {
@@ -66,7 +66,7 @@
 }
 
 .categories-icon, .tag-icon {
-  color: #8b5cf6;
+  color: var(--ms-primary, #ea580c);
 }
 
 /* Trending Queries List */
@@ -95,7 +95,7 @@
 
 .trending-query-btn:hover {
   background: #fff7ed;
-  color: #ea580c;
+  color: var(--ms-primary);
   padding-left: 0.85rem;
 }
 
@@ -105,7 +105,7 @@
 }
 
 .trending-query-btn:hover .query-mag {
-  color: #ea580c;
+  color: var(--ms-primary);
 }
 
 .query-arrow {
@@ -118,7 +118,7 @@
 
 .trending-query-btn:hover .query-arrow {
   opacity: 1;
-  color: #ea580c;
+  color: var(--ms-primary);
 }
 
 /* Quick Category Pills */
@@ -158,7 +158,7 @@
 }
 
 .quick-cat-pill:focus-visible {
-  outline: 2px solid #f97316;
+  outline: 2px solid var(--focus-outline);
   outline-offset: 1px;
 }
 
@@ -228,7 +228,7 @@
 
 .suggest-brand {
   font-weight: 600;
-  color: #0284c7;
+  color: var(--ms-primary);
 }
 
 .suggest-dot {
@@ -237,7 +237,7 @@
 
 .suggest-price {
   font-weight: 700;
-  color: #ea580c;
+  color: var(--ms-primary);
 }
 .suggest-code { max-width: 38%; overflow: hidden; color: #64748b; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
 .suggest-detail { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 3px; color: #64748b; font-size: 11px; }
@@ -253,7 +253,7 @@
 
 .product-suggestion-item:hover .suggest-arrow {
   opacity: 1;
-  color: #ea580c;
+  color: var(--ms-primary);
   transform: translateX(2px);
 }
 
@@ -286,7 +286,7 @@
 }
 
 .brand-suggest-chip:focus-visible {
-  outline: 2px solid #f97316;
+  outline: 2px solid var(--focus-outline);
   outline-offset: 2px;
 }
 
@@ -366,7 +366,7 @@
 .no-res-search-btn {
   background: #fff7ed;
   border: 1px solid #fed7aa;
-  color: #ea580c;
+  color: var(--ms-primary);
   padding: 0.5rem 1rem;
   border-radius: 8px;
   font-size: 0.85rem;
@@ -376,7 +376,7 @@
 }
 
 .no-res-search-btn:hover {
-  background: #ea580c;
+  background: var(--ms-primary);
   color: #ffffff;
 }
 

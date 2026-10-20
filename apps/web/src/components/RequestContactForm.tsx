@@ -407,6 +407,9 @@ export default function RequestContactForm({
         <fieldset
           className={`request-fields${prepared && !enquiry ? " is-reviewing" : ""}`}
         >
+          <legend className="sr-only">
+            {enquiry ? "Contact enquiry details" : "Quotation request details"}
+          </legend>
           {enquiry && (
             <label>
               Preferred contact channel

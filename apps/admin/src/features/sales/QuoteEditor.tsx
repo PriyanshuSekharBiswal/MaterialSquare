@@ -12,6 +12,8 @@ type Listing = {
   price: string | null;
   variants: { id: string; label: string; unit: string; price: string | null }[];
 };
+type ListingPage = { items: Listing[]; page: number; pageSize: number; hasMore: boolean };
+type CatalogueMatches = { items: Listing[]; hasMore: boolean };
 type Inventory = {
   id: string;
   name: string;
@@ -48,6 +50,7 @@ type Line = {
   requestedCategory?: string;
   requestedOptionKey?: string;
   customName?: string;
+  customBrand?: string;
   customUnit?: string;
   alternatives: {
     key: string;
@@ -84,6 +87,7 @@ type Rfq = {
 export type RevisionQuote = {
   id: string;
   requestId?: string | null;
+  request?: { requestNumber: string } | null;
   customerName: string;
   customerPhone: string;
   customerEmail?: string | null;
@@ -102,6 +106,10 @@ export type RevisionQuote = {
     productId?: string | null;
     catalogueId?: string | null;
     variantId?: string | null;
+    productName?: string;
+    brandName?: string;
+    categoryName?: string;
+    unit?: string;
     quantityMt: string;
     unitPrice: string;
     specification: string;
@@ -110,6 +118,9 @@ export type RevisionQuote = {
       productId?: string | null;
       catalogueId?: string | null;
       variantId?: string | null;
+      productName?: string;
+      brandName?: string;
+      unit?: string;
       quantityMt?: string;
       unitPrice: string;
       specification: string;
@@ -195,6 +206,9 @@ export default function QuoteEditor({
   onSaved: () => Promise<void>;
 }) {
   const [catalogue, setCatalogue] = useState<Listing[]>([]);
+  const [cataloguePage, setCataloguePage] = useState(1);
+  const [catalogueHasMore, setCatalogueHasMore] = useState(false);
+  const [loadingMoreCatalogue, setLoadingMoreCatalogue] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -202,6 +216,8 @@ export default function QuoteEditor({
   const [suggestionQuery, setSuggestionQuery] = useState("");
   const [suggestingAlternativeKey, setSuggestingAlternativeKey] = useState<string | null>(null);
   const [alternativeSuggestionQuery, setAlternativeSuggestionQuery] = useState("");
+  const [alternativeSuggestionUnit, setAlternativeSuggestionUnit] = useState("");
+  const [searchingCatalogueMatches, setSearchingCatalogueMatches] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [comparisonPromptOpen, setComparisonPromptOpen] = useState(false);
   const [comparisonMode, setComparisonMode] = useState(
@@ -256,7 +272,13 @@ export default function QuoteEditor({
               ? `variant:${item.variantId}`
               : item.catalogueId
                 ? `catalogue:${item.catalogueId}`
-                : `inventory:${item.productId}`,
+                : item.productId
+                  ? `inventory:${item.productId}`
+                  : `custom:${item.productName || "item"}`,
+            customName: item.productId || item.catalogueId || item.variantId ? undefined : item.productName,
+            customBrand: item.productId || item.catalogueId || item.variantId ? undefined : item.brandName,
+            customUnit: item.productId || item.catalogueId || item.variantId ? undefined : item.unit,
+            requestedCategory: item.categoryName,
             quantity: item.quantityMt,
             rate: item.unitPrice,
             specification: item.specification,
@@ -267,7 +289,11 @@ export default function QuoteEditor({
                   ? `variant:${option.variantId}`
                   : option.catalogueId
                     ? `catalogue:${option.catalogueId}`
-                    : `inventory:${option.productId}`,
+                    : option.productId
+                      ? `inventory:${option.productId}`
+                      : `custom:${option.id}`,
+                customName: option.productId || option.catalogueId || option.variantId ? undefined : option.productName,
+                customBrand: option.productId || option.catalogueId || option.variantId ? undefined : option.brandName,
                 quantity: option.quantityMt || item.quantityMt,
                 rate: option.unitPrice,
                 specification: option.specification,
@@ -380,9 +406,17 @@ export default function QuoteEditor({
   }
   useEffect(() => {
     let active = true;
-    request<Listing[]>("/products/catalogue")
-      .then((data) => {
-        if (active) setCatalogue(data);
+    request<ListingPage>("/products/catalogue?page=1&pageSize=50")
+      .then((result) => {
+        if (active) {
+          setCatalogue((current) => {
+            const rows = new Map(current.map((listing) => [listing.id, listing]));
+            result.items.forEach((listing) => rows.set(listing.id, listing));
+            return [...rows.values()];
+          });
+          setCataloguePage(result.page);
+          setCatalogueHasMore(result.hasMore);
+        }
       })
       .catch((cause) => {
         if (active) setError((cause as Error).message);
@@ -394,6 +428,135 @@ export default function QuoteEditor({
       active = false;
     };
   }, [request]);
+  const referencedCatalogueIds = useMemo(() => {
+    const ids = new Set<string>();
+    initialRequest?.items.forEach((item) => {
+      if (item.catalogueId) ids.add(item.catalogueId);
+    });
+    revision?.items.forEach((item) => {
+      if (item.catalogueId) ids.add(item.catalogueId);
+      item.options?.forEach((option) => {
+        if (option.catalogueId) ids.add(option.catalogueId);
+      });
+    });
+    return [...ids];
+  }, [initialRequest, revision]);
+  const requestedCatalogueIds = useRef(new Set<string>());
+  const catalogueLookupMounted = useRef(true);
+  const [pendingCatalogueIds, setPendingCatalogueIds] = useState<Set<string>>(() => new Set());
+  const [resolvedRequestMatches, setResolvedRequestMatches] = useState<Set<string>>(() => new Set());
+  const requestedMatchSearches = useRef(new Set<string>());
+  useEffect(() => {
+    catalogueLookupMounted.current = true;
+    return () => {
+      catalogueLookupMounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    const missingIds = referencedCatalogueIds.filter(
+      (id) => !catalogue.some((listing) => listing.id === id) && !requestedCatalogueIds.current.has(id),
+    );
+    if (!missingIds.length) return;
+    missingIds.forEach((id) => requestedCatalogueIds.current.add(id));
+    setPendingCatalogueIds((current) => new Set([...current, ...missingIds]));
+    void Promise.all(
+      Array.from({ length: Math.ceil(missingIds.length / 100) }, (_, index) => {
+        const ids = missingIds.slice(index * 100, (index + 1) * 100);
+        return request<Listing[]>(
+          `/products/catalogue/lookup?ids=${ids.map(encodeURIComponent).join(",")}&includeDeleted=true`,
+        );
+      }),
+    )
+      .then((pages) => {
+        if (!catalogueLookupMounted.current) return;
+        const found = pages.flat();
+        setPendingCatalogueIds((current) => {
+          const next = new Set(current);
+          missingIds.forEach((id) => next.delete(id));
+          return next;
+        });
+        if (!found.length) return;
+        setCatalogue((current) => {
+          const listings = new Map(current.map((listing) => [listing.id, listing]));
+          let changed = false;
+          found.forEach((listing) => {
+            if (!listings.has(listing.id)) changed = true;
+            listings.set(listing.id, listing);
+          });
+          return changed ? [...listings.values()] : current;
+        });
+      })
+      .catch((cause) => {
+        missingIds.forEach((id) => requestedCatalogueIds.current.delete(id));
+        if (catalogueLookupMounted.current) {
+          setPendingCatalogueIds((current) => {
+            const next = new Set(current);
+            missingIds.forEach((id) => next.delete(id));
+            return next;
+          });
+          setError(cause instanceof Error ? cause.message : "Could not load the quotation's saved catalogue items.");
+        }
+      });
+  }, [catalogue, referencedCatalogueIds, request]);
+  const loadMoreCatalogueOptions = async () => {
+    if (!catalogueHasMore || loadingMoreCatalogue) return;
+    setLoadingMoreCatalogue(true);
+    try {
+      const result = await request<ListingPage>(
+        `/products/catalogue?page=${cataloguePage + 1}&pageSize=50`,
+      );
+      setCatalogue((current) => {
+        const rows = new Map(current.map((listing) => [listing.id, listing]));
+        result.items.forEach((listing) => rows.set(listing.id, listing));
+        return [...rows.values()];
+      });
+      setCataloguePage(result.page);
+      setCatalogueHasMore(result.hasMore);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not load more catalogue products.",
+      );
+    } finally {
+      setLoadingMoreCatalogue(false);
+    }
+  };
+  useEffect(() => {
+    const requestedLines = lines.filter((line) =>
+      line.selection.startsWith("request:") &&
+      !line.requestedCatalogueId &&
+      !line.requestedVariantId &&
+      Boolean(line.requestedMaterial?.trim()) &&
+      Boolean(line.requestedOptionKey) &&
+      !resolvedRequestMatches.has(line.requestedOptionKey!) &&
+      !requestedMatchSearches.current.has(line.requestedOptionKey!),
+    );
+    if (!requestedLines.length) return;
+    requestedLines.forEach((line) => requestedMatchSearches.current.add(line.requestedOptionKey!));
+    void Promise.all(requestedLines.map((line) => {
+      const params = new URLSearchParams({ material: line.requestedMaterial!.trim() });
+      if (line.requestedBrand?.trim()) params.set("brand", line.requestedBrand.trim());
+      if (line.requestedUnit?.trim()) params.set("unit", line.requestedUnit.trim());
+      return request<CatalogueMatches>(`/products/catalogue/matches?${params}`);
+    }))
+      .then((results) => {
+        setCatalogue((current) => {
+          const rows = new Map(current.map((listing) => [listing.id, listing]));
+          results.flatMap((result) => result.items).forEach((listing) => rows.set(listing.id, listing));
+          return [...rows.values()];
+        });
+        const resolvedKeys = requestedLines
+          .filter((_, index) => !results[index].hasMore)
+          .map((line) => line.requestedOptionKey!);
+        if (resolvedKeys.length)
+          setResolvedRequestMatches((current) => new Set([...current, ...resolvedKeys]));
+      })
+      .catch((cause) => {
+        requestedLines.forEach((line) => requestedMatchSearches.current.delete(line.requestedOptionKey!));
+        setError(cause instanceof Error ? cause.message : "Could not match RFQ items to the catalogue.");
+      });
+  }, [lines, request, resolvedRequestMatches]);
   const options = useMemo<Selection[]>(
     () => [
       ...catalogue.flatMap((listing) =>
@@ -450,7 +613,7 @@ export default function QuoteEditor({
       return {
         key: line.selection,
         name: line.customName.trim(),
-        brand: "Unspecified brand",
+        brand: line.customBrand?.trim() || "Unspecified brand",
         category: line.requestedCategory || "Other materials",
         unit: line.customUnit.trim(),
         price: "",
@@ -476,6 +639,47 @@ export default function QuoteEditor({
     };
   };
   useEffect(() => {
+    const searches = [
+      suggestionQuery.trim().length >= 2 ? { material: suggestionQuery.trim() } : null,
+      alternativeSuggestionQuery.trim().length >= 2
+        ? {
+            material: alternativeSuggestionQuery.trim(),
+            ...(alternativeSuggestionUnit ? { unit: alternativeSuggestionUnit } : {}),
+          }
+        : null,
+    ].filter((search): search is { material: string; unit?: string } => Boolean(search));
+    if (!searches.length) {
+      setSearchingCatalogueMatches(false);
+      return;
+    }
+    let active = true;
+    setSearchingCatalogueMatches(true);
+    const timer = window.setTimeout(() => {
+      void Promise.all(searches.map((search) => {
+        const params = new URLSearchParams({ material: search.material });
+        if (search.unit) params.set("unit", search.unit);
+        return request<CatalogueMatches>(`/products/catalogue/matches?${params}`);
+      }))
+        .then((results) => {
+          if (!active) return;
+          setCatalogue((current) => {
+            const rows = new Map(current.map((listing) => [listing.id, listing]));
+            results.flatMap((result) => result.items).forEach((listing) => rows.set(listing.id, listing));
+            return [...rows.values()];
+          });
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          if (active) setSearchingCatalogueMatches(false);
+        });
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+      setSearchingCatalogueMatches(false);
+    };
+  }, [alternativeSuggestionQuery, alternativeSuggestionUnit, request, suggestionQuery]);
+  useEffect(() => {
     if (!options.length) return;
     setLines((current) =>
       current.map((line) => {
@@ -490,7 +694,17 @@ export default function QuoteEditor({
         const requestedMaterial = normalize(line.requestedMaterial);
         const requestedBrand = normalize(line.requestedBrand);
         const requestedUnit = normalize(line.requestedUnit);
-        const matchesByRequest = (!currentSelection || currentSelection.requested) && !exactRequestSelection && requestedMaterial
+        const awaitingExactListing = Boolean(
+          line.requestedCatalogueId,
+        ) && !exactRequestSelection && (
+          !options.some((option) => option.catalogueId === line.requestedCatalogueId)
+        ) && (
+          loading ||
+          pendingCatalogueIds.has(line.requestedCatalogueId!) ||
+          !requestedCatalogueIds.current.has(line.requestedCatalogueId!)
+        );
+        const requestMatchesAreComplete = !catalogueHasMore || resolvedRequestMatches.has(line.requestedOptionKey || "");
+        const matchesByRequest = (!currentSelection || currentSelection.requested) && !exactRequestSelection && !awaitingExactListing && requestMatchesAreComplete && requestedMaterial
           ? options.filter((option) =>
               !option.requested &&
               normalize(option.name).includes(requestedMaterial) &&
@@ -519,7 +733,7 @@ export default function QuoteEditor({
         };
       }),
     );
-  }, [options, initialRequest]);
+  }, [options, initialRequest, pendingCatalogueIds, loading, catalogueHasMore, resolvedRequestMatches]);
   const lineSubtotal = lines.reduce(
     (sum, line) => sum + (Number(line.quantity) || 0) * (Number(line.rate) || 0),
     0,
@@ -759,6 +973,7 @@ export default function QuoteEditor({
       )}
       <form ref={formRef} className="operation-form" onSubmit={save}>
         <fieldset disabled={busy || loading} className="quote-editor-fields">
+          <legend className="admin-sr-only">Quotation draft details</legend>
           <section ref={customerSectionRef} className="sales-quote-section">
             <div className="sales-quote-section-heading sales-quote-customer-section-heading">
               <span className="sales-quote-section-step">01</span>
@@ -983,7 +1198,14 @@ export default function QuoteEditor({
                               <small>{option.unit}{option.price ? ` · ${formatMoney(Number(option.price))}` : ""}</small>
                             </button>
                           )) : (
-                            <div className="sales-quote-product-no-suggestions">No catalogue match. Your typed item will be used.</div>
+                            <div className="sales-quote-product-no-suggestions" role="status">
+                              {searchingCatalogueMatches ? "Searching the catalogue…" : "No catalogue match found. Your typed item will be used."}
+                            </div>
+                          )}
+                          {catalogueHasMore && (
+                            <button className="sales-quote-product-load-more" type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => void loadMoreCatalogueOptions()} disabled={loadingMoreCatalogue}>
+                              {loadingMoreCatalogue ? "Loading products…" : "Load more product suggestions"}
+                            </button>
                           )}
                         </div>
                       )}
@@ -1069,6 +1291,7 @@ export default function QuoteEditor({
                             onFocus={() => {
                               setSuggestingAlternativeKey(alternative.key);
                               setAlternativeSuggestionQuery("");
+                              setAlternativeSuggestionUnit(selected?.unit || "");
                             }}
                             onBlur={() => window.setTimeout(() => setSuggestingAlternativeKey((active) => active === alternative.key ? null : active), 120)}
                             onChange={(event) => {
@@ -1101,7 +1324,14 @@ export default function QuoteEditor({
                                   <small>{option.unit}{option.price ? ` · ${formatMoney(Number(option.price))}` : ""}</small>
                                 </button>
                               )) : (
-                                <div className="sales-quote-product-no-suggestions">No catalogue match. Your typed item will be used.</div>
+                                <div className="sales-quote-product-no-suggestions" role="status">
+                                  {searchingCatalogueMatches ? "Searching the catalogue…" : "No catalogue match found. Your typed item will be used."}
+                                </div>
+                              )}
+                              {catalogueHasMore && (
+                              <button className="sales-quote-product-load-more" type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => void loadMoreCatalogueOptions()} disabled={loadingMoreCatalogue}>
+                                  {loadingMoreCatalogue ? "Loading products…" : "Load more product suggestions"}
+                                </button>
                               )}
                             </div>
                           )}
@@ -1370,7 +1600,7 @@ export default function QuoteEditor({
       <div className="sales-quote-confirm-overlay" onMouseDown={(event) => {
         if (event.target === event.currentTarget) setComparisonPromptOpen(false);
       }}>
-        <section className="sales-quote-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="sales-quote-comparison-confirm-title">
+        <section className="sales-quote-confirm-dialog admin-confirm-surface" role="dialog" aria-modal="true" aria-labelledby="sales-quote-comparison-confirm-title">
           <span className="sales-section-eyebrow">QUOTATION COMPARISON</span>
           <h2 id="sales-quote-comparison-confirm-title">Prepare a comparison quotation?</h2>
           <p>Your current quotation and customer-requested items will stay as the first option. You can add other brands or custom products line by line, then preview and save one comparison PDF.</p>

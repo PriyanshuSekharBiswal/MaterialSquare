@@ -24,7 +24,7 @@ export const SEO_INDEXABLE_SERVICE_AREA_SLUGS: readonly string[] = [];
 
 /** Resolve only locations explicitly named in the approved service-area copy. */
 export function serviceAreaSlugs(value: string): string[] {
-  const normalized = value.toLocaleLowerCase("en-IN").replace(/[^a-z0-9]+/g, " ").trim();
+  const normalized = value.toLocaleLowerCase("en-IN").replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
   if (!normalized) return [];
   if (/\b(?:delhi\s+)?ncr\b/.test(normalized)) return [...SEO_SERVICE_AREA_SLUGS];
 
@@ -32,6 +32,8 @@ export function serviceAreaSlugs(value: string): string[] {
     new RegExp(`(?:^| )${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?: |$)`).test(normalized);
   return SEO_SERVICE_AREA_SLUGS.filter((slug) => {
     const name = slug.replace(/-/g, " ");
+    if (slug === "noida")
+      return contains("noida") && normalized.replace(/\bgreater noida\b/g, "").split(" ").includes("noida");
     return contains(name) || (slug === "gurugram" && contains("gurgaon"));
   });
 }
@@ -169,11 +171,11 @@ export const SITE_CONTENT_DEFAULTS = {
   "contact.phoneDisplay": "+91 77355 27252",
   "contact.whatsappPhone": "7735527252",
   "contact.email": "admin@materialsquare.in",
-  "contact.location": "",
+  "contact.location": "Delhi NCR",
   "contact.instagramUrl": "https://www.instagram.com/materialsquare.in/",
   "contact.officeName": "Material Square",
-  "contact.officeAddress": "192, Prakash Industrial Estate, Sahibabad, Ghaziabad, Uttar Pradesh",
-  "contact.mapUrl": "https://maps.app.goo.gl/sPj9Ai7rZpLMPKh36",
+  "contact.officeAddress": "",
+  "contact.mapUrl": "",
   "footer.socialLinks": "[]",
   "footer.calloutTitle": "Ready to Order or Have a Material Query?",
   "footer.calloutDescription":
@@ -208,14 +210,125 @@ const LEGACY_UNAPPROVED_SITE_CONTENT: Partial<Record<SiteContentKey, string>> = 
   "footer.description": "Browse construction materials, keep a quote list in this browser, and contact the Material Square team to confirm product and delivery details.",
 };
 
+const LEGACY_STAGING_CONTACT_VALUES: Partial<Record<SiteContentKey, string>> = {
+  "contact.phone": "7735527252",
+  "contact.phoneDisplay": "+91 77355 27252",
+  "contact.whatsappPhone": "7735527252",
+  "contact.email": "admin@materialsquare.in",
+  "contact.officeAddress": "192, Prakash Industrial Estate, Sahibabad, Ghaziabad, Uttar Pradesh",
+  "contact.mapUrl": "https://maps.app.goo.gl/sPj9Ai7rZpLMPKh36",
+};
+
+export type SiteContactKey =
+  | "contact.phone"
+  | "contact.phoneDisplay"
+  | "contact.whatsappPhone"
+  | "contact.email"
+  | "contact.officeAddress"
+  | "contact.mapUrl";
+
+export function isBlockedContactValue(key: SiteContactKey, value: unknown) {
+  return typeof value === "string" && (
+    value === LEGACY_UNAPPROVED_SITE_CONTENT[key] ||
+    value === LEGACY_STAGING_CONTACT_VALUES[key]
+  );
+}
+
+export function resetBlockedContactValues<T extends Record<string, unknown>>(content: T): T {
+  const safe: Record<string, unknown> = { ...content };
+  const keys: SiteContactKey[] = [
+    "contact.phone",
+    "contact.phoneDisplay",
+    "contact.whatsappPhone",
+    "contact.email",
+    "contact.officeAddress",
+    "contact.mapUrl",
+  ];
+  for (const key of keys) {
+    if (isBlockedContactValue(key, safe[key])) safe[key] = SITE_CONTENT_DEFAULTS[key];
+  }
+  return safe as T;
+}
+
 export function sanitizePublicSiteContent(
   content: Record<string, unknown> | null | undefined,
 ): SiteContent {
   const safe = { ...SITE_CONTENT_DEFAULTS } as Record<SiteContentKey, string>;
   for (const key of Object.keys(SITE_CONTENT_DEFAULTS) as SiteContentKey[]) {
     if (typeof content?.[key] === "string") safe[key] = content[key] as string;
-    if (safe[key] === LEGACY_UNAPPROVED_SITE_CONTENT[key])
+    if (
+      safe[key] === LEGACY_UNAPPROVED_SITE_CONTENT[key] ||
+      safe[key] === LEGACY_STAGING_CONTACT_VALUES[key]
+    )
       safe[key] = SITE_CONTENT_DEFAULTS[key];
+  }
+  for (const key of [
+    "contact.phone",
+    "contact.phoneDisplay",
+    "contact.whatsappPhone",
+    "contact.email",
+    "contact.location",
+  ] as const) {
+    if (!safe[key].trim()) safe[key] = SITE_CONTENT_DEFAULTS[key];
+  }
+  const policyReplacements: Record<string, [string, string][]> = {
+    "policy.privacy": [
+      [
+        "Sessions expire after about one year and may be renewed while you use the account.",
+        "Sessions expire after 90 days without activity and may be renewed while you use the account.",
+      ],
+      [
+        "Session records have an expiry of about one year.",
+        "Inactive customer session records expire after 90 days.",
+      ],
+      [
+        "contact {{contactEmail}} or +91 77355 27252.",
+        "contact {{contactEmail}} or {{contactPhone}}.",
+      ],
+    ],
+    "policy.shipping": [
+      [
+        "Shipping charges are calculated at checkout. Delivery details are confirmed for each order.",
+        "Shipping charges and delivery details are confirmed on the quotation or order.",
+      ],
+      [
+        "Shipping charges are calculated at checkout and can depend on the products, quantities and delivery location. The team confirms the final delivery details with your order.",
+        "Shipping charges depend on the products, quantities and delivery location. The team confirms charges and final delivery details on your quotation or order.",
+      ],
+    ],
+  };
+  for (const [key, replacements] of Object.entries(policyReplacements) as Array<["policy.privacy" | "policy.shipping", [string, string][]]>) {
+    safe[key] = replacements.reduce(
+      (value, [before, after]) => value.replaceAll(before, after),
+      safe[key],
+    );
+  }
+  for (const key of ["policy.privacy", "policy.terms", "policy.shipping", "policy.returns"] as const) {
+    try {
+      const policy = JSON.parse(safe[key]) as {
+        published?: unknown;
+        title?: unknown;
+        notice?: unknown;
+        sections?: { body?: unknown }[];
+      };
+      const publicText = [
+        String(policy.title || ""),
+        String(policy.notice || ""),
+        ...(policy.sections || []).flatMap((section) => [
+          String((section as { heading?: unknown }).heading || ""),
+          String(section.body || ""),
+        ]),
+      ];
+      if (policy.published === true && (
+        (publicText.some((text) => text.includes("{{contactEmail}}")) && !safe["contact.email"]) ||
+        (publicText.some((text) => text.includes("{{contactPhone}}")) && !safe["contact.phone"])
+      )) {
+        policy.published = false;
+        safe[key] = JSON.stringify(policy);
+      }
+    } catch {
+      safe[key] = SITE_CONTENT_DEFAULTS[key];
+    }
   }
   return safe;
 }

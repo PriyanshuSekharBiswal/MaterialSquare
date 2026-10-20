@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import { confirmAdminAction } from "../../components/confirmAdminAction";
 import { formatQuantityUnit } from "../../quantity-format";
@@ -61,6 +61,8 @@ export default function SupplierProducts({
 }) {
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [editing, setEditing] = useState<Product | null>(null);
+  const editForm = useRef<HTMLFormElement>(null);
+  const addModal = useRef<HTMLElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -69,6 +71,7 @@ export default function SupplierProducts({
   const [adding, setAdding] = useState(false);
   const [selectedProductNames, setSelectedProductNames] = useState<string[]>([]);
   const [selectedBrandCatalog, setSelectedBrandCatalog] = useState<SupplierBrandCatalogEntry[]>([]);
+  const [pickerHasDraft, setPickerHasDraft] = useState(false);
   const brandGroups = useMemo(() => {
     const groups = new Map<string, { brand: string; categories: Set<string>; products: Set<string> }>();
     for (const entry of supplier?.brandCatalog ?? []) {
@@ -88,6 +91,41 @@ export default function SupplierProducts({
     }
     return [...groups.values()].sort((left, right) => left.brand.localeCompare(right.brand));
   }, [supplier?.brandCatalog, supplier?.products]);
+  const requestEditClose = useCallback(async () => {
+    if (busy) return;
+    const form = editForm.current;
+    const values = form ? new FormData(form) : null;
+    const hasChanges = !!(editing && values && (
+      String(values.get("minimum") ?? "") !== String(editing.minimumOrderQty ?? "") ||
+      String(values.get("price") ?? "") !== String(editing.lastQuotedPrice ?? "") ||
+      String(values.get("availableQuantity") ?? "") !== String(editing.availableQuantity ?? "") ||
+      (values.get("active") === "on") !== editing.isActive ||
+      values.get("confirmPrice") === "on" ||
+      values.get("confirmAvailability") === "on"
+    ));
+    if (hasChanges && !(await confirmAdminAction({
+      title: "Discard unsaved product changes?",
+      message: "Your availability and pricing edits haven’t been saved.",
+      confirmLabel: "Discard changes",
+      tone: "danger",
+    }))) return;
+    setEditing(null);
+  }, [busy, editing]);
+  const requestAddClose = useCallback(async () => {
+    if (busy) return;
+    const hasChanges = pickerHasDraft || selectedProductNames.length > 0 || selectedBrandCatalog.length > 0;
+    if (hasChanges && !(await confirmAdminAction({
+      title: "Discard supplier selections?",
+      message: "Your selected brands, categories, and products haven’t been saved.",
+      confirmLabel: "Discard selections",
+      tone: "danger",
+    }))) return;
+    setAdding(false);
+    setSelectedProductNames([]);
+    setSelectedBrandCatalog([]);
+    setPickerHasDraft(false);
+  }, [busy, pickerHasDraft, selectedBrandCatalog.length, selectedProductNames.length]);
+  const handlePickerDraftChange = useCallback((hasDraft: boolean) => setPickerHasDraft(hasDraft), []);
   const refresh = useCallback(async () => {
     setBusy(true);
     setError("");
@@ -167,18 +205,17 @@ export default function SupplierProducts({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busy) {
-        setAdding(false);
-        setEditing(null);
-        setSelectedProductNames([]);
-      }
+      if (event.key !== "Escape" || busy) return;
+      if (adding && addModal.current?.querySelector('[aria-expanded="true"]')) return;
+      if (adding) void requestAddClose();
+      else if (editing) void requestEditClose();
     };
     document.addEventListener("keydown", closeOnEscape);
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [adding, editing, busy]);
+  }, [adding, editing, busy, requestAddClose, requestEditClose]);
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editing) return;
@@ -245,6 +282,7 @@ export default function SupplierProducts({
       setAdding(false);
       setSelectedProductNames([]);
       setSelectedBrandCatalog([]);
+      setPickerHasDraft(false);
       setNotice(selectedProductNames.length
         ? `${selectedProductNames.length} supplied product${selectedProductNames.length === 1 ? "" : "s"} added.`
         : "Supplier brands saved.");
@@ -260,7 +298,7 @@ export default function SupplierProducts({
       <header className="bc-supplier-detail-header">
         <div>
           <span className="bc-supplier-detail-eyebrow">Supplier overview</span>
-          <h2>{supplier?.name || "Supplier details"}</h2>
+          <h3 className="bc-supplier-detail-title">{supplier?.name || "Supplier details"}</h3>
           <p>Products carried and feedback recorded for this supplier.{supplier?.updatedAt ? ` Supplier record updated ${new Date(supplier.updatedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}.` : " Supplier record update time is unavailable."}</p>
         </div>
       </header>
@@ -276,8 +314,8 @@ export default function SupplierProducts({
           </div>
           <section className="bc-supplier-detail-section">
             <header className="bc-supplier-detail-section-heading">
-              <div><h3>Products supplied</h3><p>Manage this supplier’s brands, products, and availability.</p></div>
-              <button type="button" className="bc-primary bc-supplier-add-product-button" disabled={busy} onClick={() => { setAdding((current) => !current); setSelectedProductNames([]); setSelectedBrandCatalog([]); setEditing(null); setError(""); setNotice(""); }}>
+              <div><h4>Products supplied</h4><p>Manage this supplier’s brands, products, and availability.</p></div>
+              <button type="button" className="bc-primary bc-supplier-add-product-button" disabled={busy} onClick={() => { if (adding) { void requestAddClose(); return; } setAdding(true); setSelectedProductNames([]); setSelectedBrandCatalog([]); setPickerHasDraft(false); setEditing(null); setError(""); setNotice(""); }}>
                 <Plus size={16} aria-hidden="true" /> {adding ? "Close add product" : "Add supplied product"}
               </button>
             </header>
@@ -294,8 +332,20 @@ export default function SupplierProducts({
             )}
             {adding && (
               <div className="bc-product-add-modal-backdrop">
-                <section className="bc-product-add-modal" role="dialog" aria-modal="true" aria-labelledby="bc-product-add-modal-title">
-                  <button type="button" className="bc-product-add-modal-close" aria-label="Close add products" disabled={busy} onClick={() => { setAdding(false); setSelectedProductNames([]); }}><X size={19} /></button>
+                <section
+                  ref={addModal}
+                  className="bc-product-add-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="bc-product-add-modal-title"
+                  onKeyDown={(event) => {
+                    if (event.key !== "Escape" || addModal.current?.querySelector('[aria-expanded="true"]')) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    void requestAddClose();
+                  }}
+                >
+                  <button type="button" className="bc-product-add-modal-close" aria-label="Close add products" disabled={busy} onClick={() => void requestAddClose()}><X size={19} /></button>
                   <div className="bc-product-modal-scroll-area">
                     <header className="bc-product-add-modal-header">
                       <div><h3 id="bc-product-add-modal-title">Add supplied products</h3><p>Optionally list the brands, categories, and products this supplier carries.</p></div>
@@ -307,17 +357,18 @@ export default function SupplierProducts({
                         selectedProductNames={selectedProductNames}
                         onProductNamesChange={setSelectedProductNames}
                         onBrandCatalogChange={setSelectedBrandCatalog}
+                        onDraftStateChange={handlePickerDraftChange}
                       />
                       <div className="bc-supplier-product-form-actions">
                         <button className="bc-primary" disabled={busy || (!selectedProductNames.length && !selectedBrandCatalog.length)}>{selectedProductNames.length ? "Add listed products" : "Save selected brands"}</button>
-                        <button className="bc-button btn-orange-outline" type="button" disabled={busy} onClick={() => { setAdding(false); setSelectedProductNames([]); }}>Cancel</button>
+                        <button className="bc-button btn-orange-outline" type="button" disabled={busy} onClick={() => void requestAddClose()}>Cancel</button>
                       </div>
                     </form>
                   </div>
                 </section>
               </div>
             )}
-            {!supplier.products.length && <div className="bc-supplier-detail-empty"><span className="bc-supplier-empty-icon" aria-hidden="true">＋</span><div><strong>No products listed yet</strong><p>Add products from the supplier card to show what they carry.</p></div></div>}
+            {!supplier.products.length && <div className="bc-supplier-detail-empty" role="status"><span className="bc-supplier-empty-icon" aria-hidden="true">＋</span><div><strong>No products listed yet</strong><p>Add products from the supplier card to show what they carry.</p></div></div>}
             {supplier.products.map((product) => (
               <article className="bc-supplier-product-card" key={product.id}>
                 <div className="bc-supplier-product-copy">
@@ -349,14 +400,26 @@ export default function SupplierProducts({
           </section>
           {editing && (
             <div className="bc-product-add-modal-backdrop">
-              <section className="bc-product-add-modal bc-product-edit-modal" role="dialog" aria-modal="true" aria-labelledby="bc-product-edit-modal-title">
-                <button type="button" className="bc-product-add-modal-close" aria-label="Close edit product" disabled={busy} onClick={() => setEditing(null)}><X size={19} /></button>
+              <section
+                className="bc-product-add-modal bc-product-edit-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="bc-product-edit-modal-title"
+                onKeyDown={(event) => {
+                  if (event.key !== "Escape") return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void requestEditClose();
+                }}
+              >
+                <button type="button" className="bc-product-add-modal-close" aria-label="Close edit product" disabled={busy} onClick={() => void requestEditClose()}><X size={19} /></button>
                 <div className="bc-product-modal-scroll-area">
                   <header className="bc-product-add-modal-header">
                     <div><h3 id="bc-product-edit-modal-title">Edit supplied product</h3><p>{editing.productName} · Update this supplier’s availability and pricing details.</p></div>
                   </header>
-                  <form className="bc-supplier-product-edit-form" key={editing.id} onSubmit={save}>
+                  <form ref={editForm} className="bc-supplier-product-edit-form" key={editing.id} onSubmit={save}>
                     <fieldset disabled={busy} className="bc-fields">
+                    <legend className="admin-sr-only">Supplier product details</legend>
                     <label>
                       Minimum supplied quantity
                       <input
@@ -412,7 +475,7 @@ export default function SupplierProducts({
                         className="bc-button btn-orange-outline"
                         type="button"
                         disabled={busy}
-                        onClick={() => setEditing(null)}
+                        onClick={() => void requestEditClose()}
                       >
                         Cancel product edit
                       </button>
@@ -423,9 +486,9 @@ export default function SupplierProducts({
             </div>
           )}
           <section className="bc-supplier-detail-section bc-supplier-rating-section">
-            <header className="bc-supplier-detail-section-heading"><div><h3>Recent ratings</h3><p>Feedback scores and notes recorded by your team.</p></div></header>
+            <header className="bc-supplier-detail-section-heading"><div><h4>Recent ratings</h4><p>Feedback scores and notes recorded by your team.</p></div></header>
             {!supplier.ratings.length ? (
-              <div className="bc-supplier-detail-empty bc-supplier-rating-empty"><span className="bc-supplier-empty-icon" aria-hidden="true">☆</span><div><strong>No ratings yet</strong><p>Ratings will appear here after one is recorded for this supplier.</p></div></div>
+              <div className="bc-supplier-detail-empty bc-supplier-rating-empty" role="status"><span className="bc-supplier-empty-icon" aria-hidden="true">☆</span><div><strong>No ratings yet</strong><p>Ratings will appear here after one is recorded for this supplier.</p></div></div>
             ) : supplier.ratings.map((rating) => (
               <article className="bc-supplier-rating-card" key={rating.id}>
                 <div className="bc-supplier-rating-copy">

@@ -1,5 +1,18 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { formatEnumLabel } from "../../utils/formatEnumLabel";
+
+function ConfigurationName({ name }: { name: string }) {
+  return (
+    <code>
+      {name.split("_").map((part, index) => (
+        <Fragment key={`${name}-${index}`}>
+          {index > 0 && <>_<wbr /></>}
+          {part}
+        </Fragment>
+      ))}
+    </code>
+  );
+}
 
 type Entry = {
   id: string;
@@ -12,6 +25,7 @@ type Page = { items: Entry[]; total: number; pageSize: number };
 type Readiness = {
   ready: boolean;
   missingRequired: string[];
+  webhookConfigured: boolean;
   webhookTokenConfigured: boolean;
   missingSmsTemplates?: string[];
 };
@@ -31,7 +45,7 @@ export default function NotificationStatus({ token, revision }: { token: string;
     const url = new URL(window.location.href);
     if (filters.status) url.searchParams.set("notificationStatus", filters.status);
     else url.searchParams.delete("notificationStatus");
-    if (filters.type) url.searchParams.set("notificationType", filters.type);
+    if (filters.type.trim()) url.searchParams.set("notificationType", filters.type.trim());
     else url.searchParams.delete("notificationType");
     if (page > 1) url.searchParams.set("notificationPage", String(page));
     else url.searchParams.delete("notificationPage");
@@ -85,7 +99,7 @@ export default function NotificationStatus({ token, revision }: { token: string;
     setError("");
     const params = new URLSearchParams({ page: String(page) });
     if (filters.status) params.set("status", filters.status);
-    if (filters.type) params.set("type", filters.type);
+    if (filters.type.trim()) params.set("type", filters.type.trim());
     async function load() {
       try {
         const response = await fetch(
@@ -122,15 +136,6 @@ export default function NotificationStatus({ token, revision }: { token: string;
     void load();
     return () => controller.abort();
   }, [page, revision, token, filters]);
-  function applyFilters(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    setFilters({
-      status: String(data.get("status") || ""),
-      type: String(data.get("type") || "").trim(),
-    });
-    setPage(1);
-  }
   return (
     <section className="notification-status-page">
       <h2>Notification status</h2>
@@ -139,8 +144,8 @@ export default function NotificationStatus({ token, revision }: { token: string;
         accepted the request; recipient delivery is not confirmed here.
       </p>
       {readinessError ? (
-        <div>
-          <p role="status">{readinessError}</p>
+        <div className="admin-error" role="alert">
+          <p>{readinessError}</p>
           <button
             className="btn-sm"
             disabled={checkingReadiness}
@@ -155,23 +160,43 @@ export default function NotificationStatus({ token, revision }: { token: string;
           <strong>Notification delivery is not configured.</strong>
           <p>
             Jobs stay pending until an administrator configures:{" "}
-            {readiness.missingRequired.join(", ")}.
-            {readiness.webhookTokenConfigured
-              ? ""
-              : " The optional NOTIFICATION_WEBHOOK_TOKEN is also not set."}
+            {readiness.missingRequired.map((name, index) => (
+              <Fragment key={name}>
+                {index > 0 ? ", " : ""}
+                <ConfigurationName name={name} />
+              </Fragment>
+            ))}.
+            {readiness.webhookConfigured && !readiness.webhookTokenConfigured
+              ? <> <ConfigurationName name="NOTIFICATION_WEBHOOK_TOKEN" /> is required for authenticated production webhook delivery.</>
+              : ""}
           </p>
           {readiness.missingSmsTemplates?.length ? (
-            <p>MSG91 SMS also needs: {readiness.missingSmsTemplates.join(", ")}.</p>
+            <p>
+              MSG91 SMS also needs: {readiness.missingSmsTemplates.map((name, index) => (
+                <Fragment key={name}>
+                  {index > 0 ? ", " : ""}
+                  <ConfigurationName name={name} />
+                </Fragment>
+              ))}.
+            </p>
           ) : null}
           <p>Secret values are never shown in this screen.</p>
         </aside>
       ) : readiness?.ready ? (
         <p role="status">Notification worker configuration is present.</p>
       ) : null}
-      <form onSubmit={applyFilters} className="filter-bar notification-filter-form">
+      <div className="filter-bar notification-filter-form">
         <label>
           Notification outcome
-          <select name="status">
+          <select
+            name="status"
+            value={filters.status}
+            onChange={(event) => {
+              const status = event.currentTarget.value;
+              setFilters((current) => ({ ...current, status }));
+              setPage(1);
+            }}
+          >
             <option value="">All outcomes</option>
             {["PENDING", "QUEUED", "DELIVERED", "FAILED", "SKIPPED"].map(
               (status) => (
@@ -184,12 +209,19 @@ export default function NotificationStatus({ token, revision }: { token: string;
         </label>
         <label>
           Notification type
-          <input name="type" maxLength={100} placeholder="Exact job type" />
+          <input
+            name="type"
+            maxLength={100}
+            placeholder="Exact job type"
+            value={filters.type}
+            onChange={(event) => {
+              const type = event.currentTarget.value;
+              setFilters((current) => ({ ...current, type }));
+              setPage(1);
+            }}
+          />
         </label>
-        <div className="notification-filter-actions">
-          <button className="btn-sm btn-secondary btn-orange-outline">Filter notifications</button>
-        </div>
-      </form>
+      </div>
       {error ? (
         <p role="alert">{error}</p>
       ) : !result ? (
@@ -200,7 +232,7 @@ export default function NotificationStatus({ token, revision }: { token: string;
             <p><strong>{result.total}</strong> notification jobs</p>
           </div>
           {result.items.length === 0 ? (
-            <p className="empty">No notification jobs recorded.</p>
+            <p className="empty" role="status">No notification jobs recorded.</p>
           ) : (
             <div className="table-scroll">
               <table>

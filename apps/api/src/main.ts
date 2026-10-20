@@ -7,6 +7,7 @@ import { SecurityExceptionFilter } from "./common/http-exception.filter";
 import helmet from "helmet";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
+import { PrismaService } from "./prisma/prisma.service";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { ValidationPipe } from "@nestjs/common";
 import { json, urlencoded } from "express";
@@ -43,7 +44,6 @@ async function bootstrap() {
     throw new Error("Invalid TRUST_PROXY_HOPS");
   app.getHttpAdapter().getInstance().set("trust proxy", proxyHops);
   app.enableShutdownHooks();
-  app.use(publicRateLimit());
 
   // Set global API prefix
   app.setGlobalPrefix("api");
@@ -85,6 +85,7 @@ async function bootstrap() {
       "Origin",
     ],
   });
+  app.use(publicRateLimit(app.get(PrismaService)));
 
   app.use(trustedOriginMiddleware(configuredOrigins));
 

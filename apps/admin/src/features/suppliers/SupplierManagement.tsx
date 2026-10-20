@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, Search, Trash2, X } from "lucide-react";
+import { ArrowLeft, Plus, Search, Trash2, X } from "lucide-react";
 import { confirmAdminAction } from "../../components/confirmAdminAction";
 import type { FormSubmit, Mutate } from "../business/form-contracts";
 import ServiceAreaPincodes from "./ServiceAreaPincodes";
@@ -108,7 +108,7 @@ export default function SupplierManagement({
   const [view, setView] = useState<"add" | "list" | "edit" | "details">(() => {
     const params = new URLSearchParams(window.location.search);
     const requested = params.get("supplierView");
-    return requested === "list" || requested === "edit" || requested === "details" ? requested : "add";
+    return requested === "add" || requested === "edit" || requested === "details" ? requested : "list";
   });
   const [supplierDetailId, setSupplierDetailId] = useState(() => new URLSearchParams(window.location.search).get("supplierId") || "");
   const navigateSupplierView = (nextView: "add" | "list" | "edit" | "details", supplierId = "") => {
@@ -131,6 +131,7 @@ export default function SupplierManagement({
   const [supplierRatingFilter, setSupplierRatingFilter] = useState("all");
   const [supplierProductFilter, setSupplierProductFilter] = useState("all");
   const [supplierCityFilter, setSupplierCityFilter] = useState("all");
+  const [supplierPage, setSupplierPage] = useState(1);
   const [catalogueVariants, setCatalogueVariants] = useState<SupplierCatalogueVariant[]>([]);
   const [catalogueBrandOptions, setCatalogueBrandOptions] = useState<SupplierBrandOption[]>([]);
   const [selectedProductNames, setSelectedProductNames] = useState<string[]>([]);
@@ -157,7 +158,7 @@ export default function SupplierManagement({
     const syncSupplierView = () => {
       const params = new URLSearchParams(window.location.search);
       const requested = params.get("supplierView");
-      setView(requested === "list" || requested === "edit" || requested === "details" ? requested : "add");
+      setView(requested === "add" || requested === "edit" || requested === "details" ? requested : "list");
       setSupplierDetailId(params.get("supplierId") || "");
     };
     window.addEventListener("popstate", syncSupplierView);
@@ -261,6 +262,18 @@ export default function SupplierManagement({
       if (supplierSort === "za") return b.name.localeCompare(a.name);
       return (b._count?.ratings ?? 0) - (a._count?.ratings ?? 0) || a.name.localeCompare(b.name);
     });
+  const supplierPageSize = 10;
+  const supplierPageCount = Math.max(1, Math.ceil(supplierRows.length / supplierPageSize));
+  const visibleSupplierRows = supplierRows.slice(
+    (supplierPage - 1) * supplierPageSize,
+    supplierPage * supplierPageSize,
+  );
+  useEffect(() => {
+    setSupplierPage(1);
+  }, [directoryResults, supplierStatusFilter, supplierDateFilter, supplierRatingFilter, supplierProductFilter, supplierCityFilter, supplierSort]);
+  useEffect(() => {
+    if (supplierPage > supplierPageCount) setSupplierPage(supplierPageCount);
+  }, [supplierPage, supplierPageCount]);
   const clearSupplierFilters = () => {
     setSupplierStatusFilter("all");
     setSupplierDateFilter("all");
@@ -268,6 +281,7 @@ export default function SupplierManagement({
     setSupplierProductFilter("all");
     setSupplierCityFilter("all");
     setSupplierSort("newest");
+    setSupplierPage(1);
   };
   const canSaveSupplier = !busy;
   const loadSupplierRatings = async (supplierId: string) => {
@@ -298,11 +312,13 @@ export default function SupplierManagement({
   useEffect(() => {
     if (!ratingEditorSupplier) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") requestRatingClose();
+      if (event.key !== "Escape" || busy) return;
+      if (confirmRatingClose) setConfirmRatingClose(false);
+      else requestRatingClose();
     };
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [ratingEditorSupplier, ratingHasChanges]);
+  }, [busy, confirmRatingClose, ratingEditorSupplier, ratingHasChanges]);
 
   return (
     <>
@@ -321,27 +337,36 @@ export default function SupplierManagement({
         >
           <ArrowLeft size={15} aria-hidden="true" /> Back to registered suppliers
         </button>
-      ) : <div className="supplier-management-switch" aria-label="Supplier pages">
+      ) : view === "list" ? (
+        <div className="supplier-list-heading">
+          <h3 className="supplier-list-title">Registered suppliers</h3>
+          <button
+            type="button"
+            className="btn-sm btn-primary"
+            onClick={() => {
+              setSupplierDetailId("");
+              setEditingSupplier(null);
+              setSelectedProductNames([]);
+              setSelectedBrandCatalog([]);
+              navigateSupplierView("add");
+            }}
+          >
+            <Plus size={16} aria-hidden="true" />
+            Add supplier
+          </button>
+        </div>
+      ) : (
         <button
           type="button"
-          className={`supplier-page-tab${view === "add" ? " active" : ""}`}
+          className="bc-button btn-orange-outline supplier-page-back admin-back-button"
           onClick={() => {
-            setSupplierDetailId("");
-            setEditingSupplier(null);
-            setSelectedProductNames([]);
-            setView("add");
+            if (window.history.state?.supplierView) window.history.back();
+            else navigateSupplierView("list");
           }}
         >
-          Add supplier
+          <ArrowLeft size={15} aria-hidden="true" /> Back to registered suppliers
         </button>
-        <button
-          type="button"
-          className={`supplier-page-tab${view === "list" ? " active" : ""}`}
-          onClick={() => { setEditingSupplier(null); setSelectedProductNames([]); setSelectedBrandCatalog([]); navigateSupplierView("list"); }}
-        >
-          Registered suppliers
-        </button>
-      </div>}
+      )}
       {(view === "add" || view === "edit") && (
       <form
         key={editingSupplier?.id || "new-supplier"}
@@ -382,8 +407,9 @@ export default function SupplierManagement({
           });
         }}
       >
-        <h2>{editingSupplier ? "Edit supplier" : "Add a supplier"}</h2>
+        <h3 className="supplier-form-title">{editingSupplier ? "Edit supplier" : "Add a supplier"}</h3>
         <fieldset disabled={busy} className="bc-fields">
+          <legend className="admin-sr-only">Supplier details</legend>
           <label>
             Company Name
             <input
@@ -555,7 +581,6 @@ export default function SupplierManagement({
       )}
       {view === "list" && (
       <>
-      <h2>Registered suppliers</h2>
       <form
         className="bc-supplier-search"
         onSubmit={async (event: FormEvent<HTMLFormElement>) => {
@@ -656,7 +681,7 @@ export default function SupplierManagement({
       </div>
       {(directoryResults || records.length > 0) && supplierRows.length > 0 && (
         <p className="bc-supplier-search-summary" role="status">
-          Showing {supplierRows.length} {supplierRows.length === 1 ? "supplier" : "suppliers"}
+          Showing {(supplierPage - 1) * supplierPageSize + 1}–{Math.min(supplierPage * supplierPageSize, supplierRows.length)} of {supplierRows.length} {supplierRows.length === 1 ? "supplier" : "suppliers"}
           {directoryQuery.trim() ? <> for <strong>“{directoryQuery.trim()}”</strong></> : null}
         </p>
       )}
@@ -666,7 +691,7 @@ export default function SupplierManagement({
           <span>{sourceRecords.length ? "Try changing a filter or reset them to see all registered suppliers." : "Try a supplier name, product, brand, category, or location."}</span>
         </div>
       )}
-      {supplierRows.map((s) => {
+      {visibleSupplierRows.map((s) => {
         const latestRating = ratingDetailsLoaded[s.id]
           ? ratingDetailsBySupplier[s.id]?.[0]
           : s.ratings?.[0];
@@ -789,13 +814,23 @@ export default function SupplierManagement({
             </div>
           ) : (
             <div className="bc-rating-readonly bc-rating-readonly-empty">
-              <span>{ratingDetailsLoaded[s.id] ? "No rating recorded yet." : "Checking for saved ratings…"}</span>
+              <span role="status">{ratingDetailsLoaded[s.id] ? "No rating recorded yet." : "Checking for saved ratings…"}</span>
               {ratingDetailsLoaded[s.id] && <button type="button" className="bc-button btn-orange-outline" onClick={() => { setRatingEditorSupplier({ ...s, ratings: [] }); setRatingHasChanges(false); setConfirmRatingClose(false); }}>Record rating</button>}
             </div>
           )}
           </details>
         </article>
       ); })}
+      {supplierRows.length > supplierPageSize && (
+        <nav className="admin-pagination-controls bc-supplier-pagination" aria-label="Supplier results pages">
+          <span>Showing {(supplierPage - 1) * supplierPageSize + 1}–{Math.min(supplierPage * supplierPageSize, supplierRows.length)} of {supplierRows.length}</span>
+          <div className="recent-pagination">
+            <button type="button" className="btn-sm btn-secondary" disabled={supplierPage === 1} onClick={() => setSupplierPage((current) => current - 1)}>Previous</button>
+            <span>Page {supplierPage} of {supplierPageCount}</span>
+            <button type="button" className="btn-sm btn-secondary" disabled={supplierPage === supplierPageCount} onClick={() => setSupplierPage((current) => current + 1)}>Next</button>
+          </div>
+        </nav>
+      )}
       </>
       )}
       {ratingEditorSupplier && (() => {
@@ -869,7 +904,7 @@ export default function SupplierManagement({
               </footer>
               {confirmRatingClose && (
                 <div className="supplier-rating-confirm-overlay">
-                  <section className="supplier-rating-confirm" role="alertdialog" aria-modal="true" aria-labelledby="supplier-rating-confirm-title" aria-describedby="supplier-rating-confirm-description">
+                  <section className="supplier-rating-confirm admin-confirm-surface" role="alertdialog" aria-modal="true" aria-labelledby="supplier-rating-confirm-title" aria-describedby="supplier-rating-confirm-description">
                     <h3 id="supplier-rating-confirm-title">Close without saving?</h3>
                     <p id="supplier-rating-confirm-description">Your rating changes haven’t been saved. Closing now will discard them.</p>
                     <div>

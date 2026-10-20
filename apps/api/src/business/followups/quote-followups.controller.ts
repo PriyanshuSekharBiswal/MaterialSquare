@@ -133,7 +133,7 @@ export class QuoteFollowupsController {
 
       return this.prisma.$transaction(async (tx) => {
         const closed = await tx.quotationFollowUp.updateMany({
-          where: { id, quotationId: quoteId, status: "SCHEDULED" },
+          where: { id, quotationId: quoteId, status: "SCHEDULED", notes: followup.notes },
           data: { status: "CANCELLED" },
         });
         if (closed.count !== 1)
@@ -191,8 +191,30 @@ export class QuoteFollowupsController {
       });
     }
 
-    if (!data.status)
-      throw new BadRequestException("Choose a status or new schedule time");
+    if (!data.status) {
+      if (followup.status !== "SCHEDULED")
+        throw new ConflictException("Only scheduled follow-ups can have their notes changed");
+      if (data.notes === undefined)
+        throw new BadRequestException("Provide notes to update the scheduled follow-up");
+      return this.prisma.$transaction(async (tx) => {
+        const changed = await tx.quotationFollowUp.updateMany({
+          where: { id, quotationId: quoteId, status: "SCHEDULED" },
+          data: { notes: data.notes },
+        });
+        if (changed.count !== 1)
+          throw new ConflictException("This follow-up changed. Refresh before updating it.");
+        await tx.auditLog.create({
+          data: {
+            staffId: req?.user.userId,
+            action: "QUOTATION_FOLLOWUP_UPDATED",
+            entityType: "QUOTATION",
+            entityId: quoteId,
+            metadata: { followupId: id, status: "SCHEDULED", notesUpdated: true },
+          },
+        });
+        return tx.quotationFollowUp.findUniqueOrThrow({ where: { id } });
+      });
+    }
     if (followup.status === "CANCELLED" || followup.status === "SENT")
       throw new ConflictException("This follow-up is already closed");
     return this.prisma.$transaction(async (tx) => {

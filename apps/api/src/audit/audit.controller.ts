@@ -40,6 +40,7 @@ export class AuditController {
       this.prisma.auditLog.findMany({
         where,
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 50,
         select: {
           id: true,
           action: true,

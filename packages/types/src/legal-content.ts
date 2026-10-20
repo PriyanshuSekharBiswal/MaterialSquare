@@ -20,8 +20,8 @@ export type PolicyKind = "privacy" | "terms" | "shipping" | "returns";
 export const DEFAULT_POLICIES: Record<PolicyKind, WebsitePolicy> = {
   privacy: {
     title: "Privacy Notice",
-    notice: "Last updated 8 October 2026",
-    published: true,
+    notice: "Last updated 19 October 2026",
+    published: false,
     sections: [
       {
         heading: "Who this notice covers",
@@ -33,7 +33,7 @@ export const DEFAULT_POLICIES: Record<PolicyKind, WebsitePolicy> = {
       },
       {
         heading: "Phone verification and account sessions",
-        body: "Customer sign-in verifies a mobile number using a one-time code sent through MSG91, the configured verification service. The website application does not save the one-time code as a customer record. MSG91 processes the phone number and verification request under its own terms and retention practices. After sign-in, the application stores a customer session record and a hash of its session token, with creation and expiry information. A browser cookie named ms_customer_session keeps the session; it is HttpOnly, uses SameSite=Lax, is limited to the /api path, and is marked Secure in production. Sessions expire after about one year and may be renewed while you use the account. Sign out or clear this site’s browser data to remove the browser session; the server session record may remain until its expiry or deletion.",
+        body: "Customer sign-in verifies a mobile number using a one-time code sent through MSG91, the configured verification service. The website application does not save the one-time code as a customer record. MSG91 processes the phone number and verification request under its own terms and retention practices. After sign-in, the application stores a customer session record and a hash of its session token, with creation and expiry information. A browser cookie named ms_customer_session keeps the session; it is HttpOnly, uses SameSite=Lax, is limited to the /api path, and is marked Secure in production. Sessions expire after 90 days without activity and may be renewed while you use the account. Sign out or clear this site’s browser data to remove the browser session; the server session record may remain until its expiry or deletion.",
       },
       {
         heading: "Enquiries, quotations and orders",
@@ -44,12 +44,12 @@ export const DEFAULT_POLICIES: Record<PolicyKind, WebsitePolicy> = {
         body: "Only upload files you are entitled to share and that are relevant to your request. Uploaded project files are used to understand and respond to the enquiry and are accessible to authorised staff and service providers needed to store or process them. Do not upload another person’s personal information unless you have authority to do so. Public product and category images are business catalogue content and are separate from customer-submitted project files.",
       },
       {
-        heading: "Guest material lists and browser storage",
-        body: "You can browse without signing in. A guest material list is kept in this browser’s local storage under the key material-square-bom; it can include selected product names, identifiers, brand, unit, quantity, specifications and options. It is not sent to the server just by being kept in the list. Clearing this site’s browser storage removes that local list. The site also uses the essential customer-session cookie described above. The current application code does not include an advertising pixel or third-party behavioural advertising analytics. Your browser or hosting provider may still keep ordinary technical logs.",
+        heading: "Cookies and similar browser storage",
+        body: "The customer website uses the essential ms_customer_session cookie only after customer sign-in. It is an HttpOnly, SameSite=Lax cookie scoped to /api and marked Secure in production; it keeps the signed-in session and is not used for advertising. The staff workspace separately uses an HttpOnly ms_staff_session cookie with the same path and security attributes; staff sessions expire after 12 hours. You can remove either cookie by signing out or clearing this site’s browser data, though account features then require sign-in again. The site does not set an advertising or analytics cookie. To keep features working, local storage on the customer site holds the active material list under material-square-bom and saved-for-later items under material-square-bom-saved. These lists can contain selected product/option identifiers, product names, brands, quantities, units and specifications. They stay in the browser until removed or browser storage is cleared; they are not sent to the server merely by being stored. Session storage keeps temporary scroll positions and a marketplace result count for the current tab session. The staff workspace may keep local editor recovery drafts and a selected editor section in that staff browser; avoid using a shared device for staff work and clear its browser data when appropriate. When phone verification is started, the MSG91 verification widget is loaded from MSG91; its own browser storage and cookie practices are governed by MSG91 and should be confirmed against the provider’s current documentation before publication. You can control or clear browser storage through your browser settings; disabling it may prevent material lists, session continuity or editor recovery from working.",
       },
       {
         heading: "Website analytics and security logs",
-        body: "The website records aggregate counts by day for page views, product views, material-list additions and clicks that hand off an enquiry to WhatsApp or email. These counters record the event type and an allowed page or product target; they are not linked to a visitor account and do not contain the saved list, search text, name or phone number. For service security and abuse prevention, the API may temporarily use a request IP address and API path in an in-memory rate limiter, and hosting or infrastructure providers may create server, diagnostic or security logs. Staff activity and security records can include staff account, action, time and related record or request metadata.",
+        body: "The website records aggregate counts by day for page views, product views, material-list additions and clicks that hand off an enquiry to WhatsApp or email. These counters record the event type and an allowed page or product target; they are not linked to a visitor account and do not contain the saved list, search text, name or phone number. Analytics counters currently have no automatic deletion schedule. For service security and abuse prevention, the API stores short-lived rate-limit counters in the database. It uses keyed HMAC digests of the request IP and route, and, for staff login, the normalized login identifier; the raw IP and login identifier are not stored in those counters. Rate-limit buckets expire after a 15-minute window and expired rows are cleaned up periodically. Hosting or infrastructure providers may also create server, diagnostic or security logs under their own retention practices. Staff activity and security records can include staff account, action, time and related record or request metadata.",
       },
       {
         heading: "How we use information",
@@ -61,7 +61,7 @@ export const DEFAULT_POLICIES: Record<PolicyKind, WebsitePolicy> = {
       },
       {
         heading: "Retention and deletion requests",
-        body: "We keep account, enquiry, quotation, order, delivery, payment-reference and related business records for as long as needed to respond, operate the business, resolve disputes and meet legal or accounting duties. Session records have an expiry of about one year. The application also has short-lived website-content recovery records (up to seven days), a seven-day recent-activity view, and a 30-day recovery period for certain soft-deleted catalogue records. Aggregate analytics counters do not currently have an automatic deletion schedule. These technical periods are not a complete retention schedule for all business records; the business must set and follow a documented schedule. You can ask us to correct or delete information using the contact details below. We may need to verify your identity and may retain information where law or a transaction requires it.",
+        body: "We keep account, enquiry, quotation, order, delivery, payment-reference and related business records for as long as needed to respond, operate the business, resolve disputes and meet legal or accounting duties. Inactive customer session records expire after 90 days. The application also has short-lived website-content recovery records (up to seven days), a seven-day recent-activity view, and a 30-day recovery period for certain soft-deleted catalogue records. Aggregate analytics counters do not currently have an automatic deletion schedule. These technical periods are not a complete retention schedule for all business records; the business must set and follow a documented schedule. You can ask us to correct or delete information using the contact details below. We may need to verify your identity and may retain information where law or a transaction requires it.",
       },
       {
         heading: "Your choices and requests",
@@ -73,16 +73,16 @@ export const DEFAULT_POLICIES: Record<PolicyKind, WebsitePolicy> = {
       },
       {
         heading: "Children and privacy contact",
-        body: "This business catalogue is intended for people making construction-material enquiries, not for children. Do not knowingly submit a child’s personal information through the site. If you believe a child’s information was submitted, contact {{contactEmail}} so we can review it. For any other privacy question, correction, deletion request or complaint, contact {{contactEmail}} or +91 77355 27252.",
+        body: "This business catalogue is intended for people making construction-material enquiries, not for children. Do not knowingly submit a child’s personal information through the site. If you believe a child’s information was submitted, contact {{contactEmail}} so we can review it. For any other privacy question, correction, deletion request or complaint, contact {{contactEmail}} or {{contactPhone}}.",
       },
     ],
     reviewNote:
-      "Before production launch, confirm the operating legal name and principal address, appointed grievance officer name/designation, customer-support process, actual production vendors and processing regions, retention schedule and deletion workflow, any cookies/analytics added outside this app, and lawyer review. Contact currently configured: {{contactEmail}} / {{contactPhone}}. Do not treat this copy as a guarantee of legal compliance.",
+      "Before production launch, confirm the operating legal name and principal address, appointed grievance officer name/designation, customer-support process, actual production vendors and processing regions, exact MSG91 widget cookies/storage, retention schedule and deletion workflow, any cookies/analytics added outside this app, whether a consent or preference control is required in each target jurisdiction, and lawyer review. Recheck this notice whenever OTP or notification providers change. Contact currently configured: {{contactEmail}} / {{contactPhone}}. Do not treat this copy as a guarantee of legal compliance.",
   },
   terms: {
     title: "Terms and Conditions",
     notice: "Last updated 8 October 2026",
-    published: true,
+    published: false,
     sections: [
       {
         heading: "About these terms",
@@ -138,12 +138,12 @@ export const DEFAULT_POLICIES: Record<PolicyKind, WebsitePolicy> = {
   },
   shipping: {
     title: "Shipping Policy",
-    notice: "Shipping charges are calculated at checkout. Delivery details are confirmed for each order.",
-    published: true,
+      notice: "Shipping charges and delivery details are confirmed on the quotation or order.",
+    published: false,
     sections: [
       {
         heading: "Shipping charges",
-        body: "Shipping charges are calculated at checkout and can depend on the products, quantities and delivery location. The team confirms the final delivery details with your order.",
+        body: "Shipping charges depend on the products, quantities and delivery location. The team confirms charges and final delivery details on your quotation or order.",
       },
       {
         heading: "Delivery timing and availability",
@@ -159,7 +159,7 @@ export const DEFAULT_POLICIES: Record<PolicyKind, WebsitePolicy> = {
   returns: {
     title: "Return Policy",
     notice: "Return and replacement requests are reviewed with the Material Square team for each order.",
-    published: true,
+    published: false,
     sections: [
       {
         heading: "Requesting a return or replacement",

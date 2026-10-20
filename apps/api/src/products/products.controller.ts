@@ -12,9 +12,13 @@ import {
   Delete,
   Put,
   Req,
+  Res,
+  Query,
 } from "@nestjs/common";
 import { CatalogListingInput, ProductsService } from "./products.service";
 import type { StaffRequest } from "../auth/staff-request";
+import type { Response } from "express";
+import { parsePagination } from "../common/pagination";
 
 const optionalText = z.string().trim().max(500).nullable().optional();
 const optionalDate = z
@@ -249,7 +253,14 @@ export class ProductsController {
   }
 
   @Get()
-  getAllProducts() {
+  getAllProducts(@Res({ passthrough: true }) response: Response) {
+    // This endpoint contains public catalogue data only. A brief browser/CDN
+    // cache makes hard reloads fast while keeping price and stock updates fresh.
+    response.setHeader(
+      "Cache-Control",
+      "public, max-age=15, s-maxage=60, stale-while-revalidate=60",
+    );
+    response.removeHeader("Pragma");
     return this.productsService.findPublic();
   }
 
@@ -269,10 +280,59 @@ export class ProductsController {
     return this.productsService.findInventory();
   }
 
+  @Get("catalogue/lookup")
+  @UseGuards(StaffGuard)
+  catalogueLookup(
+    @Query("ids") idsInput?: string,
+    @Query("includeDeleted") includeDeletedInput?: string,
+  ) {
+    const ids = validate(
+      z.array(z.string().trim().min(1).max(100)).min(1).max(100),
+      (idsInput || "").split(","),
+    );
+    const includeDeleted = validate(z.enum(["true", "false"]).optional(), includeDeletedInput) === "true";
+    return this.productsService.findCatalogueByIds([...new Set(ids)], includeDeleted);
+  }
+
+  @Get("catalogue/matches")
+  @UseGuards(StaffGuard)
+  catalogueMatches(
+    @Query("material") materialInput?: string,
+    @Query("brand") brandInput?: string,
+    @Query("unit") unitInput?: string,
+    @Query("page") pageInput?: string,
+    @Query("pageSize") pageSizeInput?: string,
+  ) {
+    const query = validate(z.object({
+      material: z.string().trim().min(2).max(160),
+      brand: z.string().trim().max(120).optional(),
+      unit: z.string().trim().max(100).optional(),
+    }), {
+      material: materialInput,
+      brand: brandInput,
+      unit: unitInput,
+    });
+    const pagination = pageInput !== undefined || pageSizeInput !== undefined
+      ? parsePagination(pageInput, pageSizeInput)
+      : undefined;
+    return this.productsService.findCatalogueMatches(
+      query.material,
+      query.brand,
+      query.unit,
+      pagination,
+    );
+  }
+
   @Get("catalogue")
   @UseGuards(StaffGuard)
-  catalogue() {
-    return this.productsService.findCatalogue();
+  catalogue(
+    @Query("page") pageInput?: string,
+    @Query("pageSize") pageSizeInput?: string,
+  ) {
+    const pagination = pageInput !== undefined || pageSizeInput !== undefined
+      ? parsePagination(pageInput, pageSizeInput)
+      : undefined;
+    return this.productsService.findCatalogue(pagination);
   }
 
   @Post("catalogue")

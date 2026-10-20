@@ -61,13 +61,18 @@ export class StorageController {
       );
     const key = `images/${randomUUID()}.${type.extension}`;
     const url = await this.storage.uploadFile(key, bytes, type.mimeType);
-    return this.mediaAssets.recordUploadedAsset({
-      key,
-      url,
-      originalName: file.originalname || `image.${type.extension}`,
-      mimeType: type.mimeType,
-      byteSize: file.size ?? bytes.byteLength,
-      staffId: req?.user.userId,
-    });
+    try {
+      return await this.mediaAssets.recordUploadedAsset({
+        key,
+        url,
+        originalName: file.originalname || `image.${type.extension}`,
+        mimeType: type.mimeType,
+        byteSize: file.size ?? bytes.byteLength,
+        staffId: req?.user.userId,
+      });
+    } catch (cause) {
+      await this.storage.deletePrivateFile(key).catch(() => undefined);
+      throw cause;
+    }
   }
 }

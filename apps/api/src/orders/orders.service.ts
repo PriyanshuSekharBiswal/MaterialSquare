@@ -9,14 +9,18 @@ import { PdfService } from "../pdf/pdf.service";
 import { creditDeliveredOrderLoyalty } from "./order-loyalty";
 import { Prisma } from "@prisma/client";
 import { createBusinessReferenceNumber } from "../business/procurement/procurement-number";
+import { paginatedResult, type Pagination } from "../common/pagination";
 @Injectable()
 export class OrdersService {
   constructor(
     private prisma: PrismaService,
     private pdfService: PdfService,
   ) {}
-  findAll() {
-    return this.prisma.order.findMany({
+  async findAll(includeFinancialDetails = true, pagination?: Pagination) {
+    const orders = await this.prisma.order.findMany({
+      ...(pagination
+        ? { skip: pagination.skip, take: pagination.pageSize + 1 }
+        : {}),
       include: {
         dispatch: true,
         quotation: {
@@ -31,10 +35,16 @@ export class OrdersService {
         payments: { include: { recordedBy: { select: { name: true } } }, orderBy: { recordedAt: "asc" } },
         items: { include: { product: true, deliveries: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
+    const page = pagination ? paginatedResult(orders, pagination) : null;
+    const rows = page ? page.items : orders;
+    const safeRows = includeFinancialDetails
+      ? rows
+      : rows.map((order) => this.withoutFinancialDetails(order));
+    return page ? { ...page, items: safeRows } : safeRows;
   }
-  async findById(id: string) {
+  async findById(id: string, includeFinancialDetails = false) {
     const order = await this.prisma.order.findFirst({
       where: { OR: [{ id }, { orderNumber: id }] },
       include: {
@@ -48,14 +58,39 @@ export class OrdersService {
       },
     });
     if (!order) throw new NotFoundException("Order not found");
-    return order;
+    return includeFinancialDetails
+      ? order
+      : this.withoutFinancialDetails(order);
+  }
+
+  private withoutFinancialDetails<
+    T extends {
+      manualPaymentStatus: unknown;
+      manualPaymentMethod: unknown;
+      manualPaymentReference: unknown;
+      manualPaymentRecordedAt: unknown;
+      manualPaymentRecordedBy: unknown;
+      manualPaymentRecordedById: unknown;
+      payments: unknown;
+    },
+  >(order: T) {
+    const {
+      manualPaymentMethod: _manualPaymentMethod,
+      manualPaymentReference: _manualPaymentReference,
+      manualPaymentRecordedAt: _manualPaymentRecordedAt,
+      manualPaymentRecordedBy: _manualPaymentRecordedBy,
+      manualPaymentRecordedById: _manualPaymentRecordedById,
+      payments: _payments,
+      ...operationalOrder
+    } = order;
+    return operationalOrder;
   }
   async recordManualPayment(
     id: string,
     input: { amountInr: number; method: "CASH" | "UPI" | "CARD" | "OTHER"; reference?: string; note?: string },
     staffId: string,
   ) {
-    const order = await this.findById(id);
+    const order = await this.findById(id, true);
     if (order.manualPaymentStatus === "PAID")
       throw new ConflictException("This order is already marked paid");
     return this.prisma.$transaction(async (db) => {

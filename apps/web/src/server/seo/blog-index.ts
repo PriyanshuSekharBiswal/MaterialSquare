@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { canonicalSiteOrigin } from "./seo-origin.js";
+import { canonicalSiteOrigin, trustedSiteOrigin } from "./seo-origin.js";
 import { isPreviewDeployment } from "./seo-environment.js";
 import { setPageStructuredData } from "./structured-data.js";
 import { setSocialCardMetadata } from "./social-metadata.js";
@@ -165,7 +165,7 @@ function getRequestOrigin(req: IncomingMessage) {
   )
     ?.split(",")[0]
     ?.trim();
-  return `${protocol === "http" && isPreviewDeployment() ? "http" : "https"}://${host}`;
+  return trustedSiteOrigin(`${protocol === "http" && isPreviewDeployment() ? "http" : "https"}://${host}`);
 }
 
 function configuredApiOrigin() {

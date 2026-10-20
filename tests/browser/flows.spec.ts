@@ -5765,7 +5765,6 @@ test("owner reviews audit records and applies entity filters", async ({
   await page.getByLabel("Entity reference").fill("q1");
   await page.getByLabel("From date (IST)").fill("2026-10-04");
   await page.getByLabel("Through date (IST)").fill("2026-10-04");
-  await page.getByRole("button", { name: "Apply filters" }).click();
   await expect.poll(() => requestedEntity).toBe("q1");
   await expect.poll(() => requestedFrom).toBe("2026-10-04");
   await page.getByText("View details", { exact: true }).click();
@@ -6203,7 +6202,6 @@ test("owner reviews skipped notification jobs", async ({ page }) => {
     page.getByRole("button", { name: "Next", exact: true }),
   ).toBeDisabled();
   await page.getByLabel("Notification outcome").selectOption("SKIPPED");
-  await page.getByRole("button", { name: "Filter notifications" }).click();
   await expect.poll(() => requestedOutcome).toBe("SKIPPED");
 });
 

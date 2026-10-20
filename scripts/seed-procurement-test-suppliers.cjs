@@ -179,7 +179,7 @@ async function main() {
         deletedAt: null,
       };
       const existing = await db.supplierProduct.findFirst({
-        where: { supplierId: supplier.id, productName: product.name, unit: product.unit },
+        where: { supplierId: supplier.id, productName: product.name, unit: product.unit, catalogVariantId: null },
       });
       if (existing) {
         await db.supplierProduct.update({ where: { id: existing.id }, data: values });
@@ -192,6 +192,18 @@ async function main() {
     const catalogVariantsForSupplier = publishedVariants.filter((variant) =>
       chosenBrands.includes(variant.listing.brand),
     );
+    const selectedVariantIds = catalogVariantsForSupplier.map((variant) => variant.id);
+    await db.supplierProduct.updateMany({
+      where: {
+        supplierId: supplier.id,
+        supplierSku: { startsWith: `TEST-${String(number).padStart(2, "0")}-CAT-` },
+        OR: [
+          { catalogVariantId: null },
+          { catalogVariantId: { notIn: selectedVariantIds } },
+        ],
+      },
+      data: { isActive: false },
+    });
     for (const [variantIndex, variant] of catalogVariantsForSupplier.entries()) {
       const values = {
         productName: variant.listing.name,

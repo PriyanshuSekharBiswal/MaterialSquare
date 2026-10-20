@@ -647,7 +647,7 @@ export default function WebsiteContentManager({
       )}
       {confirmAction && (
         <div className="website-editor-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setConfirmAction(null); }}>
-          <section className="website-editor-confirm" role="dialog" aria-modal="true" aria-labelledby="website-editor-confirm-title" aria-describedby="website-editor-confirm-copy">
+          <section className="website-editor-confirm admin-confirm-surface" role="dialog" aria-modal="true" aria-labelledby="website-editor-confirm-title" aria-describedby="website-editor-confirm-copy">
             <div className="website-editor-confirm-icon"><AlertTriangle size={21} aria-hidden="true" /></div>
             <button className="website-editor-confirm-close" type="button" aria-label="Close confirmation" onClick={() => setConfirmAction(null)}><X size={18} /></button>
             <h2 id="website-editor-confirm-title">

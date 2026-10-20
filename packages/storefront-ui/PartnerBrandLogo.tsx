@@ -25,34 +25,33 @@ export default function PartnerBrandLogo({
   style?: CSSProperties;
   assetBaseUrl?: string;
 }) {
-  const [failedUrl, setFailedUrl] = useState("");
+  const [failedUrls, setFailedUrls] = useState<ReadonlySet<string>>(() => new Set());
   const [wideLogoUrl, setWideLogoUrl] = useState("");
-  const [replaceWideRasterWithVector, setReplaceWideRasterWithVector] = useState(false);
+  const [vectorReplacementUrl, setVectorReplacementUrl] = useState("");
   // Partner brand `id` may be a database UUID. Resolve the known catalogue
   // brand from its name before using that id to look up a bundled logo.
-  const resolvedBrandId = getBrandMeta(brand.name)?.id || brand.id || brand.name;
+  const knownBrandId = getBrandMeta(brand.name)?.id;
+  const resolvedBrandId = knownBrandId || brand.id || brand.name;
+  const vectorBrandId = knownBrandId || getBrandMeta(brand.id)?.id || brand.name;
   const fallbackLogoUrl = resolveLogoUrl(
     partnerBrandDefaultLogoUrl(resolvedBrandId),
     assetBaseUrl,
   );
   const savedLogoUrl = resolveLogoUrl(brand.logoUrl, assetBaseUrl);
-  const logoUrl = savedLogoUrl && failedUrl !== savedLogoUrl
+  const logoUrl = savedLogoUrl && !failedUrls.has(savedLogoUrl)
     ? savedLogoUrl
-    : fallbackLogoUrl && failedUrl !== fallbackLogoUrl
+    : fallbackLogoUrl && !failedUrls.has(fallbackLogoUrl)
       ? fallbackLogoUrl
       : "";
   const needsWideLogoCleanup = logoUrl !== "" && wideLogoUrl === logoUrl;
-  const defaultLogoFilename = fallbackLogoUrl.split(/[?#]/, 1)[0].split("/").pop();
-  const isBundledDefaultLogo = !savedLogoUrl ||
-    savedLogoUrl === fallbackLogoUrl ||
-    Boolean(defaultLogoFilename && savedLogoUrl.endsWith(`/${defaultLogoFilename}`));
+  const isBundledDefaultLogo = logoUrl === fallbackLogoUrl;
 
   if (!logoUrl) {
-    return <BrandLogo id={resolvedBrandId} className={className} style={style} />;
+    return <BrandLogo id={vectorBrandId} className={className} style={style} />;
   }
 
-  if ((needsWideLogoCleanup && isBundledDefaultLogo) || replaceWideRasterWithVector) {
-    return <BrandLogo id={resolvedBrandId} className={className} style={style} />;
+  if ((needsWideLogoCleanup && isBundledDefaultLogo) || vectorReplacementUrl === logoUrl) {
+    return <BrandLogo id={vectorBrandId} className={className} style={style} />;
   }
 
   const image = (
@@ -67,11 +66,11 @@ export default function PartnerBrandLogo({
         const image = event.currentTarget;
         const isWide = image.naturalHeight > 0 && image.naturalWidth / image.naturalHeight >= 3.6;
         setWideLogoUrl(isWide ? logoUrl : "");
-        setReplaceWideRasterWithVector(
-          isWide && image.naturalWidth <= 500 && Boolean(getBrandMeta(brand.name)),
+        setVectorReplacementUrl(
+          isWide && image.naturalWidth <= 500 && isBundledDefaultLogo && getBrandMeta(brand.name) ? logoUrl : "",
         );
       }}
-      onError={() => setFailedUrl(logoUrl)}
+      onError={() => setFailedUrls((previous) => new Set(previous).add(logoUrl))}
     />
   );
 

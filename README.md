@@ -1,6 +1,6 @@
 # Material Square
 
-Material Square is a construction materials marketplace with a React customer site, a NestJS API, and PostgreSQL/Prisma storage. Customers can browse published client inventory, build a quote list, and send a request through WhatsApp or email. Website payments are out of scope.
+Material Square is a single-seller construction-materials marketplace with a React customer site, staff workspace, NestJS API, and PostgreSQL/Prisma storage. Visitors can browse published client inventory and prepare a local material list; signed-in customers submit it as an RFQ stored in their account and staff queue. General enquiries may open WhatsApp or email. Website payments are out of scope.
 
 ## Project layout
 
@@ -9,6 +9,8 @@ Material Square is a construction materials marketplace with a React customer si
 - `apps/api` — public catalogue, content, enquiries, and protected operational APIs.
 - `packages/db` — Prisma schema and ordered SQL migrations.
 - `packages/types` — shared schemas, business copy, and application types. It contains no seeded product catalogue.
+- `packages/storefront-ui` — product-detail presentation shared by the customer site and admin preview.
+- `scripts` and `tests` — local/deployment utilities and isolated API/browser test suites.
 
 ## Local setup
 
@@ -60,13 +62,17 @@ Product images must be supplied by the client. The website uses a neutral placeh
 
 ## Sign-in and account data
 
-Customers can browse products and prepare a browser-stored quote list without signing in. Submitting a quotation request or opening account history requires a customer session. Customers sign in using their mobile number and a verified MSG91 OTP; there is no customer password login. The server issues a revocable HTTP-only session cookie that persists in the same browser for up to a year and renews as the customer uses the account. Another browser or device requires a new OTP sign-in, and explicit sign-out revokes the current session. Signed-in customers can review their own requests, published quotations and brand alternatives, order tracking, purchase history, loyalty activity, and profile. Admin and staff sign in separately with a mobile number or email plus password in the protected `/admin` workspace. Configure `MSG91_AUTHKEY` only on the API, and configure `VITE_MSG91_WIDGET_ID` and `VITE_MSG91_TOKEN_AUTH` for customer OTP sign-in. No OTP fallback code is included.
+Customers can browse products and prepare a browser-stored quote list without signing in. Submitting a quotation request or opening account history requires a customer session. Customers sign in using their mobile number and a verified MSG91 OTP; there is no customer password login. The server issues a revocable HTTP-only session cookie that expires after 90 days of inactivity and renews as the customer uses the account. The session token rotates every 14 days, with a 15-minute overlap so concurrent account requests and delayed responses can finish. Another browser or device requires a new OTP sign-in, and explicit sign-out revokes the current session. Signed-in customers can review their own requests, published quotations and brand alternatives, order tracking, purchase history, loyalty activity, and profile. Admin and staff sign in separately with a mobile number or email plus password in the protected `/admin` workspace. Configure `MSG91_AUTHKEY` only on the API, and configure `VITE_MSG91_WIDGET_ID` and `VITE_MSG91_TOKEN_AUTH` for customer OTP sign-in. No OTP fallback code is included.
+
+MSG91 is the current OTP provider in the codebase. The planned provider direction is Wa Bridge for OTP and future customer notifications/reminders. That migration has not been implemented or production-verified; keep provider credentials server-side and do not claim Wa Bridge support yet.
 
 Payments are not collected by the website. Accounts staff record payments only after receiving them offline (cash, UPI, card, or another method), including advances and later balance payments. The order ledger records each amount, method, optional reference/note, staff member, time, and a unique 23-character payment reference; it prevents overpayment and keeps the remaining balance visible. Notification outbox records stay pending until a provider route is configured; queued records must not be treated as messages delivered.
 
-### SMS notifications
+### Existing notification code (deferred)
 
-The API can deliver quotation publication, quotation expiry, scheduled SMS follow-ups, and dispatch updates through the MSG91 SMS Flow API. Keep `MSG91_AUTHKEY` and the template IDs in the API environment only. Register and approve a separate DLT content template for each event in the account that owns the sender, then set its ID in that environment. Configure the client's own MSG91 account in production; never deploy a developer's auth key or template IDs to the client's environment. The web OTP widget remains a separate sign-in flow.
+Notification queue, MSG91 SMS, and webhook code remains in the repository for future work. Notification delivery is deferred and has not been verified for this release. The configuration below documents the current code path only; it is not an instruction to enable production delivery. The planned direction is to evaluate Wa Bridge for OTP and notification/reminder workflows.
+
+The current MSG91 path supports quotation publication, quotation expiry, scheduled SMS follow-ups, and dispatch updates. If that path is deliberately enabled for an environment, keep `MSG91_AUTHKEY` and template IDs in the API environment only, use the client's own MSG91 account, and use approved DLT templates. The web OTP widget remains a separate sign-in flow until the planned provider migration is implemented.
 
 Template variables are passed in this order:
 
@@ -75,7 +81,7 @@ Template variables are passed in this order:
 - `MSG91_SMS_TEMPLATE_ID_QUOTE_FOLLOW_UP`: `VAR1` quote number. Staff notes remain internal and are not sent in SMS.
 - `MSG91_SMS_TEMPLATE_ID_DISPATCH_UPDATE`: `VAR1` order number, `VAR2` dispatch status, `VAR3` truck number (or “Not assigned”).
 
-The Sales follow-up scheduler includes SMS as a channel. Email and WhatsApp follow-ups, plus purchase-order emails with PDF attachments, continue through `NOTIFICATION_WEBHOOK_URL`. Promotional messaging is not enabled by this adapter; it needs a separate consent-aware workflow and its approved promotional template. A notification is only marked delivered after MSG91 accepts the request; that does not confirm delivery to the handset.
+The Sales follow-up scheduler includes SMS as a channel. Email and WhatsApp follow-ups, plus purchase-order emails with PDF attachments, continue through `NOTIFICATION_WEBHOOK_URL`. In production, configure an HTTPS endpoint and a unique `NOTIFICATION_WEBHOOK_TOKEN` of at least 32 bytes; the API sends it as a bearer credential and leaves events pending when authenticated delivery is not configured. Promotional messaging is not enabled by this adapter; it needs a separate consent-aware workflow and its approved promotional template. A notification is only marked delivered after MSG91 accepts the request; that does not confirm delivery to the handset.
 
 Create the initial client administrator through the one-time staff provisioning operation. The client can then add staff accounts and assign roles in the workspace. Remove temporary developer test accounts after local testing and provision the client's real administrator for handover.
 
@@ -83,7 +89,7 @@ Migration `202610050003_hide_preview_catalogue` hides the former preview product
 
 ## Operations
 
-- Notification delivery requires `REDIS_URL` and either `NOTIFICATION_WEBHOOK_URL` or configured MSG91 templates. Incomplete routes remain in the outbox as pending.
+- If notification delivery is reactivated in a future release, it requires `REDIS_URL` and either `NOTIFICATION_WEBHOOK_URL` or configured MSG91 templates. Incomplete routes remain in the outbox as pending.
 - Configure S3-compatible storage with the `AWS_*` values in `.env.example` before using media storage workflows.
 - Set exact public origins in API `CORS_ORIGINS`; terminate TLS at the deployment proxy.
 - Keep credentials out of source control. Store a unique client admin password outside the repository; the admin workspace supports staff and catalogue management.
@@ -97,4 +103,51 @@ npm run build:web
 npm run build:admin
 ```
 
-See [Product Requirements](docs/product/requirements.md), [Code Structure](docs/engineering/code-structure.md), and [managed deployment setup](deployment/vercel-render.md) for product, codebase, and deployment details.
+## Quality checks
+
+Run the API unit/integration suite only with an isolated database configured as
+`TEST_DATABASE_URL`. The CI workflow applies migrations to its disposable
+PostgreSQL service before testing.
+
+```sh
+npm run typecheck
+npm test
+npm run test:browser
+git diff --check
+```
+
+`npm run test:browser` runs Playwright and may require the browser installation
+performed by `npx playwright install`. Do not point `TEST_DATABASE_URL` at the
+local app database or production. CI also builds all workspaces, runs the
+production dependency audit, and verifies runtime dependencies.
+
+## Architecture and product documents
+
+- [Product requirements document](docs/product/PRD.md) — actors, scope,
+  customer/staff flows, acceptance criteria, and release gates.
+- [Product requirements and exclusions](docs/product/requirements.md) —
+  current client scope and business constraints.
+- [System design](docs/engineering/design.md) — application boundaries, API
+  and data flows, security, deployment sequence, and prioritized design work.
+- [Codebase review](docs/engineering/codebase-review.md) — repository-wide
+  review results, fixes, release risks, and senior-level follow-ups.
+- [SEO review](docs/engineering/seo-review.md) — crawl/index rules, page
+  metadata, structured data, local search, AI search, and production checks.
+- [Security review](docs/engineering/security-review.md) — auth and token
+  controls, secret inventory, dependency advisories, and release hardening.
+- [Code structure](docs/engineering/code-structure.md) — ownership and naming
+  conventions for source files and features.
+- [Production readiness](docs/operations/production-readiness.md) —
+  environment and release checks.
+- [Implementation status snapshot](docs/engineering/implementation-status.md) —
+  historical local QA evidence recorded on 8 October 2026; not current deployment status.
+- [Deployment setup](deployment/vercel-render.md) — managed hosting details.
+- [Starter catalogue policy](docs/product/starter-catalogue.md) — rules for
+  non-client reference data.
+
+The repository is a monorepo: `apps/web` is the customer site, `apps/admin` is
+the staff workspace, `apps/api` is the REST API, `packages/db` owns Prisma
+schema/migrations, and `packages/types` contains shared runtime schemas and
+helpers. `packages/storefront-ui` contains UI shared by the customer product
+detail and admin preview. For request flows and ownership boundaries, start at
+[System design](docs/engineering/design.md).

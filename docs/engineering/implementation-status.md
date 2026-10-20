@@ -1,10 +1,11 @@
 # Implementation status
 
-Status as of 8 October 2026. The product scope for this release is in
+Historical local QA snapshot from 8 October 2026; this file does not describe
+the current repository or current deployment state. The product scope for this release is in
 [Product Requirements](../product/requirements.md). Production data migration
 and client content approval remain deployment tasks.
 
-## Current local verification — 8 October 2026
+## Local verification recorded on 8 October 2026
 
 - Local Docker services are running: PostgreSQL 16 is healthy on loopback port
   55432, Redis is Up, and Adobe S3Mock is Up on loopback port 9000 with data in
@@ -118,7 +119,7 @@ should not be treated as current hosted-state checks. Browser tests use
 controlled API fixtures; they complement but do not replace live database and
 provider verification.
 
-## Current application behavior
+## Application behavior recorded in the 8 October 2026 snapshot
 
 - The public website reads published catalogue records from the database and
   supports search, product details, and a quote list stored in the visitor's

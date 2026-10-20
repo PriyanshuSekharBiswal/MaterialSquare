@@ -27,7 +27,7 @@ describe("customer OTP sign-in", () => {
     return { service, prisma, tx, msg91Widget };
   }
 
-  it("creates a year-long browser session after the provider verifies the submitted phone", async () => {
+  it("creates a revocable 90-day browser session after provider verification", async () => {
     const { service, tx, msg91Widget } = serviceFor();
     const before = Date.now();
     const result = await service.verifyCustomerMsg91AccessToken({

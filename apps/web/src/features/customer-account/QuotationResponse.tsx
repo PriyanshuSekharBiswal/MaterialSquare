@@ -1,38 +1,40 @@
 import { useState } from "react";
 import { customerApi } from "../../api";
+import ClientActionConfirmation from "../../components/ClientActionConfirmation";
 import type { Quote } from "./model";
 import { money } from "./model";
 import { formatQuantityUnit } from "../../quantity-format";
 
 export default function QuotationResponse({
   quote,
-  acceptedAlternativeNumber,
+  acceptedQuote,
 }: {
   quote: Quote;
-  acceptedAlternativeNumber?: string;
+  acceptedQuote?: { id: string; number: string };
 }) {
   const [selections, setSelections] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [decision, setDecision] = useState("");
   const [confirming, setConfirming] = useState(false);
-  if (quote.status !== "QUOTE_SENT" || new Date(quote.validUntil) <= new Date())
-    return null;
-
-  if (acceptedAlternativeNumber)
+  const [declineConfirmationOpen, setDeclineConfirmationOpen] = useState(false);
+  if (acceptedQuote)
     return (
       <section
         className="account-panel account-quotation-response"
         aria-label="Quotation response"
       >
-        <h2>Another quotation was accepted</h2>
+        <h2>{acceptedQuote.id === quote.id ? "Quotation accepted" : "Another quotation was accepted"}</h2>
         <p role="status">
-          Quotation {acceptedAlternativeNumber} was accepted for this request.
-          Only one quotation can be accepted for each request.
+          Quotation {acceptedQuote.number} was accepted for this request.
+          {acceptedQuote.id !== quote.id && " Only one quotation can be accepted for each request."}
         </p>
         <LinkToOrders />
       </section>
     );
+
+  if (quote.status !== "QUOTE_SENT" || new Date(quote.validUntil) <= new Date())
+    return null;
 
   async function respond(action: "ACCEPT" | "REJECT") {
     setBusy(true);
@@ -56,7 +58,7 @@ export default function QuotationResponse({
       if (action === "ACCEPT" && quote.requestId)
         window.dispatchEvent(
           new CustomEvent("material-square:quotation-accepted", {
-            detail: { requestId: quote.requestId, quoteNumber: quote.quoteNumber },
+            detail: { requestId: quote.requestId, quoteId: quote.id, quoteNumber: quote.quoteNumber },
           }),
         );
     } catch (cause) {
@@ -146,7 +148,7 @@ export default function QuotationResponse({
                 className="account-secondary-button account-secondary-button--danger"
                 type="button"
                 disabled={busy}
-                onClick={() => void respond("REJECT")}
+                onClick={() => setDeclineConfirmationOpen(true)}
               >
                 Decline quotation
               </button>
@@ -154,6 +156,17 @@ export default function QuotationResponse({
           )}
         </>
       )}
+      <ClientActionConfirmation
+        confirmation={declineConfirmationOpen ? {
+          title: "Decline this quotation?",
+          message: `Quotation ${quote.quoteNumber} will be marked as declined and can no longer be accepted.`,
+          cancelLabel: "Keep reviewing",
+          actionLabel: "Decline quotation",
+          actionTone: "danger",
+          onAction: () => void respond("REJECT"),
+        } : null}
+        onClose={() => setDeclineConfirmationOpen(false)}
+      />
     </section>
   );
 }

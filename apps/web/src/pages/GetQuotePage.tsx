@@ -12,7 +12,7 @@ export default function GetQuotePage(props: {
   catalogueLoading?: boolean;
 }) {
   const siteContent = useSiteContent();
-  const { items } = useCustomer();
+  const { items, error } = useCustomer();
   const quoteItems = items.filter((item) => item.includeInQuote !== false);
   return (
     <section className="request-page container">
@@ -21,6 +21,7 @@ export default function GetQuotePage(props: {
       </span>
       <h1>{siteContent["getQuote.title"]}</h1>
       <p className="request-intro">{siteContent["getQuote.description"]}</p>
+      {error && <p className="customer-error" role="alert">{error}</p>}
       <div className="request-grid">
         <section className="request-card quotation-review-card" aria-labelledby="quotation-review-heading">
           <div className="quotation-review-title">

@@ -119,7 +119,7 @@ export default function HomepageCategoryImages({
       <p>Choose an image for each category shown in “Browse materials from the current catalogue.” Categories can come from partner brands even before products are listed.</p>
       {loading ? <p role="status">Loading categories from brands and catalogue…</p> : null}
       {error ? <p role="alert" className="bc-error">{error}</p> : null}
-      {!loading && !error && categories.length === 0 ? <p>No categories are available yet. Add a category to a partner brand to manage its card here.</p> : null}
+      {!loading && !error && categories.length === 0 ? <p role="status">No categories are available yet. Add a category to a partner brand to manage its card here.</p> : null}
       <div className="homepage-category-image-list">
         {categories.map((category) => {
           const image = Object.prototype.hasOwnProperty.call(images, category.category)

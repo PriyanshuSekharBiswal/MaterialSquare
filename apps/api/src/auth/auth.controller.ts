@@ -24,7 +24,7 @@ import { CUSTOMER_SESSION_TTL_MS } from "./customer-session";
 import { CUSTOMER_COOKIE } from "./customer.guard";
 import { STAFF_COOKIE, STAFF_SESSION_TTL_MS } from "./staff-auth-cookie";
 
-import { StaffLoginSchema } from "@material-square/types";
+import { STAFF_PASSWORD_MIN_LENGTH, StaffLoginSchema } from "@material-square/types";
 
 const customerVerifySchema = z.object({
   phone: z.string().regex(/^[6-9]\d{9}$/),
@@ -44,11 +44,8 @@ const staffPasswordChangeSchema = z
     currentPassword: z.string().min(1).max(256),
     newPassword: z
       .string()
-      .min(6)
-      .max(256)
-      .regex(/^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{6,256}$/, {
-        message: "Use at least 6 characters, including an uppercase letter, a number and a special character",
-      }),
+      .min(STAFF_PASSWORD_MIN_LENGTH)
+      .max(256),
   })
   .refine((value) => value.currentPassword !== value.newPassword, {
     message: "Choose a new password that is different from your current password",

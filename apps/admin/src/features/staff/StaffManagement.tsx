@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -76,6 +76,8 @@ export default function StaffManagement({
   const [isStaffAccountsPage, setIsStaffAccountsPage] = useState(
     () => new URLSearchParams(window.location.search).get("staffView") === "accounts",
   );
+  const [isCreatingStaff, setIsCreatingStaff] = useState(false);
+  const createStaffFormRef = useRef<HTMLFormElement>(null);
   const [staffSearch, setStaffSearch] = useState("");
   const [staffSearchFocused, setStaffSearchFocused] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
@@ -145,7 +147,24 @@ export default function StaffManagement({
   });
   const staffSuggestions = staffSearch.trim() ? matchingStaff.slice(0, 6) : [];
 
-  function openStaffAccount(id: string) {
+  async function closeCreateForm() {
+    if (!isCreatingStaff) return true;
+    const hasDraft = Array.from(createStaffFormRef.current?.elements ?? []).some((element) =>
+      (element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement)
+      && Boolean(element.value.trim()),
+    );
+    if (hasDraft && !(await confirmAdminAction({
+      title: "Discard this staff account draft?",
+      message: "The details you entered have not been saved.",
+      confirmLabel: "Discard draft",
+      tone: "danger",
+    }))) return false;
+    setIsCreatingStaff(false);
+    return true;
+  }
+
+  async function openStaffAccount(id: string) {
+    if (!(await closeCreateForm())) return;
     const url = new URL(window.location.href);
     url.searchParams.set("staffView", "accounts");
     url.searchParams.set("staffId", id);
@@ -167,7 +186,8 @@ export default function StaffManagement({
     setResetFor("");
   }
 
-  function openStaffAccounts() {
+  async function openStaffAccounts() {
+    if (!(await closeCreateForm())) return;
     const url = new URL(window.location.href);
     url.searchParams.set("staffView", "accounts");
     url.searchParams.delete("staffId");
@@ -176,7 +196,8 @@ export default function StaffManagement({
     setSelectedStaffId("");
   }
 
-  function backToStaffRoles() {
+  async function backToStaffRoles() {
+    if (!(await closeCreateForm())) return;
     const url = new URL(window.location.href);
     url.searchParams.delete("staffView");
     url.searchParams.delete("staffId");
@@ -207,6 +228,7 @@ export default function StaffManagement({
         password: values.get("password"),
       });
       form.reset();
+      setIsCreatingStaff(false);
       setNotice(
         "Staff account created. Share the login details with that staff member securely.",
       );
@@ -322,11 +344,16 @@ export default function StaffManagement({
             </button>
           )}
           <span className="eyebrow">TEAM ACCESS & SECURITY</span>
-          <h1>{selectedStaff ? "Staff account" : isStaffAccountsPage ? "Staff accounts" : "Staff & roles"}</h1>
+          {embedded ? (
+            <h2>{selectedStaff ? "Staff account" : isStaffAccountsPage ? "Staff accounts" : "Staff & roles"}</h2>
+          ) : (
+            <h1>{selectedStaff ? "Staff account" : isStaffAccountsPage ? "Staff accounts" : "Staff & roles"}</h1>
+          )}
           <p>{selectedStaff ? "Manage this staff account and its access." : isStaffAccountsPage ? "View and manage staff access, account details and security." : "Manage team profiles, access, passwords and role permissions."}</p>
         </div>
         <div className="staff-management-header-actions">
           {(selectedStaff || isStaffAccountsPage) && <button className="btn-sm btn-secondary btn-orange-outline admin-back-button" onClick={selectedStaff ? backToStaffList : backToStaffRoles}><ArrowLeft size={16} /> {selectedStaff ? "Back to staff accounts" : "Back to Staff & roles"}</button>}
+          {!selectedStaff && !isCreatingStaff && <button type="button" className="btn-sm btn-primary" onClick={() => setIsCreatingStaff(true)} aria-expanded={isCreatingStaff} aria-controls="create-staff-account"><UserPlus size={16} aria-hidden="true" /> Add staff member</button>}
           <button className="btn-sm btn-secondary btn-orange-outline" disabled={busy} onClick={() => void refresh()}>
             <RefreshCw size={16} className={busy ? "spin" : ""} />
             {busy ? "Loading…" : "Refresh"}
@@ -343,15 +370,15 @@ export default function StaffManagement({
           {notice}
         </p>
       )}
-      {!selectedStaff && !isStaffAccountsPage && <section className="panel-card panel-body staff-create">
-        <h2>
-          <UserPlus size={19} /> Add a staff member
-        </h2>
+      {!selectedStaff && isCreatingStaff && <section id="create-staff-account" className="panel-card panel-body staff-create">
+        <div className="staff-create-heading">
+          <h2><UserPlus size={19} /> Add a staff member</h2>
+        </div>
         <p>
           Give each person their own account. They can sign in with the mobile
           number or email you enter and the password you set.
         </p>
-        <form onSubmit={createStaff}>
+        <form ref={createStaffFormRef} onSubmit={createStaff}>
           <label>
             Full name
             <input name="name" required minLength={2} maxLength={150} />
@@ -403,10 +430,21 @@ export default function StaffManagement({
               At least 6 characters, including an uppercase letter, a number and a special character. Share it privately.
             </small>
           </label>
-          <button className="btn-sm btn-primary" disabled={busy}>
-            Create staff account
-          </button>
+          <div className="staff-create-actions">
+            <button type="button" className="btn-sm btn-secondary btn-orange-outline" disabled={busy} onClick={() => void closeCreateForm()}>Cancel</button>
+            <button className="btn-sm btn-primary" disabled={busy}>Create staff account</button>
+          </div>
         </form>
+      </section>}
+      {!selectedStaff && !isStaffAccountsPage && <section className="panel-card panel-body staff-accounts-entry">
+        <div>
+          <span className="eyebrow">TEAM DIRECTORY</span>
+          <h2>Staff accounts</h2>
+          <p>Review team members, update roles and manage account access.</p>
+        </div>
+        <button type="button" className="btn-sm btn-secondary btn-orange-outline" onClick={() => void openStaffAccounts()}>
+          View staff accounts <ArrowRight size={16} />
+        </button>
       </section>}
       {!selectedStaff && !isStaffAccountsPage && <section className="staff-role-grid" aria-label="Predefined staff roles">
         {roles.map((role) => (
@@ -427,7 +465,7 @@ export default function StaffManagement({
       </section>}
       {selectedStaff ? <section className="panel-card panel-body staff-account-detail">
         <div className="staff-account-detail-heading">
-          <div><span className="eyebrow">STAFF ACCOUNT</span><h2>{selectedStaff.name}</h2><p>Account details, access and security controls.</p></div>
+          <div><span className="eyebrow">STAFF ACCOUNT</span>{embedded ? <h3>{selectedStaff.name}</h3> : <h2>{selectedStaff.name}</h2>}<p>Account details, access and security controls.</p></div>
           <span className={selectedStaff.isActive ? "staff-active" : "staff-inactive"}>{selectedStaff.isActive ? "Active" : "Disabled"}</span>
         </div>
         <dl className="staff-account-detail-grid">
@@ -437,20 +475,20 @@ export default function StaffManagement({
           <div><dt>Added</dt><dd>{new Date(selectedStaff.createdAt).toLocaleDateString("en-IN")}</dd></div>
         </dl>
         <div className="staff-account-detail-actions">
-          <button type="button" className="btn-sm btn-secondary btn-orange-outline" disabled={busy} onClick={() => setEditingDetailsFor(editingDetailsFor === selectedStaff.id ? "" : selectedStaff.id)}>{editingDetailsFor === selectedStaff.id ? "Cancel edit" : "Edit account"}</button>
+          <button type="button" className="btn-sm btn-secondary btn-orange-outline" disabled={busy || editingDetailsFor === selectedStaff.id} onClick={() => setEditingDetailsFor(selectedStaff.id)}>Edit account</button>
           <button type="button" className="btn-sm btn-secondary btn-orange-outline" disabled={busy || selectedStaff.role === "SUPER_ADMIN"} onClick={() => void updateStaff(selectedStaff.id, { isActive: !selectedStaff.isActive })}>{selectedStaff.isActive ? "Disable account" : "Enable account"}</button>
-          <button type="button" className="btn-sm btn-secondary btn-orange-outline" disabled={busy || selectedStaff.id === currentStaffId} onClick={() => setResetFor(resetFor === selectedStaff.id ? "" : selectedStaff.id)}>{resetFor === selectedStaff.id ? "Cancel password reset" : "Reset password"}</button>
+          {resetFor !== selectedStaff.id && <button type="button" className="btn-sm btn-secondary btn-orange-outline" disabled={busy || selectedStaff.id === currentStaffId} onClick={() => setResetFor(selectedStaff.id)}>Reset password</button>}
           {selectedStaff.role !== "SUPER_ADMIN" && selectedStaff.id !== currentStaffId && <button type="button" className="btn-sm btn-secondary staff-delete-action" disabled={busy} onClick={() => void deleteStaff(selectedStaff)}><Trash2 size={15} /> Delete account</button>}
         </div>
         {editingDetailsFor === selectedStaff.id && <form className="staff-detail-form" onSubmit={async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const saved = await updateStaff(selectedStaff.id, { name: String(form.get("name") || "").trim(), email: String(form.get("email") || "").trim() || null, phone: String(form.get("phone") || "").trim() || null }); if (saved) setEditingDetailsFor(""); }}>
-          <label>Full name<input name="name" required minLength={2} maxLength={150} defaultValue={selectedStaff.name} /></label>
+          <label>Full name<input name="name" required minLength={2} maxLength={150} autoFocus defaultValue={selectedStaff.name} /></label>
           <label>Email address<input name="email" type="email" maxLength={254} defaultValue={selectedStaff.email || ""} placeholder="Email" /></label>
           <label>Mobile number<input name="phone" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength={10} defaultValue={selectedStaff.phone || ""} placeholder="Mobile" /></label>
-          <div className="staff-detail-form-actions"><small>Keep at least one sign-in method.</small><button className="btn-sm btn-primary" disabled={busy}>Save details</button></div>
+          <div className="staff-detail-form-actions"><small>Keep at least one sign-in method.</small><div className="staff-detail-form-buttons"><button type="button" className="btn-sm btn-secondary btn-orange-outline" disabled={busy} onClick={() => setEditingDetailsFor("")}>Cancel</button><button className="btn-sm btn-primary" disabled={busy}>Save details</button></div></div>
         </form>}
         {resetFor === selectedStaff.id && <form className="staff-detail-form staff-detail-reset-form" onSubmit={(event) => void resetPassword(event, selectedStaff)}>
-          <label>New temporary password<input name="password" type="password" minLength={6} pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{6,256}" maxLength={256} required placeholder="At least 6 characters" /></label>
-          <div className="staff-detail-form-actions"><small>Include an uppercase letter, a number and a special character.</small><button className="btn-sm btn-primary" disabled={busy}>Reset password</button></div>
+          <label>New temporary password<input name="password" type="password" minLength={6} pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{6,256}" maxLength={256} required autoFocus placeholder="At least 6 characters" /></label>
+          <div className="staff-detail-form-actions"><small>Include an uppercase letter, a number and a special character.</small><div className="staff-detail-form-buttons"><button type="button" className="btn-sm btn-secondary btn-orange-outline" disabled={busy} onClick={() => setResetFor("")}>Cancel</button><button className="btn-sm btn-primary" disabled={busy}>Reset password</button></div></div>
         </form>}
       </section> : isStaffAccountsPage ? <section className="panel-card panel-body">
         <h2>Staff accounts</h2>
@@ -506,8 +544,8 @@ export default function StaffManagement({
           </ul>}
         </div>
         <p className="staff-search-count">Showing {matchingStaff.length} of {staff.length} staff accounts</p>
-        {!staff.length && !busy && <p>No staff accounts found.</p>}
-        {!!staff.length && !matchingStaff.length && <p className="staff-search-empty">No staff accounts match “{staffSearch}”.</p>}
+        {!staff.length && !busy && <p className="staff-search-empty" role="status">No staff accounts found.</p>}
+        {!!staff.length && !matchingStaff.length && <p className="staff-search-empty" role="status">No staff accounts match “{staffSearch}”.</p>}
         <div className="staff-table-wrap">
           <table className="staff-table">
             <thead>
@@ -578,16 +616,7 @@ export default function StaffManagement({
             </tbody>
           </table>
         </div>
-      </section> : <section className="panel-card panel-body staff-accounts-entry">
-        <div>
-          <span className="eyebrow">TEAM DIRECTORY</span>
-          <h2>Staff accounts</h2>
-          <p>Review team members, update roles and manage account access.</p>
-        </div>
-        <button type="button" className="btn-sm btn-primary" onClick={openStaffAccounts}>
-          View staff accounts <ArrowRight size={16} />
-        </button>
-      </section>}
+      </section> : null}
     </div>
   );
 }

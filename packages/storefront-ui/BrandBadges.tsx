@@ -142,10 +142,10 @@ export function getBrandMeta(brandNameOrId?: string) {
   if (q.includes('polycab')) return BRAND_LIST.find((b) => b.id === 'polycab');
   if (q.includes('havells')) return BRAND_LIST.find((b) => b.id === 'havells');
   if (q.includes('tata') || q.includes('tiscon')) return BRAND_LIST.find((b) => b.id === 'tata-tiscon');
-  if (q.includes('asian') || q.includes('apex')) return BRAND_LIST.find((b) => b.id === 'asian-paints');
+  if (/\basian\s+paints?\b/.test(q) || /\bapex\b/.test(q)) return BRAND_LIST.find((b) => b.id === 'asian-paints');
   if (q.includes('birla') || q.includes('opus')) return BRAND_LIST.find((b) => b.id === 'birla-opus');
   if (q.includes('jaquar')) return BRAND_LIST.find((b) => b.id === 'jaquar');
-  if (q.includes('cera')) return BRAND_LIST.find((b) => b.id === 'cera');
+  if (/\bcera\b/.test(q)) return BRAND_LIST.find((b) => b.id === 'cera');
   if (q.includes('laticrete') || q.includes('myk')) return BRAND_LIST.find((b) => b.id === 'myk-laticrete');
 
   return BRAND_LIST.find((b) => b.id === q || b.name.toLowerCase() === q) || null;

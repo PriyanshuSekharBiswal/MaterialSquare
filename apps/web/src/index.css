@@ -5,11 +5,25 @@
 
 :root {
   /* Color Palette */
-  --ms-primary: #ea580c;         /* Construction Amber / Terracotta */
+  --ms-primary: #ea580c;         /* Material Square orange */
   --ms-primary-hover: #c2410c;
+  --ms-action-orange: #ea580c;
+  --ms-action-orange-hover: #c2410c;
+  --ms-action-orange-ink: #ffffff;
+  --ms-action-orange-hover-ink: #ffffff;
   --ms-primary-light: #fff7ed;
   --ms-primary-subtle: #ffedd5;
   --ms-primary-border: #fed7aa;
+  --ms-success: #047857;
+  --ms-success-soft: #ecfdf5;
+  --ms-warning: #92400e;
+  --ms-warning-soft: #fffbeb;
+  --ms-danger: #b91c1c;
+  --ms-danger-soft: #fef2f2;
+  --ms-info: #ea580c;
+  --ms-info-soft: #fff7ed;
+  --focus-ring: rgba(194, 65, 12, .22);
+  --focus-outline: #c2410c;
 
   --ms-slate-900: #0f172a;       /* Deep Obsidian Slate */
   --ms-slate-800: #1e293b;
@@ -17,6 +31,7 @@
   --ms-slate-600: #475569;
   --ms-slate-500: #64748b;
   --ms-slate-400: #94a3b8;
+  --ms-slate-300: #cbd5e1;
   --ms-slate-200: #e2e8f0;       /* Hairline border */
   --ms-slate-100: #f1f5f9;       /* Subtle neutral */
   --ms-slate-50:  #f8fafc;       /* Canvas background */
@@ -50,6 +65,18 @@
   --radius-md: 12px;
   --radius-lg: 16px;
 
+  /* Shared spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
   /* Transitions */
   --transition-fast: 0.16s ease;
   --transition-medium: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
@@ -60,6 +87,18 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"],
+progress {
+  accent-color: var(--ms-primary);
+}
+
+::selection {
+  color: #fff;
+  background: var(--ms-primary);
 }
 
 html {
@@ -169,11 +208,16 @@ input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--ms-primary);
-  box-shadow: 0 0 0 3.5px rgba(234, 88, 12, 0.2);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 select:focus {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23ea580c' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus-outline);
+  outline-offset: 2px;
 }
 
 label {
@@ -231,15 +275,16 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .btn-primary {
-  background-color: var(--ms-primary);
-  color: #ffffff;
-  border-color: var(--ms-primary);
+  background-color: var(--ms-action-orange);
+  color: var(--ms-action-orange-ink);
+  border-color: var(--ms-action-orange);
   box-shadow: 0 2px 8px rgba(234, 88, 12, 0.2);
 }
 
 .btn-primary:hover {
-  background-color: var(--ms-primary-hover);
-  border-color: var(--ms-primary-hover);
+  background-color: var(--ms-action-orange-hover);
+  border-color: var(--ms-action-orange-hover);
+  color: var(--ms-action-orange-hover-ink);
   transform: translateY(-1px);
   box-shadow: var(--shadow-orange);
 }

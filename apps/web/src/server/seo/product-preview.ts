@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { customerProductDescription, customerProductTitle, customerSpecifications } from "../../catalogue/customer-display.js";
-import { canonicalSiteOrigin } from "./seo-origin.js";
+import { canonicalSiteOrigin, trustedSiteOrigin } from "./seo-origin.js";
 import { isPreviewDeployment } from "./seo-environment.js";
 import { retainSharedStructuredData } from "./structured-data.js";
 import { setSiteIdentityStructuredData } from "./site-identity.js";
@@ -256,6 +256,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     respond(res, 400, "Invalid product address");
     return;
   }
+  if (!trustedSiteOrigin(requestOrigin)) {
+    respond(res, 503, "Product preview is not configured");
+    return;
+  }
   const origin = canonicalSiteOrigin(requestOrigin);
 
   const configuredApiOrigin = process.env.API_ORIGIN?.trim() || "";
@@ -272,7 +276,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
   try {
     const [shellResponse, productsResponse, contentResponse] = await Promise.all([
-      fetch(`${requestOrigin}/__app-shell.html`, { signal: AbortSignal.timeout(8000) }),
+      fetch(`${origin}/__app-shell.html`, { signal: AbortSignal.timeout(8000) }),
       fetch(new URL("/api/products", apiOrigin), {
         headers: { Accept: "application/json" },
         signal: AbortSignal.timeout(8000),

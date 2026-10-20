@@ -23,16 +23,21 @@ function getPostalArea(pincode: string): Promise<PostalArea | null> {
   const cached = postalAreaRequests.get(pincode);
   if (cached) return cached;
 
-  const request = fetch(`https://api.postalpincode.in/pincode/${encodeURIComponent(pincode)}`)
+  const request = fetch(`https://api.postalpincode.in/pincode/${encodeURIComponent(pincode)}`, {
+    signal: AbortSignal.timeout(15000),
+  })
     .then(async (response) => {
-      if (!response.ok) return null;
+      if (!response.ok) throw new Error(`Postal lookup failed: ${response.status}`);
       const result = (await response.json()) as PostalApiResponse;
       const offices = result[0]?.Status === "Success"
         ? (result[0].PostOffice ?? []).filter((office) => office.Pincode === pincode)
         : [];
       return offices.length ? { pincode, offices } : null;
     })
-    .catch(() => null);
+    .catch(() => {
+      postalAreaRequests.delete(pincode);
+      return null;
+    });
 
   postalAreaRequests.set(pincode, request);
   return request;

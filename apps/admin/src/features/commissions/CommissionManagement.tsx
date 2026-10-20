@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { formatEnumLabel } from "../../utils/formatEnumLabel";
 
 export type CommissionRecord = {
@@ -71,34 +72,14 @@ export default function CommissionManagement({
 
   return (
     <>
-      {!isFocused && (
-        <div
-          className="transportation-workflow-tabs commission-management-tabs"
-          role="group"
-          aria-label="Commission tasks"
-        >
-          <button
-            type="button"
-            className={`transportation-workflow-tab${activeView === "record" ? " active" : ""}`}
-            aria-pressed={activeView === "record"}
-            onClick={() => onViewChange("record")}
-          >
-            Record commission
-          </button>
-          <button
-            type="button"
-            className={`transportation-workflow-tab${activeView === "records" ? " active" : ""}`}
-            aria-pressed={activeView === "records"}
-            onClick={() => onViewChange("records")}
-          >
-            Commission records <span>{records.length}</span>
-          </button>
-        </div>
-      )}
-
       {!isFocused && activeView === "record" && (
         <form className="bc-form commission-record-form" onSubmit={(event) => void create(event)}>
-          <h2>Record a commission</h2>
+          <div className="commission-form-heading">
+            <button type="button" className="btn-sm btn-secondary admin-back-button" onClick={() => onViewChange("records")}>
+              <ArrowLeft size={15} aria-hidden="true" /> Back to records
+            </button>
+            <h2>Record a commission</h2>
+          </div>
           <div className="bc-fields">
             <label>
               Beneficiary name
@@ -142,9 +123,17 @@ export default function CommissionManagement({
 
       {!isFocused && activeView === "records" && (
         <section className="commission-record-list">
-          <h2>Commission records</h2>
+          <header className="commission-record-list-heading">
+            <div>
+              <h2>Commission records</h2>
+              <p>Review commission submissions and pending approvals.</p>
+            </div>
+            <button type="button" className="btn-sm btn-primary" onClick={() => onViewChange("record")}>
+              <Plus size={15} aria-hidden="true" /> Record commission
+            </button>
+          </header>
           {!records.length && (
-            <p className="bc-helper">No commission records yet.</p>
+            <p className="bc-helper" role="status">No commission records yet.</p>
           )}
           {records.map((record) => (
             <article className="business-record commission-record-card" key={record.id}>

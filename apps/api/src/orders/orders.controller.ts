@@ -11,12 +11,15 @@ import {
   Req,
   ForbiddenException,
   BadRequestException,
+  Query,
 } from "@nestjs/common";
 import type { StaffRequest } from "../auth/staff-request";
 import { z } from "zod";
 import { validate } from "../common/validation";
 import { OrdersService } from "./orders.service";
 import type { Response } from "express";
+import { roleHasPermission } from "../auth/staff-access";
+import { parsePagination } from "../common/pagination";
 
 @Controller("orders")
 @UseGuards(StaffGuard)
@@ -24,13 +27,26 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Get()
-  getAllOrders() {
-    return this.ordersService.findAll();
+  getAllOrders(
+    @Req() req: StaffRequest,
+    @Query("page") pageInput?: string,
+    @Query("pageSize") pageSizeInput?: string,
+  ) {
+    const pagination = pageInput !== undefined || pageSizeInput !== undefined
+      ? parsePagination(pageInput, pageSizeInput)
+      : undefined;
+    return this.ordersService.findAll(
+      roleHasPermission(req.user.role, "finance.manage"),
+      pagination,
+    );
   }
 
   @Get(":id")
-  getOrderById(@Param("id") id: string) {
-    return this.ordersService.findById(id);
+  getOrderById(@Param("id") id: string, @Req() req: StaffRequest) {
+    return this.ordersService.findById(
+      id,
+      roleHasPermission(req.user.role, "finance.manage"),
+    );
   }
 
   @Patch(":id/manual-payment")
@@ -44,7 +60,7 @@ export class OrdersController {
     const data = validate(
       z.object({
         amountInr: z.number().positive().finite().max(9999999999.99).refine(
-          (amount) => Number.isInteger(amount * 100),
+          (amount) => /^\d+(?:\.\d{1,2})?$/.test(String(amount)),
           "Enter an amount with no more than two decimal places",
         ),
         method: z.enum(["CASH", "UPI", "CARD", "OTHER"]),

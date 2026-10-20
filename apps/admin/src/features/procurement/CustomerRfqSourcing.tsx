@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, ChevronDown } from "lucide-react";
 import { formatQuantityUnit } from "../../quantity-format";
 import { formatEnumLabel } from "../../utils/formatEnumLabel";
@@ -156,6 +156,7 @@ export default function CustomerRfqSourcing({ request }: { request: Request }) {
   const [suggestions, setSuggestions] = useState<Suggestions | null>(null);
   const [matching, setMatching] = useState(false);
   const [matchError, setMatchError] = useState("");
+  const matchSequence = useRef(0);
 
   useEffect(() => {
     let mounted = true;
@@ -169,6 +170,7 @@ export default function CustomerRfqSourcing({ request }: { request: Request }) {
   }, [request]);
 
   async function showSuggestions(rfq: CustomerRfq, quotation: CustomerQuotation | null = null) {
+    const sequence = ++matchSequence.current;
     setActive(rfq);
     setActiveQuotation(quotation);
     setSuggestions(null);
@@ -178,15 +180,18 @@ export default function CustomerRfqSourcing({ request }: { request: Request }) {
       ? `/procurement/customer-quotations/${quotation.id}/suppliers`
       : `/procurement/customer-rfqs/${rfq.id}/suppliers`;
     try {
-      setSuggestions(await request<Suggestions>(path));
+      const result = await request<Suggestions>(path);
+      if (sequence === matchSequence.current) setSuggestions(result);
     } catch (cause) {
-      setMatchError(cause instanceof Error ? cause.message : "Supplier suggestions could not be calculated.");
+      if (sequence === matchSequence.current) setMatchError(cause instanceof Error ? cause.message : "Supplier suggestions could not be calculated.");
     } finally {
-      setMatching(false);
+      if (sequence === matchSequence.current) setMatching(false);
     }
   }
 
   function closeActive() {
+    matchSequence.current += 1;
+    setMatching(false);
     setActive(null);
     setActiveQuotation(null);
     setSuggestions(null);
@@ -252,7 +257,7 @@ export default function CustomerRfqSourcing({ request }: { request: Request }) {
           ))}
         </section>
         {!suggestions.candidates.length ? (
-          <div className="procurement-match-empty">
+          <div className="procurement-match-empty" role="status">
             <strong>No active supplier product listings match these items.</strong>
             <p>Review supplier records and add accurate product listings or delivery coverage, then run suggestions again.</p>
           </div>
@@ -300,7 +305,7 @@ export default function CustomerRfqSourcing({ request }: { request: Request }) {
     </div>
     {loading ? <p role="status">Loading customer requests…</p>
       : error ? <p className="procurement-rfq-error" role="alert">{error}</p>
-        : rfqs.length === 0 ? <p>No customer requests need supplier matching.</p>
+        : rfqs.length === 0 ? <p role="status">No customer requests need supplier matching.</p>
           : <div className="customer-rfq-sourcing-list">
             {rfqs.map((rfq) => {
               const primaryQuotation = [...(rfq.quotations || [])]

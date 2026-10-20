@@ -164,7 +164,7 @@
   text-decoration: underline;
 }
 .rfq-attachments .rfq-attachment-download:focus-visible {
-  outline: 2px solid #bf4a16;
+  outline: 2px solid var(--focus-outline);
   outline-offset: 3px;
   border-radius: 3px;
 }
@@ -336,7 +336,7 @@
   min-width: 0;
   margin: 0;
   padding: 11px 13px;
-  border-left: 3px solid #f26722;
+  border-left: 3px solid var(--ms-primary);
   border-radius: 0 8px 8px 0;
   background: #fff8f3;
   color: #53647a;
@@ -386,12 +386,11 @@
 }
 
 .rfq-status-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 10px;
+  padding: 10px;
   border: 1px solid #e2e8f0;
   border-radius: 13px;
   background: #f8fafc;
@@ -402,12 +401,14 @@
   align-items: center;
   justify-content: center;
   gap: 9px;
-  min-height: 38px;
-  padding: 7px 12px;
-  border: 1px solid transparent;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid #e5eaf1;
   border-radius: 10px;
-  background: transparent;
-  color: #e65308;
+  background: #fff;
+  color: var(--ms-primary);
   font: inherit;
   font-size: 13px;
   font-weight: 700;
@@ -417,14 +418,14 @@
 
 .rfq-status-filter:hover {
   background: #fff5ed;
-  color: #d94b00;
+  color: var(--ms-primary-hover);
 }
 
 .rfq-status-filter.is-active {
-  border-color: #e65308;
-  background: #f05a0a;
+  border-color: var(--ms-primary);
+  background: var(--ms-primary);
   color: #fff;
-  box-shadow: 0 4px 10px rgb(240 90 10 / 20%);
+  box-shadow: 0 4px 10px rgb(234 88 12 / 20%);
 }
 
 .rfq-status-filter > span {
@@ -448,13 +449,13 @@
 }
 
 .rfq-status-filter.is-active:hover {
-  border-color: #d94b00;
-  background: #d94b00;
+  border-color: var(--ms-action-orange-hover);
+  background: var(--ms-action-orange-hover);
   color: #fff;
 }
 
 .rfq-status-filter:focus-visible {
-  outline: 3px solid rgb(242 103 34 / 28%);
+  outline: 3px solid var(--focus-outline);
   outline-offset: 2px;
 }
 
@@ -489,7 +490,7 @@
 
 .rfq-inbox-row:focus-visible,
 .rfq-detail-back:focus-visible {
-  outline: 3px solid rgb(242 103 34 / 30%);
+  outline: 3px solid var(--focus-outline);
   outline-offset: 2px;
 }
 
@@ -552,13 +553,13 @@
 }
 
 .rfq-status-badge[data-status="CONTACTED"] {
-  background: #e6f7f5;
-  color: #0f766e;
+  background: #fff7ed;
+  color: #c2410c;
 }
 
 .rfq-status-badge[data-status="QUOTED"] {
-  background: #eaf2ff;
-  color: #1d4ed8;
+  background: #fff7ed;
+  color: #c2410c;
 }
 
 .rfq-status-badge[data-status="CLOSED"] {
@@ -582,10 +583,10 @@
   justify-self: start;
   min-height: 44px;
   padding: 9px 15px;
-  border: 1px solid #f26722;
+  border: 1px solid var(--ms-primary);
   border-radius: 10px;
   background: #fff;
-  color: #e65308;
+  color: var(--ms-primary);
   font: inherit;
   font-size: 13px;
   font-weight: 700;
@@ -594,9 +595,9 @@
 }
 
 .rfq-detail-back:hover {
-  border-color: #d94b00;
+  border-color: var(--ms-action-orange-hover);
   background: #fff5ed;
-  color: #d94b00;
+  color: var(--ms-action-orange-hover);
 }
 
 .rfq-detail-header {
@@ -612,7 +613,7 @@
   min-width: 0;
   padding: 14px 16px;
   border: 1px solid #f2e3d6;
-  border-left: 3px solid #f26722;
+  border-left: 3px solid var(--ms-primary);
   border-radius: 0 10px 10px 0;
   background: #fffaf6;
 }
@@ -1349,10 +1350,10 @@
   align-items: center;
   margin-top: 10px;
   padding: 6px 10px;
-  border: 1px solid #dbe6f4;
+  border: 1px solid #fed7aa;
   border-radius: 999px;
-  background: #f4f8fd;
-  color: #52647d;
+  background: #fff7ed;
+  color: #c2410c;
   font-size: 12px;
   font-weight: 700;
 }
@@ -1444,7 +1445,7 @@
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: #e65308;
+  color: var(--ms-primary);
   font: inherit;
   font-size: 13px;
   font-weight: 700;
@@ -1454,7 +1455,7 @@
 
 .sales-quote-inbox-tabs button:hover:not(.is-active) {
   background: #fff5ed;
-  color: #d94b00;
+  color: var(--ms-primary-hover);
 }
 
 .sales-quote-inbox-tabs button span {
@@ -1470,10 +1471,10 @@
 }
 
 .sales-quote-inbox-tabs button.is-active {
-  border-color: #e65308;
-  background: #f05a0a;
+  border-color: var(--ms-primary);
+  background: var(--ms-primary);
   color: #fff;
-  box-shadow: 0 4px 10px rgb(240 90 10 / 20%);
+  box-shadow: 0 4px 10px rgb(234 88 12 / 20%);
 }
 
 .sales-quote-inbox-tabs button.is-active span {
@@ -1482,13 +1483,13 @@
 }
 
 .sales-quote-inbox-tabs button.is-active:hover {
-  border-color: #d94b00;
-  background: #d94b00;
+  border-color: var(--ms-action-orange-hover);
+  background: var(--ms-action-orange-hover);
 }
 
 .sales-quote-inbox-tabs button:focus-visible,
 .sales-rfq-category-tabs button:focus-visible {
-  outline: 3px solid rgb(242 103 34 / 28%);
+  outline: 3px solid var(--focus-outline);
   outline-offset: 2px;
 }
 
@@ -1513,7 +1514,7 @@
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: #e65308;
+  color: var(--ms-primary);
   font: inherit;
   font-size: 13px;
   font-weight: 700;
@@ -1523,7 +1524,7 @@
 
 .sales-rfq-category-tabs button:hover:not(.is-active) {
   background: #fff5ed;
-  color: #d94b00;
+  color: var(--ms-primary-hover);
 }
 
 .sales-rfq-category-tabs button span {
@@ -1539,10 +1540,10 @@
 }
 
 .sales-rfq-category-tabs button.is-active {
-  border-color: #e65308;
-  background: #f05a0a;
+  border-color: var(--ms-primary);
+  background: var(--ms-primary);
   color: #fff;
-  box-shadow: 0 4px 10px rgb(240 90 10 / 20%);
+  box-shadow: 0 4px 10px rgb(234 88 12 / 20%);
 }
 
 .sales-rfq-category-tabs button.is-active span {
@@ -1551,8 +1552,8 @@
 }
 
 .sales-rfq-category-tabs button.is-active:hover {
-  border-color: #d94b00;
-  background: #d94b00;
+  border-color: var(--ms-action-orange-hover);
+  background: var(--ms-action-orange-hover);
 }
 
 .sales-quote-request-list {
@@ -1583,7 +1584,7 @@
 }
 
 .admin-main .sales-quote-request-card:focus-visible {
-  outline: 3px solid rgb(242 103 34 / 30%);
+  outline: 3px solid var(--focus-outline);
   outline-offset: 2px;
 }
 
@@ -1658,7 +1659,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #d94b00;
+  color: var(--ms-primary-hover);
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
@@ -2076,8 +2077,8 @@
   justify-self: start;
   padding: 6px 10px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #fff7ed;
+  color: #c2410c;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: .045em;
@@ -2395,8 +2396,8 @@
 
 .sales-order-state[data-status="PROCESSING_AT_YARD"],
 .sales-order-state[data-status="IN_TRANSIT"] {
-  background: #eaf2ff;
-  color: #2859a6;
+  background: #fff7ed;
+  color: #c2410c;
 }
 
 .sales-order-dispatch-line {
@@ -2636,10 +2637,10 @@
   gap: 7px;
   min-height: 40px;
   padding: 8px 12px;
-  border: 1px solid #f26722;
+  border: 1px solid var(--ms-primary);
   border-radius: 9px;
   background: #fff;
-  color: #e65308;
+  color: var(--ms-primary);
   font: inherit;
   font-size: 12px;
   font-weight: 750;
@@ -2685,7 +2686,7 @@
   border: 1px solid #fed7aa;
   border-radius: 999px;
   background: #fff7ed;
-  color: #9a3412;
+  color: var(--ms-action-orange-hover);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: .05em;
@@ -2698,9 +2699,9 @@
   gap: 7px 10px;
   margin: -7px 0 0;
   padding: 11px 13px;
-  border: 1px solid #dbeafe;
+  border: 1px solid #fed7aa;
   border-radius: 10px;
-  background: #f5f9ff;
+  background: #fff7ed;
   color: #52657e;
   font-size: 12px;
 }
@@ -2713,7 +2714,7 @@
 }
 
 .sales-source-request-note strong {
-  color: #1d4ed8;
+  color: #c2410c;
 }
 
 .sales-quote-section {
@@ -2765,7 +2766,7 @@
 .sales-quote-customer-edit-toggle {
   flex: 0 0 auto;
   padding: 7px 11px;
-  border: 1px solid #f26722;
+  border: 1px solid var(--ms-primary);
   border-radius: 8px;
   background: #fff;
   color: #c3480d;
@@ -2969,7 +2970,7 @@
 .sales-quote-product-suggestion:hover,
 .sales-quote-product-suggestion:focus-visible {
   background: #fff7ed;
-  color: #9a3412;
+  color: var(--ms-action-orange-hover);
   border-color: #fed7aa;
 }
 
@@ -2993,6 +2994,13 @@
   padding: 11px 12px;
   color: #718198;
   font-size: 11px;
+}
+
+.sales-quote-product-load-more {
+  display: block;
+  margin-top: 8px;
+  color: #b54708;
+  font-weight: 700;
 }
 
 .sales-quote-custom-unit {
@@ -3482,7 +3490,7 @@
   position: absolute;
   inset: 0 0 auto;
   height: 6px;
-  background: #f26722;
+  background: var(--ms-primary);
 }
 
 .sales-quote-preview-document-heading {
@@ -3815,6 +3823,23 @@
 }
 
 @media (max-width: 760px) {
+  .rfq-status-filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .rfq-status-filter {
+    justify-content: flex-start;
+    gap: 8px;
+    width: 100%;
+    max-width: 140px;
+    min-width: 0;
+    padding-inline: 8px;
+    font-size: 12px;
+  }
+
   .admin-main .sales-quote-request-card {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 11px 14px;
@@ -3922,18 +3947,58 @@
 }
 
 @media (max-width: 480px) {
+  .rfq-status-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rfq-status-filter {
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    border-color: var(--ms-primary-border);
+    border-radius: 10px;
+    background: #fff;
+    max-width: none;
+  }
+
+  .rfq-status-filter:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .admin-main .rfq-inbox-page,
+  .admin-main .rfq-detail-page {
+    padding: 16px 10px;
+  }
+
+  .sales-rfq-quote-group-quotes,
+  .sales-rfq-order-group-orders {
+    padding: 8px;
+  }
+
   .rfq-inbox-heading,
   .rfq-detail-header {
     align-items: flex-start;
   }
 
   .rfq-inbox-row {
-    grid-template-columns: minmax(0, 1fr) minmax(132px, 42%);
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px 14px;
+    padding: 17px 16px;
+  }
+
+  .rfq-inbox-identity {
+    grid-column: 1 / -1;
   }
 
   .rfq-inbox-meta {
-    grid-column: 2;
-    grid-row: 1;
+    grid-column: 1;
+    grid-row: 2;
+    display: flex;
+    align-items: center;
+    justify-items: initial;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    text-align: left;
   }
 
   .rfq-inbox-row > svg {
@@ -3941,8 +4006,9 @@
   }
 
   .rfq-inbox-item-count {
-    grid-column: 1;
+    grid-column: 2;
     grid-row: 2;
+    align-self: center;
   }
 
   .rfq-customer-info-grid {
@@ -4029,4 +4095,17 @@
   .sales-quote-breakdown summary {
     flex-wrap: wrap;
   }
+}
+.sales-pagination-controls {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.sales-pagination-hint {
+  margin: -4px 0 12px;
+  color: #64748b;
+  font-size: 0.85rem;
 }

@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { canonicalSiteOrigin } from "./seo-origin.js";
+import { canonicalSiteOrigin, trustedSiteOrigin } from "./seo-origin.js";
 import { isPreviewDeployment } from "./seo-environment.js";
 
 function getRequestOrigin(req: IncomingMessage) {
@@ -8,7 +8,7 @@ function getRequestOrigin(req: IncomingMessage) {
     (Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost) ||
     req.headers.host;
   if (!host || !/^[a-zA-Z0-9.-]+(?::\d{1,5})?$/.test(host)) return null;
-  return `https://${host}`;
+  return trustedSiteOrigin(`https://${host}`);
 }
 
 export default function handler(req: IncomingMessage, res: ServerResponse) {
@@ -19,11 +19,17 @@ export default function handler(req: IncomingMessage, res: ServerResponse) {
   }
   const requestOrigin = getRequestOrigin(req);
   if (!requestOrigin) {
-    res.writeHead(400, {
+    const forwardedHost = req.headers["x-forwarded-host"];
+    const host =
+      (Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost) ||
+      req.headers.host;
+    const validHost = Boolean(host && /^[a-zA-Z0-9.-]+(?::\d{1,5})?$/.test(host));
+    res.writeHead(validHost ? 503 : 400, {
       "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
       "X-Robots-Tag": "noindex",
     });
-    res.end(req.method === "HEAD" ? undefined : "Invalid website host");
+    res.end(req.method === "HEAD" ? undefined : validHost ? "SEO configuration is unavailable" : "Invalid website host");
     return;
   }
   const origin = canonicalSiteOrigin(requestOrigin);

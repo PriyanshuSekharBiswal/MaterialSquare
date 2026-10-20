@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { formatEnumLabel } from "../../utils/formatEnumLabel";
 
 type Entry = {
@@ -123,6 +123,10 @@ export default function AuditLog({ token, revision }: { token: string; revision:
   const [result, setResult] = useState<Page | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const updateFilter = <Key extends keyof Filters>(key: Key, value: Filters[Key]) => {
+    setFilters((current) => ({ ...current, [key]: value }));
+    setPage(1);
+  };
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -146,8 +150,10 @@ export default function AuditLog({ token, revision }: { token: string; revision:
     setError("");
     setResult(null);
     const params = new URLSearchParams({ page: String(page) });
-    for (const [key, value] of Object.entries(filters))
-      if (value) params.set(key, value);
+    for (const [key, value] of Object.entries(filters)) {
+      const normalized = value.trim();
+      if (normalized) params.set(key, normalized);
+    }
     async function load() {
       try {
         const response = await fetch(
@@ -175,27 +181,13 @@ export default function AuditLog({ token, revision }: { token: string; revision:
     return () => controller.abort();
   }, [token, filters, page, revision]);
 
-  function search(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    setFilters({
-      from: String(data.get("from") || ""),
-      to: String(data.get("to") || ""),
-      actorScope: data.get("actorScope") === "all" ? "all" : "mine",
-      action: String(data.get("action") || "").trim(),
-      entityType: String(data.get("entityType") || "").trim(),
-      entityId: String(data.get("entityId") || "").trim(),
-    });
-    setPage(1);
-  }
   return (
     <section className="audit-log-page" aria-label="Audit log records">
-      <form onSubmit={search} className="filter-bar audit-log-filter-form">
+      <div className="filter-bar audit-log-filter-form">
         <label>
           Activity by
           <select name="actorScope" value={filters.actorScope} onChange={(event) => {
-            setFilters((current) => ({ ...current, actorScope: event.target.value === "all" ? "all" : "mine" }));
-            setPage(1);
+            updateFilter("actorScope", event.currentTarget.value === "all" ? "all" : "mine");
           }}>
             <option value="mine">My actions</option>
             <option value="all">All staff</option>
@@ -203,30 +195,25 @@ export default function AuditLog({ token, revision }: { token: string; revision:
         </label>
         <label>
           From date (IST)
-          <input name="from" type="date" defaultValue={filters.from} />
+          <input name="from" type="date" value={filters.from} onChange={(event) => updateFilter("from", event.currentTarget.value)} />
         </label>
         <label>
           Through date (IST)
-          <input name="to" type="date" defaultValue={filters.to} />
+          <input name="to" type="date" value={filters.to} onChange={(event) => updateFilter("to", event.currentTarget.value)} />
         </label>
         <label>
           Action
-          <input name="action" maxLength={100} defaultValue={filters.action} />
+          <input name="action" maxLength={100} value={filters.action} onChange={(event) => updateFilter("action", event.currentTarget.value.trim())} />
         </label>
         <label>
           Entity type
-          <input name="entityType" maxLength={100} defaultValue={filters.entityType} />
+          <input name="entityType" maxLength={100} value={filters.entityType} onChange={(event) => updateFilter("entityType", event.currentTarget.value.trim())} />
         </label>
         <label>
           Entity reference
-          <input name="entityId" maxLength={200} defaultValue={filters.entityId} />
+          <input name="entityId" maxLength={200} value={filters.entityId} onChange={(event) => updateFilter("entityId", event.currentTarget.value.trim())} />
         </label>
-        <div className="audit-log-filter-actions">
-          <button className="btn-sm btn-secondary btn-orange-outline" disabled={loading}>
-            Apply filters
-          </button>
-        </div>
-      </form>
+      </div>
       {loading && <p role="status">Loading audit records…</p>}
       {error && <p role="alert">{error}</p>}
       {result && (
@@ -235,7 +222,7 @@ export default function AuditLog({ token, revision }: { token: string; revision:
             <p><strong>{result.total}</strong> {filters.actorScope === "mine" ? "actions by you" : "recorded actions"}</p>
           </div>
           {result.items.length === 0 ? (
-            <p className="empty">
+            <p className="empty" role="status">
               {filters.actorScope === "mine" ? "No actions by you match these filters. Choose All staff to review other activity." : "No audit records match these filters."}
             </p>
           ) : (

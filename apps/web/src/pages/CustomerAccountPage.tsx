@@ -33,8 +33,10 @@ import {
 import type {
   AccountRouteState,
   Activity,
+  Order,
   PendingRfq,
   Profile,
+  Quote,
 } from "../features/customer-account/model";
 import { emptyActivity } from "../features/customer-account/model";
 import { AccountContent } from "./CustomerAccountContent";
@@ -55,6 +57,16 @@ const nav = [
   { to: "/account/loyalty", label: "Loyalty points", icon: Gift },
   { to: "/account/profile", label: "Profile", icon: UserRound },
 ];
+
+function mergeUniqueRows<T extends { id: string }>(current: T[], next: T[]) {
+  const merged = new Map(current.map((item) => [item.id, item]));
+  next.forEach((item) => merged.set(item.id, item));
+  return [...merged.values()];
+}
+
+function normalizeActivity(activity: Activity): Activity {
+  return { ...activity, hasMore: activity.hasMore ?? emptyActivity.hasMore };
+}
 
 export default function CustomerAccountPage() {
   const isLocalhostOtpTest =
@@ -79,7 +91,24 @@ export default function CustomerAccountPage() {
       (to !== "/account" && location.pathname.startsWith(`${to}/`)),
   ) ?? nav[0];
   const { profile, setProfile, checking, refresh } = useCustomerAuth();
+  const profileId = profile?.id ?? null;
   const [activity, setActivity] = useState<Activity>(emptyActivity);
+  const [activityOwnerId, setActivityOwnerId] = useState<string | null>(null);
+  const visibleActivity = profile?.id === activityOwnerId ? activity : emptyActivity;
+  const [activityPage, setActivityPage] = useState(1);
+  const [loadingMoreActivity, setLoadingMoreActivity] = useState(false);
+  const [refreshingActivity, setRefreshingActivity] = useState(false);
+  const activityLoadPending = useRef(false);
+  const activityRequestRevision = useRef(0);
+  const loadMoreRequestRevision = useRef(0);
+  const [linkedQuote, setLinkedQuote] = useState<{
+    profileId: string;
+    value: Quote;
+  } | null>(null);
+  const [linkedOrder, setLinkedOrder] = useState<{
+    profileId: string;
+    value: Order;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -96,14 +125,110 @@ export default function CustomerAccountPage() {
   const [pendingInquiryFailed, setPendingInquiryFailed] = useState(false);
 
   useEffect(() => {
-    if (!profile) {
+    const revision = ++activityRequestRevision.current;
+    loadMoreRequestRevision.current++;
+    let active = true;
+    if (!profileId) {
+      activityLoadPending.current = false;
       setActivity(emptyActivity);
+      setActivityPage(1);
+      setLoadingMoreActivity(false);
+      setRefreshingActivity(false);
       return;
     }
-    void customerApi<Activity>("/customer/activity")
-      .then(setActivity)
-      .catch((e) => setError((e as Error).message));
-  }, [profile]);
+    activityLoadPending.current = true;
+    setActivity(emptyActivity);
+    setActivityOwnerId(null);
+    setActivityPage(1);
+    setLoadingMoreActivity(false);
+    setRefreshingActivity(true);
+    void customerApi<Activity>("/customer/activity?page=1")
+      .then((data) => {
+        if (active && revision === activityRequestRevision.current) {
+          setActivity(normalizeActivity(data));
+          setActivityOwnerId(profileId);
+        }
+      })
+      .catch((e) => {
+        if (active && revision === activityRequestRevision.current)
+          setError((e as Error).message);
+      })
+      .finally(() => {
+        if (revision === activityRequestRevision.current)
+          activityLoadPending.current = false;
+        if (active && revision === activityRequestRevision.current)
+          setRefreshingActivity(false);
+      });
+    return () => {
+      active = false;
+      if (activityRequestRevision.current === revision)
+        activityRequestRevision.current++;
+    };
+  }, [profileId]);
+  useEffect(() => {
+    if (
+      !profileId ||
+      !quoteId ||
+      activityLoadPending.current ||
+      refreshingActivity ||
+      visibleActivity.quotations.some((quote) => quote.id === quoteId) ||
+      (linkedQuote?.profileId === profileId && linkedQuote.value.id === quoteId)
+    ) {
+      return;
+    }
+    let active = true;
+    void customerApi<Quote>(
+      `/customer/quotations/${encodeURIComponent(quoteId)}`,
+    )
+      .then((quote) => {
+        if (active) setLinkedQuote({ profileId, value: quote });
+      })
+      .catch((cause) => {
+        if (active) {
+          setLinkedQuote(null);
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "Could not load this quotation.",
+          );
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [visibleActivity.quotations, profileId, quoteId, refreshingActivity, linkedQuote]);
+  useEffect(() => {
+    if (
+      !profileId ||
+      !orderId ||
+      activityLoadPending.current ||
+      refreshingActivity ||
+      visibleActivity.orders.some((order) => order.id === orderId) ||
+      (linkedOrder?.profileId === profileId && linkedOrder.value.id === orderId)
+    ) {
+      return;
+    }
+    let active = true;
+    void customerApi<Order>(
+      `/customer/orders/${encodeURIComponent(orderId)}`,
+    )
+      .then((order) => {
+        if (active) setLinkedOrder({ profileId, value: order });
+      })
+      .catch((cause) => {
+        if (active) {
+          setLinkedOrder(null);
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "Could not load this order.",
+          );
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [visibleActivity.orders, orderId, profileId, refreshingActivity, linkedOrder]);
   useEffect(() => {
     // Account routes can be opened from a page that was already scrolled.
     // Reset to the start of the new screen so its heading is not hidden behind
@@ -170,14 +295,38 @@ export default function CustomerAccountPage() {
       );
       updateItems([]);
       const successNotice = `Request ${result.requestNumber} was sent to the team.`;
-      const data = await customerApi<Activity>("/customer/activity");
-      setActivity(data);
       setPendingFailed(false);
       navigate("/account/quotations", {
         replace: true,
         state: { notice: successNotice, rfqSubmitted: true },
       });
       setNotice(successNotice);
+      const revision = ++activityRequestRevision.current;
+      loadMoreRequestRevision.current++;
+      activityLoadPending.current = true;
+      setLoadingMoreActivity(false);
+      setRefreshingActivity(true);
+      void customerApi<Activity>("/customer/activity?page=1")
+        .then((data) => {
+          if (revision !== activityRequestRevision.current) return;
+          setActivity(normalizeActivity(data));
+          setActivityOwnerId(profile.id);
+          setActivityPage(1);
+        })
+        .catch((cause) => {
+          if (revision === activityRequestRevision.current)
+            setError(
+              `Request sent, but activity could not be refreshed.${
+                cause instanceof Error && cause.message ? ` ${cause.message}` : ""
+              }`,
+            );
+        })
+        .finally(() => {
+          if (revision === activityRequestRevision.current) {
+            activityLoadPending.current = false;
+            setRefreshingActivity(false);
+          }
+        });
     } catch (cause) {
       pendingAttempted.current = false;
       setPendingFailed(true);
@@ -269,11 +418,10 @@ export default function CustomerAccountPage() {
       setSent(false);
       setOtp("");
       setNotice("");
-      const data = await customerApi<Activity>("/customer/activity");
-      setActivity(data);
     } catch (err) {
       setError((err as Error).message);
     } finally {
+      setRefreshingActivity(false);
       setBusy(false);
     }
   }
@@ -282,8 +430,14 @@ export default function CustomerAccountPage() {
     setError("");
     try {
       await customerApi("/customer/logout", "POST", {}, profile?.id);
+      activityRequestRevision.current++;
+      loadMoreRequestRevision.current++;
       setProfile(null);
       setActivity(emptyActivity);
+      setActivityOwnerId(null);
+      setActivityPage(1);
+      setLoadingMoreActivity(false);
+      setRefreshingActivity(false);
       navigate("/account", { replace: true });
     } catch (e) {
       setError((e as Error).message);
@@ -319,13 +473,58 @@ export default function CustomerAccountPage() {
   }
 
   const selectedQuote = useMemo(
-    () => activity.quotations.find((item) => item.id === quoteId),
-    [activity.quotations, quoteId],
+    () =>
+      visibleActivity.quotations.find((item) => item.id === quoteId) ??
+      // Cached details are scoped to the profile that loaded them.
+      (linkedQuote && profile && linkedQuote.profileId === profile.id && linkedQuote.value.id === quoteId
+        ? linkedQuote.value
+        : undefined),
+    [visibleActivity.quotations, linkedQuote, profile?.id, quoteId],
   );
   const selectedOrder = useMemo(
-    () => activity.orders.find((item) => item.id === orderId),
-    [activity.orders, orderId],
+    () =>
+      visibleActivity.orders.find((item) => item.id === orderId) ??
+      (linkedOrder && profile && linkedOrder.profileId === profile.id && linkedOrder.value.id === orderId
+        ? linkedOrder.value
+        : undefined),
+    [visibleActivity.orders, linkedOrder, profile?.id, orderId],
   );
+
+  const loadMoreActivity = useCallback(async () => {
+    if (!profile || loadingMoreActivity || refreshingActivity) return;
+    const nextPage = activityPage + 1;
+    const revision = activityRequestRevision.current;
+    const loadMoreRevision = ++loadMoreRequestRevision.current;
+    setLoadingMoreActivity(true);
+    setError("");
+    try {
+      const next = await customerApi<Activity>(
+        `/customer/activity?page=${nextPage}`,
+      );
+      if (
+        revision !== activityRequestRevision.current ||
+        loadMoreRevision !== loadMoreRequestRevision.current
+      ) return;
+      setActivityOwnerId(profile.id);
+      setActivity((current) => ({
+        requests: mergeUniqueRows(current.requests, next.requests),
+        quotations: mergeUniqueRows(current.quotations, next.quotations),
+        orders: mergeUniqueRows(current.orders, next.orders),
+        loyalty: next.loyalty,
+        hasMore: next.hasMore ?? emptyActivity.hasMore,
+      }));
+      setActivityPage(nextPage);
+    } catch (cause) {
+      if (
+        revision === activityRequestRevision.current &&
+        loadMoreRevision === loadMoreRequestRevision.current
+      )
+        setError(cause instanceof Error ? cause.message : "Could not load older activity.");
+    } finally {
+      if (loadMoreRevision === loadMoreRequestRevision.current)
+        setLoadingMoreActivity(false);
+    }
+  }, [activityPage, loadingMoreActivity, profile, refreshingActivity]);
 
   return (
     <section className="customer-account-shell">
@@ -590,7 +789,10 @@ export default function CustomerAccountPage() {
             <AccountContent
               path={location.pathname}
               profile={profile}
-              activity={activity}
+              activity={visibleActivity}
+              loadingMoreActivity={loadingMoreActivity}
+              refreshingActivity={refreshingActivity}
+              onLoadMoreActivity={loadMoreActivity}
               quote={selectedQuote}
               order={selectedOrder}
               onSaveProfile={saveProfile}

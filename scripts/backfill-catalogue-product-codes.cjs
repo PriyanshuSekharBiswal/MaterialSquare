@@ -116,7 +116,7 @@ async function main() {
           });
         }
       }
-    });
+    }, { maxWait: 10000, timeout: 120000 });
     console.log(`Saved ${updates.length} product codes and ${variantUpdates.length} option codes.`);
   } finally {
     await prisma.$disconnect();

@@ -101,7 +101,7 @@ export class PurchaseOrdersController {
     const created = await this.prisma.$transaction(
       async (tx) => {
         const existingOrders = await tx.purchaseOrder.findMany({
-          where: { requestId: quote.requestId },
+          where: { requestId: quote.requestId, status: { not: "CANCELLED" } },
           select: { items: true },
         });
         for (const order of existingOrders) {
@@ -201,7 +201,7 @@ export class PurchaseOrdersController {
           "Purchase order state changed; refresh and try again",
         );
       const requestOrders = await tx.purchaseOrder.findMany({
-        where: { requestId: po.requestId },
+        where: { requestId: po.requestId, status: { not: "CANCELLED" } },
         select: { status: true },
       });
       const allOrdersApproved =
@@ -280,7 +280,10 @@ export class PurchaseOrdersController {
       const allOrders = await tx.purchaseOrder.findMany({
         where: {
           requestId: po.requestId,
-          OR: [{ id }, { status: "SENT" }],
+          OR: [
+            { id },
+            { status: { in: ["SENT", "PARTIALLY_RECEIVED", "RECEIVED"] } },
+          ],
         },
         select: { items: true },
       });

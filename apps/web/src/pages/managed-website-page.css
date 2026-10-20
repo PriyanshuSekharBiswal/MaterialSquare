@@ -76,7 +76,7 @@
 }
 
 .managed-page-cta:focus-visible {
-  outline: 3px solid var(--ms-primary-border, #fed7aa);
+  outline: 3px solid var(--focus-outline);
   outline-offset: 3px;
 }
 

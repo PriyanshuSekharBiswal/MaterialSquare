@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { publicRateLimit } from "./common/rate-limit";
+import { PrismaService } from "./prisma/prisma.service";
 import { Test } from "@nestjs/testing";
 import { INestApplication } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
@@ -73,7 +74,7 @@ integration("API with isolated PostgreSQL", () => {
     }).compile();
     app = module.createNestApplication();
     app.setGlobalPrefix("api");
-    app.use(publicRateLimit());
+    app.use(publicRateLimit(app.get(PrismaService)));
     const apiDoc = SwaggerModule.createDocument(
       app,
       new DocumentBuilder().setTitle("Material Square API").build(),
@@ -2966,7 +2967,7 @@ integration("API with isolated PostgreSQL", () => {
     }).compile();
     app = module.createNestApplication();
     app.setGlobalPrefix("api");
-    app.use(publicRateLimit());
+    app.use(publicRateLimit(app.get(PrismaService)));
     await app.init();
     const list = await request(app.getHttpServer())
       .get("/api/rfqs")

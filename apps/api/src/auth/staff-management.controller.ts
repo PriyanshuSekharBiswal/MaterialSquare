@@ -22,6 +22,7 @@ import {
   ASSIGNABLE_STAFF_ROLE_DEFINITIONS,
 } from "./staff-access";
 import { PrismaService } from "../prisma/prisma.service";
+import { STAFF_PASSWORD_MIN_LENGTH } from "@material-square/types";
 
 const roleSchema = z.enum(ASSIGNABLE_STAFF_ROLES);
 const createStaffSchema = z
@@ -35,11 +36,8 @@ const createStaffSchema = z
     role: roleSchema,
     password: z
       .string()
-      .min(6)
-      .max(256)
-      .regex(/^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{6,256}$/, {
-        message: "Use at least 6 characters, including an uppercase letter, a number and a special character",
-      }),
+      .min(STAFF_PASSWORD_MIN_LENGTH)
+      .max(256),
   })
   .refine((value) => Boolean(value.email || value.phone), {
     message: "Add an email address or mobile number for staff sign-in",
@@ -54,11 +52,8 @@ const updateStaffSchema = z.object({
 const passwordSchema = z.object({
   password: z
     .string()
-    .min(6)
-    .max(256)
-    .regex(/^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{6,256}$/, {
-      message: "Use at least 6 characters, including an uppercase letter, a number and a special character",
-    }),
+    .min(STAFF_PASSWORD_MIN_LENGTH)
+    .max(256),
 });
 
 @Controller("admin/staff")
@@ -164,7 +159,8 @@ export class StaffManagementController {
         ? { email: data.email?.toLowerCase() || null }
         : {}),
     };
-    return this.prisma.$transaction(async (tx) => {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
       const staff = await tx.staffUser.update({
         where: { id },
         data: {
@@ -203,7 +199,17 @@ export class StaffManagementController {
         },
       });
       return staff;
-    });
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      )
+        throw new ConflictException(
+          "That staff email or mobile number is already in use",
+        );
+      throw error;
+    }
   }
 
   @Delete(":id")

@@ -9,10 +9,30 @@ COPY packages/db/package.json packages/db/package.json
 COPY packages/types/package.json packages/types/package.json
 RUN npm ci
 COPY . .
-ENV VITE_API_URL=/api VITE_ADMIN_BASE=/admin/
+ARG VITE_MSG91_WIDGET_ID
+ARG VITE_MSG91_TOKEN_AUTH
+ENV VITE_API_URL=/api VITE_ADMIN_BASE=/admin/ VITE_MSG91_WIDGET_ID=${VITE_MSG91_WIDGET_ID} VITE_MSG91_TOKEN_AUTH=${VITE_MSG91_TOKEN_AUTH}
 RUN npm run build
 
-FROM build AS api
+FROM node:22-bookworm-slim AS api
+RUN apt-get update && apt-get install -y --no-install-recommends bash openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY apps/web/package.json apps/web/package.json
+COPY apps/admin/package.json apps/admin/package.json
+COPY apps/api/package.json apps/api/package.json
+COPY packages/db/package.json packages/db/package.json
+COPY packages/types/package.json packages/types/package.json
+RUN npm ci --omit=dev
+COPY --from=build /app/packages/db/prisma packages/db/prisma
+COPY --from=build /app/packages/db/src packages/db/src
+COPY --from=build /app/scripts/migrate.cjs scripts/migrate.cjs
+COPY --from=build /app/scripts/create-production-staff.sh scripts/create-production-staff.sh
+COPY --from=build /app/scripts/create-staff.cjs scripts/create-staff.cjs
+COPY --from=build /app/apps/api/dist apps/api/dist
+COPY --from=build /app/packages/types/dist packages/types/dist
+COPY --from=build /app/packages/types/dist-cjs packages/types/dist-cjs
+COPY --from=build /app/node_modules/.prisma node_modules/.prisma
 ENV NODE_ENV=production
 USER node
 EXPOSE 4000

@@ -12,6 +12,7 @@ import {
   BadRequestException,
   ConflictException,
   UseInterceptors,
+  Query,
 } from "@nestjs/common";
 import { FilesInterceptor } from "@nestjs/platform-express";
 import { UploadedFiles } from "@nestjs/common";
@@ -29,7 +30,6 @@ import { validate } from "../common/validation";
 import {
   CUSTOMER_COOKIE,
   CustomerGuard,
-  customerSessionHash,
 } from "./customer.guard";
 
 import { QuotationAcceptanceService } from "../quotes/quotation-acceptance.service";
@@ -110,6 +110,7 @@ const profileSchema = z.object({
 });
 type CustomerRequest = Request & {
   customerId: string;
+  customerSessionId: string;
 };
 type RfqUpload = { path: string; originalname?: string; size?: number };
 
@@ -290,14 +291,22 @@ export class CustomerController {
   @Get("activity") async activity(
     @Req() req: CustomerRequest,
     @Res({ passthrough: true }) res: Response,
+    @Query("page") pageInput?: string,
   ) {
     res.setHeader("Cache-Control", "no-store");
+    const page = validate(
+      z.coerce.number().int().min(1).max(10000),
+      pageInput ?? "1",
+    );
+    const pageSize = 100;
+    const skip = (page - 1) * pageSize;
     const where = { customerId: req.customerId };
     const [requests, quotations, orders, loyalty] = await Promise.all([
       this.prisma.rfq.findMany({
         where,
-        orderBy: { createdAt: "desc" },
-        take: 100,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip,
+        take: pageSize + 1,
         select: {
           id: true,
           requestNumber: true,
@@ -334,8 +343,9 @@ export class CustomerController {
             ],
           },
         },
-        orderBy: { createdAt: "desc" },
-        take: 100,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip,
+        take: pageSize + 1,
         select: {
           id: true,
           requestId: true,
@@ -380,8 +390,9 @@ export class CustomerController {
       }),
       this.prisma.order.findMany({
         where,
-        orderBy: { createdAt: "desc" },
-        take: 100,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip,
+        take: pageSize + 1,
         select: {
           id: true,
           orderNumber: true,
@@ -452,13 +463,18 @@ export class CustomerController {
       }),
     ]);
     return {
-      requests,
-      quotations,
-      orders: orders.map(({ transportationPlan, ...order }) => ({
+      requests: requests.slice(0, pageSize),
+      quotations: quotations.slice(0, pageSize),
+      orders: orders.slice(0, pageSize).map(({ transportationPlan, ...order }) => ({
         ...order,
         dispatch: customerDispatchFromPlan(order.dispatch, transportationPlan),
       })),
       loyalty,
+      hasMore: {
+        requests: requests.length > pageSize,
+        quotations: quotations.length > pageSize,
+        orders: orders.length > pageSize,
+      },
     };
   }
 
@@ -482,6 +498,8 @@ export class CustomerController {
       },
       select: {
         id: true,
+        requestId: true,
+        request: { select: { requestNumber: true } },
         quoteNumber: true,
         status: true,
         subtotal: true,
@@ -702,12 +720,23 @@ export class CustomerController {
         };
       });
       const saved = await this.prisma.$transaction(async (db) => {
+        const normalizedEmail = input.email.trim().toLowerCase();
+        if (normalizedEmail) {
+          const duplicate = await db.customer.findFirst({
+            where: {
+              id: { not: req.customerId },
+              email: { equals: normalizedEmail, mode: "insensitive" },
+            },
+            select: { id: true },
+          });
+          if (duplicate) throw new ConflictException("That email address is already in use");
+        }
         const customer = await db.customer.update({
           where: { id: req.customerId },
           data: {
             name: input.customerName,
-            email: input.email || null,
-            companyName: input.companyName || null,
+            ...(normalizedEmail ? { email: normalizedEmail } : {}),
+            ...(input.companyName ? { companyName: input.companyName } : {}),
             shippingAddress: input.siteLocation,
             city: input.city,
             pincode: input.pincode,
@@ -827,11 +856,15 @@ export class CustomerController {
     @Req() req: CustomerRequest,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const sessionId = customerSessionHash(req);
-    if (sessionId)
-      await this.prisma.customerSession.deleteMany({
-        where: { id: sessionId, customerId: req.customerId },
-      });
+    await this.prisma.customerSession.deleteMany({
+      where: {
+        customerId: req.customerId,
+        OR: [
+          { id: req.customerSessionId },
+          { previousId: req.customerSessionId },
+        ],
+      },
+    });
     res.clearCookie(CUSTOMER_COOKIE, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

@@ -14,6 +14,7 @@ const apiPort = Number(process.env.PORT || configuredPort || 4000);
 const apiLiveUrl = `http://127.0.0.1:${apiPort}/api/health`;
 const apiReadyUrl = `http://127.0.0.1:${apiPort}/api/health/ready`;
 const children = new Set();
+const shutdownTargets = new Map();
 let shuttingDown = false;
 
 function wait(milliseconds) {
@@ -51,7 +52,7 @@ async function waitForApi(child) {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) {
+    if (child.exitCode !== null || child.signalCode !== null || shuttingDown) {
       throw new Error("The API process exited before becoming ready.");
     }
 
@@ -76,18 +77,27 @@ function shutdown(exitCode = 0) {
   if (shuttingDown) return;
   shuttingDown = true;
   const signalChildTree = (child, signal) => {
+    if (!child.pid) return;
     try {
-      if (process.platform === "win32") child.kill(signal);
-      else process.kill(-child.pid, signal);
+      if (process.platform === "win32") {
+        if (child.pid) spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" }).on("error", () => {});
+      } else process.kill(-child.pid, signal);
     } catch (error) {
       if (error.code !== "ESRCH") throw error;
     }
   };
-  for (const child of children) signalChildTree(child, "SIGTERM");
-  const forceExit = setTimeout(() => {
-    for (const child of children) signalChildTree(child, "SIGKILL");
-  }, 5_000);
-  forceExit.unref();
+  for (const child of children) {
+    if (!child.pid) continue;
+    shutdownTargets.set(child.pid, child);
+    signalChildTree(child, "SIGTERM");
+  }
+  if (shutdownTargets.size > 0) {
+    const killTimer = setTimeout(() => {
+      for (const child of shutdownTargets.values()) signalChildTree(child, "SIGKILL");
+      shutdownTargets.clear();
+    }, 5_000);
+    // Keep the grace timer alive so it can kill descendants after their parent exits.
+  }
   process.exitCode = exitCode;
 }
 

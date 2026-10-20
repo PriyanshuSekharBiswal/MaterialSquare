@@ -188,7 +188,7 @@ export default function WorkspaceOverview({
                   })}
                 </div>
               ) : (
-                <p className="muted">
+                <p className="muted" role="status">
                   Activity will appear here after customers browse the site.
                 </p>
               )}
@@ -204,7 +204,7 @@ export default function WorkspaceOverview({
                   </div>
                 ))
               ) : (
-                <p className="muted">No page activity yet.</p>
+                <p className="muted" role="status">No page activity yet.</p>
               )}
             </div>
             <div className="analytics-ranking">
@@ -218,7 +218,7 @@ export default function WorkspaceOverview({
                   </div>
                 ))
               ) : (
-                <p className="muted">No product views yet.</p>
+                <p className="muted" role="status">No product views yet.</p>
               )}
             </div>
           </div>
@@ -268,7 +268,7 @@ export default function WorkspaceOverview({
           ))}
         </div>
         {recentChangesError ? (
-          <p className="recent-changes-message" role="status">
+          <p className="admin-error recent-changes-message" role="alert">
             {recentChangesError}
           </p>
         ) : !recentChanges ? (
@@ -276,12 +276,12 @@ export default function WorkspaceOverview({
             Loading recent changes…
           </p>
         ) : normalizedRecentItems.length === 0 ? (
-          <div className="recent-changes-empty">
+          <div className="recent-changes-empty" role="status">
             <Package size={20} aria-hidden="true" />
             <span>No admin changes recorded in the past 7 days.</span>
           </div>
         ) : recentItems.length === 0 ? (
-          <div className="recent-changes-empty">
+          <div className="recent-changes-empty" role="status">
             <span>
               No {recentCategory.toLowerCase()} activity in the past 7 days.
             </span>
@@ -486,18 +486,22 @@ export default function WorkspaceOverview({
         </nav>
       )}
       <section className="panel-card panel-body">
-        <h2>Today’s work</h2>
-        <p>
-          Review customer material lists and record enquiries received through
-          WhatsApp, email or phone.
-        </p>
-        <div className="workspace-actions">
-          <button className="btn-sm btn-primary" onClick={onViewCustomers}>
-            View customers
-          </button>
-          <button className="btn-sm btn-secondary" onClick={onRecordEnquiry}>
-            Record an enquiry
-          </button>
+        <div className="workspace-today-header">
+          <div className="workspace-today-copy">
+            <h2>Today’s work</h2>
+            <p>
+              Review customer material lists and record enquiries received through
+              WhatsApp, email or phone.
+            </p>
+          </div>
+          <div className="workspace-actions workspace-today-actions">
+            <button className="btn-sm btn-primary" onClick={onViewCustomers}>
+              View customers
+            </button>
+            <button className="btn-sm btn-secondary" onClick={onRecordEnquiry}>
+              Record an enquiry
+            </button>
+          </div>
         </div>
         <p className="muted">
           WhatsApp and email conversations are handled outside this workspace.

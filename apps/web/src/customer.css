@@ -68,7 +68,7 @@
 .customer-form input:focus,
 .customer-form textarea:focus,
 .material-editor input:focus {
-  outline: 2px solid #ec6c28;
+  outline: 2px solid var(--focus-outline);
   outline-offset: 2px;
 }
 .customer-form input:disabled {
@@ -136,9 +136,21 @@
   cursor: pointer;
 }
 .client-confirmation-icon { margin: .15rem auto .75rem; color: #168452; }
+.client-confirmation-icon--danger { color: var(--ms-danger, #b91c1c); }
 .client-confirmation-dialog h2 { margin: 0 0 .5rem; color: #142033; font-size: 1.4rem; }
 .client-confirmation-dialog p { margin: 0 auto 1.25rem; color: #52647a; line-height: 1.6; }
-.client-confirmation-action { display: inline-flex; min-width: 150px; justify-content: center; text-decoration: none; }
+.client-confirmation-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; }
+.client-confirmation-cancel { display: inline-flex; min-width: 120px; min-height: 44px; align-items: center; justify-content: center; padding: 0 1rem; border: 1px solid #cbd5e1; border-radius: var(--radius-sm); background: #fff; color: #334155; font: inherit; font-weight: 700; cursor: pointer; }
+.client-confirmation-cancel:hover { background: #f8fafc; }
+.client-confirmation-cancel:focus-visible { outline: 3px solid var(--focus-outline); outline-offset: 2px; }
+.client-confirmation-action { display: inline-flex; min-width: 150px; min-height: 44px; align-items: center; justify-content: center; text-decoration: none; }
+.client-confirmation-action--danger { border-color: var(--ms-danger, #b91c1c) !important; background: var(--ms-danger, #b91c1c) !important; color: #fff !important; }
+.client-confirmation-action--danger:hover { border-color: #991b1b !important; background: #991b1b !important; color: #fff !important; }
+.client-confirmation-action--danger:focus-visible { outline: 3px solid var(--focus-outline); outline-offset: 2px; }
+@media (max-width: 420px) {
+  .client-confirmation-actions { flex-direction: column; align-items: stretch; }
+  .client-confirmation-actions > * { width: 100%; min-width: 0; }
+}
 @keyframes client-confirmation-enter {
   from { opacity: 0; transform: translateY(8px) scale(.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -456,8 +468,8 @@ button:disabled {
   top: 8px;
   max-width: 65%;
   overflow-wrap: anywhere;
-  background: #112b42;
-  color: white;
+  background: var(--ms-action-orange, #ea580c);
+  color: #fff;
   padding: 6px 10px;
   border-radius: 6px;
   z-index: 3;
@@ -564,7 +576,7 @@ button:disabled {
   padding: 3px 7px;
   border-radius: 5px;
   background: #fff7ed;
-  color: #c2410c;
+  color: var(--ms-primary);
   font-size: 12px;
   font-weight: 700;
 }
@@ -682,7 +694,7 @@ button:disabled {
   margin-bottom: 12px;
 }
 .product-related-heading span {
-  color: #c2410c;
+  color: var(--ms-primary);
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -743,7 +755,7 @@ button:disabled {
   -webkit-line-clamp: 2;
 }
 .product-related-card small {
-  color: #c2410c;
+  color: var(--ms-primary);
   font-size: 10px;
 }
 .catalogue-related-section {

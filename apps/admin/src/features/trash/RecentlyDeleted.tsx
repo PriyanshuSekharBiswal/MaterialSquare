@@ -31,7 +31,7 @@ export default function RecentlyDeleted({
 }) {
   const [records, setRecords] = useState<DeletedRecord[]>([]);
   const [page, setPage] = useState(1);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const pageCount = Math.max(1, Math.ceil(records.length / PAGE_SIZE));
@@ -116,8 +116,11 @@ export default function RecentlyDeleted({
       </header>
       {error && <p className="admin-error" role="alert">{error}</p>}
       {notice && <p className="saved-notice" role="status">{notice}</p>}
+      {busy && !records.length && !error && (
+        <div className="recently-deleted-empty" role="status">Loading deleted items…</div>
+      )}
       {!records.length && !busy && !error && (
-        <div className="recently-deleted-empty">
+        <div className="recently-deleted-empty" role="status">
           <Trash2 size={24} />
           <strong>Nothing to recover</strong>
           <span>Items you delete will appear here for 30 days.</span>

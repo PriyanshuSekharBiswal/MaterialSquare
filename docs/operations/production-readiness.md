@@ -12,6 +12,11 @@ live. Never send passwords, provider keys, or database URLs in chat or email.
 - Client-approved privacy notice and website terms that describe the browser
   quote list and WhatsApp/email handoff accurately. The legal pages remain
   unpublished in the admin workspace until the approved text is ready.
+- Confirm the cookie and browser-storage inventory (including MSG91 widget
+  behavior), whether consent controls are required for target jurisdictions,
+  retention/deletion procedures, privacy-request handling, the legal operator
+  and grievance contact. Obtain qualified legal review before publishing and
+  update the notice when authentication or messaging providers change.
 
 ## Catalogue records
 
@@ -34,8 +39,9 @@ Unavailable products can remain visible with their availability status.
 
 ## Staff records and operations
 
-Provision one initial client administrator after local testing. The client then
-creates and manages staff accounts in the protected admin workspace. Delete
+Provision one initial client administrator after local testing with a unique
+password of at least 12 characters. The client then creates and manages staff
+accounts in the protected admin workspace. Delete
 temporary developer test accounts before handover and create the client's real
 administrator account. Run `scripts/create-production-staff.sh` with
 `PRODUCTION_DATABASE_URL` set to the client's production database connection
@@ -52,6 +58,9 @@ that account entry point in production.
 - S3-compatible product-image storage and public read-only/CDN URL.
 - Private database/API configuration, an independent encrypted backup
   destination, retention period, and restore owner.
+- Unique `JWT_SECRET`, MSG91 auth key, storage credentials, and (if enabled) a
+  32-byte-or-longer notification webhook token stored in the hosting secret
+  manager. Never use `VITE_*` variables for private credentials.
 - Exact customer and admin origins for API CORS and `VITE_PUBLIC_SITE_URL` for
   canonical/search-engine metadata.
 - Monitoring contact and budget approval.
@@ -66,12 +75,17 @@ that account entry point in production.
   live, verify it in Google Search Console, inspect representative URLs, and
   submit the sitemap.
 - `/api/health/ready` returns healthy on the production domain.
-- Admin and staff sign-in, role permissions, and staff provisioning work.
+- Admin and staff sign-in, role permissions, and staff provisioning work. New,
+  reset, and changed staff passwords require at least 12 characters. Verify
+  that the reverse-proxy hop count and exact CORS origin allowlist match the
+  deployed topology.
 - Customers can browse without signing in. Mobile OTP sign-in gates quotation
-  requests and account history, and the session persists in that browser until
-  logout. Admin/staff use mobile/email and password. Verify account ownership, quotation revisions,
+  requests and account history, and the session expires after 90 days without
+  activity or when the customer logs out. Admin/staff use mobile/email and password. Verify account ownership, quotation revisions,
   multiple line items, order history, and profile updates.
 - Accepting a quotation creates the order and any required procurement request.
+  Declining creates no order. Replaying or submitting a stale response has no
+  duplicate effect.
   Staff can match suppliers using product coverage and service-area/location
   data, compare supplier quotes, approve purchase orders, and track partial or
   complete receipts.
@@ -91,6 +105,13 @@ that account entry point in production.
 - The browser-local quote list preserves selected products and quantities.
 - WhatsApp and email handoffs open with a correct, reviewable request summary.
 - Backups and an isolated restore have been verified.
+- Apply database migrations after a backup and before the API release. The
+  current release adds shared API rate-limit buckets, idle-expiry tracking,
+  and a brief overlap on token rotation. Existing unexpired sessions may
+  remain valid for up to 90 days after migration because their prior activity
+  cannot be reconstructed; verify every pending migration record before
+  starting the new API. Staff will need to sign in again after the JWT
+  issuer/audience change.
 
 Notification delivery is deferred until the client provisions and approves a
 provider. Do not treat SMS, email, or webhook delivery as a launch acceptance

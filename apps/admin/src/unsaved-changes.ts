@@ -2,6 +2,7 @@ type EditableControl = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElemen
 
 const dirtyForms = new Set<HTMLFormElement>();
 const formBaselines = new WeakMap<HTMLFormElement, string>();
+const userEditedForms = new WeakSet<HTMLFormElement>();
 let pendingActions = 0;
 
 function getForm(target: EventTarget | null) {
@@ -55,8 +56,11 @@ function trackInput(event: Event) {
 
   const baseline = formBaselines.get(form) ?? formSignature(form);
   formBaselines.set(form, baseline);
-  if (formSignature(form) === baseline) dirtyForms.delete(form);
-  else dirtyForms.add(form);
+  userEditedForms.add(form);
+  if (formSignature(form) === baseline) {
+    dirtyForms.delete(form);
+    userEditedForms.delete(form);
+  } else dirtyForms.add(form);
 }
 
 /** Warn before a hard refresh/close if a form has unsaved edits or an admin action is still running. */
@@ -65,10 +69,23 @@ export function installUnsavedChangesGuard() {
 
   registerActiveEditors(document);
   const editorObserver = new MutationObserver((records) => {
+    const affectedForms = new Set<HTMLFormElement>();
     for (const record of records) {
       for (const node of record.addedNodes) {
         if (node instanceof Element) registerActiveEditors(node);
       }
+      const form = getForm(record.target);
+      if (form) affectedForms.add(form);
+    }
+    for (const form of affectedForms) {
+      if (!shouldTrack(form)) continue;
+      const baseline = formBaselines.get(form);
+      const signature = formSignature(form);
+      if (baseline === undefined || !userEditedForms.has(form)) {
+        formBaselines.set(form, signature);
+        dirtyForms.delete(form);
+      } else if (signature === baseline) dirtyForms.delete(form);
+      else dirtyForms.add(form);
     }
     for (const form of dirtyForms) {
       if (!form.isConnected) dirtyForms.delete(form);
@@ -90,15 +107,27 @@ export function installUnsavedChangesGuard() {
     window.setTimeout(() => {
       formBaselines.set(form, formSignature(form));
       dirtyForms.delete(form);
+      userEditedForms.delete(form);
     }, 0);
   }, true);
   document.addEventListener("click", (event) => {
     const form = getForm(event.target);
     if (!form || !shouldTrack(form)) return;
     const target = event.target;
-    if (target instanceof Element && target.closest("button,[role='button']")) {
-      if (!formBaselines.has(form)) formBaselines.set(form, formSignature(form));
-      dirtyForms.add(form);
+    if (target instanceof Element && target.closest("button,input[type='button'],input[type='submit'],[role='button']")) {
+      const baseline = formBaselines.get(form) ?? formSignature(form);
+      formBaselines.set(form, baseline);
+      // Let the observer detect synchronous structure changes from this click.
+      userEditedForms.add(form);
+      window.setTimeout(() => {
+        if (formSignature(form) !== (formBaselines.get(form) ?? baseline)) {
+          userEditedForms.add(form);
+          dirtyForms.add(form);
+        } else {
+          dirtyForms.delete(form);
+          userEditedForms.delete(form);
+        }
+      }, 0);
     }
   }, true);
 
@@ -124,6 +153,7 @@ export async function runAdminAction<T>(form: HTMLFormElement | null, action: ()
     if (form && signatureAtStart !== null && succeeded(result) && form.isConnected && formSignature(form) === signatureAtStart) {
       dirtyForms.delete(form);
       formBaselines.set(form, signatureAtStart);
+      userEditedForms.delete(form);
     }
     return result;
   } finally {

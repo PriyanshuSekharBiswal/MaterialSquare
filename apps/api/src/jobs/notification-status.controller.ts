@@ -4,6 +4,7 @@ import { z } from "zod";
 import { StaffGuard } from "../auth/access.guard";
 import { PrismaService } from "../prisma/prisma.service";
 import { validate } from "../common/validation";
+import { isCanonicalHttpsUrl, isSafeBearerToken } from "../runtime-readiness";
 import { Msg91SmsService } from "./msg91-sms.service";
 
 @Controller("admin/notifications")
@@ -27,7 +28,22 @@ export class NotificationStatusController {
     const webhookConfigured = Boolean(
       process.env.NOTIFICATION_WEBHOOK_URL?.trim(),
     );
+    const webhookTokenConfigured = isSafeBearerToken(
+      process.env.NOTIFICATION_WEBHOOK_TOKEN,
+    );
     const smsConfigured = missingSmsTemplates.length === 0;
+    if (
+      webhookConfigured &&
+      process.env.NODE_ENV === "production" &&
+      !isCanonicalHttpsUrl(process.env.NOTIFICATION_WEBHOOK_URL, true)
+    )
+      missingRequired.push("HTTPS NOTIFICATION_WEBHOOK_URL");
+    if (
+      webhookConfigured &&
+      (process.env.NODE_ENV === "production" || process.env.NOTIFICATION_WEBHOOK_TOKEN?.trim()) &&
+      !webhookTokenConfigured
+    )
+      missingRequired.push("NOTIFICATION_WEBHOOK_TOKEN (at least 32 header-safe characters)");
     if (!webhookConfigured && !smsConfigured)
       missingRequired.push(
         "NOTIFICATION_PROVIDER (MSG91 SMS templates or webhook)",
@@ -38,9 +54,7 @@ export class NotificationStatusController {
       webhookConfigured,
       smsConfigured,
       missingSmsTemplates,
-      webhookTokenConfigured: Boolean(
-        process.env.NOTIFICATION_WEBHOOK_TOKEN?.trim(),
-      ),
+      webhookTokenConfigured,
     };
   }
 

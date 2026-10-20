@@ -6,7 +6,8 @@ import { useCustomer } from "../customer";
 import { trackWebsiteEvent } from "../analytics";
 import type { CatalogueProduct, MaterialItem } from "../types";
 import { catalogueCategoryLabel, normalizeCatalogueCategory, parsePolicy, publicFaqEntries } from "@material-square/types";
-import ProductDetailSurface, { type ProductDetailChoiceGroup } from "../../../../packages/storefront-ui/ProductDetailSurface";
+import ProductDetailSurface from "../../../../packages/storefront-ui/ProductDetailSurface";
+import { buildProductDetailChoiceGroups } from "../../../../packages/storefront-ui/product-detail-choices";
 import { getBrandMeta } from "../components/icons/BrandBadges";
 import PartnerBrandLogo from "../components/PartnerBrandLogo";
 import ProductRecommendationCarousel from "../components/ProductRecommendationCarousel";
@@ -53,26 +54,6 @@ export default function ProductDetailPage({ products, loading = false, catalogue
 
   const variants = product?.variants || [];
   const selectedVariant = variants.find((variant) => variant.id === selectedVariantId) || variants[0];
-  const optionGroups = useMemo(() => {
-    const values = new Map<string, { label: string; values: string[] }>();
-    for (const variant of variants) for (const [rawKey, rawValue] of Object.entries(variant.attributes || {})) {
-      const label = rawKey.trim();
-      const value = String(rawValue || "").trim();
-      if (!label || !value) continue;
-      const key = label.toLocaleLowerCase();
-      const group = values.get(key) || { label, values: [] };
-      if (!group.values.some((existing) => existing.toLocaleLowerCase() === value.toLocaleLowerCase())) group.values.push(value);
-      values.set(key, group);
-    }
-    const attributeSignatures = variants.map((variant) => JSON.stringify(
-      Object.entries(variant.attributes || {}).map(([key, value]) => [key.trim().toLocaleLowerCase(), String(value).trim().toLocaleLowerCase()]).sort(([left], [right]) => left.localeCompare(right)),
-    ));
-    if (variants.length > 1 && (!values.size || new Set(attributeSignatures).size < variants.length)) {
-      const labels = Array.from(new Set(variants.map((variant) => variant.label.trim()).filter(Boolean)));
-      if (labels.length > 1) values.set("__variant", { label: "Option", values: labels });
-    }
-    return Array.from(values.entries()).map(([key, group]) => ({ key, ...group }));
-  }, [variants]);
   const technicalSpecs = useMemo(() => customerSpecifications({
     ...(product?.specs || {}),
     ...(selectedVariant?.attributes || {}),
@@ -152,48 +133,12 @@ export default function ProductDetailPage({ products, loading = false, catalogue
     .slice(0, 3);
   const inList = items.some((item) => (item.catalogueId || item.id) === product.id && (item.variantId || "") === (selectedVariant?.id || "") && (item.specification || "") === selectedLabel);
 
-  const preferredUnitGroup = optionGroups.find((group) =>
-    /size|unit|pack|volume|capacity|weight/i.test(group.key),
+  const detailChoiceGroups = buildProductDetailChoiceGroups(
+    variants,
+    selectedVariant,
+    selectVariant,
+    product.price,
   );
-  const primaryChoiceKey = preferredUnitGroup?.key || optionGroups[0]?.key;
-  const orderedOptionGroups = primaryChoiceKey
-    ? [
-        ...optionGroups.filter((group) => group.key === primaryChoiceKey),
-        ...optionGroups.filter((group) => group.key !== primaryChoiceKey),
-      ]
-    : optionGroups;
-  const detailChoiceGroups: ProductDetailChoiceGroup[] = (orderedOptionGroups.length
-    ? orderedOptionGroups
-    : variants.length ? [{ key: "__variant", label: "Choose size, pack or option", values: variants.map((variant) => variant.label) }] : [])
-    .map((group) => {
-      const selectedValue = group.key === "__variant"
-        ? selectedVariant?.label || ""
-        : Object.entries(selectedVariant?.attributes || {}).find(([key]) => key.trim().toLocaleLowerCase() === group.key)?.[1] || "";
-      return {
-        label:
-          group.key === preferredUnitGroup?.key &&
-          /^(size|unit|pack|volume|capacity|weight)s?$/i.test(group.key)
-            ? "Unit"
-            : group.label,
-        presentation:
-          group.key === primaryChoiceKey || group.key === "__variant"
-            ? "cards"
-            : "select",
-        selectedValue,
-        choices: group.values.map((value) => {
-          const optionVariant = group.key === "__variant"
-            ? variants.find((variant) => variant.label.trim() === value)
-            : bestVariantForAttribute(group.key, value);
-          return {
-            label: value,
-            price: optionVariant?.price ?? product.price,
-            offerLabel: optionVariant?.offerLabel,
-            selected: selectedValue.toLocaleLowerCase() === value.toLocaleLowerCase(),
-            onSelect: () => selectAttribute(group.key, value),
-          };
-        }),
-      };
-    });
 
   function addSelection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -227,22 +172,6 @@ export default function ProductDetailPage({ products, loading = false, catalogue
       next.set("variant", variant.id);
       return next;
     }, { replace: true });
-  }
-
-  function bestVariantForAttribute(groupKey: string, value: string) {
-    if (groupKey === "__variant") return variants.find((variant) => variant.label.trim() === value) || variants[0];
-    const selectedAttributes = selectedVariant?.attributes || {};
-    const candidates = variants.filter((variant) => Object.entries(variant.attributes || {}).some(([key, candidate]) => key.trim().toLocaleLowerCase() === groupKey && String(candidate).toLocaleLowerCase() === value.toLocaleLowerCase()));
-    return candidates.sort((a, b) => {
-      const score = (variant: (typeof variants)[number]) => Object.entries(selectedAttributes).filter(([key, current]) => key.trim().toLocaleLowerCase() !== groupKey && Object.entries(variant.attributes || {}).some(([otherKey, otherValue]) => otherKey.trim().toLocaleLowerCase() === key.trim().toLocaleLowerCase() && String(otherValue).toLocaleLowerCase() === String(current).toLocaleLowerCase())).length;
-      const available = (variant: (typeof variants)[number]) => (variant.availabilityStatus || (variant.inStock ? "IN_STOCK" : "CHECK_AVAILABILITY")) === "IN_STOCK" ? 1 : 0;
-      return score(b) - score(a) || available(b) - available(a) || a.sortOrder - b.sortOrder;
-    })[0];
-  }
-
-  function selectAttribute(groupKey: string, value: string) {
-    const best = bestVariantForAttribute(groupKey, value);
-    if (best) selectVariant(best);
   }
 
   return (

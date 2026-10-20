@@ -19,8 +19,11 @@
     { "source": "/locations/:slug", "destination": "/api/seo?__route=location&slug=:slug" },
     { "source": "/blogs/:slug", "destination": "/api/seo?__route=blog&slug=:slug" },
     { "source": "/product/:productId", "destination": "/api/seo?__route=product&productId=:productId" },
+    { "source": "/faq", "destination": "/api/spa?path=/faq" },
     { "source": "/privacy", "destination": "/api/spa?path=/privacy" },
     { "source": "/terms", "destination": "/api/spa?path=/terms" },
+    { "source": "/shipping", "destination": "/api/spa?path=/shipping" },
+    { "source": "/return-policy", "destination": "/api/spa?path=/return-policy" },
     { "source": "/((?!api).*)", "destination": "/api/spa?path=/$1" }
   ],
   "headers": [

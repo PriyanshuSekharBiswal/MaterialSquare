@@ -10,10 +10,12 @@ const policyTitles: Record<PolicyKind, string> = {
 function PolicyPage({ kind }: { kind: PolicyKind }) {
   const content = useSiteContent();
   const policy = parsePolicy(content[`policy.${kind}`], kind);
+  const cookieSection = policy.sections.find((section) => /cookie/i.test(section.heading));
   const plainText = (value: string) =>
     value
       .replaceAll("{{contactEmail}}", content["contact.email"])
       .replaceAll("{{contactPhone}}", formatContactPhone(content["contact.phone"]));
+  const sectionId = (heading: string) => heading.toLocaleLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   if (!policy.published) {
     return (
       <article className="legal-page container">
@@ -33,15 +35,16 @@ function PolicyPage({ kind }: { kind: PolicyKind }) {
       <span className="badge-pill">
         {policyTitles[kind]}
       </span>
-      <h1>{policy.title}</h1>
-      <p className="legal-updated">{policy.notice}</p>
+      <h1>{plainText(policy.title)}</h1>
+      <p className="legal-updated">{plainText(policy.notice)}</p>
       {policy.sections.map((section, index) => (
-        <section key={index}>
-          <h2>{section.heading}</h2>
+        <section id={sectionId(section.heading)} key={index}>
+          <h2>{plainText(section.heading)}</h2>
           <p style={{ whiteSpace: "pre-line" }}>{plainText(section.body)}</p>
         </section>
       ))}
       {kind === "privacy" && <Link className="btn btn-secondary" to="/terms">Read website terms</Link>}
+      {kind === "privacy" && cookieSection && <a className="btn btn-secondary" href={`#${sectionId(cookieSection.heading)}`}>Cookie information</a>}
       {kind === "terms" && <Link className="btn btn-secondary" to="/privacy">Read privacy notice</Link>}
       {(kind === "shipping" || kind === "returns") && <Link className="btn btn-secondary" to="/contact">Contact Material Square</Link>}
     </article>

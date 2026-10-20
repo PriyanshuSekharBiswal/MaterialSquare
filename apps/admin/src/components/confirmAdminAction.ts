@@ -1,3 +1,5 @@
+import { getAdminDialogOpener } from "./useAdminDialogFocus";
+
 export type AdminConfirmationOptions = {
   title: string;
   message: string;
@@ -12,6 +14,7 @@ export function confirmAdminAction({
   tone = "default",
 }: AdminConfirmationOptions): Promise<boolean> {
   return new Promise((resolve) => {
+    const opener = getAdminDialogOpener() ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     const dialog = document.createElement("dialog");
     dialog.className = "admin-confirm-dialog";
     dialog.setAttribute("aria-labelledby", "admin-confirm-title");
@@ -61,6 +64,7 @@ export function confirmAdminAction({
     dialog.addEventListener("close", () => {
       const accepted = dialog.returnValue === "confirm";
       dialog.remove();
+      if (opener?.isConnected) requestAnimationFrame(() => opener.focus({ preventScroll: true }));
       resolve(accepted);
     }, { once: true });
     dialog.addEventListener("click", (event) => {

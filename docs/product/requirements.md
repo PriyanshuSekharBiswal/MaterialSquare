@@ -17,13 +17,14 @@ with a mobile number or email plus password.
 | Quote list       | Let visitors add products and quantities to a list stored in their browser. No sign-in is needed to browse or prepare the list.                                                                                               |
 | Quote request    | Collect project and delivery details, then require a signed-in customer before saving the request to the customer's account and the staff RFQ queue. Store a canonical snapshot of published catalogue items where applicable. |
 | Enquiry handoff  | General enquiries can prepare a WhatsApp or email message. The site does not claim that an external message was sent or delivered.                                                                                            |
-| Customer account | Mobile number plus verified OTP sign-in for customers to see their own requests, published quotations, brand/price options included in quotations, orders, delivery progress, purchase history, loyalty activity, and profile. The revocable HTTP-only session persists in the current browser for up to one year and renews while used; another browser/device requires OTP sign-in. |
+| Customer account | Mobile number plus verified OTP sign-in for customers to see their own requests, published quotations, brand/price options included in quotations, orders, delivery progress, purchase history, loyalty activity, and profile. Customers may accept or decline a published quotation and choose supported alternatives. The revocable HTTP-only session expires after 90 days without activity and renews while used. Its token rotates every 14 days; the previous token remains valid for 15 minutes to cover concurrent requests. Another browser/device requires OTP sign-in. |
 | Information      | Provide the public business pages, contact details, and approved policies/content.                                                                                                                                            |
 | Service area map | Keep the animated route map on Home and Contact. Office name, address, service area, and contact actions must use client-managed website content; map destinations stay unavailable until an office address is configured.    |
 | Admin workspace  | Provide protected sign-in for client admins and staff, role-based operations, catalogue editing, staff provisioning, and business management.                                                                                 |
 
-Customer sessions persist in the current browser for up to one year and renew as
-the customer uses the account. Signing in on another browser requires a new OTP.
+Customer sessions persist in the current browser for up to 90 days without
+activity and renew as the customer uses the account. Signing in on another
+browser requires a new OTP.
 Explicit sign-out revokes the current browser session.
 
 ## Inventory and operations
@@ -64,9 +65,9 @@ to customers.
   including advances and balance settlements. Records are for internal order
   tracking and audit only; the website must never initiate, collect, or verify a
   payment.
-- Customer-facing quotation negotiation and payment collection remain out of
-  scope. Customers can review their submitted requests and staff-prepared quotes
-  after mobile OTP sign-in. Quote preparation and approval stay with staff.
+- Customers cannot edit quotation prices, margins, taxes, or contents. Quote
+  preparation and approval remain staff responsibilities. Payment collection
+  remains out of scope.
 - No demo mode or generated product photos. Starter catalogue records are
   editable and carry no invented prices, stock, offers, MOQs, or photos.
 
@@ -77,11 +78,15 @@ to customers.
   minimum-order details reflect saved client records.
 - Confirm product detail pages and quote-list quantities work on desktop and
   mobile.
+- Confirm accept and decline responses are authenticated,
+  idempotent and visible in the staff workflow; only acceptance creates an order.
 - Confirm WhatsApp and email summaries open with the expected product and
   quantity details.
 - Confirm mobile OTP sign-in, browser session persistence/logout, account
   ownership, profile updates,
   quotation comparisons, order details, and delivery tracking work end-to-end.
+- Confirm customer session rotation after 14 days, the 15-minute overlap for
+  concurrent requests using the previous token, and revocation on sign-out.
 - Confirm the service map remains visible on Home and Contact and does not show
   unconfigured office, service-area, or contact details.
 - Approve the business content, policies, catalogue, and client-provided imagery

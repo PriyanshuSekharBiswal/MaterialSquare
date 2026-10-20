@@ -347,15 +347,12 @@ export default function GlobalAdminSearch({
       {open && (
         <div
           className="admin-search-popover"
-          id="admin-search-suggestions"
-          role="listbox"
-          aria-label="Admin search suggestions"
         >
           <div className="admin-search-popover-heading">
             {normalized ? "MATCHING RECORDS & DESTINATIONS" : "QUICK ACCESS"}
           </div>
-          {suggestions.length ? (
-            suggestions.map((suggestion, index) => {
+          <div id="admin-search-suggestions" role="listbox" aria-label="Admin search suggestions">
+            {suggestions.map((suggestion, index) => {
               const Icon = suggestion.icon;
               return (
                 <button
@@ -379,21 +376,18 @@ export default function GlobalAdminSearch({
                   <ArrowRight size={15} className="admin-search-option-arrow" />
                 </button>
               );
-            })
-          ) : recordsLoading ? (
-            <div className="admin-search-skeleton-list" role="status" aria-label="Loading search suggestions">
-              {Array.from({ length: 3 }, (_, index) => <div className="admin-search-skeleton-option" key={index}><span /><i /><b /></div>)}
-            </div>
-          ) : (
-            <div className="admin-search-empty">
-              <Search size={17} />
-              <span>
-                {recordsLoading
-                  ? "Searching products and customers…"
-                  : "No matching records. Try a product, customer, quote or page."}
-              </span>
-            </div>
-          )}
+            })}
+          </div>
+          {!suggestions.length && (recordsLoading ? (
+              <div className="admin-search-skeleton-list" role="status" aria-label="Loading search suggestions">
+                {Array.from({ length: 3 }, (_, index) => <div className="admin-search-skeleton-option" key={index}><span /><i /><b /></div>)}
+              </div>
+            ) : (
+              <div className="admin-search-empty" role="status">
+                <Search size={17} />
+                <span>No matching records. Try a product, customer, quote or page.</span>
+              </div>
+            ))}
           {recordsLoading && suggestions.length > 0 && <div className="admin-search-skeleton-list is-inline" role="status" aria-label="Loading more suggestions">
             {Array.from({ length: 2 }, (_, index) => <div className="admin-search-skeleton-option" key={index}><span /><i /><b /></div>)}
           </div>}

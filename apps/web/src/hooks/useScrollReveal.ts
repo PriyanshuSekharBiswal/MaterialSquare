@@ -63,14 +63,12 @@ export default function useScrollReveal() {
       );
     }
 
-    // Run immediately, and also after staggered delays for route transitions and tab changes
+    // Reveal visible content immediately. The observer handles subsequent
+    // viewport entry without measuring every element during every scroll frame.
     checkAndReveal();
-    const t1 = setTimeout(checkAndReveal, 60);
-    const t2 = setTimeout(checkAndReveal, 180);
-    const t3 = setTimeout(checkAndReveal, 400);
 
-    // Native scrolling keeps reveal checks in sync with the browser viewport.
-    window.addEventListener('scroll', throttledCheck, { passive: true });
+    // Keep a throttled scroll fallback only for browsers without the observer.
+    if (!observer) window.addEventListener('scroll', throttledCheck, { passive: true });
 
     // Watch for dynamic DOM changes (e.g. tabs or filter changes)
     let mutationTimer: ReturnType<typeof setTimeout> | null = null;
@@ -83,12 +81,9 @@ export default function useScrollReveal() {
 
     return () => {
       isCancelled = true;
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
       if (mutationTimer) clearTimeout(mutationTimer);
       if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-      window.removeEventListener('scroll', throttledCheck);
+      if (!observer) window.removeEventListener('scroll', throttledCheck);
       if (observer) {
         observer.disconnect();
       }

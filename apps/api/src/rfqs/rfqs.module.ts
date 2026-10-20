@@ -10,6 +10,7 @@ import {
   Param,
   NotFoundException,
   Res,
+  Query,
 } from "@nestjs/common";
 import type { Response } from "express";
 import { StorageModule } from "../storage/storage.module";
@@ -20,6 +21,7 @@ import { StaffGuard } from "../auth/access.guard";
 import { CustomerGuard } from "../auth/customer.guard";
 import type { StaffRequest } from "../auth/staff-request";
 import { validate } from "../common/validation";
+import { paginatedResult, parsePagination } from "../common/pagination";
 @Controller("rfqs")
 export class RfqsController {
   constructor(
@@ -110,9 +112,18 @@ export class RfqsController {
 
   @Get()
   @UseGuards(StaffGuard)
-  list() {
-    return this.prisma.rfq.findMany({
-      orderBy: { createdAt: "desc" },
+  async list(
+    @Query("page") pageInput?: string,
+    @Query("pageSize") pageSizeInput?: string,
+  ) {
+    const pagination = pageInput !== undefined || pageSizeInput !== undefined
+      ? parsePagination(pageInput, pageSizeInput)
+      : undefined;
+    const rows = await this.prisma.rfq.findMany({
+      ...(pagination
+        ? { skip: pagination.skip, take: pagination.pageSize + 1 }
+        : {}),
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       include: {
         customer: {
           select: {
@@ -137,6 +148,85 @@ export class RfqsController {
         },
       },
     });
+    return pagination ? paginatedResult(rows, pagination) : rows;
+  }
+
+  @Get(":id/journey")
+  @UseGuards(StaffGuard)
+  async journey(@Param("id") id: string) {
+    const rfq = await this.prisma.rfq.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!rfq) throw new NotFoundException("Request not found");
+    const [quotationCount, acceptedCount, draftCount, orderStatuses] =
+      await Promise.all([
+        this.prisma.quotation.count({ where: { requestId: id } }),
+        this.prisma.quotation.count({
+          where: {
+            requestId: id,
+            status: { in: ["ACCEPTED", "CONVERTED_TO_ORDER"] },
+          },
+        }),
+        this.prisma.quotation.count({
+          where: {
+            requestId: id,
+            publishedAt: null,
+            status: {
+              notIn: ["QUOTE_SENT", "EXPIRED", "REJECTED", "ACCEPTED", "CONVERTED_TO_ORDER"],
+            },
+          },
+        }),
+        this.prisma.order.groupBy({
+          by: ["status"],
+          where: { quotation: { requestId: id } },
+          _count: { _all: true },
+        }),
+      ]);
+    const orders = orderStatuses.map(({ status, _count }) => ({
+      status,
+      count: _count._all,
+    }));
+    return {
+      requestId: id,
+      quotations: {
+        total: quotationCount,
+        sent: quotationCount - draftCount,
+        draft: draftCount,
+        accepted: acceptedCount,
+      },
+      orders: {
+        total: orders.reduce((total, order) => total + order.count, 0),
+        statuses: orders,
+      },
+    };
+  }
+
+  @Get(":id")
+  @UseGuards(StaffGuard)
+  async findById(@Param("id") id: string) {
+    const rfq = await this.prisma.rfq.findUnique({
+      where: { id },
+      include: {
+        customer: {
+          select: {
+            email: true,
+            companyName: true,
+            gstin: true,
+            shippingAddress: true,
+            city: true,
+            pincode: true,
+          },
+        },
+        assignedStaff: { select: { id: true, name: true } },
+        attachments: {
+          select: { id: true, fileName: true, mimeType: true, byteSize: true, createdAt: true },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+    if (!rfq) throw new NotFoundException("Request not found");
+    return rfq;
   }
 
   @Get(":rfqId/attachments/:attachmentId")

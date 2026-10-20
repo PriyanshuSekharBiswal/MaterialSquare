@@ -1,9 +1,11 @@
 import type { FormSubmit } from "../business/form-contracts";
+import { ArrowLeft } from "lucide-react";
 
 type TransportationPlanningFormsProps = {
   busy: boolean;
   submit: FormSubmit;
   mode: "plan" | "challan";
+  onBack: () => void;
 };
 
 const field = (form: FormData, name: string) =>
@@ -13,6 +15,7 @@ export default function TransportationPlanningForms({
   busy,
   submit,
   mode,
+  onBack,
 }: TransportationPlanningFormsProps) {
   return (
     <>
@@ -43,7 +46,12 @@ export default function TransportationPlanningForms({
           )
         }
       >
-        <h2>Plan an order delivery</h2>
+        <div className="transportation-form-heading">
+          <button type="button" className="btn-sm btn-secondary" onClick={onBack}>
+            <ArrowLeft size={16} aria-hidden="true" /> Back to transportation plans
+          </button>
+          <h2>Plan an order delivery</h2>
+        </div>
         <div className="bc-fields">
           <label>
             Order reference
@@ -120,7 +128,12 @@ export default function TransportationPlanningForms({
           )
         }
       >
-        <h2>Create customer delivery challan</h2>
+        <div className="transportation-form-heading">
+          <button type="button" className="btn-sm btn-secondary" onClick={onBack}>
+            <ArrowLeft size={16} aria-hidden="true" /> Back to transportation plans
+          </button>
+          <h2>Create customer delivery challan</h2>
+        </div>
         <div className="bc-fields">
           <label>
             Order reference

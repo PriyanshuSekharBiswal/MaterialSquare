@@ -476,7 +476,7 @@ export default function HomePage({
           </div>
 
           <div className="tool-callout-card">
-            <div className="tool-icon-box blue">
+            <div className="tool-icon-box orange">
               <Droplet size={22} />
             </div>
             <div>

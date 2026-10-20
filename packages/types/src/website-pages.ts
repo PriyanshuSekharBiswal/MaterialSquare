@@ -15,6 +15,9 @@ const reserved = new Set([
   "locations",
   "privacy",
   "terms",
+  "faq",
+  "shipping",
+  "return-policy",
 ]);
 const internalPath = z
   .string()

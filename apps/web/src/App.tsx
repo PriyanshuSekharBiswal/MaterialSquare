@@ -39,6 +39,7 @@ const FaqPage = lazy(() => import('./pages/LegalPages').then((m) => ({ default: 
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
 const MaterialListPage = lazy(() => import('./pages/MaterialListPage'));
 const CustomerAccountPage = lazy(() => import('./pages/CustomerAccountPage'));
+const MAX_CACHED_ROUTE_ENTRIES = 4;
 
 // Floating Icons
 import { FileText } from 'lucide-react';
@@ -62,24 +63,23 @@ function AppShell() {
       const previousIndex = current.findIndex((entry) => entry.key === previous.key);
       if (navigationType === "PUSH") {
         const retained = previousIndex >= 0 ? current.slice(0, previousIndex + 1) : current;
-        return [...retained, location];
+        return [...retained, location].slice(-MAX_CACHED_ROUTE_ENTRIES);
       }
       if (navigationType === "REPLACE") {
         const retained = previousIndex >= 0 ? current.slice(0, previousIndex) : current;
-        return [...retained, location];
+        return [...retained, location].slice(-MAX_CACHED_ROUTE_ENTRIES);
       }
       return current.some((entry) => entry.key === location.key)
         ? current
-        : [...current, location];
+        : [...current, location].slice(-MAX_CACHED_ROUTE_ENTRIES);
     });
   }, [location, navigationType]);
 
-  // Keep each visited route entry mounted. Browser Back (including trackpad
-  // swipe-back) can then reveal the exact component instance and its local
-  // form, filter, selection, and scroll-container state.
+  // Keep a small window of route entries mounted so recent Back navigations
+  // preserve local form/filter state without accumulating hidden pages forever.
   const cachedRouteEntries: RouterLocation[] = routeHistory.some((entry) => entry.key === location.key)
     ? routeHistory
-    : [...routeHistory, location];
+    : [...routeHistory.slice(-(MAX_CACHED_ROUTE_ENTRIES - 1)), location];
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("draftPreview") === "1")

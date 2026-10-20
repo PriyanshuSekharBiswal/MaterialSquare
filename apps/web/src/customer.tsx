@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState } from "react";
+import React, { createContext, useCallback, useContext, useRef, useState } from "react";
 import type { MaterialItem } from "./types";
 
 const listStorageKey = "material-square-bom";
@@ -39,19 +39,27 @@ const Context = createContext<QuoteListState | null>(null);
 /** Guest-only quote list. Account storage and authentication are not used. */
 export function CustomerProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<MaterialItem[]>(readList);
+  const [error, setError] = useState("");
+  const itemsRef = useRef(items);
   const updateItems = useCallback<QuoteListState["updateItems"]>(
     (update) => {
-      const next = typeof update === "function" ? update(items) : update;
-      if (next.length > 100) return false;
+      const next = typeof update === "function" ? update(itemsRef.current) : update;
+      if (next.length > 100) {
+        setError("Your material list can contain up to 100 items.");
+        return false;
+      }
+      itemsRef.current = next;
       setItems(next);
       try {
         localStorage.setItem(listStorageKey, JSON.stringify(next));
       } catch {
+        setError("Your material list is available for this visit, but could not be saved for your next visit.");
         return false;
       }
+      setError("");
       return true;
     },
-    [items],
+    [],
   );
   const state: QuoteListState = {
     customer: null,
@@ -60,7 +68,7 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
     canEdit: true,
     saving: false,
     unsaved: false,
-    error: "",
+    error,
     updateItems,
   };
 

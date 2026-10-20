@@ -1,5 +1,6 @@
 import { request as httpsRequest } from "node:https";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { InvalidApiProxyPathError, parseApiProxyPath } from "../../proxy-path.js";
 
 const hopByHop = new Set([
   "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
@@ -19,20 +20,25 @@ export default function handler(req: IncomingMessage, res: ServerResponse) {
     return;
   }
 
-  let destination: URL;
+  let origin: URL;
   try {
-    const origin = new URL(configuredOrigin);
+    origin = new URL(configuredOrigin);
     if (origin.protocol !== "https:" || origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash)
       throw new Error("API_ORIGIN must be an HTTPS origin without credentials or a path");
-    const incoming = new URL(req.url || "/", "http://localhost");
-    const path = incoming.searchParams.get("path");
-    if (!path || path.startsWith("/") || path.split("/").some((part) => !part || part === "." || part === ".."))
-      throw new Error("API route is invalid");
-    incoming.searchParams.delete("path");
-    destination = new URL(`/api/${path}${incoming.searchParams.size ? `?${incoming.searchParams}` : ""}`, origin);
   } catch {
     res.writeHead(500, { "Content-Type": "application/json", "Cache-Control": "no-store" });
     res.end(JSON.stringify({ message: "API route configuration is invalid" }));
+    return;
+  }
+  let destination: URL;
+  try {
+    const route = parseApiProxyPath(req.url || "/");
+    destination = new URL(`/api/${route.path}${route.query ? `?${route.query}` : ""}`, origin);
+    if (!destination.pathname.startsWith("/api/")) throw new InvalidApiProxyPathError("API route is invalid");
+  } catch (cause) {
+    const invalidRoute = cause instanceof InvalidApiProxyPathError;
+    res.writeHead(invalidRoute ? 400 : 500, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+    res.end(JSON.stringify({ message: invalidRoute ? "API route is invalid" : "API route configuration is invalid" }));
     return;
   }
 

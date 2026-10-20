@@ -163,13 +163,13 @@ export default function StaffAccount({
           </label>
           <label>
             New password
-            <input name="newPassword" type="password" autoComplete="new-password" required minLength={6} maxLength={256} pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{6,256}" />
+          <input name="newPassword" type="password" autoComplete="new-password" required minLength={12} maxLength={256} />
           </label>
           <label>
             Confirm new password
-            <input name="confirmPassword" type="password" autoComplete="new-password" required minLength={6} maxLength={256} pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{6,256}" />
+          <input name="confirmPassword" type="password" autoComplete="new-password" required minLength={12} maxLength={256} />
           </label>
-          <p className="staff-account-hint">Use at least 6 characters, including an uppercase letter, a number and a special character. Changing your password signs out your other active sessions.</p>
+          <p className="staff-account-hint">Use at least 12 characters. A long passphrase is fine. Changing your password signs out your other active sessions.</p>
           <button className="btn-sm btn-primary staff-account-submit" disabled={passwordBusy}>
             <KeyRound size={15} /> {passwordBusy ? "Updating…" : "Update password"}
           </button>

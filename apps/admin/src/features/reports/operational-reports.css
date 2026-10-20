@@ -31,7 +31,7 @@
 .report-heading-copy > span {
   display: block;
   margin-bottom: 7px;
-  color: #e65308;
+  color: var(--ms-primary);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -85,7 +85,7 @@
   border: 1px solid transparent;
   border-radius: 9px;
   background: transparent;
-  color: #e65308;
+  color: var(--ms-primary);
   font: inherit;
   font-size: 14px;
   font-weight: 700;
@@ -99,24 +99,24 @@
 
 .report-tabs button:hover:not(.active) {
   background: #fff5ed;
-  color: #d94b00;
+  color: #c2410c;
 }
 
 .report-tabs button.active {
-  border-color: #e65308;
-  background: #f05a0a;
+  border-color: var(--ms-action-orange);
+  background: var(--ms-action-orange);
   color: #fff;
-  box-shadow: 0 4px 10px rgb(240 90 10 / 18%);
+  box-shadow: 0 4px 10px rgb(234 88 12 / 18%);
 }
 
 .report-tabs button.active:hover {
-  border-color: #d94b00;
-  background: #d94b00;
+  border-color: var(--ms-action-orange-hover);
+  background: var(--ms-action-orange-hover);
 }
 
 .report-tabs button:focus-visible,
 .report-record-tabs button:focus-visible {
-  outline: 3px solid rgb(240 90 10 / 24%);
+  outline: 3px solid var(--focus-outline);
   outline-offset: 2px;
 }
 
@@ -161,8 +161,8 @@
 }
 
 .report-filter-fields input:focus-visible {
-  border-color: #f0783c;
-  outline: 3px solid rgb(240 90 10 / 14%);
+  border-color: var(--focus-outline);
+  outline: 3px solid var(--focus-outline);
 }
 
 .report-filter-actions {
@@ -181,16 +181,24 @@
   line-height: 1.5;
 }
 
+.report-range-error {
+  flex: 1 0 100%;
+  margin: -4px 0 0;
+  color: #b42318;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .report-loading {
   display: flex;
   align-items: center;
   gap: 9px;
   margin: 0;
   padding: 12px 14px;
-  border: 1px solid #dbeafe;
+  border: 1px solid #fed7aa;
   border-radius: 10px;
-  background: #f5f9ff;
-  color: #345b93;
+  background: #fff7ed;
+  color: #c2410c;
   font-size: 13px;
   font-weight: 650;
 }
@@ -243,7 +251,7 @@
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: #f05a0a;
+  background: var(--ms-primary);
   content: "";
 }
 
@@ -285,7 +293,7 @@
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: #e65308;
+  color: var(--ms-primary);
   font: inherit;
   font-size: 15px;
   font-weight: 700;
@@ -295,7 +303,7 @@
 
 .report-record-tabs button:hover:not(.active) {
   background: #fff5ed;
-  color: #d94b00;
+  color: #c2410c;
 }
 
 .report-record-tabs button > span {
@@ -311,10 +319,10 @@
 }
 
 .report-record-tabs button.active {
-  border-color: #e65308;
-  background: #f05a0a;
+  border-color: var(--ms-action-orange);
+  background: var(--ms-action-orange);
   color: #fff;
-  box-shadow: 0 4px 10px rgb(240 90 10 / 20%);
+  box-shadow: 0 4px 10px rgb(234 88 12 / 20%);
 }
 
 .report-record-tabs button.active > span {
@@ -323,8 +331,8 @@
 }
 
 .report-record-tabs button.active:hover {
-  border-color: #d94b00;
-  background: #d94b00;
+  border-color: var(--ms-action-orange-hover);
+  background: var(--ms-action-orange-hover);
   color: #fff;
 }
 
@@ -514,8 +522,8 @@
   min-height: 28px;
   place-items: center;
   border-radius: 999px;
-  background: #eaf0f7;
-  color: #344054;
+  background: #fff5ed;
+  color: #c2410c;
   font-size: 13px;
 }
 

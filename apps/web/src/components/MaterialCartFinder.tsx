@@ -116,7 +116,7 @@ export default function MaterialCartFinder({ products = [], loading = false }: {
             ? <Link className="material-cart-suggestion-action is-in-cart" to={`/material-list?item=${encodeURIComponent(existingItem.id)}`}><Check size={15} /> In cart</Link>
             : <button className="material-cart-suggestion-action" type="button" disabled={!canEdit} onClick={() => addProduct(product)}><ShoppingCart size={15} /> Add to cart</button>}
         </article>;
-      }) : <p className="material-cart-no-results">No catalogue matches found.</p>}
+      }) : <p className="material-cart-no-results" role="status">No catalogue matches found.</p>}
     </div>}
     {query.trim().length >= 2 && !loading && suggestedProducts.length === 0 && <div className="material-custom-entry">
       <span>Can’t find a material?</span>

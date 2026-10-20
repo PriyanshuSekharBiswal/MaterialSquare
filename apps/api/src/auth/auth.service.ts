@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../prisma/prisma.service";
-import { hashPassword, verifyPassword } from "./password";
+import { hashPassword, verifyPasswordAsync } from "./password";
 import { createHash, randomBytes } from "node:crypto";
 import { Msg91WidgetService } from "./msg91-widget.service";
 import { CUSTOMER_SESSION_TTL_MS } from "./customer-session";
@@ -11,6 +11,8 @@ type StaffLoginInput = {
   email?: string;
   password: string;
 };
+
+const DUMMY_STAFF_PASSWORD_HASH = hashPassword("not-a-valid-staff-password");
 
 @Injectable()
 export class AuthService {
@@ -26,10 +28,11 @@ export class AuthService {
         ? { phone: input.phone }
         : { email: input.email!.toLowerCase() },
     });
-    if (
-      !staff?.isActive ||
-      !verifyPassword(input.password, staff.passwordHash)
-    ) {
+    const passwordValid = await verifyPasswordAsync(
+      input.password,
+      staff?.passwordHash || DUMMY_STAFF_PASSWORD_HASH,
+    );
+    if (!staff?.isActive || !passwordValid) {
       throw new UnauthorizedException("Invalid staff credentials");
     }
     return {
@@ -63,7 +66,7 @@ export class AuthService {
       where: { id: staffId, deletedAt: null, isActive: true },
       select: { passwordHash: true, authVersion: true },
     });
-    if (!staff || !verifyPassword(currentPassword, staff.passwordHash)) {
+    if (!staff || !(await verifyPasswordAsync(currentPassword, staff.passwordHash))) {
       throw new UnauthorizedException("Current password is incorrect");
     }
 

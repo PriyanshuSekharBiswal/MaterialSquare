@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { canonicalSiteOrigin } from "./seo-origin.js";
+import { canonicalSiteOrigin, trustedSiteOrigin } from "./seo-origin.js";
 import { isPreviewDeployment } from "./seo-environment.js";
 import { retainSharedStructuredData } from "./structured-data.js";
 import { setSiteIdentityStructuredData } from "./site-identity.js";
@@ -222,7 +222,7 @@ function getRequestOrigin(req: IncomingMessage) {
   )
     ?.split(",")[0]
     ?.trim();
-  return `${protocol === "http" ? "http" : "https"}://${host}`;
+  return trustedSiteOrigin(`${protocol === "http" ? "http" : "https"}://${host}`);
 }
 
 function respond(res: ServerResponse, status: number, message: string) {
@@ -247,8 +247,19 @@ export default async function handler(
   const requestOrigin = getRequestOrigin(req);
   const incoming = new URL(req.url || "/", requestOrigin || "https://invalid.local");
   const slug = incoming.searchParams.get("slug") || "";
+  const forwardedHost = req.headers["x-forwarded-host"];
+  const host =
+    (Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost) ||
+    req.headers.host;
+  if (!host || !/^[a-zA-Z0-9.-]+(?::\d{1,5})?$/.test(host)) {
+    respond(res, 400, "Invalid article address");
+    return;
+  }
+  if (!requestOrigin) {
+    respond(res, 503, "Article preview is unavailable");
+    return;
+  }
   if (
-    !requestOrigin ||
     !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) ||
     slug.length > 220
   ) {

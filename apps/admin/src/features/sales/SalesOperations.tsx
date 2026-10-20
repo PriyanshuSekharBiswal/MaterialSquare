@@ -1,5 +1,5 @@
 import OrderDetails, { type OrderSummary } from "./OrderDetails";
-import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, type FormEvent } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, type Dispatch, type SetStateAction, type FormEvent } from "react";
 import {
   BarChart,
   Bar,
@@ -81,6 +81,19 @@ type RfqCatalogue = {
   }[];
 };
 type RfqAssignee = { id: string; name: string; role: string };
+type PageResult<T> = { items: T[]; page: number; pageSize: number; hasMore: boolean };
+type RfqJourney = {
+  requestId: string;
+  quotations: { total: number; sent: number; draft: number; accepted: number };
+  orders: { total: number; statuses: { status: string; count: number }[] };
+};
+type PageCollection = "rfqs" | "quotes" | "orders" | "catalogue";
+const PAGE_SIZE = 50;
+const mergePageItems = <T extends { id: string }>(current: T[], incoming: T[]) => {
+  const rows = new Map(current.map((row) => [row.id, row]));
+  incoming.forEach((row) => rows.set(row.id, row));
+  return [...rows.values()];
+};
 type Product = {
   id: string;
   name: string;
@@ -92,6 +105,7 @@ type Quote = {
   id: string;
   customerId?: string | null;
   requestId?: string | null;
+  request?: { requestNumber: string } | null;
   quoteNumber: string;
   customerName: string;
   customerPhone: string;
@@ -121,6 +135,7 @@ type Quote = {
     variantId?: string | null;
     productName: string;
     brandName: string;
+    categoryName?: string;
     specification: string;
     quantityMt: string;
     unit: string;
@@ -144,7 +159,7 @@ type Order = OrderSummary & {
   customerName: string;
   createdAt: string;
   status: string;
-  manualPaymentStatus: "UNPAID" | "PARTIALLY_PAID" | "PAID";
+  manualPaymentStatus?: "UNPAID" | "PARTIALLY_PAID" | "PAID";
   quotation?: {
     id: string;
     quoteNumber: string;
@@ -319,6 +334,15 @@ export default function SalesOperations({
   const [openedQuoteGroupKey, setOpenedQuoteGroupKey] = useState<string | null>(() => new URLSearchParams(window.location.search).get(salesQuoteGroupParam));
   const [openedOrderGroupKey, setOpenedOrderGroupKey] = useState<string | null>(() => new URLSearchParams(window.location.search).get(salesOrderGroupParam));
   const [orders, setOrders] = useState<Order[]>([]);
+  const [pageState, setPageState] = useState<Record<PageCollection, { page: number; hasMore: boolean }>>({
+    rfqs: { page: 1, hasMore: false },
+    quotes: { page: 1, hasMore: false },
+    orders: { page: 1, hasMore: false },
+    catalogue: { page: 1, hasMore: false },
+  });
+  const pageStateRef = useRef(pageState);
+  pageStateRef.current = pageState;
+  const [loadingPage, setLoadingPage] = useState<PageCollection | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
@@ -352,6 +376,7 @@ export default function SalesOperations({
     selectTab(next, requestId);
   };
   useEffect(() => setToken(accessToken), [accessToken]);
+  const requestedCatalogueIds = useRef(new Set<string>());
   useEffect(() => {
     if (!visibleTabs.includes(tab)) setTab(visibleTabs[0] || "overview");
   }, [role, tab, visibleTabs]);
@@ -378,6 +403,14 @@ export default function SalesOperations({
     onContentReady?.(false);
   }, [tab, onContentReady]);
   useEffect(() => {
+    if (!quoteToSend || busy) return;
+    const cancelOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setQuoteToSend(null);
+    };
+    window.addEventListener("keydown", cancelOnEscape);
+    return () => window.removeEventListener("keydown", cancelOnEscape);
+  }, [busy, quoteToSend]);
+  useEffect(() => {
     if (!operationsMenuOpen) return;
     const closeOnOutsidePointer = (event: PointerEvent) => {
       if (!operationsMenuRef.current?.contains(event.target as Node)) {
@@ -397,6 +430,8 @@ export default function SalesOperations({
   const [editorRevision, setEditorRevision] = useState(0);
   const [selectedRfq, setSelectedRfq] = useState<Rfq | null>(null);
   const [openedRfqId, setOpenedRfqId] = useState<string | null>(() => new URLSearchParams(window.location.search).get(salesRfqParam));
+  const [loadedRfq, setLoadedRfq] = useState<Rfq | null>(null);
+  const [openedRfqJourney, setOpenedRfqJourney] = useState<RfqJourney | null>(null);
   const openRfq = (id: string) => {
     if (id === openedRfqId) return;
     const url = new URL(window.location.href);
@@ -480,37 +515,108 @@ export default function SalesOperations({
     },
     [token, onSignOut],
   );
+  useEffect(() => {
+    if (!openedRfqId) return;
+    let active = true;
+    void Promise.all([
+      request<Rfq>(`/rfqs/${encodeURIComponent(openedRfqId)}`),
+      request<RfqJourney>(`/rfqs/${encodeURIComponent(openedRfqId)}/journey`),
+    ])
+      .then(([rfq, journey]) => {
+        if (!active) return;
+        setLoadedRfq(rfq);
+        setOpenedRfqJourney(journey);
+      })
+      .catch((cause) => {
+        if (active) setError(cause instanceof Error ? cause.message : "Could not load this request.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [editorRevision, openedRfqId, request]);
+  const loadMore = useCallback(async <T extends { id: string }>(
+    collection: PageCollection,
+    path: string,
+    setRows: Dispatch<SetStateAction<T[]>>,
+  ) => {
+    if (loadingPage || busy) return;
+    const page = pageState[collection].page + 1;
+    setLoadingPage(collection);
+    setError("");
+    try {
+      const result = await request<PageResult<T>>(
+        `${path}?page=${page}&pageSize=${PAGE_SIZE}`,
+      );
+      setRows((current) => mergePageItems(current, result.items));
+      setPageState((current) => ({
+        ...current,
+        [collection]: { page: result.page, hasMore: result.hasMore },
+      }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not load older records.");
+    } finally {
+      setLoadingPage(null);
+    }
+  }, [busy, loadingPage, pageState, request]);
   const refresh = useCallback(async () => {
     setBusy(true);
     setError("");
     try {
+      const reloadPages = async <T extends { id: string }>(path: string, pageCount: number) => {
+        const pages: PageResult<T>[] = [];
+        for (let page = 1; page <= Math.max(1, pageCount); page += 1) {
+          pages.push(await request<PageResult<T>>(`${path}?page=${page}&pageSize=${PAGE_SIZE}`));
+        }
+        const lastPage = pages[pages.length - 1];
+        return {
+          ...pages[0],
+          items: mergePageItems([], pages.flatMap((result) => result.items)),
+          page: lastPage.page,
+          hasMore: lastPage.hasMore,
+        };
+      };
+      const loadedPages = pageStateRef.current;
       if (tab === "overview")
         setAnalytics(await request<Analytics>("/analytics/dashboard"));
       if (tab === "rfqs") {
-        const [requests, assignees, catalogue, savedQuotes, linkedOrders] = await Promise.all([
-          request<Rfq[]>("/rfqs"),
+        const [requests, assignees, catalogue] = await Promise.all([
+          reloadPages<Rfq>("/rfqs", loadedPages.rfqs.page),
           request<RfqAssignee[]>("/rfqs/assignees"),
-          request<RfqCatalogue[]>("/products/catalogue"),
-          request<Quote[]>("/quotes"),
-          request<Order[]>("/orders"),
+          reloadPages<RfqCatalogue>("/products/catalogue", loadedPages.catalogue.page),
         ]);
-        setRfqs(requests);
+        setRfqs(requests.items);
         setRfqAssignees(assignees);
-        setRfqCatalogue(catalogue);
-        setQuotes(savedQuotes);
-        setOrders(linkedOrders);
+        requestedCatalogueIds.current.clear();
+        setRfqCatalogue(catalogue.items);
+        setPageState((current) => ({
+          ...current,
+          rfqs: { page: requests.page, hasMore: requests.hasMore },
+          catalogue: { page: catalogue.page, hasMore: catalogue.hasMore },
+        }));
         setRfqsLoaded(true);
       }
       if (tab === "quotes") {
         const [savedQuotes, requests] = await Promise.all([
-          request<Quote[]>("/quotes"),
-          request<Rfq[]>("/rfqs"),
+          reloadPages<Quote>("/quotes", loadedPages.quotes.page),
+          reloadPages<Rfq>("/rfqs", loadedPages.rfqs.page),
         ]);
-        setQuotes(savedQuotes);
-        setRfqs(requests);
+        setQuotes(savedQuotes.items);
+        setRfqs(requests.items);
+        setPageState((current) => ({
+          ...current,
+          quotes: { page: savedQuotes.page, hasMore: savedQuotes.hasMore },
+          rfqs: { page: requests.page, hasMore: requests.hasMore },
+        }));
         setRfqsLoaded(true);
       }
-      if (tab === "orders") setOrders(await request<Order[]>("/orders"));
+      if (tab === "orders") {
+        const result = await reloadPages<Order>("/orders", loadedPages.orders.page);
+        setOrders(result.items);
+        setPageState((current) => ({
+          ...current,
+          orders: { page: result.page, hasMore: result.hasMore },
+        }));
+      }
       if (tab === "quotes")
         setProducts(await request<Product[]>("/products/inventory"));
       if (tab === "inquiries")
@@ -531,6 +637,19 @@ export default function SalesOperations({
     try {
       await request(path, method, body);
       await refresh();
+      if (openedRfqId) {
+        try {
+          const id = encodeURIComponent(openedRfqId);
+          const [rfq, journey] = await Promise.all([
+            request<Rfq>(`/rfqs/${id}`),
+            request<RfqJourney>(`/rfqs/${id}/journey`),
+          ]);
+          setLoadedRfq(rfq);
+          setOpenedRfqJourney(journey);
+        } catch {
+          // The completed mutation is authoritative; refresh will retry the summary on navigation.
+        }
+      }
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save changes");
@@ -585,22 +704,43 @@ export default function SalesOperations({
       setError(e instanceof Error ? e.message : "Download failed");
     }
   };
-  const openedRfq = rfqs.find((record) => record.id === openedRfqId) || null;
-  const openedRfqQuotes = openedRfq
-    ? quotes
-        .filter((quote) => quote.requestId === openedRfq.id)
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    : [];
-  const openedRfqOrders = openedRfq
-    ? orders.filter((order) => order.quotation?.requestId === openedRfq.id)
-    : [];
-  const openedRfqAcceptedQuotes = openedRfqQuotes.filter((quote) =>
-    ["ACCEPTED", "CONVERTED_TO_ORDER"].includes(quote.status),
-  );
-  const openedRfqSentQuotes = openedRfqQuotes.filter((quote) =>
-    Boolean(quote.publishedAt) ||
-    ["QUOTE_SENT", "EXPIRED", "REJECTED", "ACCEPTED", "CONVERTED_TO_ORDER"].includes(quote.status),
-  );
+  const openedRfq = rfqs.find((record) => record.id === openedRfqId) ||
+    (loadedRfq?.id === openedRfqId ? loadedRfq : null);
+  useEffect(() => {
+    if (!openedRfq) return;
+    const missingIds = [...new Set(
+      openedRfq.items
+        .map((item) => item.catalogueId)
+        .filter((id): id is string => Boolean(id)),
+    )].filter((id) => !rfqCatalogue.some((listing) => listing.id === id) && !requestedCatalogueIds.current.has(id));
+    if (!missingIds.length) return;
+    missingIds.forEach((id) => requestedCatalogueIds.current.add(id));
+    let active = true;
+    let completed = false;
+    void Promise.all(
+      Array.from({ length: Math.ceil(missingIds.length / 100) }, (_, index) => {
+        const ids = missingIds.slice(index * 100, (index + 1) * 100);
+        return request<RfqCatalogue[]>(
+          `/products/catalogue/lookup?ids=${ids.map(encodeURIComponent).join(",")}`,
+        );
+      }),
+    )
+      .then((pages) => {
+        completed = true;
+        const found = pages.flat();
+        if (active && found.length)
+          setRfqCatalogue((current) => mergePageItems(current, found));
+      })
+      .catch((cause) => {
+        missingIds.forEach((id) => requestedCatalogueIds.current.delete(id));
+        if (active) setError(cause instanceof Error ? cause.message : "Could not load products linked to this request.");
+      });
+    return () => {
+      active = false;
+      if (!completed) missingIds.forEach((id) => requestedCatalogueIds.current.delete(id));
+    };
+  }, [openedRfq, request, rfqCatalogue]);
+  const activeRfqJourney = openedRfqJourney?.requestId === openedRfq?.id ? openedRfqJourney : null;
   const openedRfqAddress = openedRfq
     ? (() => {
         const rawAddress = openedRfq.siteLocation || "";
@@ -662,7 +802,7 @@ export default function SalesOperations({
           totalCount: customerQuotes.length,
           sentCount,
           unsentCount: customerQuotes.length - sentCount,
-          requestNumber: linkedRequest?.requestNumber || null,
+          requestNumber: customerQuotes[0]?.request?.requestNumber || linkedRequest?.requestNumber || null,
           customerName: chronological[0]?.customerName || linkedRequest?.customerName || "Customer",
           latestAt: Math.max(...customerQuotes.map(timestamp)),
         };
@@ -671,7 +811,8 @@ export default function SalesOperations({
   }, [quotes, rfqs]);
   const activeRequestFilterId = tab === "orders" ? orderRequestFilterId : quoteRequestFilterId;
   const requestPageFilter = activeRequestFilterId
-    ? rfqs.find((rfq) => rfq.id === activeRequestFilterId) || null
+    ? rfqs.find((rfq) => rfq.id === activeRequestFilterId) ||
+      (loadedRfq?.id === activeRequestFilterId ? loadedRfq : null)
     : null;
   const visibleQuoteGroups = quoteRequestFilterId
     ? quoteRequestGroups.filter((group) => group.key === `request:${quoteRequestFilterId}`)
@@ -694,9 +835,11 @@ export default function SalesOperations({
         requestNumber: customerOrders[0]?.quotation?.request?.requestNumber || null,
         customerName: customerOrders[0]?.customerName || "Customer",
         orders: customerOrders,
-        paymentStatus: [...new Set(customerOrders.map((order) => order.manualPaymentStatus || "UNPAID"))].length === 1
-          ? customerOrders[0]?.manualPaymentStatus || "UNPAID"
-          : "MIXED",
+        paymentStatus: customerOrders.some((order) => !order.manualPaymentStatus)
+          ? null
+          : [...new Set(customerOrders.map((order) => order.manualPaymentStatus))].length === 1
+            ? customerOrders[0]?.manualPaymentStatus
+            : "MIXED",
         latestAt: Math.max(...customerOrders.map((order) => new Date(order.createdAt).getTime() || 0)),
       }))
       .sort((a, b) => b.latestAt - a.latestAt);
@@ -713,7 +856,7 @@ export default function SalesOperations({
     <>
       {!(tab === "orders" && openedOrderGroupKey) && <div className={`embedded-subnav-bar embedded-sales-navigation${embedded ? " has-page-indicator" : ""}`} ref={operationsMenuRef}>
         {embedded ? (
-          <h1 className="operations-current-section">{labels[tab]}</h1>
+          <h2 className="operations-current-section">{labels[tab]}</h2>
         ) : <nav className="sales-workflow-nav" aria-label="Quotation and order pages">
           {(["rfqs", "quotes", "orders"] as Tab[])
             .filter((item) => visibleTabs.includes(item))
@@ -722,8 +865,7 @@ export default function SalesOperations({
               return (
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={tab === item}
+                  aria-current={tab === item ? "page" : undefined}
                   className={`sales-workflow-nav-link${tab === item ? " is-active" : ""}`}
                   key={item}
                   onClick={() => navigateWorkflowPage(item)}
@@ -742,6 +884,7 @@ export default function SalesOperations({
                 <button
                   key={item}
                   className={`subnav-pill ${tab === item ? "active" : ""}`}
+                  aria-current={tab === item ? "page" : undefined}
                   onClick={() => {
                     selectTab(item);
                     setOperationsMenuOpen(false);
@@ -815,12 +958,12 @@ export default function SalesOperations({
                   <Bar
                     dataKey="value"
                     name="Order value (INR)"
-                    fill="#3b82f6"
+                    fill="#ea580c"
                   />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <p>No orders recorded this month.</p>
+              <p role="status">No orders recorded this month.</p>
             )}
           </section>
         </>
@@ -865,17 +1008,17 @@ export default function SalesOperations({
                   <span className="rfq-journey-step-number">1</span>
                   <span><strong>Request received</strong><small>{rfqReceivedLabel(openedRfq.createdAt)}</small></span>
                 </li>
-                <li className={openedRfqQuotes.length ? "is-complete" : ""}>
+                <li className={activeRfqJourney?.quotations.total ? "is-complete" : ""}>
                   <span className="rfq-journey-step-number">2</span>
-                  <span><strong>{openedRfqQuotes.length} {openedRfqQuotes.length === 1 ? "quotation" : "quotations"}</strong><small>{openedRfqSentQuotes.length} sent · {openedRfqQuotes.length - openedRfqSentQuotes.length} draft</small></span>
+                  <span><strong>{activeRfqJourney?.quotations.total ?? "…"} {(activeRfqJourney?.quotations.total ?? 0) === 1 ? "quotation" : "quotations"}</strong><small>{activeRfqJourney?.quotations.sent ?? "…"} sent · {activeRfqJourney?.quotations.draft ?? "…"} draft</small></span>
                 </li>
-                <li className={openedRfqAcceptedQuotes.length ? "is-complete" : ""}>
+                <li className={activeRfqJourney?.quotations.accepted ? "is-complete" : ""}>
                   <span className="rfq-journey-step-number">3</span>
-                  <span><strong>{openedRfqAcceptedQuotes.length} accepted</strong><small>{openedRfqAcceptedQuotes.length ? "Customer accepted a quotation" : "Waiting for customer response"}</small></span>
+                  <span><strong>{activeRfqJourney?.quotations.accepted ?? "…"} accepted</strong><small>{activeRfqJourney?.quotations.accepted ? "Customer accepted a quotation" : "Waiting for customer response"}</small></span>
                 </li>
-                <li className={openedRfqOrders.length ? "is-complete" : ""}>
+                <li className={activeRfqJourney?.orders.total ? "is-complete" : ""}>
                   <span className="rfq-journey-step-number">4</span>
-                  <span><strong>{openedRfqOrders.length} {openedRfqOrders.length === 1 ? "order" : "orders"}</strong><small>{openedRfqOrders.length ? [...new Set(openedRfqOrders.map((order) => formatEnumLabel(order.status)))].join(" · ") : "Created after quote acceptance"}</small></span>
+                  <span><strong>{activeRfqJourney?.orders.total ?? "…"} {(activeRfqJourney?.orders.total ?? 0) === 1 ? "order" : "orders"}</strong><small>{activeRfqJourney?.orders.total ? [...new Set(activeRfqJourney.orders.statuses.map((order) => formatEnumLabel(order.status)))].join(" · ") : "Created after quote acceptance"}</small></span>
                 </li>
               </ol>
             </section>
@@ -950,7 +1093,7 @@ export default function SalesOperations({
                         </tr>
                       );
                     })}
-                    {!openedRfq.items.length && <tr><td colSpan={5} className="rfq-empty-items">No material lines were included in this request.</td></tr>}
+                    {!openedRfq.items.length && <tr><td colSpan={5} className="rfq-empty-items"><span role="status">No material lines were included in this request.</span></td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -963,10 +1106,10 @@ export default function SalesOperations({
               </div>
               <div className="rfq-related-page-actions">
                 <button type="button" className="btn-sm btn-secondary" onClick={() => navigateWorkflowPage("quotes", openedRfq.id)}>
-                  Quotations <span>{openedRfqQuotes.length}</span><ArrowRight size={15} aria-hidden="true" />
+                  Quotations <span>{activeRfqJourney?.quotations.total ?? "…"}</span><ArrowRight size={15} aria-hidden="true" />
                 </button>
                 <button type="button" className="btn-sm btn-secondary" onClick={() => navigateWorkflowPage("orders", openedRfq.id)}>
-                  Orders <span>{openedRfqOrders.length}</span><ArrowRight size={15} aria-hidden="true" />
+                  Orders <span>{activeRfqJourney?.orders.total ?? "…"}</span><ArrowRight size={15} aria-hidden="true" />
                 </button>
               </div>
             </section>
@@ -1031,7 +1174,7 @@ export default function SalesOperations({
                 <h2>RFQ inbox</h2>
                 <p>Open a customer request to review materials and manage its next steps.</p>
               </div>
-              <span className="rfq-inbox-total">{rfqs.length} {rfqs.length === 1 ? "request" : "requests"}</span>
+              <span className="rfq-inbox-total">{rfqs.length} loaded</span>
             </header>
             <div className="rfq-status-filters" role="group" aria-label="Filter requests by status">
               {rfqStatusFilters.map((filter) => {
@@ -1051,12 +1194,15 @@ export default function SalesOperations({
                 );
               })}
             </div>
+            {pageState.rfqs.hasMore && (
+              <p className="sales-pagination-hint">Status counts reflect the loaded requests. Load older requests to expand the filters.</p>
+            )}
             {!rfqsLoaded ? (
               <p role="status">{busy ? "Loading customer requests…" : "Loading customer requests…"}</p>
             ) : !rfqs.length ? (
-              <p className="rfq-inbox-empty">No RFQs received yet.</p>
+              <p className="rfq-inbox-empty" role="status">No RFQs received yet.</p>
             ) : !visibleRfqs.length ? (
-              <p className="rfq-inbox-empty">No {rfqStatusFilter.toLocaleLowerCase()} requests.</p>
+              <p className="rfq-inbox-empty" role="status">No {rfqStatusFilter.toLocaleLowerCase()} requests.</p>
             ) : (
               <div className="rfq-inbox-list">
                 {visibleRfqs.map((rfq) => (
@@ -1081,6 +1227,30 @@ export default function SalesOperations({
                 ))}
               </div>
             )}
+            {(pageState.rfqs.hasMore || pageState.catalogue.hasMore) && (
+              <div className="sales-pagination-controls">
+                {pageState.rfqs.hasMore && (
+                  <button
+                    type="button"
+                    className="btn-sm btn-secondary"
+                    disabled={busy || loadingPage !== null}
+                    onClick={() => void loadMore("rfqs", "/rfqs", setRfqs)}
+                  >
+                    {loadingPage === "rfqs" ? "Loading requests…" : "Load older requests"}
+                  </button>
+                )}
+                {pageState.catalogue.hasMore && (
+                  <button
+                    type="button"
+                    className="btn-sm btn-secondary"
+                    disabled={busy || loadingPage !== null}
+                    onClick={() => void loadMore("catalogue", "/products/catalogue", setRfqCatalogue)}
+                  >
+                    {loadingPage === "catalogue" ? "Loading products…" : "Load more catalogue products"}
+                  </button>
+                )}
+              </div>
+            )}
           </section>
         )
       )}
@@ -1102,6 +1272,7 @@ export default function SalesOperations({
                 initialRequest={selectedRfq}
                 linkedRequestNumber={
                   selectedRfq?.requestNumber ||
+                  revision?.request?.requestNumber ||
                   rfqs.find((rfq) => rfq.id === revision?.requestId)?.requestNumber
                 }
                 revision={revision}
@@ -1156,13 +1327,17 @@ export default function SalesOperations({
                   Create custom quotation
                 </button>
                 <span className="sales-saved-quote-count">
-                  {displayedQuoteGroups.reduce((total, group) => total + group.totalCount, 0)} {displayedQuoteGroups.reduce((total, group) => total + group.totalCount, 0) === 1 ? "quotation" : "quotations"}
+                  {displayedQuoteGroups.reduce((total, group) => total + group.totalCount, 0)} {displayedQuoteGroups.reduce((total, group) => total + group.totalCount, 0) === 1 ? "quotation" : "quotations"}{pageState.quotes.hasMore ? " loaded" : ""}
                 </span>
               </div>
             </div>
             {!visibleQuoteGroups.length && (
-              <p className="sales-saved-quotes-empty">
-                {quoteRequestFilterId ? `No quotations are linked to ${requestPageFilter?.requestNumber || "this request"} yet.` : "No quotations created yet."}
+              <p className="sales-saved-quotes-empty" role="status">
+                {quoteRequestFilterId && pageState.quotes.hasMore
+                  ? `No loaded quotations are linked to ${requestPageFilter?.requestNumber || "this request"}. Load older quotations to continue searching.`
+                  : quoteRequestFilterId
+                    ? `No quotations are linked to ${requestPageFilter?.requestNumber || "this request"} yet.`
+                    : "No quotations created yet."}
               </p>
             )}
             {openedQuoteGroupKey && (
@@ -1461,10 +1636,34 @@ export default function SalesOperations({
               </details>
             ))}
             </div>
+            {pageState.quotes.hasMore && (
+              <div className="sales-pagination-controls">
+                <button
+                  type="button"
+                  className="btn-sm btn-secondary"
+                  disabled={busy || loadingPage !== null}
+                  onClick={() => void loadMore("quotes", "/quotes", setQuotes)}
+                >
+                  {loadingPage === "quotes" ? "Loading quotations…" : "Load older quotations"}
+                </button>
+              </div>
+            )}
+            {pageState.rfqs.hasMore && (
+              <div className="sales-pagination-controls">
+                <button
+                  type="button"
+                  className="btn-sm btn-secondary"
+                  disabled={busy || loadingPage !== null}
+                  onClick={() => void loadMore("rfqs", "/rfqs", setRfqs)}
+                >
+                  {loadingPage === "rfqs" ? "Loading requests…" : "Load older requests for filters"}
+                </button>
+              </div>
+            )}
             {quoteToSend && (
               <div className="sales-send-quote-overlay">
                 <section
-                  className="sales-send-quote-dialog"
+                  className="sales-send-quote-dialog admin-confirm-surface"
                   role="alertdialog"
                   aria-modal="true"
                   aria-labelledby="sales-send-quote-title"
@@ -1529,7 +1728,7 @@ export default function SalesOperations({
                 url.searchParams.delete(salesOrderGroupParam);
                 window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
               }}>Show all orders</button>}
-              <span className="sales-saved-quote-count">{displayedOrderGroups.reduce((total, group) => total + group.orders.length, 0)} {displayedOrderGroups.reduce((total, group) => total + group.orders.length, 0) === 1 ? "order" : "orders"}</span>
+              <span className="sales-saved-quote-count">{displayedOrderGroups.reduce((total, group) => total + group.orders.length, 0)} {displayedOrderGroups.reduce((total, group) => total + group.orders.length, 0) === 1 ? "order" : "orders"}{pageState.orders.hasMore ? " loaded" : ""}</span>
             </div>
           </header>
           {!["SUPER_ADMIN", "ADMIN", "DISPATCH_OFFICER"].includes(role) && (
@@ -1537,7 +1736,11 @@ export default function SalesOperations({
               Read-only order access. Dispatch staff manage delivery actions.
             </p>
           )}
-          {!visibleOrderGroups.length && <p className="sales-saved-quotes-empty">{orderRequestFilterId ? `No orders are linked to ${requestPageFilter?.requestNumber || "this request"} yet.` : "No orders recorded yet."}</p>}
+          {!visibleOrderGroups.length && <p className="sales-saved-quotes-empty" role="status">{orderRequestFilterId && pageState.orders.hasMore
+            ? `No loaded orders are linked to ${requestPageFilter?.requestNumber || "this request"}. Load older orders to continue searching.`
+            : orderRequestFilterId
+              ? `No orders are linked to ${requestPageFilter?.requestNumber || "this request"} yet.`
+              : "No orders recorded yet."}</p>}
           {displayedOrderGroups.map((group) => (
             <details
               className="sales-rfq-order-group"
@@ -1556,9 +1759,11 @@ export default function SalesOperations({
                   <strong>{group.customerName}</strong>
                 </span>
                 <span className="sales-order-group-meta">
-                  <span className="sales-order-payment-pill" data-status={group.paymentStatus}>
-                    {group.paymentStatus === "MIXED" ? "Mixed payment" : formatEnumLabel(group.paymentStatus)}
-                  </span>
+                  {group.paymentStatus && (
+                    <span className="sales-order-payment-pill" data-status={group.paymentStatus}>
+                      {group.paymentStatus === "MIXED" ? "Mixed payment" : formatEnumLabel(group.paymentStatus)}
+                    </span>
+                  )}
                 </span>
               </summary>
               <div className="sales-rfq-order-group-orders">
@@ -1684,6 +1889,18 @@ export default function SalesOperations({
               </div>
             </details>
           ))}
+          {pageState.orders.hasMore && (
+            <div className="sales-pagination-controls">
+              <button
+                type="button"
+                className="btn-sm btn-secondary"
+                disabled={busy || loadingPage !== null}
+                onClick={() => void loadMore("orders", "/orders", setOrders)}
+              >
+                {loadingPage === "orders" ? "Loading orders…" : "Load older orders"}
+              </button>
+            </div>
+          )}
         </section>
       )}
       </div>}
@@ -1695,7 +1912,7 @@ export default function SalesOperations({
       {visitedTabs.has("inquiries") && <div hidden={tab !== "inquiries"}>
       {visitedTabs.has("inquiries") && (
         <section className="panel-card panel-body">
-          {!inquiries.length && <p>No contact enquiries received yet.</p>}
+          {!inquiries.length && <p role="status">No contact enquiries received yet.</p>}
           {inquiries.map((i) => (
             <article className="record-card" key={i.id}>
               <h3>{i.name}</h3>
@@ -1740,6 +1957,7 @@ export default function SalesOperations({
               <button
                 key={item}
                 className={`nav-item ${tab === item ? "active" : ""}`}
+                aria-current={tab === item ? "page" : undefined}
                 onClick={() => {
                   selectTab(item);
                 }}

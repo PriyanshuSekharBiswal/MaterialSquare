@@ -141,6 +141,11 @@ export type Activity = {
       isExpired: boolean;
     }[];
   } | null;
+  hasMore: {
+    requests: boolean;
+    quotations: boolean;
+    orders: boolean;
+  };
 };
 
 export const emptyActivity: Activity = {
@@ -148,6 +153,7 @@ export const emptyActivity: Activity = {
   quotations: [],
   orders: [],
   loyalty: null,
+  hasMore: { requests: false, quotations: false, orders: false },
 };
 
 export const money = (value: string | number) =>

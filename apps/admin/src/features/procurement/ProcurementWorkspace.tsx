@@ -150,7 +150,7 @@ export default function ProcurementWorkspace({
           {filteredRecords.map((record) => <ProcurementRequestCard key={record.id} record={record} request={request} busy={busy} mutate={mutate} download={download} />)}
         </div> : busy && !records.length
           ? <div className="procurement-empty-state" role="status"><strong>Loading purchase requests…</strong></div>
-          : <div className="procurement-empty-state"><strong>{records.length ? "No requests in this stage" : "No purchase requests yet"}</strong><p>{records.length ? "Choose another stage to view requests." : "Accepted quotations will appear here when materials need to be sourced."}</p></div>}
+          : <div className="procurement-empty-state" role="status"><strong>{records.length ? "No requests in this stage" : "No purchase requests yet"}</strong><p>{records.length ? "Choose another stage to view requests." : "Accepted quotations will appear here when materials need to be sourced."}</p></div>}
       </section>}
     </>}
   </section>;

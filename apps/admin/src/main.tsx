@@ -38,6 +38,7 @@ function adminMutationConfirmation(input: RequestInfo | URL, init?: RequestInit)
   // These actions already show a detailed confirmation with the affected record name.
   if (
     (method === "DELETE" && (/\/admin\/staff\/[^/]+$/.test(path) || /\/products\/catalogue\/[^/]+$/.test(path) || /\/suppliers\/[^/]+$/.test(path) || /\/suppliers\/[^/]+\/products\/[^/]+$/.test(path))) ||
+    (method === "DELETE" && /\/discount-rules\/[^/]+$/.test(path)) ||
     (method === "POST" && /\/admin\/recently-deleted\/[^/]+\/restore$/.test(path)) ||
     /\/admin\/staff\/[^/]+\/password$/.test(path)
   ) return null;

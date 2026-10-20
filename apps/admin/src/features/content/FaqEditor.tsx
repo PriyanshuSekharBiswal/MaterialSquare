@@ -16,7 +16,7 @@ export default function FaqEditor({
   } catch {
     // Saved legacy copy has no entries.
   }
-  if (!entries.length && content["faq.entries"]?.trim() === "[]") {
+  if (!entries.length && !content["faq.entries"]?.trim()) {
     if (content["faq.enabled"] !== "false") {
       entries = DEFAULT_FAQ_ENTRIES.map((entry) => ({ ...entry }));
     }

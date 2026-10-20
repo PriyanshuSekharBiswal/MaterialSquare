@@ -211,7 +211,7 @@ export function roleHasPermission(
 
 function routePermission(method: string, path: string): StaffPermission {
   const verb = method.toUpperCase();
-  const route = path.replace(/^\/api(?=\/)/, "").replace(/\/$/, "") || "/";
+  const route = path.split("?", 1)[0].replace(/^\/api(?=\/)/, "").replace(/\/$/, "") || "/";
   if (
     (route === "/admin/notifications" ||
       route === "/admin/notifications/readiness") &&
@@ -248,6 +248,7 @@ function routePermission(method: string, path: string): StaffPermission {
     route === "/rfqs" ||
     route === "/rfqs/assignees" ||
     /^\/rfqs\/[^/]+$/.test(route) ||
+      /^\/rfqs\/[^/]+\/journey$/.test(route) ||
     /^\/rfqs\/[^/]+\/status$/.test(route) ||
     /^\/rfqs\/[^/]+\/attachments\/[^/]+$/.test(route) ||
     route === "/inquiries"

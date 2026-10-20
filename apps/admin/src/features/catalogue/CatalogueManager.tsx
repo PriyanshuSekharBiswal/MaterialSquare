@@ -27,6 +27,8 @@ import {
   formatContactPhone,
   normalizeCatalogueCategory,
   resolveCatalogueCategoryId,
+  parsePolicy,
+  publicFaqEntries,
   sanitizePublicSiteContent,
   SITE_CONTENT_DEFAULTS,
   STOREFRONT_CATEGORIES,
@@ -39,7 +41,10 @@ import CatalogueVariantsEditor, {
 import MaterialSquareLogo from "../../components/MaterialSquareLogo";
 import { confirmAdminAction } from "../../components/confirmAdminAction";
 import PartnerBrandsManager from "./PartnerBrandsManager";
-import ProductDetailSurface, { type ProductDetailChoiceGroup } from "../../../../../packages/storefront-ui/ProductDetailSurface";
+import ProductDetailSurface from "../../../../../packages/storefront-ui/ProductDetailSurface";
+import MarketplaceProductCard from "../../../../../packages/storefront-ui/MarketplaceProductCard";
+import PartnerBrandLogo from "../../../../../packages/storefront-ui/PartnerBrandLogo";
+import { buildProductDetailChoiceGroups } from "../../../../../packages/storefront-ui/product-detail-choices";
 import { formatQuantityUnit, formatQuantityUnitText } from "../../quantity-format";
 import "./catalogue-manager.css";
 
@@ -80,6 +85,7 @@ type Listing = {
   draftExpiresAt?: string | null;
 };
 type Variant = EditableVariant;
+type CataloguePage = { items: Listing[]; page: number; pageSize: number; hasMore: boolean; maxSortOrder: number };
 type ProductDraft = {
   savedAt: number;
   values: Record<string, string | boolean>;
@@ -309,6 +315,85 @@ const specsFromLines = (value: FormDataEntryValue | null) =>
   );
 const lines = (values: string[]) => values.join("\n");
 const dateField = (value: string | null) => (value ? value.slice(0, 10) : "");
+const normalizeListing = (row: Listing): Listing => ({
+  ...row,
+  availabilityStatus:
+    row.availabilityStatus ||
+    (row.isInStock ? "IN_STOCK" : "CHECK_AVAILABILITY"),
+  galleryImages: Array.isArray(row.galleryImages) ? row.galleryImages : [],
+  variants: Array.isArray(row.variants)
+    ? row.variants.map((variant) => ({
+        ...variant,
+        galleryImages: Array.isArray(variant.galleryImages)
+          ? variant.galleryImages
+          : [],
+        availabilityStatus:
+          variant.availabilityStatus ||
+          (variant.isInStock ? "IN_STOCK" : "CHECK_AVAILABILITY"),
+        inStock: variant.availabilityStatus
+          ? variant.availabilityStatus === "IN_STOCK"
+          : Boolean(variant.isInStock),
+      }))
+    : [],
+  category: normalizeCatalogueCategory(row.categoryLabel || row.category),
+  categoryLabel: catalogueCategoryLabel(row.categoryLabel || row.category),
+  features: Array.isArray(row.features) ? row.features : [],
+  applications: Array.isArray(row.applications) ? row.applications : [],
+  specifications:
+    row.specifications && typeof row.specifications === "object"
+      ? row.specifications
+      : {},
+});
+const marketplacePreviewCardData = (listing: Listing, variant?: Variant) => {
+  const price = variant?.price ?? listing.price;
+  const compareAtPrice = variant?.compareAtPrice ?? listing.compareAtPrice;
+  const explicitSpecification = listing.grade?.trim() || listing.specifications.standard?.trim();
+  const specification = explicitSpecification || [...new Set([
+    ...Object.entries(listing.specifications || {}),
+    ...Object.entries(variant?.attributes || {}),
+  ].filter(([key, value]) => /grade|standard|spec|volt|size|section|material|type|class|pressure|thickness|rating|insulation|fire|flame|core/i.test(key) && value?.trim())
+    .map(([, value]) => value.trim()))].slice(0, 3).join(" · ");
+  const optionAttributes = variant
+    ? Object.entries(variant.attributes || {}).filter(([, value]) => !variant.label.toLocaleLowerCase().includes(String(value).toLocaleLowerCase())).map(([key, value]) => `${key}: ${value}`)
+    : [];
+  const optionLabel = variant ? [variant.label, ...optionAttributes].filter(Boolean).join(" · ") : "";
+  const discount = price != null && compareAtPrice != null && Number(compareAtPrice) > Number(price)
+    ? Math.round(((Number(compareAtPrice) - Number(price)) / Number(compareAtPrice)) * 100)
+    : 0;
+  const offerLabel = variant?.offerLabel || listing.offerLabel || (discount ? `${discount}% OFF` : "");
+  const availability = variant
+    ? variant.availabilityStatus || (variant.inStock ? "IN_STOCK" : "CHECK_AVAILABILITY")
+    : listing.availabilityStatus || (listing.isInStock ? "IN_STOCK" : "CHECK_AVAILABILITY");
+  const cardAvailability = availability || (listing.isInStock ? "IN_STOCK" : "CHECK_AVAILABILITY");
+  const variantCode = variant?.code || listing.code;
+  const version = variant?.code?.match(/-V(\d+)(?:-|$)/i)?.[1];
+  const minimumOrder = variant?.minOrderQuantity != null
+    ? formatQuantityUnit(variant.minOrderQuantity, "")
+    : formatQuantityUnitText(listing.minOrderQty, listing.unit).replace(/\s*×\s*.*$/, "");
+  return {
+    code: version ? `${listing.code} · V${version}` : variantCode,
+    image: variant?.image || variant?.galleryImages?.[0] || listing.image || listing.galleryImages[0] || "",
+    specification: specification || undefined,
+    optionLabel,
+    sizeGuide: !variant && !listing.grade ? listing.specifications.sizes || undefined : undefined,
+    price,
+    compareAtPrice: price != null && compareAtPrice != null && Number(compareAtPrice) > Number(price) ? `₹${Number(compareAtPrice).toLocaleString("en-IN")}` : undefined,
+    priceCaption: price != null ? "Price per unit" : listing.variants.some((option) => option.price != null) ? "Starting from" : "Pricing",
+    priceLabel: price != null ? `₹${Number(price).toLocaleString("en-IN")}` : "Request a quote",
+    availability: cardAvailability,
+    availabilityLabel: cardAvailability === "IN_STOCK" ? "In stock" : cardAvailability === "OUT_OF_STOCK" ? "Out of stock" : "Check availability",
+    minimumOrderLabel: `MOQ: ${minimumOrder || "Confirm"}`,
+    bannerLabel: offerLabel || listing.photoBanner || "",
+    bannerKind: offerLabel || (!discount && listing.photoBanner) ? "explicit" as const : "calculated" as const,
+  };
+};
+const marketplacePreviewWhatsAppHref = (phone: string, product: string, option?: string) => {
+  const number = phone.replace(/\D/g, "");
+  if (!number) return undefined;
+  const message = `Hi, I’d like to ask about ${product}${option ? ` (${option})` : ""}.`;
+  return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+};
+
 export default function CatalogueManager({
   token,
   role,
@@ -323,8 +408,18 @@ export default function CatalogueManager({
   customerUrl?: string;
 }) {
   const [listings, setListings] = useState<Listing[]>([]);
+  const [catalogueMaxSortOrder, setCatalogueMaxSortOrder] = useState(-1);
+  const catalogueMaxSortOrderRef = useRef(catalogueMaxSortOrder);
+  catalogueMaxSortOrderRef.current = catalogueMaxSortOrder;
+  const [catalogueServerPage, setCatalogueServerPage] = useState(1);
+  const catalogueServerPageRef = useRef(1);
+  const [catalogueHasMore, setCatalogueHasMore] = useState(false);
+  const [loadingMoreCatalogue, setLoadingMoreCatalogue] = useState(false);
+  const [catalogueSearchHasMore, setCatalogueSearchHasMore] = useState(false);
+  const [searchingCatalogue, setSearchingCatalogue] = useState(false);
   const listingsRef = useRef<Listing[]>([]);
   listingsRef.current = listings;
+  const restoringCatalogueEditorId = useRef<string | null>(null);
   const [editing, setEditing] = useState<Listing | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -337,6 +432,7 @@ export default function CatalogueManager({
   } | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [catalogueQuery, setCatalogueQuery] = useState(() => new URLSearchParams(window.location.search).get("catalogueSearch") || initialSearch);
+  const [catalogueRevision, setCatalogueRevision] = useState(0);
   const [brandFilter, setBrandFilter] = useState(() => new URLSearchParams(window.location.search).get("catalogueBrand") || "all");
   const [categoryFilter, setCategoryFilter] = useState(() => {
     const value = new URLSearchParams(window.location.search).get("catalogueCategory") || "all";
@@ -359,6 +455,7 @@ export default function CatalogueManager({
   };
   const [addProductChooserOpen, setAddProductChooserOpen] = useState(false);
   const [partnerBrandOptions, setPartnerBrandOptions] = useState<string[]>([]);
+  const [previewPartnerBrands, setPreviewPartnerBrands] = useState<Array<{ id?: string; name: string; logoUrl?: string | null }>>([]);
   const [catalogueCategoryOptions, setCatalogueCategoryOptions] = useState<ManagedCatalogueCategory[]>(() => STOREFRONT_CATEGORIES.map(({ id, label }) => ({ id, label, active: true, aliases: [] })));
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
   const [exitPromptOpen, setExitPromptOpen] = useState(false);
@@ -366,6 +463,10 @@ export default function CatalogueManager({
     null,
   );
   const [previewListing, setPreviewListing] = useState<Listing | null>(null);
+  const [previewVariantId, setPreviewVariantId] = useState("");
+  const [previewQuantity, setPreviewQuantity] = useState("1");
+  const [previewSpecification, setPreviewSpecification] = useState("");
+  const [previewSelectedImage, setPreviewSelectedImage] = useState("");
   const [previewMode, setPreviewMode] = useState<"card" | "detail">("card");
   const [previewViewport, setPreviewViewport] = useState<"desktop" | "mobile">(
     "desktop",
@@ -375,11 +476,31 @@ export default function CatalogueManager({
     ...SITE_CONTENT_DEFAULTS,
   }));
   const productForm = useRef<HTMLFormElement>(null);
+  const productEditorOpener = useRef<HTMLElement | null>(null);
+  const wasProductEditorOpen = useRef(false);
   const filtersInitialized = useRef(false);
   const saveAsDraftOnSubmit = useRef(false);
   const previewStage = useRef<HTMLDivElement>(null);
   const canManage = ["SUPER_ADMIN", "ADMIN", "CATALOG_MANAGER"].includes(role);
   const productEditorOpen = editing !== null;
+  const previewBrand = (name: string) => previewPartnerBrands.find((brand) => brand.name.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase()) || { name };
+
+  useEffect(() => {
+    if (productEditorOpen) {
+      wasProductEditorOpen.current = true;
+      return;
+    }
+    if (!wasProductEditorOpen.current) return;
+    wasProductEditorOpen.current = false;
+    const opener = productEditorOpener.current;
+    productEditorOpener.current = null;
+    if (opener?.isConnected) opener.focus({ preventScroll: true });
+  }, [productEditorOpen]);
+
+  const openAddProductChooser = (opener: HTMLElement) => {
+    productEditorOpener.current = opener;
+    setAddProductChooserOpen(true);
+  };
 
   useEffect(() => {
     if (publishProgress?.state !== "working") return;
@@ -417,6 +538,17 @@ export default function CatalogueManager({
       window.cancelAnimationFrame(frame);
     };
   }, [productEditorOpen]);
+
+  useEffect(() => {
+    if (!productEditorOpen || busy) return;
+    const closeProductEditorOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || previewOpen) return;
+      if (exitPromptOpen) setExitPromptOpen(false);
+      else requestProductEditorClose();
+    };
+    window.addEventListener("keydown", closeProductEditorOnEscape);
+    return () => window.removeEventListener("keydown", closeProductEditorOnEscape);
+  }, [busy, draftSavedAt, exitPromptOpen, previewOpen, productEditorOpen]);
 
   useEffect(() => {
     if (initialSearch) setCatalogueQuery(initialSearch);
@@ -458,6 +590,15 @@ export default function CatalogueManager({
   }, [availabilityFilter, brandFilter, cataloguePage, catalogueQuery, catalogueSort, categoryFilter, managingBrands, publicationFilter]);
 
   useEffect(() => {
+    if (!addProductChooserOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAddProductChooserOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [addProductChooserOpen]);
+
+  useEffect(() => {
     if (!previewOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setPreviewOpen(false);
@@ -465,6 +606,18 @@ export default function CatalogueManager({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [previewOpen]);
+
+  useEffect(() => {
+    if (!previewOpen || !previewListing) return;
+    const initialVariant = previewListing.variants.find((variant) =>
+      (variant.availabilityStatus || (variant.inStock ? "IN_STOCK" : "CHECK_AVAILABILITY")) === "IN_STOCK",
+    ) || previewListing.variants[0];
+    const initialMinimum = Number(initialVariant?.minOrderQuantity || previewListing.minOrderQty?.match(/[\d.]+/)?.[0] || 0);
+    setPreviewVariantId(initialVariant?.id || initialVariant?.draftKey || "");
+    setPreviewQuantity(String(Math.max(1, initialMinimum)));
+    setPreviewSpecification("");
+    setPreviewSelectedImage("");
+  }, [previewOpen, previewListing?.id]);
 
   useEffect(() => {
     if (!previewOpen) return;
@@ -513,6 +666,7 @@ export default function CatalogueManager({
     ).entries(),
   ].sort((a, b) => a[1].localeCompare(b[1]));
   const normalizedQuery = catalogueQuery.trim().toLocaleLowerCase();
+  const normalizedTerms = normalizedQuery.split(/\s+/).filter(Boolean);
   const filteredListings = listings.filter((product) => {
     const searchable = [
       product.name,
@@ -538,8 +692,7 @@ export default function CatalogueManager({
       .filter(Boolean)
       .join(" ")
       .toLocaleLowerCase();
-    const matchesQuery =
-      !normalizedQuery || searchable.includes(normalizedQuery);
+    const matchesQuery = normalizedTerms.every((term) => searchable.includes(term));
     const matchesBrand = brandFilter === "all" || product.brand === brandFilter;
     const matchesCategory =
       categoryFilter === "all" || normalizeCatalogueCategory(product.categoryLabel || product.category) === categoryFilter;
@@ -600,16 +753,16 @@ export default function CatalogueManager({
     (currentPage - 1) * pageSize,
     currentPage * pageSize,
   );
-  const pricedPreviewVariant = previewListing?.variants
-    .filter((variant) => variant.price != null && variant.price !== "")
-    .reduce<Variant | undefined>(
-      (lowest, variant) =>
-        !lowest || Number(variant.price) < Number(lowest.price)
-          ? variant
-          : lowest,
-      undefined,
-    );
-  const detailPreviewVariant = previewListing?.variants[0];
+  const detailPreviewVariant = previewListing?.variants.find(
+    (variant) => (variant.id || variant.draftKey || "") === previewVariantId,
+  ) || previewListing?.variants[0];
+  function selectPreviewVariant(variant?: Variant) {
+    if (!variant) return;
+    setPreviewVariantId(variant.id || variant.draftKey || "");
+    setPreviewSelectedImage(variant.image || "");
+    const minimum = Number(variant.minOrderQuantity || previewListing?.minOrderQty?.match(/[\d.]+/)?.[0] || 0);
+    setPreviewQuantity((current) => Number(current) < minimum ? String(minimum) : current);
+  }
   const previewGridNeighbors = previewListing
     ? listings
         .filter(
@@ -622,74 +775,52 @@ export default function CatalogueManager({
         )
         .slice(0, 3)
     : [];
-  const previewCardPrice =
-    previewListing?.price != null && previewListing.price !== ""
-      ? previewListing.price
-      : (pricedPreviewVariant?.price ?? null);
+  const previewMainCard = previewListing
+    ? marketplacePreviewCardData(previewListing, detailPreviewVariant)
+    : null;
+  const previewQuantityBreaks = (detailPreviewVariant?.quantityBreaks || [])
+    .slice()
+    .sort((left, right) => left.minimumQuantity - right.minimumQuantity);
+  const activePreviewQuantityBreak = previewQuantityBreaks
+    .filter((item) => Number(previewQuantity) >= item.minimumQuantity)
+    .at(-1);
   const previewDetailPrice =
-    detailPreviewVariant?.price ?? previewListing?.price ?? null;
+    activePreviewQuantityBreak?.unitPrice ?? detailPreviewVariant?.price ?? previewListing?.price ?? null;
+  const previewDetailSelectionLabel = [
+    detailPreviewVariant?.label,
+    ...Object.entries(detailPreviewVariant?.attributes || {}).map(([key, value]) => `${key}: ${value}`),
+    previewSpecification.trim(),
+  ].filter(Boolean).join(" · ");
   const previewDetailPriceNote = customerPriceNote(
     detailPreviewVariant?.priceNote || previewListing?.priceNote,
   );
+  const previewReturnPolicy = parsePolicy(siteContent["policy.returns"], "returns");
+  const previewFaqEntries = publicFaqEntries(siteContent);
   const previewDescription = customerProductDescription(
     previewListing?.description,
   );
-  const previewCardAvailability =
-    previewListing?.availabilityStatus === "IN_STOCK" ||
-    previewListing?.variants.some(
-      (variant) =>
-        variant.availabilityStatus === "IN_STOCK" ||
-        (variant.availabilityStatus == null && variant.inStock),
-    )
-      ? "IN_STOCK"
-      : previewListing?.availabilityStatus === "OUT_OF_STOCK" ||
-          (previewListing?.variants.length &&
-            previewListing.variants.every(
-              (variant) => variant.availabilityStatus === "OUT_OF_STOCK",
-            ))
-        ? "OUT_OF_STOCK"
-        : "CHECK_AVAILABILITY";
+  const previewDetailHighlights = previewListing
+    ? Object.entries(visibleSpecs({
+        ...previewListing.specifications,
+        ...(detailPreviewVariant?.attributes || {}),
+      }))
+    : [];
   const previewDetailAvailability =
     detailPreviewVariant?.availabilityStatus ||
     previewListing?.availabilityStatus ||
     (detailPreviewVariant?.inStock ? "IN_STOCK" : "CHECK_AVAILABILITY");
-  const previewDetailChoiceGroups: ProductDetailChoiceGroup[] = previewListing
-    ? (() => {
-        const attributes = new Map<string, { label: string; values: string[] }>();
-        for (const variant of previewListing.variants) {
-          for (const [rawKey, rawValue] of Object.entries(variant.attributes || {})) {
-            const label = rawKey.trim();
-            const value = String(rawValue || "").trim();
-            if (!label || !value) continue;
-            const key = label.toLocaleLowerCase();
-            const group = attributes.get(key) || { label, values: [] };
-            if (!group.values.some((existing) => existing.toLocaleLowerCase() === value.toLocaleLowerCase())) group.values.push(value);
-            attributes.set(key, group);
-          }
-        }
-        const groups = attributes.size
-          ? Array.from(attributes.entries()).map(([key, group]) => ({
-              label: group.label,
-              selectedValue: Object.entries(detailPreviewVariant?.attributes || {}).find(([attribute]) => attribute.trim().toLocaleLowerCase() === key)?.[1] || "",
-              choices: group.values.map((value) => {
-                const variant = previewListing.variants.find((candidate) => Object.entries(candidate.attributes || {}).some(([attribute, candidateValue]) => attribute.trim().toLocaleLowerCase() === key && String(candidateValue).toLocaleLowerCase() === value.toLocaleLowerCase()));
-                return { label: value, price: variant?.price, offerLabel: variant?.offerLabel, image: variant?.image, selected: Object.entries(detailPreviewVariant?.attributes || {}).some(([attribute, selected]) => attribute.trim().toLocaleLowerCase() === key && String(selected).toLocaleLowerCase() === value.toLocaleLowerCase()) };
-              }),
-            }))
-          : previewListing.variants.length ? [{
-              label: "Choose an option",
-              selectedValue: detailPreviewVariant?.label || "",
-              choices: previewListing.variants.slice(0, 6).map((variant, index) => ({
-                label: variant.label || `Option ${index + 1}`,
-                price: variant.price,
-                offerLabel: variant.offerLabel,
-                image: variant.image,
-                selected: variant.id === detailPreviewVariant?.id,
-              })),
-            }] : [];
-        return groups;
-      })()
-    : [];
+  const previewDetailCompareAtPrice = activePreviewQuantityBreak
+    ? null
+    : detailPreviewVariant?.compareAtPrice ?? previewListing?.compareAtPrice;
+  const previewDetailDiscount = previewDetailPrice != null && previewDetailCompareAtPrice != null && Number(previewDetailCompareAtPrice) > Number(previewDetailPrice)
+    ? Math.round(((Number(previewDetailCompareAtPrice) - Number(previewDetailPrice)) / Number(previewDetailCompareAtPrice)) * 100)
+    : 0;
+  const previewDetailChoiceGroups = buildProductDetailChoiceGroups(
+    previewListing?.variants || [],
+    detailPreviewVariant,
+    selectPreviewVariant,
+    previewListing?.price,
+  );
 
   const request = useCallback(
     async <T,>(path: string, method = "GET", body?: unknown): Promise<T> => {
@@ -741,6 +872,45 @@ export default function CatalogueManager({
     },
     [token, onSignOut],
   );
+
+  useEffect(() => {
+    const material = catalogueQuery.trim().slice(0, 160);
+    setSearchingCatalogue(false);
+    setCatalogueSearchHasMore(false);
+    if (material.length < 2) {
+      return;
+    }
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setSearchingCatalogue(true);
+      const params = new URLSearchParams({ material, page: "1", pageSize: "100" });
+      void request<{ items: Listing[]; hasMore: boolean }>(
+        `/products/catalogue/matches?${params}`,
+      )
+        .then((result) => {
+          if (!active) return;
+          setCatalogueSearchHasMore(result.hasMore);
+          const matches = result.items
+            .filter((row) => row.isPublished || !row.draftExpiresAt || Date.parse(row.draftExpiresAt) > Date.now())
+            .map(normalizeListing);
+          setListings((current) => {
+            const merged = new Map(current.map((row) => [row.id, row]));
+            matches.forEach((row) => merged.set(row.id, row));
+            return [...merged.values()];
+          });
+        })
+        .catch((cause) => {
+          if (active) setError(cause instanceof Error ? cause.message : "Could not search the full catalogue.");
+        })
+        .finally(() => {
+          if (active) setSearchingCatalogue(false);
+        });
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [catalogueQuery, catalogueRevision, request]);
 
   useEffect(() => {
     let active = true;
@@ -992,46 +1162,27 @@ export default function CatalogueManager({
     setBusy(true);
     setError("");
     try {
-      const rows = await request<Listing[]>("/products/catalogue");
+      const results: CataloguePage[] = [];
+      for (let page = 1; page <= Math.max(1, catalogueServerPageRef.current); page += 1) {
+        results.push(await request<CataloguePage>(`/products/catalogue?page=${page}&pageSize=50`));
+      }
+      const result = results[results.length - 1];
+      const loadedListings = results.flatMap((page) => page.items);
+      const uniqueListings = [...new Map(loadedListings.map((listing) => [listing.id, listing])).values()];
+      catalogueServerPageRef.current = result.page;
+      setCatalogueServerPage(result.page);
+      setCatalogueHasMore(result.hasMore);
+      setCatalogueMaxSortOrder(result.maxSortOrder);
       setListings(
-        rows
+        uniqueListings
           .filter((row) => {
             if (row.isPublished) return true;
             if (!row.draftExpiresAt) return true;
             return Date.parse(row.draftExpiresAt) > Date.now();
           })
-          .map((row) => ({
-          ...row,
-          availabilityStatus:
-            row.availabilityStatus ||
-            (row.isInStock ? "IN_STOCK" : "CHECK_AVAILABILITY"),
-          galleryImages: Array.isArray(row.galleryImages)
-            ? row.galleryImages
-            : [],
-          variants: Array.isArray(row.variants)
-            ? row.variants.map((variant) => ({
-                ...variant,
-                galleryImages: Array.isArray(variant.galleryImages)
-                  ? variant.galleryImages
-                  : [],
-                availabilityStatus:
-                  variant.availabilityStatus ||
-                  (variant.isInStock ? "IN_STOCK" : "CHECK_AVAILABILITY"),
-                inStock: variant.availabilityStatus
-                  ? variant.availabilityStatus === "IN_STOCK"
-                  : Boolean(variant.isInStock),
-              }))
-            : [],
-          category: normalizeCatalogueCategory(row.categoryLabel || row.category),
-          categoryLabel: catalogueCategoryLabel(row.categoryLabel || row.category),
-          features: Array.isArray(row.features) ? row.features : [],
-          applications: Array.isArray(row.applications) ? row.applications : [],
-          specifications:
-            row.specifications && typeof row.specifications === "object"
-              ? row.specifications
-              : {},
-          })),
+          .map(normalizeListing),
       );
+      setCatalogueRevision((revision) => revision + 1);
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Could not load the catalogue.",
@@ -1040,18 +1191,46 @@ export default function CatalogueManager({
       setBusy(false);
     }
   }, [request]);
+  const loadMoreCatalogue = useCallback(async () => {
+    if (!catalogueHasMore || loadingMoreCatalogue) return;
+    const nextPage = catalogueServerPage + 1;
+    setLoadingMoreCatalogue(true);
+    setError("");
+    try {
+      const result = await request<CataloguePage>(
+        `/products/catalogue?page=${nextPage}&pageSize=50`,
+      );
+      const nextRows = result.items
+        .filter((row) => row.isPublished || !row.draftExpiresAt || Date.parse(row.draftExpiresAt) > Date.now())
+        .map(normalizeListing);
+      setListings((current) => {
+        const merged = new Map(current.map((row) => [row.id, row]));
+        nextRows.forEach((row) => merged.set(row.id, row));
+        return [...merged.values()];
+      });
+      setCatalogueServerPage(result.page);
+      catalogueServerPageRef.current = result.page;
+      setCatalogueHasMore(result.hasMore);
+      setCatalogueMaxSortOrder(result.maxSortOrder);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not load more products.");
+    } finally {
+      setLoadingMoreCatalogue(false);
+    }
+  }, [catalogueHasMore, catalogueServerPage, loadingMoreCatalogue, request]);
   useEffect(() => {
     void refresh();
   }, [refresh]);
   useEffect(() => {
     let active = true;
     void Promise.all([
-      request<Array<{ name: string; isActive: boolean }>>("/products/catalogue/partner-brands"),
+      request<Array<{ id?: string; name: string; logoUrl?: string | null; isActive: boolean }>>("/products/catalogue/partner-brands"),
       request<ManagedCatalogueCategory[]>("/products/catalogue/categories"),
     ])
       .then(([brands, categories]) => {
         if (active) {
           setPartnerBrandOptions(brands.filter((brand) => brand.isActive).map((brand) => brand.name));
+          setPreviewPartnerBrands(brands.filter((brand) => brand.isActive));
           setCatalogueCategoryOptions(categories);
         }
       }).catch(() => undefined);
@@ -1253,9 +1432,41 @@ export default function CatalogueManager({
     }
     const currentListings = listingsRef.current;
     const base = editorId === "new"
-      ? { ...blank, sortOrder: currentListings.length ? Math.max(...currentListings.map((product) => product.sortOrder)) + 1 : 0 }
+      ? { ...blank, sortOrder: catalogueMaxSortOrderRef.current + 1 }
       : currentListings.find((product) => product.id === editorId);
+    if (!base && editorId !== "new") {
+      if (restoringCatalogueEditorId.current === editorId) return;
+      restoringCatalogueEditorId.current = editorId;
+      void request<Listing[]>(
+        `/products/catalogue/lookup?ids=${encodeURIComponent(editorId)}`,
+      )
+        .then((matches) => {
+          if (new URLSearchParams(window.location.search).get("catalogueEditor") !== editorId) return;
+          const listing = matches[0];
+          if (!listing) {
+            clearCatalogueEditorLocation();
+            setError("This product is no longer available in the catalogue.");
+            return;
+          }
+          const restoredListing = normalizeListing(listing);
+          setListings((current) => current.some((row) => row.id === restoredListing.id)
+            ? current
+            : [...current, restoredListing]);
+          openCatalogueEditor(restoredListing);
+        })
+        .catch((cause) => {
+          setError(cause instanceof Error ? cause.message : "Could not restore this product editor.");
+        })
+        .finally(() => {
+          if (restoringCatalogueEditorId.current === editorId) restoringCatalogueEditorId.current = null;
+        });
+      return;
+    }
     if (!base) return;
+    openCatalogueEditor(base);
+  }
+
+  function openCatalogueEditor(base: Listing) {
     const recovery = recoverableDraftFor(base);
     const restored = {
       ...base,
@@ -1329,8 +1540,10 @@ export default function CatalogueManager({
       specifications: specsFromLines(values.get("specifications")),
       variants: (formProduct.variants || [])
         .filter((variant) => !saveAsDraft || Boolean(variant.label.trim() && variant.unit.trim()))
-        .map((variant, sortOrder) => ({
-        ...variant,
+        .map((variant, sortOrder) => {
+        const { draftKey: _draftKey, ...variantData } = variant;
+        return {
+        ...variantData,
         unit: String(variant.unit || values.get("unit") || "").trim(),
         isInStock: variant.availabilityStatus === "IN_STOCK",
         code: String(variant.code || "").trim() || null,
@@ -1367,7 +1580,8 @@ export default function CatalogueManager({
             ? []
             : variant.quantityBreaks || [],
         sortOrder,
-        })),
+        };
+        }),
       sortOrder: Number(values.get("sortOrder") || 0),
     };
     if (!saveAsDraft && (
@@ -1444,7 +1658,7 @@ export default function CatalogueManager({
         setPreviewListing(null);
         let visibleOnStorefront = false;
         try {
-          const publicProducts = await request<Listing[]>("/products");
+          const publicProducts = await request<Listing[]>(`/products?verify=${Date.now()}`);
           visibleOnStorefront = publicProducts.some(
             (product) => product.id === savedProduct.id,
           );
@@ -1553,7 +1767,8 @@ export default function CatalogueManager({
     }
   }
 
-  const startEdit = (product: Listing) => {
+  const startEdit = (product: Listing, opener?: HTMLElement) => {
+    if (opener) productEditorOpener.current = opener;
     const recovery = recoverableDraftFor(product);
     const next = {
       ...product,
@@ -1578,9 +1793,7 @@ export default function CatalogueManager({
     setAddProductChooserOpen(false);
     const product = {
       ...blank,
-      sortOrder: listings.length
-        ? Math.max(...listings.map((p) => p.sortOrder)) + 1
-        : 0,
+      sortOrder: catalogueMaxSortOrder + 1,
     };
     const recovery = recoverableDraftFor(product);
     const next = {
@@ -1775,7 +1988,7 @@ export default function CatalogueManager({
             <button
               className="btn-sm btn-primary"
               disabled={busy}
-              onClick={() => setAddProductChooserOpen(true)}
+            onClick={(event) => openAddProductChooser(event.currentTarget)}
             >
               <PackagePlus size={16} /> Add product
             </button>
@@ -1914,6 +2127,7 @@ export default function CatalogueManager({
                   name="name"
                   required
                   maxLength={180}
+                  autoFocus
                   defaultValue={formProduct.name}
                 />
               </label>
@@ -2404,343 +2618,68 @@ export default function CatalogueManager({
                           <div
                             className={`store-preview-marketplace-grid ${previewGridNeighbors.length ? "has-context-products" : "is-focused-preview"}`}
                           >
-                            <article className="store-preview-card store-preview-current-product">
-                              <div className="store-preview-media">
-                                <StorefrontPreviewImage
-                                  src={
-                                    previewListing.image ||
-                                    previewListing.galleryImages[0] ||
-                                    ""
-                                  }
-                                  alt={previewListing.name || "Product preview"}
-                                />
-                                <span className="store-preview-category">
-                                  {previewListing.categoryLabel || "Category"}
-                                </span>
-                                {previewListing.photoBanner && (
-                                  <span className="store-preview-photo-banner">
-                                    {previewListing.photoBanner}
-                                  </span>
-                                )}
-                                <span
-                                  className={`store-preview-stock ${previewCardAvailability === "IN_STOCK" ? "available" : ""}`}
-                                >
-                                  {previewCardAvailability === "IN_STOCK"
-                                    ? "In stock"
-                                    : previewCardAvailability === "OUT_OF_STOCK"
-                                      ? "Out of stock"
-                                      : "Check availability"}
-                                </span>
-                                {(previewListing.offerLabel ||
-                                  previewListing.variants.find(
-                                    (variant) => variant.offerLabel,
-                                  )?.offerLabel) && (
-                                  <span className="store-preview-offer">
-                                    {previewListing.offerLabel ||
-                                      previewListing.variants.find(
-                                        (variant) => variant.offerLabel,
-                                      )?.offerLabel}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="store-preview-card-body">
-                                <div className="store-preview-brand-line">
-                                  <div className="store-preview-brand-title">
-                                    <span
-                                      className="store-preview-brand-mark"
-                                      aria-hidden="true"
-                                    >
-                                      {(previewListing.brand || "B")
-                                        .slice(0, 1)
-                                        .toUpperCase()}
-                                    </span>
-                                    <strong>
-                                      {previewListing.brand || "Brand"}
-                                    </strong>
-                                  </div>
-                                  {previewListing.code && (
-                                    <span>{previewListing.code}</span>
-                                  )}
-                                </div>
-                                <h3>{previewListing.name || "Product name"}</h3>
-                                {(previewListing.grade ||
-                                  previewListing.specifications.sizes) && (
-                                  <p className="store-preview-unit">
-                                    {previewListing.grade ||
-                                      `Size guide: ${previewListing.specifications.sizes}`}
-                                  </p>
-                                )}
-                                {(() => {
-                                  const colours = Array.from(
-                                    new Set(
-                                      previewListing.variants.flatMap(
-                                        (variant) =>
-                                          Object.entries(
-                                            variant.attributes || {},
-                                          )
-                                            .filter(([key]) =>
-                                              /colou?r|shade|finish/i.test(key),
-                                            )
-                                            .map(([, value]) => value.trim())
-                                            .filter(Boolean),
-                                      ),
-                                    ),
-                                  );
-                                  return colours.length ? (
-                                    <div className="store-preview-colours">
-                                      <span>Colours &amp; finishes</span>
-                                      <div>
-                                        {colours.slice(0, 3).map((colour) => (
-                                          <small key={colour}>{colour}</small>
-                                        ))}
-                                        {colours.length > 3 && (
-                                          <small>+{colours.length - 3}</small>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ) : null;
-                                })()}
-                                {customerCardFeatures(previewListing.features).length > 0 && (
-                                  <ul>
-                                    {customerCardFeatures(previewListing.features)
-                                      .slice(0, 2)
-                                      .map((feature, index) => (
-                                        <li key={`${feature}-${index}`}>
-                                          <span className="store-preview-check">
-                                            ✓
-                                          </span>
-                                          <span>{feature}</span>
-                                        </li>
-                                      ))}
-                                  </ul>
-                                )}
-                                <div className="store-preview-product-specs">
-                                  <div>
-                                    <span>Packaging</span>
-                                    <strong>
-                                      {previewListing.unit || "Add packaging"}
-                                    </strong>
-                                  </div>
-                                  {previewListing.specifications.standard && (
-                                    <div>
-                                      <span>IS Standard</span>
-                                      <strong>
-                                        {previewListing.specifications.standard}
-                                      </strong>
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="store-preview-price-row">
-                                  <div>
-                                    <span className="store-preview-price-caption">
-                                      {!previewListing.price &&
-                                      pricedPreviewVariant
-                                        ? "Starting from"
-                                        : previewCardPrice
-                                          ? "Price per unit"
-                                          : "Pricing"}
-                                    </span>
-                                    <div className="store-preview-price">
-                                      {previewCardPrice ? (
-                                        <>
-                                          <strong>
-                                            ₹
-                                            {Number(
-                                              previewCardPrice,
-                                            ).toLocaleString("en-IN")}
-                                          </strong>
-                                          <span>
-                                            {" "}
-                                            / {previewListing.unit || "unit"}
-                                          </span>
-                                        </>
-                                      ) : (
-                                        <strong>Request a quote</strong>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <span className="store-preview-moq">
-                                    MOQ:{" "}
-                                    {formatQuantityUnitText(previewListing.minOrderQty, previewListing.unit) || "Confirm"}
-                                  </span>
-                                </div>
-                                <div className="store-preview-actions">
-                                  <button type="button" disabled>
-                                    <Info size={13} /> View details
-                                  </button>
-                                  <button type="button" disabled>
-                                    <PackagePlus size={13} />{" "}
-                                    {previewListing.variants.length ||
-                                    previewListing.specifications.sizes
-                                      ? "Choose options"
-                                      : "Add to quote list"}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled
-                                    aria-label="Ask on WhatsApp"
-                                  >
-                                    <Phone size={14} />
-                                  </button>
-                                </div>
-                              </div>
-                            </article>
+                            <MarketplaceProductCard
+                              name={previewListing.name || "Product name"}
+                              brand={previewBrand(previewListing.brand || "Brand")}
+                              brandAssetBaseUrl={customerUrl || import.meta.env.VITE_CUSTOMER_APP_URL || "https://material-square.vercel.app"}
+                              code={previewMainCard?.code}
+                              image={previewMainCard?.image || ""}
+                              imageContent={<StorefrontPreviewImage src={previewMainCard?.image || ""} alt={previewListing.name || "Product preview"} />}
+                              categoryLabel={previewListing.categoryLabel || "Category"}
+                              bannerLabel={previewMainCard?.bannerLabel || undefined}
+                              bannerKind={previewMainCard?.bannerKind}
+                              specification={previewMainCard?.specification}
+                              optionLabel={previewMainCard?.optionLabel}
+                              sizeGuide={previewMainCard?.sizeGuide}
+                              colours={detailPreviewVariant ? [] : Array.from(new Set(previewListing.variants.flatMap((variant) => Object.entries(variant.attributes || {}).filter(([key]) => /colou?r|shade|finish/i.test(key)).map(([, value]) => value.trim()).filter(Boolean))))}
+                              features={customerCardFeatures(previewListing.features)}
+                              detailHref="#"
+                              priceCaption={previewMainCard?.priceCaption || "Pricing"}
+                              priceLabel={previewMainCard?.priceLabel || "Request a quote"}
+                              compareAtPriceLabel={previewMainCard?.compareAtPrice}
+                              availability={previewMainCard?.availability || "CHECK_AVAILABILITY"}
+                              availabilityLabel={previewMainCard?.availabilityLabel || "Check availability"}
+                              minimumOrderLabel={previewMainCard?.minimumOrderLabel || "MOQ: Confirm"}
+                              chooseOptions={Boolean(detailPreviewVariant || previewListing.specifications.sizes)}
+                              whatsappHref={marketplacePreviewWhatsAppHref(siteContent["contact.whatsappPhone"], previewListing.name, detailPreviewVariant?.label)}
+                              preview
+                              previewViewport={previewViewport}
+                              className="store-preview-current-product"
+                              onViewDetails={() => setPreviewMode("detail")}
+                              onChooseOptions={() => setPreviewMode("detail")}
+                            />
                             {previewGridNeighbors.map((listing) => {
-                              const listingPrice =
-                                listing.price ||
-                                listing.variants.find(
-                                  (variant) =>
-                                    variant.price != null &&
-                                    variant.price !== "",
-                                )?.price ||
-                                null;
-                              const listingStatus =
-                                listing.availabilityStatus ||
-                                (listing.isInStock
-                                  ? "IN_STOCK"
-                                  : "CHECK_AVAILABILITY");
-                              const listingFeatures = customerCardFeatures(listing.features);
-                              return (
-                                <article
-                                  className="store-preview-card store-preview-context-product"
-                                  key={listing.id}
-                                >
-                                  <div className="store-preview-media">
-                                    <StorefrontPreviewImage
-                                      src={
-                                        listing.image ||
-                                        listing.galleryImages[0] ||
-                                        ""
-                                      }
-                                      alt={listing.name || "Published product"}
-                                    />
-                                    <span className="store-preview-category">
-                                      {listing.categoryLabel || "Category"}
-                                    </span>
-                                    <span
-                                      className={`store-preview-stock ${listingStatus === "IN_STOCK" ? "available" : ""}`}
-                                    >
-                                      {listingStatus === "IN_STOCK"
-                                        ? "In stock"
-                                        : listingStatus === "OUT_OF_STOCK"
-                                          ? "Out of stock"
-                                          : "Check availability"}
-                                    </span>
-                                    {listing.offerLabel && (
-                                      <span className="store-preview-offer">
-                                        {listing.offerLabel}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="store-preview-card-body">
-                                    <div className="store-preview-brand-line">
-                                      <div className="store-preview-brand-title">
-                                        <span
-                                          className="store-preview-brand-mark"
-                                          aria-hidden="true"
-                                        >
-                                          {(listing.brand || "B")
-                                            .slice(0, 1)
-                                            .toUpperCase()}
-                                        </span>
-                                        <strong>
-                                          {listing.brand || "Brand"}
-                                        </strong>
-                                      </div>
-                                      {listing.code && (
-                                        <span>{listing.code}</span>
-                                      )}
-                                    </div>
-                                    <h3>{listing.name || "Product name"}</h3>
-                                    {(listing.grade ||
-                                      listing.specifications.sizes) && (
-                                      <p className="store-preview-unit">
-                                        {listing.grade ||
-                                          `Size guide: ${listing.specifications.sizes}`}
-                                      </p>
-                                    )}
-                                    {listingFeatures.length > 0 && (
-                                      <ul>
-                                        {listingFeatures
-                                          .slice(0, 2)
-                                          .map((feature, index) => (
-                                            <li key={`${feature}-${index}`}>
-                                              <span className="store-preview-check">
-                                                ✓
-                                              </span>
-                                              <span>{feature}</span>
-                                            </li>
-                                          ))}
-                                      </ul>
-                                    )}
-                                    <div className="store-preview-product-specs">
-                                      <div>
-                                        <span>Packaging</span>
-                                        <strong>
-                                          {listing.unit || "Add packaging"}
-                                        </strong>
-                                      </div>
-                                      {listing.specifications.standard && (
-                                        <div>
-                                          <span>IS Standard</span>
-                                          <strong>
-                                            {listing.specifications.standard}
-                                          </strong>
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="store-preview-price-row">
-                                      <div>
-                                        <span className="store-preview-price-caption">
-                                          {listingPrice
-                                            ? "Price per unit"
-                                            : "Pricing"}
-                                        </span>
-                                        <div className="store-preview-price">
-                                          {listingPrice ? (
-                                            <>
-                                              <strong>
-                                                ₹
-                                                {Number(
-                                                  listingPrice,
-                                                ).toLocaleString("en-IN")}
-                                              </strong>
-                                              <span>
-                                                {" "}
-                                                / {listing.unit || "unit"}
-                                              </span>
-                                            </>
-                                          ) : (
-                                            <strong>Request a quote</strong>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <span className="store-preview-moq">
-                                        MOQ: {formatQuantityUnitText(listing.minOrderQty, listing.unit) || "Confirm"}
-                                      </span>
-                                    </div>
-                                    <div className="store-preview-actions">
-                                      <button type="button" disabled>
-                                        <Info size={13} /> View details
-                                      </button>
-                                      <button type="button" disabled>
-                                        <PackagePlus size={13} />{" "}
-                                        {listing.variants.length ||
-                                        listing.specifications.sizes
-                                          ? "Choose options"
-                                          : "Add to quote list"}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        disabled
-                                        aria-label="Ask on WhatsApp"
-                                      >
-                                        <Phone size={14} />
-                                      </button>
-                                    </div>
-                                  </div>
-                                </article>
-                              );
+                              const variant = listing.variants[0];
+                              const card = marketplacePreviewCardData(listing, variant);
+                              return <MarketplaceProductCard
+                                key={listing.id}
+                                name={listing.name || "Product name"}
+                                brand={previewBrand(listing.brand || "Brand")}
+                                brandAssetBaseUrl={customerUrl || import.meta.env.VITE_CUSTOMER_APP_URL || "https://material-square.vercel.app"}
+                                code={card.code}
+                                image={card.image}
+                                imageContent={<StorefrontPreviewImage src={card.image} alt={listing.name || "Published product"} />}
+                                categoryLabel={listing.categoryLabel || "Category"}
+                                bannerLabel={card.bannerLabel || undefined}
+                                bannerKind={card.bannerKind}
+                                specification={card.specification}
+                                optionLabel={card.optionLabel}
+                                sizeGuide={card.sizeGuide}
+                                colours={variant ? [] : Array.from(new Set(listing.variants.flatMap((option) => Object.entries(option.attributes || {}).filter(([key]) => /colou?r|shade|finish/i.test(key)).map(([, value]) => value.trim()).filter(Boolean))))}
+                                features={customerCardFeatures(listing.features)}
+                                detailHref="#"
+                                priceCaption={card.priceCaption}
+                                priceLabel={card.priceLabel}
+                                compareAtPriceLabel={card.compareAtPrice}
+                                availability={card.availability}
+                                availabilityLabel={card.availabilityLabel}
+                                minimumOrderLabel={card.minimumOrderLabel}
+                                chooseOptions={Boolean(listing.variants.length || listing.specifications.sizes)}
+                                whatsappHref={marketplacePreviewWhatsAppHref(siteContent["contact.whatsappPhone"], listing.name, variant?.label)}
+                                preview
+                                previewViewport={previewViewport}
+                                className="store-preview-context-product"
+                              />;
                             })}
                           </div>
                         </>
@@ -2748,31 +2687,40 @@ export default function CatalogueManager({
                         <ProductDetailSurface
                           title={previewListing.name || "Product name"}
                           brand={previewListing.brand || "Brand"}
+                          brandMark={<PartnerBrandLogo brand={previewBrand(previewListing.brand || "Brand")} assetBaseUrl={customerUrl || import.meta.env.VITE_CUSTOMER_APP_URL || "https://material-square.vercel.app"} className="mini shared-product-brand-logo" />}
                           brandTagline={previewListing.brandTagline || undefined}
                           category={previewListing.categoryLabel || "Category"}
                           code={detailPreviewVariant?.code || previewListing.code}
                           grade={previewListing.grade}
-                          photoBanner={previewListing.photoBanner}
-                          images={Array.from(new Set([previewListing.image, ...previewListing.galleryImages].filter((image): image is string => Boolean(image))))}
+                          images={Array.from(new Set([...(detailPreviewVariant?.galleryImages || []), detailPreviewVariant?.image, ...previewListing.galleryImages, previewListing.image].filter((image): image is string => Boolean(image))))}
+                          selectedImage={previewSelectedImage}
+                          onImageSelect={setPreviewSelectedImage}
                           price={previewDetailPrice}
-                          compareAtPrice={detailPreviewVariant?.compareAtPrice ?? previewListing.compareAtPrice}
+                          compareAtPrice={previewDetailCompareAtPrice}
                           unit={detailPreviewVariant?.unit || previewListing.unit || "unit"}
                           priceNote={previewDetailPriceNote}
-                          offerLabel={detailPreviewVariant?.offerLabel || previewListing.offerLabel}
+                          offerLabel={detailPreviewVariant?.offerLabel || previewListing.offerLabel || (previewDetailDiscount > 0 ? `${previewDetailDiscount}% OFF` : null)}
                           availability={previewDetailAvailability}
                           stockQuantity={detailPreviewVariant?.stockQuantity}
                           minimumOrder={detailPreviewVariant?.minOrderQuantity || previewListing.minOrderQty?.match(/[\d.]+/)?.[0]}
                           choiceGroups={previewDetailChoiceGroups}
-                          selectionLabel={detailPreviewVariant?.label || undefined}
-                          quantity={previewListing.minOrderQty?.match(/[\d.]+/)?.[0] || "1"}
-                          description={previewDescription || previewListing.description}
-                          highlights={Object.entries(visibleSpecs(previewListing.specifications))}
+                          selectionLabel={detailPreviewVariant?.label || previewDetailSelectionLabel || undefined}
+                          quantity={previewQuantity}
+                          onQuantityChange={setPreviewQuantity}
+                          specification={previewSpecification}
+                          specificationRequired={Boolean(previewListing.specifications.sizes)}
+                          onSpecificationChange={setPreviewSpecification}
+                          description={previewDescription}
+                          faqEntries={previewFaqEntries}
+                          returnPolicy={previewReturnPolicy.published ? previewReturnPolicy : null}
+                          highlights={previewDetailHighlights}
                           features={customerCardFeatures(previewListing.features)}
                           applications={previewListing.applications}
-                          actionDisabled
+                          quantityBreaks={previewQuantityBreaks}
+                          actionLabel={previewDetailAvailability === "OUT_OF_STOCK" ? "Out of stock" : "Add to cart"}
+                          actionDisabled={previewDetailAvailability === "OUT_OF_STOCK"}
                           preview
                           onSubmit={(event) => event.preventDefault()}
-                          afterAction={<small className="shared-product-detail-feedback">Preview controls are disabled. Customers can use them on the published product page.</small>}
                         />
                       )}
                     </div>
@@ -2981,10 +2929,19 @@ export default function CatalogueManager({
       </section>
       <div className="catalogue-listing-count" aria-live="polite">
         Showing {pageListings.length} of {visibleListings.length} matching
-        products · {listings.filter((p) => p.isPublished).length} published
+        loaded products · {listings.filter((p) => p.isPublished).length} published
       </div>
+      {searchingCatalogue && <p className="catalogue-page-hint">Searching all catalogue products…</p>}
+      {catalogueSearchHasMore && (
+        <p className="catalogue-page-hint">More than 100 products match this search. Add another word to narrow the results.</p>
+      )}
+      {catalogueHasMore && (
+        <p className="catalogue-page-hint">
+          Filters and sorting apply to loaded products. Load more to include older catalogue entries.
+        </p>
+      )}
       {listings.length === 0 && !busy && (
-        <section className="panel-card catalogue-empty">
+        <section className="panel-card catalogue-empty" role="status">
           <h3>No catalogue products yet</h3>
           <p>
             {canManage
@@ -2992,14 +2949,14 @@ export default function CatalogueManager({
               : "A catalogue manager can add client-approved products here. No sample products are being shown."}
           </p>
           {canManage && (
-            <button className="btn-sm btn-primary" onClick={() => setAddProductChooserOpen(true)}>
+            <button className="btn-sm btn-primary" onClick={(event) => openAddProductChooser(event.currentTarget)}>
               <PackagePlus size={15} /> Add first product
             </button>
           )}
         </section>
       )}
-      {listings.length > 0 && visibleListings.length === 0 && (
-        <section className="panel-card catalogue-empty">
+      {listings.length > 0 && visibleListings.length === 0 && !searchingCatalogue && (
+        <section className="panel-card catalogue-empty" role="status">
           <h3>No matching products</h3>
           <p>
             Try a different product name, brand, category or availability
@@ -3134,7 +3091,7 @@ export default function CatalogueManager({
                 <button
                   className="btn-sm btn-secondary"
                   disabled={busy}
-                  onClick={() => startEdit(product)}
+                  onClick={(event) => startEdit(product, event.currentTarget)}
                 >
                   Edit
                 </button>
@@ -3185,6 +3142,18 @@ export default function CatalogueManager({
             Next
           </button>
         </nav>
+      )}
+      {catalogueHasMore && (
+        <div className="catalogue-pagination catalogue-pagination-bottom">
+          <button
+            type="button"
+            className="btn-sm btn-secondary"
+            onClick={() => void loadMoreCatalogue()}
+            disabled={loadingMoreCatalogue || busy}
+          >
+            {loadingMoreCatalogue ? "Loading products…" : "Load more products"}
+          </button>
+        </div>
       )}
     </div>
   );

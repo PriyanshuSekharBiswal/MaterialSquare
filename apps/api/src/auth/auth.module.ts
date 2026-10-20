@@ -1,4 +1,4 @@
-import { jwtSecret } from "./jwt-config";
+import { JWT_ISSUER, JWT_STAFF_AUDIENCE, jwtSecret } from "./jwt-config";
 import { StaffGuard } from "./access.guard";
 import { Global, Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
@@ -27,7 +27,12 @@ import { StorageModule } from "../storage/storage.module";
         secret: jwtSecret(),
         // Staff JWTs are stored in an HttpOnly cookie and expire during an
         // unattended workday.
-        signOptions: { expiresIn: "12h" },
+        signOptions: {
+          expiresIn: "12h",
+          algorithm: "HS256",
+          issuer: JWT_ISSUER,
+          audience: JWT_STAFF_AUDIENCE,
+        },
       }),
     }),
   ],

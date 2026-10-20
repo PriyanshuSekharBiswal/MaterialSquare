@@ -71,6 +71,7 @@ export function normalizeCatalogueCategory(value: string): string {
   const key = value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   if (/cement|aggregate/.test(key)) return "cement";
   if (/pipe|plumb|valve|fitting/.test(key)) return "pipes";
+  if (/binding wire/.test(key)) return "steel";
   if (/wire|cable|electrical/.test(key)) return "wires";
   if (/paint|wall prep|wall finish|waterproof|putty|coating/.test(key)) return "paints";
   if (/sanitary|bath|faucet|sink/.test(key)) return "sanitary";

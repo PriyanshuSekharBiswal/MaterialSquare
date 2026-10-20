@@ -1,3 +1,5 @@
+import { materialId } from "./ids";
+
 type ScrollPosition = { left: number; top: number };
 
 const storagePrefix = "material-square-scroll:";
@@ -7,6 +9,7 @@ let restoringInitialPosition = false;
 let cancelPendingRestore: (() => void) | null = null;
 let activePositionKey = "";
 let historyPersistenceInstalled = false;
+let saveTimer = 0;
 
 function locationKey() {
   return `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -55,12 +58,18 @@ export function installScrollPositionPersistence() {
     const nativePushState = window.history.pushState.bind(window.history);
     const nativeReplaceState = window.history.replaceState.bind(window.history);
     window.history.pushState = ((data: unknown, unused: string, url?: string | URL | null) => {
-      if (!restoringInitialPosition) savePosition(activePositionKey || currentPositionKey());
+      if (!restoringInitialPosition) {
+        if (saveTimer) {
+          window.clearTimeout(saveTimer);
+          saveTimer = 0;
+        }
+        savePosition(activePositionKey || currentPositionKey());
+      }
       const nextState = data && typeof data === "object" ? { ...(data as object) } as Record<string, unknown> : {};
       const nextEntryId = stateEntryId(nextState);
       if (!nextEntryId || nextEntryId === stateEntryId(window.history.state)) {
         if (nextState.key === nextEntryId) delete nextState.key;
-        nextState.__msScrollKey = crypto.randomUUID();
+        nextState.__msScrollKey = materialId();
       }
       nativePushState(nextState, unused, url);
       activePositionKey = currentPositionKey();
@@ -68,6 +77,13 @@ export function installScrollPositionPersistence() {
     }) as History["pushState"];
     window.history.replaceState = ((data: unknown, unused: string, url?: string | URL | null) => {
       const currentState = window.history.state;
+      if (saveTimer) {
+        window.clearTimeout(saveTimer);
+        saveTimer = 0;
+      }
+      const currentPosition = { left: window.scrollX, top: window.scrollY };
+      const currentPositionId = activePositionKey || currentPositionKey();
+      if (!restoringInitialPosition) savePosition(currentPositionId, currentPosition);
       const nextState = data && typeof data === "object" ? { ...(data as object) } as Record<string, unknown> : {};
       if (!stateEntryId(nextState)) {
         const existingId = stateEntryId(currentState);
@@ -75,13 +91,18 @@ export function installScrollPositionPersistence() {
           const currentRecord = currentState as Record<string, unknown>;
           if (typeof currentRecord.key === "string") nextState.key = currentRecord.key;
           else nextState.__msScrollKey = existingId;
-        } else nextState.__msScrollKey = crypto.randomUUID();
+        } else nextState.__msScrollKey = materialId();
       }
       nativeReplaceState(nextState, unused, url);
       activePositionKey = currentPositionKey();
+      if (!restoringInitialPosition) savePosition(activePositionKey, currentPosition);
     }) as History["replaceState"];
     window.addEventListener("popstate", () => {
       if (!restoringInitialPosition) savePosition(activePositionKey || currentPositionKey());
+      if (saveTimer) {
+        window.clearTimeout(saveTimer);
+        saveTimer = 0;
+      }
       cancelPendingRestore?.();
       restoringInitialPosition = false;
       initialReloadPosition = null;
@@ -104,23 +125,30 @@ export function installScrollPositionPersistence() {
     window.scrollTo({ ...initialReloadPosition.position, behavior: "instant" });
   }
 
-  let saveFrame = 0;
   const saveCurrentPosition = () => {
-    if (restoringInitialPosition) return;
-    if (saveFrame) cancelAnimationFrame(saveFrame);
-    saveFrame = requestAnimationFrame(() => {
-      saveFrame = 0;
-      savePosition(activePositionKey || currentPositionKey());
-    });
+    if (restoringInitialPosition || saveTimer) return;
+    const positionKey = activePositionKey || currentPositionKey();
+    saveTimer = window.setTimeout(() => {
+      saveTimer = 0;
+      savePosition(positionKey);
+    }, 120);
   };
   const flushPosition = () => {
-    if (!restoringInitialPosition) savePosition(activePositionKey || currentPositionKey());
+    const positionKey = activePositionKey || currentPositionKey();
+    if (saveTimer) {
+      window.clearTimeout(saveTimer);
+      saveTimer = 0;
+    }
+    if (!restoringInitialPosition) savePosition(positionKey);
   };
   const userMoved = () => {
     if (!restoringInitialPosition) return;
     cancelPendingRestore?.();
     restoringInitialPosition = false;
     initialReloadPosition = null;
+    initialReloadKey = null;
+    document.getElementById("root")?.style.removeProperty("min-height");
+    window.dispatchEvent(new Event("ms-scroll-restored"));
   };
   window.addEventListener("scroll", saveCurrentPosition, { passive: true });
   window.addEventListener("pagehide", flushPosition);

@@ -1,6 +1,6 @@
-import { formatContactPhone, publicNavigation } from "@material-square/types";
+import { formatContactPhone, publicNavigation, SEO_SERVICE_AREA_PAGES, serviceAreaSlugs } from "@material-square/types";
 import type { MaterialItem, CatalogueProduct } from "../types";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { NavLink, Link } from "react-router-dom";
 import {
   Phone,
@@ -22,10 +22,26 @@ export default function Header({
 }) {
   const siteContent = useSiteContent();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuToggleRef = useRef<HTMLButtonElement>(null);
   const serviceArea = siteContent["contact.location"].trim();
+  const activeRegionSlugs = new Set(serviceAreaSlugs(serviceArea));
+  const serviceRegions = SEO_SERVICE_AREA_PAGES
+    .filter(({ slug }) => activeRegionSlugs.has(slug))
+    .map(({ name }) => name);
 
   const navigation = publicNavigation(siteContent);
   const closeMenu = () => setMobileMenuOpen(false);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setMobileMenuOpen(false);
+      mobileMenuToggleRef.current?.focus();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [mobileMenuOpen]);
 
   return (
     <header className="ms-site-header">
@@ -36,7 +52,8 @@ export default function Header({
             {serviceArea && (
               <span className="location-tag">
                 <MapPin size={12} className="loc-icon" />
-                <strong className="top-bar-serving">{serviceArea}</strong>
+                <strong className="top-bar-serving">Delhi NCR:</strong>
+                <span className="top-bar-cities">{serviceRegions.join(" · ")}</span>
               </span>
             )}
           </div>
@@ -136,10 +153,13 @@ export default function Header({
 
             {/* Mobile Menu Button */}
             <button
+              ref={mobileMenuToggleRef}
               type="button"
               className={`mobile-nav-toggle ${mobileMenuOpen ? "is-active" : ""}`}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle navigation menu"
+              aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-navigation-panel"
             >
               {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
@@ -148,9 +168,12 @@ export default function Header({
       </div>
 
       {/* Mobile Drawer Navigation */}
-      {mobileMenuOpen && (
-        <div className="mobile-menu-pane">
-          <div className="container mobile-links-list">
+      <div
+        className="mobile-menu-pane"
+        id="mobile-navigation-panel"
+        hidden={!mobileMenuOpen}
+      >
+          <nav className="container mobile-links-list" aria-label="Mobile navigation">
             {navigation.map((entry) =>
               entry.external ? (
                 <a
@@ -204,9 +227,8 @@ export default function Header({
                 <span>View Material List ({bomCount})</span>
               </Link>
             </div>
-          </div>
-        </div>
-      )}
+          </nav>
+      </div>
     </header>
   );
 }

@@ -89,7 +89,7 @@ export default function HomepageContentBlocks({
         </button>
       </header>
       {blocks.length === 0 ? (
-        <p>No custom sections yet. Existing homepage sections are unchanged.</p>
+        <p role="status">No custom sections yet. Existing homepage sections are unchanged.</p>
       ) : (
         <ol className="homepage-section-list">
           {blocks.map((block, index) => (

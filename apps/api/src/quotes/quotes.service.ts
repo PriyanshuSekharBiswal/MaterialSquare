@@ -13,20 +13,26 @@ import {
   calculateQuotationTotals,
 } from "./quotation-pricing";
 import { PrismaService } from "../prisma/prisma.service";
+import { paginatedResult, type Pagination } from "../common/pagination";
 type DraftOperation =
   { kind: "new" } | { kind: "revision" | "edit"; id: string };
 
 @Injectable()
 export class QuotesService {
   constructor(private prisma: PrismaService) {}
-  findAll() {
-    return this.prisma.quotation.findMany({
+  async findAll(pagination?: Pagination) {
+    const quotes = await this.prisma.quotation.findMany({
+      ...(pagination
+        ? { skip: pagination.skip, take: pagination.pageSize + 1 }
+        : {}),
       include: {
         items: { include: { product: true, options: true } },
         followups: true,
+        request: { select: { requestNumber: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
+    return pagination ? paginatedResult(quotes, pagination) : quotes;
   }
   async findById(id: string) {
     const quote = await this.prisma.quotation.findUnique({
@@ -319,13 +325,19 @@ export class QuotesService {
           );
       }
       const publishedAt = new Date();
+      const businessRules =
+        (await db.businessRuleSetting.findUnique({
+          where: { id: "global" },
+        })) ?? DEFAULT_BUSINESS_RULES;
+      const validUntil = new Date(
+        publishedAt.getTime() + businessRules.quotationValidityHours * 3600000,
+      );
       const updated = await db.quotation.updateMany({
         where: {
           id,
           status: { in: ["DRAFT", "PENDING_REVIEW", "MARGIN_ADJUSTED"] },
-          validUntil: { gt: new Date() },
         },
-        data: { status: "QUOTE_SENT", publishedAt },
+        data: { status: "QUOTE_SENT", publishedAt, validUntil },
       });
       if (updated.count !== 1)
         throw new BadRequestException(
@@ -336,10 +348,6 @@ export class QuotesService {
           where: { id: quote.requestId, status: { in: ["NEW", "CONTACTED"] } },
           data: { status: "QUOTED" },
         });
-      const businessRules =
-        (await db.businessRuleSetting.findUnique({
-          where: { id: "global" },
-        })) ?? DEFAULT_BUSINESS_RULES;
       if (businessRules.sendQuotePublishedNotification)
         await db.notificationOutbox.create({
           data: {
@@ -347,7 +355,7 @@ export class QuotesService {
             payload: {
               quoteId: id,
               quoteNumber: quote.quoteNumber,
-              validUntil: quote.validUntil.toISOString(),
+              validUntil: validUntil.toISOString(),
               phone: quote.customerPhone,
             },
           },
@@ -359,13 +367,13 @@ export class QuotesService {
             payload: {
               quoteId: id,
               quoteNumber: quote.quoteNumber,
-              validUntil: quote.validUntil.toISOString(),
+              validUntil: validUntil.toISOString(),
               phone: quote.customerPhone,
             },
             runAt: new Date(
               Math.max(
                 Date.now(),
-                quote.validUntil.getTime() -
+                validUntil.getTime() -
                   businessRules.expiryReminderHoursBefore * 3600000,
               ),
             ),

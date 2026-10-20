@@ -24,6 +24,9 @@ export function AccountContent({
   path,
   profile,
   activity,
+  loadingMoreActivity,
+  refreshingActivity,
+  onLoadMoreActivity,
   quote,
   order,
   onSaveProfile,
@@ -32,6 +35,9 @@ export function AccountContent({
   path: string;
   profile: Profile;
   activity: Activity;
+  loadingMoreActivity: boolean;
+  refreshingActivity: boolean;
+  onLoadMoreActivity: () => void;
   quote?: Quote;
   order?: Order;
   onSaveProfile: (
@@ -45,7 +51,7 @@ export function AccountContent({
   const [quoteSearch, setQuoteSearch] = useState("");
   const [quoteStatusFilter, setQuoteStatusFilter] = useState<"ALL" | "REVIEW" | "ORDERED" | "OTHER">("ALL");
   const [quoteRequestFilter, setQuoteRequestFilter] = useState("");
-  const [acceptedRequests, setAcceptedRequests] = useState<Record<string, string>>({});
+  const [acceptedRequests, setAcceptedRequests] = useState<Record<string, { quoteId: string; quoteNumber: string }>>({});
   const [activityView, setActivityView] = useState<"EVERYTHING" | "QUOTATIONS" | "ORDERS" | "REQUESTS">("EVERYTHING");
   const sortedQuotes = [...activity.quotations].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
   const sortedOrders = [...activity.orders].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
@@ -73,16 +79,23 @@ export function AccountContent({
       && (!normalizedQuoteSearch || searchable.includes(normalizedQuoteSearch))
     );
   });
+  const hasMoreForActivityView = activityView === "EVERYTHING"
+    ? Object.values(activity.hasMore).some(Boolean)
+    : activityView === "QUOTATIONS"
+      ? activity.hasMore.quotations
+      : activityView === "ORDERS"
+        ? activity.hasMore.orders
+        : activity.hasMore.requests || activity.hasMore.quotations;
   useEffect(() => {
     if (path === "/account/profile") setIsEditingProfile(false);
   }, [path]);
   useEffect(() => {
     const handleAccepted = (event: Event) => {
-      const detail = (event as CustomEvent<{ requestId?: string; quoteNumber?: string }>).detail;
-      if (detail?.requestId && detail.quoteNumber)
+      const detail = (event as CustomEvent<{ requestId?: string; quoteId?: string; quoteNumber?: string }>).detail;
+      if (detail?.requestId && detail.quoteId && detail.quoteNumber)
         setAcceptedRequests((current) => ({
           ...current,
-          [detail.requestId!]: detail.quoteNumber!,
+          [detail.requestId!]: { quoteId: detail.quoteId!, quoteNumber: detail.quoteNumber! },
         }));
     };
     window.addEventListener("material-square:quotation-accepted", handleAccepted);
@@ -139,7 +152,22 @@ export function AccountContent({
     }
   };
 
-  if (path.startsWith("/account/quotations/") && quote)
+  if (path.startsWith("/account/quotations/") && quote) {
+    const sessionAcceptance = quote.requestId
+      ? acceptedRequests[quote.requestId]
+      : undefined;
+    const acceptedInActivity = quote.requestId
+      ? activity.quotations.find(
+          (candidate) =>
+            candidate.requestId === quote.requestId &&
+            ["ACCEPTED", "CONVERTED_TO_ORDER"].includes(candidate.status),
+        )
+      : undefined;
+    const acceptedQuote = sessionAcceptance
+      ? { id: sessionAcceptance.quoteId, number: sessionAcceptance.quoteNumber }
+      : acceptedInActivity
+        ? { id: acceptedInActivity.id, number: acceptedInActivity.quoteNumber }
+        : undefined;
     return (
       <>
         <div className="account-breadcrumb">
@@ -234,20 +262,11 @@ export function AccountContent({
         <QuotationResponse
           key={quote.id}
           quote={quote}
-          acceptedAlternativeNumber={
-            (quote.requestId && acceptedRequests[quote.requestId]) ||
-            (quote.requestId
-              ? activity.quotations.find(
-                  (candidate) =>
-                    candidate.requestId === quote.requestId &&
-                    candidate.id !== quote.id &&
-                    ["ACCEPTED", "CONVERTED_TO_ORDER"].includes(candidate.status),
-                )?.quoteNumber
-              : undefined)
-          }
+          acceptedQuote={acceptedQuote}
         />
       </>
     );
+  }
   if (path.startsWith("/account/orders/") && order)
     return (
       <>
@@ -574,6 +593,11 @@ export function AccountContent({
             </button>
           ))}
         </nav>
+        {hasMoreForActivityView && (
+          <p className="account-activity-loaded-hint">
+            Counts and filters show loaded records only. Load older activity to include more.
+          </p>
+        )}
         {sortedRequests.length > 0 && (activityView === "EVERYTHING" || activityView === "REQUESTS") && (
           <section
             className="account-request-list"
@@ -702,6 +726,13 @@ export function AccountContent({
                       </div>
                     );
                   }
+                  if (request.status === "QUOTED" && activity.hasMore.quotations)
+                    return (
+                      <p className="account-request-awaiting">
+                        Quotations for this request may be in older activity.
+                        Load older activity to check.
+                      </p>
+                    );
                   if (request.status === "QUOTED")
                     return (
                       <p className="account-request-awaiting">
@@ -842,7 +873,7 @@ export function AccountContent({
                 )}
               </article>
             )) : (
-              <div className="account-no-quote-yet account-quote-no-results">
+              <div className="account-no-quote-yet account-quote-no-results" role="status">
                 <FileText size={20} />
                 <div>
                   <strong>No quotations match these filters</strong>
@@ -852,7 +883,7 @@ export function AccountContent({
               </div>
             )
           ) : (
-            <div className="account-no-quote-yet">
+            <div className="account-no-quote-yet" role="status">
               <FileText size={20} />
               <div>
                 <strong>No quotation has been issued yet</strong>
@@ -879,12 +910,26 @@ export function AccountContent({
                 {sortedOrders.map((customerOrder) => <OrderCard order={customerOrder} key={customerOrder.id} />)}
               </div>
             ) : (
-              <div className="account-no-quote-yet">
+              <div className="account-no-quote-yet" role="status">
                 <PackageCheck size={20} />
                 <div><strong>No orders yet</strong><p>Orders will appear here after you accept a quotation.</p></div>
               </div>
             )}
           </section>
+        )}
+        {hasMoreForActivityView && (
+          <button
+            type="button"
+            className="account-load-more-activity"
+            onClick={onLoadMoreActivity}
+            disabled={loadingMoreActivity || refreshingActivity}
+          >
+            {loadingMoreActivity
+              ? "Loading older activity…"
+              : refreshingActivity
+                ? "Refreshing activity…"
+                : "Load older activity"}
+          </button>
         )}
       </>
     );
@@ -955,11 +1000,27 @@ export function AccountContent({
             ))
         ) : (
           <EmptyState
-            title="Comparison options appear with a quote"
-            body="The client’s team can include equivalent brand options and prices in a quotation. You’ll be able to compare them here."
+            title={activity.hasMore.quotations ? "More quotations may include comparison options" : "Comparison options appear with a quote"}
+            body={activity.hasMore.quotations
+              ? "Load older quotations to check for brand options."
+              : "The client’s team can include equivalent brand options and prices in a quotation. You’ll be able to compare them here."}
             action="View quotations"
             to="/account/quotations"
           />
+        )}
+        {activity.hasMore.quotations && (
+          <button
+            type="button"
+            className="account-load-more-activity"
+            onClick={onLoadMoreActivity}
+            disabled={loadingMoreActivity || refreshingActivity}
+          >
+            {loadingMoreActivity
+              ? "Loading older quotations…"
+              : refreshingActivity
+                ? "Refreshing activity…"
+                : "Load older quotations"}
+          </button>
         )}
       </>
     );
@@ -984,6 +1045,11 @@ export function AccountContent({
             action="Review quotations"
             to="/account/quotations"
           />
+        )}
+        {activity.hasMore.orders && (
+          <button type="button" className="account-load-more-activity" onClick={onLoadMoreActivity} disabled={loadingMoreActivity || refreshingActivity}>
+            {loadingMoreActivity ? "Loading older orders…" : refreshingActivity ? "Refreshing activity…" : "Load older orders"}
+          </button>
         )}
       </>
     );
@@ -1046,6 +1112,11 @@ export function AccountContent({
             action="Browse materials"
             to="/marketplace"
           />
+        )}
+        {activity.hasMore.orders && (
+          <button type="button" className="account-load-more-activity" onClick={onLoadMoreActivity} disabled={loadingMoreActivity || refreshingActivity}>
+            {loadingMoreActivity ? "Loading older purchases…" : refreshingActivity ? "Refreshing activity…" : "Load older purchases"}
+          </button>
         )}
       </>
     );
@@ -1396,7 +1467,7 @@ function OrderCard({ order }: { order: Order }) {
       <div className="account-order-card-head">
         <div className="account-order-reference">
           <span className="account-eyebrow">ORDER · PLACED {formatDate(order.createdAt)}</span>
-          <h2 title={order.orderNumber}>{order.orderNumber}</h2>
+          <h3 title={order.orderNumber}>{order.orderNumber}</h3>
         </div>
         <StatusBadge status={order.status} />
       </div>

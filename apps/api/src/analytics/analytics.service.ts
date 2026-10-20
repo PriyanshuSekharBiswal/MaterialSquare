@@ -20,18 +20,20 @@ export class AnalyticsService {
   constructor(private prisma: PrismaService) {}
 
   async recordWebsiteEvent(event: WebsiteAnalyticsEvent) {
+    let targetKey = event.target;
     if (event.type === "product_view" || event.type === "add_to_list") {
       const product = await this.prisma.catalogListing.findFirst({
         where: { isPublished: true, OR: [{ id: event.target }, { slug: event.target }] },
         select: { id: true },
       });
       if (!product) return { recorded: false };
+      targetKey = product.id;
     }
     const [year, month, day] = indiaDay(new Date()).split("-").map(Number);
     const date = new Date(Date.UTC(year, month - 1, day));
     await this.prisma.analyticsCounter.upsert({
-      where: { day_eventType_targetKey: { day: date, eventType: event.type, targetKey: event.target } },
-      create: { day: date, eventType: event.type, targetKey: event.target, count: 1 },
+      where: { day_eventType_targetKey: { day: date, eventType: event.type, targetKey } },
+      create: { day: date, eventType: event.type, targetKey, count: 1 },
       update: { count: { increment: 1 } },
     });
     return { recorded: true };
@@ -71,17 +73,27 @@ export class AnalyticsService {
       }
       daily.set(date, row);
     }
-    const topProductIds = [...products.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
-    const topProductsByIntent = [...productAdditions.entries()].sort((a, b) => b[1] - a[1]).slice(0, 100);
-    const catalogueKeys = [...new Set([...topProductIds, ...topProductsByIntent].flatMap(([id]) => [id]))];
+    const catalogueKeys = [...new Set([...products.keys(), ...productAdditions.keys()])];
     const catalogue = catalogueKeys.length
       ? await this.prisma.catalogListing.findMany({
-          where: { OR: catalogueKeys.flatMap((id) => [{ id }, { slug: id }]) },
+          where: { OR: [{ id: { in: catalogueKeys } }, { slug: { in: catalogueKeys } }] },
           select: { id: true, slug: true, name: true },
         })
       : [];
     const catalogueByKey = new Map(catalogue.flatMap((product) => [[product.id, product.name] as const, [product.slug, product.name] as const]));
     const catalogueIdByKey = new Map(catalogue.flatMap((product) => [[product.id, product.id] as const, [product.slug, product.id] as const]));
+    const normalizeProductCounters = (source: Map<string, number>) => {
+      const normalized = new Map<string, number>();
+      for (const [key, count] of source) {
+        const id = catalogueIdByKey.get(key) || key;
+        normalized.set(id, (normalized.get(id) || 0) + count);
+      }
+      return normalized;
+    };
+    const normalizedProducts = normalizeProductCounters(products);
+    const normalizedProductAdditions = normalizeProductCounters(productAdditions);
+    const topProductIds = [...normalizedProducts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const topProductsByIntent = [...normalizedProductAdditions.entries()].sort((a, b) => b[1] - a[1]).slice(0, 100);
     const dailyRows = Array.from({ length: days }, (_, index) => {
       const date = new Date(start);
       date.setUTCDate(date.getUTCDate() + index);
@@ -93,7 +105,7 @@ export class AnalyticsService {
       totals,
       daily: dailyRows,
       topPages: [...pages.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([page, views]) => ({ page, views })),
-      topProducts: topProductIds.map(([id, views]) => ({ id, name: catalogueByKey.get(id) || "Unpublished product", views, addToList: productAdditions.get(id) || productAdditions.get(catalogue.find((product) => product.id === id)?.slug || "") || 0 })),
+      topProducts: topProductIds.map(([id, views]) => ({ id, name: catalogueByKey.get(id) || "Unpublished product", views, addToList: normalizedProductAdditions.get(id) || 0 })),
       topProductsByIntent: topProductsByIntent.map(([id, addToList]) => ({ id: catalogueIdByKey.get(id) || id, name: catalogueByKey.get(id) || "Unpublished product", addToList })),
       privacy: "Aggregate event counts only; no visitor IDs, search terms, addresses, or contact details are stored.",
     };
@@ -101,9 +113,8 @@ export class AnalyticsService {
 
   async getExecutiveKPIs() {
     const now = new Date();
-    const start = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
-    );
+    const indiaNow = new Date(now.getTime() + 330 * 60_000);
+    const start = new Date(Date.UTC(indiaNow.getUTCFullYear(), indiaNow.getUTCMonth(), 1) - 330 * 60_000);
     const [orders, rfqs] = await Promise.all([
       this.prisma.order.findMany({
         where: { createdAt: { gte: start }, status: { not: "CANCELLED" } },
@@ -112,7 +123,7 @@ export class AnalyticsService {
     ]);
     const daily = new Map<string, number>();
     for (const order of orders) {
-      const day = order.createdAt.toISOString().slice(0, 10);
+      const day = indiaDay(order.createdAt);
       daily.set(day, (daily.get(day) || 0) + Number(order.grandTotal));
     }
     return {

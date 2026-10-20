@@ -11,6 +11,9 @@ The repository is organized by application and shared capability:
 - `deployment` contains container and managed-host deployment configuration.
 - `docs` contains product scope, operating requirements, and engineering notes.
 
+For runtime boundaries, trust relationships, and request flows, see [System
+design](design.md). Product behavior is described in the [PRD](../product/PRD.md).
+
 ## Ownership and conventions
 
 Use the business capability as the directory boundary. Use PascalCase for React
@@ -28,6 +31,13 @@ Prefer readable names, small functions, and direct control flow. Avoid
 speculative frameworks and abstractions without a concrete use. Update this
 guide when a new top-level capability or ownership rule is introduced.
 
+Large feature files should be split by a real responsibility boundary when a
+change requires unrelated screen sections, data loading, and domain rules to be
+understood together. Keep public behavior and state ownership explicit during
+extraction; do not split solely to reduce a line count. Avoid adding new
+controller-level Prisma orchestration when the use case has a transaction,
+authorization-sensitive query, or domain rule that belongs in a service.
+
 ## Public catalogue
 
 Catalogue queries must use published client records. Search, suggestions,
@@ -38,10 +48,10 @@ referenced from approved URLs or the configured asset store.
 
 ## Customer request list
 
-The quote list is browser-local and does not use an account or login service.
-The customer website displays the selected products and quantities before
-opening a WhatsApp or email handoff. Do not describe an external handoff as sent
-or delivered unless the provider confirms it.
+The guest quote list is browser-local. A signed-in customer can submit that list
+as an RFQ, which is saved to the customer account and staff queue. General
+enquiries may open a WhatsApp or email handoff. Do not describe an external
+handoff as sent or delivered unless the provider confirms it.
 
 ## Database operations
 

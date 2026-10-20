@@ -1,5 +1,8 @@
-.shared-product-detail {
+.shared-product-detail-shell {
   container: shared-product-detail / inline-size;
+  min-width: 0;
+}
+.shared-product-detail {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   align-items: start;
@@ -43,7 +46,7 @@
   border-radius: 999px;
   padding: 0.35rem 0.65rem;
   color: #fff;
-  background: #0d9488;
+  background: var(--ms-primary, #ea580c);
   font-size: 0.7rem;
   font-weight: 800;
   text-overflow: ellipsis;
@@ -80,7 +83,7 @@
   cursor: pointer;
 }
 .shared-product-thumbnails button.is-active {
-  border-color: #f56612;
+  border-color: #ea580c;
   box-shadow: 0 0 0 2px #fff0e6;
 }
 .shared-product-thumbnails img {
@@ -148,7 +151,7 @@
   place-items: center;
   border: 1px solid #edf0f4;
   border-radius: 9px;
-  color: #c2410c;
+  color: var(--ms-primary, #ea580c);
   background: #fff7f1;
   font-size: 0.85rem;
   font-weight: 800;
@@ -241,7 +244,7 @@
   border: 1px solid #ffd2b5;
   border-radius: 999px;
   padding: 0.2rem 0.55rem;
-  color: #c2410c;
+  color: var(--ms-primary, #ea580c);
   background: #fff1e7;
   font-size: 0.66rem;
   font-weight: 750;
@@ -259,7 +262,7 @@
 }
 .shared-product-shipping-note a:hover,
 .shared-product-shipping-note a:focus-visible {
-  color: #c2410c;
+  color: var(--ms-primary, #ea580c);
 }
 .shared-product-price-note {
   color: #8995a4;
@@ -332,9 +335,9 @@
   background: #fffaf7;
 }
 .shared-product-choice.is-selected {
-  border-color: #f56612;
+  border-color: #ea580c;
   background: #fff5ee;
-  box-shadow: inset 0 0 0 1px rgba(245, 102, 18, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(234, 88, 12, 0.12);
 }
 .shared-product-choice:disabled {
   opacity: 1;
@@ -361,7 +364,7 @@
   line-height: 1.2;
 }
 .shared-product-choice small {
-  color: #c2410c;
+  color: var(--ms-primary, #ea580c);
   font-size: 0.62rem;
   font-weight: 750;
 }
@@ -408,6 +411,9 @@
 .shared-product-choice-dropdown > summary::-webkit-details-marker {
   display: none;
 }
+.shared-product-choice-dropdown > summary::marker {
+  content: "";
+}
 .shared-product-choice-dropdown > summary > span,
 .shared-product-choice-select-value > span {
   min-width: 0;
@@ -425,8 +431,8 @@
   transform: rotate(180deg);
 }
 .shared-product-choice-dropdown > summary:focus-visible {
-  outline: 3px solid rgba(245, 102, 18, 0.2);
-  border-color: #f56612;
+  outline: 3px solid var(--focus-outline);
+  border-color: #ea580c;
 }
 .shared-product-choice-menu {
   position: absolute;
@@ -502,7 +508,7 @@
   border: 0;
   border-radius: 10px;
   color: #fff;
-  background: #f56612;
+  background: #ea580c;
   font: inherit;
   font-size: 0.86rem;
   font-weight: 750;
@@ -512,6 +518,15 @@
   transform: translateY(-0.35rem);
 }
 .shared-product-action:disabled {
+  color: #475569;
+  background: #e2e8f0;
+  cursor: not-allowed;
+}
+.shared-product-detail.is-preview .shared-product-action:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.shared-product-detail.is-preview.is-action-disabled .shared-product-action:disabled {
   color: #475569;
   background: #e2e8f0;
   cursor: not-allowed;
@@ -541,7 +556,7 @@
   justify-content: space-between;
   gap: 0.65rem;
   padding: 0.5rem 1rem;
-  color: #c2410c;
+  color: var(--ms-primary, #ea580c);
   font-size: clamp(1rem, 1.1vw, 1.15rem);
   font-weight: 500;
   list-style: none;
@@ -550,13 +565,13 @@
 }
 .shared-product-accordion > summary:hover,
 .shared-product-accordion[open] > summary {
-  color: #f56612;
+  color: #ea580c;
   background: #fff7f1;
 }
 .shared-product-accordion > summary:focus-visible {
   position: relative;
   z-index: 1;
-  outline: 3px solid rgb(245 102 18 / 28%);
+  outline: 3px solid var(--focus-outline);
   outline-offset: -3px;
 }
 .shared-product-accordion > summary::-webkit-details-marker {
@@ -615,7 +630,7 @@
   border-top: 1px solid #edf0f3;
 }
 .shared-product-accordion-content a {
-  color: #c2410c;
+  color: var(--ms-primary, #ea580c);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -647,7 +662,7 @@
   font-size: 0.78rem;
 }
 .shared-product-detail-feedback a {
-  color: #c2410c;
+  color: var(--ms-primary, #ea580c);
 }
 @container shared-product-detail (max-width: 760px) {
   .shared-product-detail {

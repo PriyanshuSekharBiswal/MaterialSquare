@@ -8,9 +8,10 @@ describe("business quotation rules", () => {
   it("returns the established behavior as the default policy", async () => {
     const prisma = {
       businessRuleSetting: { findUnique: jest.fn().mockResolvedValue(null) },
+      auditLog: { findFirst: jest.fn().mockResolvedValue(null) },
     } as never;
     await expect(new BusinessRulesController(prisma).get()).resolves.toEqual(
-      DEFAULT_BUSINESS_RULES,
+      { ...DEFAULT_BUSINESS_RULES, createdBy: null, createdAt: null },
     );
   });
 

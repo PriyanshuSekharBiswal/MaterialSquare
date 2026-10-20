@@ -137,7 +137,7 @@ model StaffUser {
 model WebsiteContent {
   id        String   @id @default("global")
   content   Json     @default("{}")
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   @@map("website_content")
 }
@@ -207,6 +207,10 @@ model CustomerSession {
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   expiresAt  DateTime
+  lastActivityAt DateTime @default(now())
+  lastRotatedAt  DateTime @default(now())
+  previousId String?  @unique @db.VarChar(64)
+  previousValidUntil DateTime?
   createdAt  DateTime @default(now())
 
   @@index([customerId])
@@ -1031,9 +1035,19 @@ model AnalyticsCounter {
   eventType String
   targetKey String   @default("")
   count     Int      @default(0)
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   @@unique([day, eventType, targetKey])
   @@index([day, eventType])
   @@map("analytics_counters")
+}
+
+model ApiRateLimitBucket {
+  key       String   @id @db.VarChar(64)
+  count     Int      @default(1)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+  @@map("api_rate_limit_buckets")
 }

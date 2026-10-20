@@ -28,7 +28,9 @@ const handlers = {
 export default function handler(req: IncomingMessage, res: ServerResponse) {
   const incoming = new URL(req.url || "/", "https://internal.invalid");
   const route = incoming.searchParams.get("__route") || "";
-  const routeHandler = handlers[route as keyof typeof handlers];
+  const routeHandler = Object.prototype.hasOwnProperty.call(handlers, route)
+    ? handlers[route as keyof typeof handlers]
+    : undefined;
   if (!routeHandler) {
     res.writeHead(404, {
       "Content-Type": "text/plain; charset=utf-8",

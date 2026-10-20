@@ -14,11 +14,13 @@ import {
   Body,
   Param,
   Req,
+  Query,
 } from "@nestjs/common";
 import { QuotesService } from "./quotes.service";
 import { CreateQuoteSchema } from "@material-square/types";
 import { QuotationAcceptanceService } from "./quotation-acceptance.service";
 import { ExternalQuotationAcceptanceSchema } from "./quotation-acceptance.schema";
+import { parsePagination } from "../common/pagination";
 
 @Controller("quotes")
 @UseGuards(StaffGuard)
@@ -30,8 +32,14 @@ export class QuotesController {
   ) {}
 
   @Get()
-  getAllQuotes() {
-    return this.quotesService.findAll();
+  getAllQuotes(
+    @Query("page") pageInput?: string,
+    @Query("pageSize") pageSizeInput?: string,
+  ) {
+    const pagination = pageInput !== undefined || pageSizeInput !== undefined
+      ? parsePagination(pageInput, pageSizeInput)
+      : undefined;
+    return this.quotesService.findAll(pagination);
   }
 
   @Get(":id/pdf")

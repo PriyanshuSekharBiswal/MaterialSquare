@@ -6,8 +6,7 @@ import PDFDocument = require("pdfkit");
 const COLORS = {
   ink: "#17243A",
   navy: "#13223A",
-  blue: "#2F68D8",
-  paleBlue: "#EEF4FF",
+  paleOrange: "#FFF7ED",
   paper: "#F5F7FB",
   line: "#E2E8F0",
   muted: "#64748B",
@@ -90,7 +89,7 @@ export class PdfService {
           align: "right",
         });
       doc.roundedRect(48, 120, 245, 112, 8).fill(COLORS.paper);
-      doc.roundedRect(305, 120, 245, 112, 8).fill(COLORS.paleBlue);
+      doc.roundedRect(305, 120, 245, 112, 8).fill(COLORS.paleOrange);
       doc
         .font("Helvetica-Bold")
         .fontSize(8)
@@ -162,6 +161,8 @@ export class PdfService {
         const rowHeight = detail ? 39 : 28;
         if (y + rowHeight > doc.page.height - 125) {
           doc.addPage();
+          doc.font("Helvetica-Bold").fontSize(9).fillColor(COLORS.ink)
+            .text(`PURCHASE ORDER ${po.purchaseOrderNumber}`, 48, 30);
           y = 54;
         }
         if (index % 2 === 0) doc.rect(48, y, width, rowHeight).fill("#F7F9FC");
@@ -187,6 +188,14 @@ export class PdfService {
         y += rowHeight;
       });
       y += 18;
+      const totalsHeight = 3 * 18 + 36;
+      const summaryHeight = Math.max(po.notes ? 84 : 0, totalsHeight);
+      if (y + summaryHeight > doc.page.height - 48) {
+        doc.addPage();
+        doc.font("Helvetica-Bold").fontSize(9).fillColor(COLORS.ink)
+          .text(`PURCHASE ORDER ${po.purchaseOrderNumber}`, 48, 30);
+        y = 54;
+      }
       if (po.notes) {
         doc
           .font("Helvetica-Bold")
@@ -633,7 +642,7 @@ export class PdfService {
       doc
         .fontSize(14)
         .font("Helvetica-Bold")
-        .fillColor("#2563eb")
+        .fillColor("#ea580c")
         .text("TRIPLICATE DELIVERY CHALLAN & WEIGHBRIDGE PASS", {
           align: "center",
           underline: true,
@@ -676,25 +685,66 @@ export class PdfService {
       doc.moveTo(50, 325).lineTo(550, 325).stroke("#94a3b8");
 
       let y = 335;
+      const drawItemHeader = (top: number) => {
+        doc.fillColor("#000").font("Helvetica-Bold").fontSize(10);
+        doc.text("Material Description", 50, top);
+        doc.text("Quantity / unit", 430, top, { align: "right" });
+        doc.moveTo(50, top + 15).lineTo(550, top + 15).stroke("#94a3b8");
+      };
+      const drawContinuationHeader = (top: number) => {
+        doc.fillColor("#0f172a").font("Helvetica-Bold").fontSize(9);
+        doc.text(`Challan No: ${challan.challanNumber}`, 50, top);
+        doc.text(`Order Ref: ${challan.orderNumber}`, 350, top);
+        drawItemHeader(top + 22);
+        return top + 47;
+      };
       challan.items.forEach((item) => {
-        doc.font("Helvetica").fontSize(9).text(item.name, 50, y);
+        doc.font("Helvetica").fontSize(9);
+        const quantityText = `${item.quantityMt.toLocaleString("en-IN")} × ${item.unit}`;
+        const maximumRowHeight = doc.page.height - 100 - (55 + 47);
+        const rowHeight = Math.min(maximumRowHeight, Math.max(
+          20,
+          doc.heightOfString(item.name, { width: 350 }) + 6,
+          doc.heightOfString(quantityText, { width: 120, align: "right" }) + 6,
+        ));
+        if (y + rowHeight > doc.page.height - 100) {
+          doc.addPage();
+          y = drawContinuationHeader(55);
+        }
+        doc.font("Helvetica").fontSize(9).text(item.name, 50, y, {
+          width: 350,
+          height: rowHeight,
+          ellipsis: true,
+        });
         doc.text(
-          `${item.quantityMt.toLocaleString("en-IN")} × ${item.unit}`,
+          quantityText,
           430,
           y,
           {
+            width: 120,
+            height: rowHeight,
+            ellipsis: true,
             align: "right",
           },
         );
-        y += 20;
+        y += rowHeight;
       });
 
-      doc.moveDown(4);
       doc.fontSize(9).font("Helvetica");
-      doc.text("Authorized Material Square Yard Officer", 50, 500);
-      doc.text("Consignee / Site Receiver Signature & Stamp", 320, 500);
-      doc.moveTo(50, 495).lineTo(230, 495).stroke("#cbd5e1");
-      doc.moveTo(320, 495).lineTo(520, 495).stroke("#cbd5e1");
+      const signatureHeight = Math.max(
+        doc.heightOfString("Authorized Material Square Yard Officer", { width: 180 }),
+        doc.heightOfString("Consignee / Site Receiver Signature & Stamp", { width: 200 }),
+      );
+      let signatureY = Math.max(y + 42, 500);
+      if (signatureY + signatureHeight > doc.page.height - doc.page.margins.bottom) {
+        doc.addPage();
+        y = drawContinuationHeader(55);
+        signatureY = Math.max(y + 42, 500);
+      }
+      doc.text("Authorized Material Square Yard Officer", 50, signatureY);
+      doc.text("Consignee / Site Receiver Signature & Stamp", 320, signatureY);
+      doc.moveTo(50, signatureY - 5).lineTo(230, signatureY - 5).stroke("#cbd5e1");
+      doc.moveTo(320, signatureY - 5).lineTo(520, signatureY - 5).stroke("#cbd5e1");
 
       doc.end();
     });

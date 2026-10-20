@@ -72,7 +72,7 @@ export class PublicSiteContentController {
         select: { slug: true, updatedAt: true },
       }),
       this.prisma.catalogListing.findMany({
-        where: { isPublished: true },
+        where: { isPublished: true, deletedAt: null },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         select: { id: true, updatedAt: true },
       }),
@@ -172,6 +172,43 @@ function auditChanges(
   }));
 }
 
+function rehomeReservedWebsitePages(content: Record<string, unknown>) {
+  const serialized = content["website.pages"];
+  if (typeof serialized !== "string") return content;
+  let pages: unknown;
+  try {
+    pages = JSON.parse(serialized);
+  } catch {
+    return content;
+  }
+  if (!Array.isArray(pages)) return content;
+
+  const usedPaths = new Set(
+    pages.flatMap((page) =>
+      page && typeof page === "object" && !Array.isArray(page) && typeof page.path === "string"
+        ? [page.path]
+        : [],
+    ),
+  );
+  const rehomed = pages.map((page) => {
+    if (!page || typeof page !== "object" || Array.isArray(page) || typeof page.path !== "string")
+      return page;
+    const root = page.path.split("/")[1];
+    if (!root || !["faq", "shipping", "return-policy"].includes(root)) return page;
+    const suffixPath = page.path.slice(root.length + 1);
+    const basePath = `/${root}-custom${suffixPath}`;
+    let nextPath = basePath;
+    let suffix = 2;
+    while (usedPaths.has(nextPath)) {
+      nextPath = `${basePath}-${suffix}`;
+      suffix += 1;
+    }
+    usedPaths.add(nextPath);
+    return { ...page, path: nextPath };
+  });
+  return { ...content, "website.pages": JSON.stringify(rehomed) };
+}
+
 @Controller("admin/site-content")
 @UseGuards(StaffGuard)
 export class AdminSiteContentController {
@@ -179,7 +216,14 @@ export class AdminSiteContentController {
 
   @Get()
   async get() {
-    return new PublicSiteContentController(this.prisma).get();
+    const saved = await this.prisma.websiteContent.findUnique({
+      where: { id: "global" },
+    });
+    const content =
+      saved?.content && typeof saved.content === "object" && !Array.isArray(saved.content)
+        ? (saved.content as Record<string, unknown>)
+        : {};
+    return sanitizePublicSiteContent(content);
   }
 
   @Get("draft")
@@ -187,10 +231,10 @@ export class AdminSiteContentController {
     const saved = await this.prisma.websiteContent.findUnique({
       where: { id: "draft" },
     });
-    return {
+    return sanitizePublicSiteContent({
       ...(await this.get()),
       ...((saved?.content as Record<string, string>) || {}),
-    };
+    });
   }
 
   @Get("draft/status")
@@ -217,7 +261,7 @@ export class AdminSiteContentController {
         });
       }
     });
-    return new PublicSiteContentController(this.prisma).get();
+    return this.get();
   }
 
   @Get("draft/history")
@@ -248,7 +292,10 @@ export class AdminSiteContentController {
       where: { id, expiresAt: { gt: new Date() } },
     });
     if (!revision) throw new BadRequestException("This recovery point has expired.");
-    return this.saveDraft(revision.content, req, "manual");
+    const safeContent = sanitizePublicSiteContent(
+      rehomeReservedWebsitePages(revision.content as Record<string, unknown>),
+    );
+    return this.saveDraft(safeContent, req, "manual");
   }
 
   @Put("draft")

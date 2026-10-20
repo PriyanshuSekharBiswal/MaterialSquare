@@ -6,7 +6,7 @@ import {
   siteSocialLinks,
   serviceAreaSlugs,
 } from "./runtime-types.js";
-import { canonicalSiteOrigin } from "./seo-origin.js";
+import { canonicalSiteOrigin, trustedSiteOrigin } from "./seo-origin.js";
 import { isPreviewDeployment } from "./seo-environment.js";
 import { setPageStructuredData } from "./structured-data.js";
 
@@ -151,7 +151,7 @@ function requestOrigin(req: IncomingMessage) {
   const protocol = (Array.isArray(forwardedProtocol) ? forwardedProtocol[0] : forwardedProtocol)
     ?.split(",")[0]
     ?.trim();
-  return `${protocol === "http" && isPreviewDeployment() ? "http" : "https"}://${host}`;
+  return trustedSiteOrigin(`${protocol === "http" && isPreviewDeployment() ? "http" : "https"}://${host}`);
 }
 
 function configuredApiOrigin() {

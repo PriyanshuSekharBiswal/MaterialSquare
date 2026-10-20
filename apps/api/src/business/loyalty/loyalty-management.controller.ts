@@ -88,9 +88,7 @@ export class LoyaltyManagementController {
         update: data,
       });
       const changedFields = Object.keys(data).filter(
-        (key) =>
-          previous?.[key as keyof typeof data] !==
-          data[key as keyof typeof data],
+        (key) => String(previous?.[key as keyof typeof data] ?? "") !== String(data[key as keyof typeof data] ?? ""),
       );
       await tx.auditLog.create({
         data: {
@@ -121,13 +119,20 @@ export class LoyaltyManagementController {
         create: { customerId },
         update: {},
       });
-      const next = account.pointsBalance + data.points;
-      if (next < 0)
-        throw new BadRequestException("Points balance cannot become negative");
-      await tx.loyaltyAccount.update({
-        where: { id: account.id },
-        data: { pointsBalance: next },
+      const changed = await tx.loyaltyAccount.updateMany({
+        where: {
+          id: account.id,
+          ...(data.points < 0 ? { pointsBalance: { gte: -data.points } } : {}),
+        },
+        data: { pointsBalance: { increment: data.points } },
       });
+      if (changed.count !== 1)
+        throw new BadRequestException("Points balance cannot become negative");
+      const updatedAccount = await tx.loyaltyAccount.findUniqueOrThrow({
+        where: { id: account.id },
+        select: { pointsBalance: true },
+      });
+      const next = updatedAccount.pointsBalance;
       const transaction = await tx.loyaltyTransaction.create({
         data: {
           accountId: account.id,

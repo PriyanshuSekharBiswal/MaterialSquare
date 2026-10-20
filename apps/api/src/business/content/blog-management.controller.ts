@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
@@ -10,6 +11,7 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { StaffGuard } from "../../auth/access.guard";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -86,6 +88,10 @@ export class BlogManagementController {
         },
       });
       return article;
+    }).catch((cause) => {
+      if (cause instanceof Prisma.PrismaClientKnownRequestError && cause.code === "P2002")
+        throw new ConflictException("An article with this URL already exists");
+      throw cause;
     });
   }
   @Patch(":id")
@@ -141,6 +147,10 @@ export class BlogManagementController {
         },
       });
       return article;
+    }).catch((cause) => {
+      if (cause instanceof Prisma.PrismaClientKnownRequestError && cause.code === "P2002")
+        throw new ConflictException("An article with this URL already exists");
+      throw cause;
     });
   }
   @Delete(":id")

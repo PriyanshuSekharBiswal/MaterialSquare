@@ -103,6 +103,15 @@ export default function PartnerBrandsManager({ token, role, onSignOut, onBack, o
   const hasUnsavedChanges = JSON.stringify(draft) !== baseline;
   const canManage = ["SUPER_ADMIN", "ADMIN", "CATALOG_MANAGER"].includes(role);
 
+  useEffect(() => {
+    if (!showExitConfirm) return;
+    const keepEditingOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowExitConfirm(false);
+    };
+    window.addEventListener("keydown", keepEditingOnEscape);
+    return () => window.removeEventListener("keydown", keepEditingOnEscape);
+  }, [showExitConfirm]);
+
   const request = useCallback(async (path: string, method = "GET", body?: unknown) => {
     const response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}${path}`, {
       method,
@@ -281,7 +290,7 @@ export default function PartnerBrandsManager({ token, role, onSignOut, onBack, o
       <div className="partner-brand-form-actions"><button className="btn-sm btn-secondary" type="button" onClick={requestEditorExit}>Cancel</button><button className="btn-sm btn-primary" type="submit" disabled={!canManage || busy || Boolean(uploading)}><Save size={14} /> {busy ? "Saving…" : "Save brand"}</button></div>
     </form>}
     {showExitConfirm && <div className="partner-brand-confirm-backdrop" role="presentation">
-      <section className="partner-brand-confirm" role="alertdialog" aria-modal="true" aria-labelledby="partner-brand-confirm-title" aria-describedby="partner-brand-confirm-copy">
+      <section className="partner-brand-confirm admin-confirm-surface" role="alertdialog" aria-modal="true" aria-labelledby="partner-brand-confirm-title" aria-describedby="partner-brand-confirm-copy">
         <button className="partner-brand-confirm-close" type="button" aria-label="Keep editing" title="Keep editing" onClick={() => setShowExitConfirm(false)}><X size={20} /></button>
         <h3 id="partner-brand-confirm-title">Discard unsaved changes?</h3>
         <p id="partner-brand-confirm-copy">Your changes to {draft.name || "this brand"} have not been saved. Leaving now will keep the current logo and brand details unchanged.</p>
@@ -299,7 +308,7 @@ export default function PartnerBrandsManager({ token, role, onSignOut, onBack, o
         <span className={`partner-brand-status ${brand.isActive ? "is-active" : ""}`}>{brand.isActive ? "Active" : "Inactive"}</span>
         {canManage && <button className="btn-sm btn-secondary" type="button" onClick={() => editBrand(brand)}><Pencil size={14} /> Edit</button>}
       </article>)}
-      {!brands.length && <p className="catalogue-empty">No partner brands have been added.</p>}
+      {!brands.length && <p className="catalogue-empty" role="status">No partner brands have been added.</p>}
     </div>)}
   </section>;
 }

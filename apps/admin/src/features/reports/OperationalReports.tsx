@@ -4,7 +4,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  type FormEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { Download, RefreshCw } from "lucide-react";
@@ -195,6 +194,7 @@ export default function OperationalReports({
   });
   const [range, setRange] = useState(() => readReportLocation().range);
   const [draftRange, setDraftRange] = useState(range);
+  const [rangeValidationError, setRangeValidationError] = useState("");
   const [loadedReport, setLoadedReport] = useState<{
     type: ReportType;
     data: ReportData;
@@ -221,6 +221,7 @@ export default function OperationalReports({
       setReportType(nextType);
       setRange(restored.range);
       setDraftRange(restored.range);
+      setRangeValidationError("");
     };
     window.addEventListener("popstate", restoreReportLocation);
     return () => window.removeEventListener("popstate", restoreReportLocation);
@@ -239,6 +240,13 @@ export default function OperationalReports({
     setReportType(nextType);
     setRange(nextRange);
     setDraftRange(nextRange);
+    setRangeValidationError("");
+  }
+
+  function refreshReport() {
+    setDraftRange({ ...range });
+    setRangeValidationError("");
+    setRange({ ...range });
   }
 
   useEffect(() => {
@@ -347,18 +355,17 @@ export default function OperationalReports({
     }));
   }, [data, reportType]);
 
-  function applyRange(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formValues = new FormData(event.currentTarget);
-    const nextRange = {
-      from: String(formValues.get("from") || ""),
-      to: String(formValues.get("to") || ""),
-    };
+  function updateRangePart(key: "from" | "to", value: string) {
+    const nextRange = { ...draftRange, [key]: value };
+    setDraftRange(nextRange);
     if (!nextRange.from || !nextRange.to || nextRange.from > nextRange.to) {
-      setError("Choose a valid start and end date.");
+      setRangeValidationError("Choose a valid start and end date.");
       return;
     }
-    navigateReportLocation(reportType, nextRange);
+    setRangeValidationError("");
+    if (nextRange.from !== range.from || nextRange.to !== range.to) {
+      navigateReportLocation(reportType, nextRange);
+    }
   }
 
   function exportReport() {
@@ -393,7 +400,7 @@ export default function OperationalReports({
             </div>
             <button
               className="btn-sm btn-secondary btn-orange-outline"
-              onClick={() => setRange({ ...range })}
+              onClick={refreshReport}
               disabled={loading}
             >
               <RefreshCw size={14} /> Refresh report
@@ -418,7 +425,7 @@ export default function OperationalReports({
               ))}
             </div>
           </div>
-          <form className="report-filters" onSubmit={applyRange}>
+          <div className="report-filters">
             <div className="report-filter-fields">
               <label>
                 <span>From</span>
@@ -426,10 +433,7 @@ export default function OperationalReports({
                   type="date"
                   name="from"
                   value={draftRange.from}
-                  onChange={(event) =>
-                    setDraftRange({ ...draftRange, from: event.target.value })
-                  }
-                  required
+                  onChange={(event) => updateRangePart("from", event.target.value)}
                 />
               </label>
               <label>
@@ -438,17 +442,11 @@ export default function OperationalReports({
                   type="date"
                   name="to"
                   value={draftRange.to}
-                  onChange={(event) =>
-                    setDraftRange({ ...draftRange, to: event.target.value })
-                  }
-                  required
+                  onChange={(event) => updateRangePart("to", event.target.value)}
                 />
               </label>
             </div>
             <div className="report-filter-actions">
-              <button className="btn-sm btn-primary" disabled={loading}>
-                Apply dates
-              </button>
               <button
                 className="btn-sm btn-secondary"
                 type="button"
@@ -462,7 +460,12 @@ export default function OperationalReports({
               Dates use India Standard Time. Customer contact details are
               excluded.
             </p>
-          </form>
+            {rangeValidationError && (
+              <p className="report-range-error" role="status">
+                {rangeValidationError}
+              </p>
+            )}
+          </div>
           {loading && (
             <p role="status" className="report-loading">
               <RefreshCw size={16} /> Loading report…
@@ -672,7 +675,7 @@ function SalesReportView({ report }: { report: SalesReport }) {
                   {!rows.length && (
                     <tr>
                       <td colSpan={5} className="report-table-empty">
-                        No orders in this period.
+                        <span role="status">No orders in this period.</span>
                       </td>
                     </tr>
                   )}
@@ -715,7 +718,7 @@ function SalesReportView({ report }: { report: SalesReport }) {
                   {!rows.length && (
                     <tr>
                       <td colSpan={6} className="report-table-empty">
-                        No quotations in this period.
+                        <span role="status">No quotations in this period.</span>
                       </td>
                     </tr>
                   )}
@@ -841,7 +844,7 @@ function ProcurementReportView({ report }: { report: ProcurementReport }) {
                   {!report.requests.length && (
                     <tr>
                       <td colSpan={6}>
-                        No procurement requests in this period.
+                        <span role="status">No procurement requests in this period.</span>
                       </td>
                     </tr>
                   )}
@@ -909,7 +912,7 @@ function ProcurementReportView({ report }: { report: ProcurementReport }) {
                   ))}
                   {!report.purchaseOrders.length && (
                     <tr>
-                      <td colSpan={6}>No purchase orders in this period.</td>
+                      <td colSpan={6}><span role="status">No purchase orders in this period.</span></td>
                     </tr>
                   )}
                 </tbody>
@@ -998,7 +1001,7 @@ function FulfillmentReportView({ report }: { report: FulfillmentReport }) {
               ))}
               {!report.deliveries.length && (
                 <tr>
-                  <td colSpan={7}>No delivery plans in this period.</td>
+                  <td colSpan={7}><span role="status">No delivery plans in this period.</span></td>
                 </tr>
               )}
             </tbody>
@@ -1023,7 +1026,7 @@ function FulfillmentReportView({ report }: { report: FulfillmentReport }) {
               </div>
             ))}
             {!report.ordersByStatus.length && (
-              <p className="report-empty-status">
+              <p className="report-empty-status" role="status">
                 No order statuses in this period.
               </p>
             )}
@@ -1041,7 +1044,7 @@ function FulfillmentReportView({ report }: { report: FulfillmentReport }) {
               </div>
             ))}
             {!report.plansByStatus.length && (
-              <p className="report-empty-status">
+              <p className="report-empty-status" role="status">
                 No delivery plan statuses in this period.
               </p>
             )}

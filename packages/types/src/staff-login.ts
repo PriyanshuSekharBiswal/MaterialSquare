@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+export const STAFF_PASSWORD_MIN_LENGTH = 12;
+
+const emptyToUndefined = (value: unknown) =>
+  typeof value === "string" && value.trim() === "" ? undefined : value;
+
 export function normalizeStaffPhone(value: string): string {
   const digits = value.trim().replace(/[\s()+.-]/g, "");
   if (/^0091[6-9]\d{9}$/.test(digits)) return digits.slice(4);
@@ -10,7 +15,7 @@ export function normalizeStaffPhone(value: string): string {
 
 export const StaffLoginSchema = z
   .object({
-    phone: z
+    phone: z.preprocess(emptyToUndefined, z
       .string()
       .transform(normalizeStaffPhone)
       .pipe(
@@ -21,14 +26,14 @@ export const StaffLoginSchema = z
             "Enter a valid 10-digit Indian mobile number (with optional +91)",
           ),
       )
-      .optional(),
-    email: z
+      .optional()),
+    email: z.preprocess(emptyToUndefined, z
       .string()
       .trim()
       .toLowerCase()
       .email("Enter a valid email address")
       .max(254)
-      .optional(),
+      .optional()),
     password: z
       .string()
       .min(8, "Enter your password with at least 8 characters")

@@ -62,6 +62,7 @@ export default function PolicyEditor({
         </span>
       </header>
       <fieldset className="website-policy-fields" disabled={disabled}>
+        <legend className="admin-sr-only">Policy page content</legend>
         <div className="website-policy-basics website-content-fields">
         <label>
           Page title

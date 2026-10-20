@@ -1,5 +1,5 @@
 import { useEffect, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
-import { ArrowLeft, ArrowRight, PackageCheck, Plus, Search } from "lucide-react";
+import { ArrowLeft, ArrowRight, PackageCheck, Search } from "lucide-react";
 import {
   blankFollowup,
   followupStatuses,
@@ -33,6 +33,7 @@ type CustomerFollowupWorkspaceProps = {
   customers: Page<Customer>;
   followups: Page<Followup>;
   query: string;
+  search: string;
   setQuery: Dispatch<SetStateAction<string>>;
   setSearch: Dispatch<SetStateAction<string>>;
   status: string;
@@ -40,6 +41,7 @@ type CustomerFollowupWorkspaceProps = {
   setPage: Dispatch<SetStateAction<number>>;
   page: number;
   loading: boolean;
+  loadError: string;
   busy: boolean;
   selected: Customer | null;
   setSelected: Dispatch<SetStateAction<Customer | null>>;
@@ -57,6 +59,7 @@ export default function CustomerFollowupWorkspace({
   customers,
   followups,
   query,
+  search,
   setQuery,
   setSearch,
   status,
@@ -64,6 +67,7 @@ export default function CustomerFollowupWorkspace({
   setPage,
   page,
   loading,
+  loadError,
   busy,
   selected,
   setSelected,
@@ -107,7 +111,8 @@ export default function CustomerFollowupWorkspace({
       {!selected && !draft && (
         <>
           <form
-            className="workspace-toolbar customer-followup-toolbar"
+            className="workspace-toolbar filter-bar customer-followup-toolbar"
+            data-skip-unsaved-warning="true"
             onSubmit={(e) => {
               e.preventDefault();
               setPage(1);
@@ -130,46 +135,62 @@ export default function CustomerFollowupWorkspace({
             </button>
             {tab === "followups" && (
               <>
-                <select
-                  aria-label="Filter status"
-                  value={status}
-                  onChange={(e) => {
-                    setStatus(e.target.value);
-                    setPage(1);
-                  }}
-                >
-                  <option value="">All statuses</option>
-                  <option value="OPEN">Open follow-ups</option>
-                  {Object.entries(followupStatuses).map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="btn-sm btn-primary customer-new-followup"
-                  onClick={() => startDraft(blankFollowup())}
-                >
-                  <Plus size={16} />
-                  New follow-up
-                </button>
+                <label className="customer-status-filter">
+                  Status
+                  <select
+                    aria-label="Filter status"
+                    value={status}
+                    onChange={(e) => {
+                      setStatus(e.target.value);
+                      setPage(1);
+                    }}
+                  >
+                    <option value="">All statuses</option>
+                    <option value="OPEN">Open follow-ups</option>
+                    {Object.entries(followupStatuses).map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </>
             )}
           </form>
           <section className="panel-card panel-body">
-            <p className="muted">
+            {!loadError && <p className="muted">
               {result.total}{" "}
               {tab === "customers" ? "customer records" : "follow-ups"}
-            </p>
-            {!loading && !result.items.length && (
-              <p className="empty">
-                {tab === "customers"
-                  ? "Customer records appear here after a quotation or follow-up is recorded."
-                  : "No follow-ups found. Record an enquiry when staff receive it."}
-              </p>
+            </p>}
+            {loadError && !loading && (
+              <div className="customer-followup-empty" role="status">
+                <Search size={20} aria-hidden="true" />
+                <div>
+                  <h3>{tab === "customers" ? "Customer records could not be loaded" : "Follow-ups could not be loaded"}</h3>
+                  <p>Refresh the workspace to try again.</p>
+                </div>
+              </div>
             )}
-            {tab === "customers"
+            {!loadError && !loading && !result.items.length && (
+              <div className="customer-followup-empty" role="status">
+                <Search size={20} aria-hidden="true" />
+                <div>
+                  <h3>{
+                    search || status
+                      ? tab === "customers" ? "No matching customers" : "No matching follow-ups"
+                      : tab === "customers" ? "No customer records yet" : "No follow-ups yet"
+                  }</h3>
+                  <p>
+                    {search || status
+                      ? "Try a different search or status filter."
+                      : tab === "customers"
+                        ? "Customer records appear here after a quotation or follow-up is recorded."
+                        : "Record an enquiry when staff receive it."}
+                  </p>
+                </div>
+              </div>
+            )}
+            {!loadError && tab === "customers"
               ? customers.items.map((c) => (
                   <article className="workspace-record" key={c.id}>
                     <div>
@@ -195,7 +216,7 @@ export default function CustomerFollowupWorkspace({
                     </button>
                   </article>
                 ))
-              : followups.items.map((f) => (
+              : !loadError && followups.items.map((f) => (
                   <article className="workspace-record" key={f.id}>
                     <div>
                       <h3 className="followup-record-heading">
@@ -228,25 +249,27 @@ export default function CustomerFollowupWorkspace({
                   </article>
                 ))}
           </section>
-          <div className="pagination">
-            <button
-              className="btn-sm btn-secondary"
-              disabled={page === 1 || loading}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Previous
-            </button>
-            <span>
-              Page {page} of {Math.max(1, Math.ceil(result.total / 20))}
-            </span>
-            <button
-              className="btn-sm btn-secondary"
-              disabled={page * 20 >= result.total || loading}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </button>
-          </div>
+          {result.total > 0 && (
+            <div className="pagination">
+              <button
+                className="btn-sm btn-secondary"
+                disabled={page === 1 || loading}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                Previous
+              </button>
+              <span>
+                Page {page} of {Math.max(1, Math.ceil(result.total / 20))}
+              </span>
+              <button
+                className="btn-sm btn-secondary"
+                disabled={page * 20 >= result.total || loading}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </>
       )}
       {selected && !draft && (
@@ -341,7 +364,7 @@ export default function CustomerFollowupWorkspace({
               </div>
               <div className="customer-history-list">
                 <h3>Quotations under this request</h3>
-                {!selectedRequest.quotations.length && <p className="empty">No quotations have been created for this request yet.</p>}
+                {!selectedRequest.quotations.length && <p className="empty" role="status">No quotations have been created for this request yet.</p>}
                 {selectedRequest.quotations.map((quote) => (
                   <article className="customer-history-card" key={quote.quoteNumber}>
                     <div className="customer-history-card-heading">
@@ -364,11 +387,11 @@ export default function CustomerFollowupWorkspace({
                           <strong><PackageCheck size={16} /> Deliveries ({order.deliveries.length})</strong>
                           {order.deliveries.length ? order.deliveries.map((delivery) => (
                             <p key={delivery.deliveryNumber}><b>{delivery.deliveryNumber}</b> · {historyDate(delivery.deliveredAt)}{delivery.notes ? ` · ${delivery.notes}` : ""}</p>
-                          )) : <p>No delivery recorded yet.</p>}
+                          )) : <p role="status">No delivery recorded yet.</p>}
                         </div>
                       </div>
                     ))}
-                    {!quote.orders.length && <p className="customer-history-empty-note">No order has been created from this quotation.</p>}
+                    {!quote.orders.length && <p className="customer-history-empty-note" role="status">No order has been created from this quotation.</p>}
                   </article>
                 ))}
               </div>
@@ -386,7 +409,7 @@ export default function CustomerFollowupWorkspace({
                   <div><h3>Work requests</h3><p>Each request has its own number and history page.</p></div>
                   <span className="customer-history-count">{requests.length} {requests.length === 1 ? "request" : "requests"}</span>
                 </div>
-                {!requests.length && <p className="empty">No website requests are linked to this customer yet.</p>}
+                {!requests.length && <p className="empty" role="status">No website requests are linked to this customer yet.</p>}
                 {requests.map((request) => {
                   const acceptedCount = request.quotations.filter((quote) => isAcceptedQuote(quote.status)).length;
                   const orderCount = request.quotations.reduce((count, quote) => count + quote.orders.length, 0);

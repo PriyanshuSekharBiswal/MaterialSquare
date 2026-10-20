@@ -1,23 +1,8 @@
-/** Keep production SEO URLs on the configured public host across domain aliases. */
-export function canonicalSiteOrigin(requestOrigin: string) {
-  const deploymentEnvironment = process.env.VERCEL_ENV;
-  if (
-    deploymentEnvironment === "preview" ||
-    (deploymentEnvironment !== "production" && process.env.NODE_ENV !== "production")
-  ) {
-    return requestOrigin;
-  }
-
-  const configured =
-    process.env.PUBLIC_SITE_URL?.trim() ||
-    process.env.VITE_PUBLIC_SITE_URL?.trim() ||
-    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() ||
-    process.env.VITE_VERCEL_PROJECT_PRODUCTION_URL?.trim();
-  if (!configured) return requestOrigin;
-
+function httpsOrigin(value: string | undefined) {
+  if (!value?.trim()) return null;
   try {
     const url = new URL(
-      configured.includes("://") ? configured : `https://${configured}`,
+      value.includes("://") ? value.trim() : `https://${value.trim()}`,
     );
     if (
       url.protocol === "https:" &&
@@ -26,12 +11,51 @@ export function canonicalSiteOrigin(requestOrigin: string) {
       url.pathname === "/" &&
       !url.search &&
       !url.hash
-    ) {
+    )
       return url.origin;
-    }
   } catch {
-    // Fall back to the validated request origin if deployment configuration is
-    // absent or malformed. Build-time metadata performs stricter validation.
+    // Invalid deployment values are ignored; production handlers fail closed.
   }
+  return null;
+}
+
+/** Resolve only deployment-owned hosts in production and Vercel previews. */
+export function trustedSiteOrigin(requestOrigin: string) {
+  const deploymentEnvironment = process.env.VERCEL_ENV?.trim();
+  if (deploymentEnvironment === "preview") {
+    return httpsOrigin(process.env.VERCEL_URL);
+  }
+
+  const isProduction =
+    deploymentEnvironment === "production" ||
+    process.env.NODE_ENV === "production";
+  if (!isProduction) return requestOrigin;
+
+  const configuredOrigins = [
+    process.env.PUBLIC_SITE_URL,
+    process.env.VITE_PUBLIC_SITE_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    process.env.VITE_VERCEL_PROJECT_PRODUCTION_URL,
+  ];
+  for (const configured of configuredOrigins) {
+    if (!configured?.trim()) continue;
+    return httpsOrigin(configured);
+  }
+
+  return null;
+}
+
+/** Keep SEO URLs on the same trusted host used to fetch the deployed shell. */
+export function canonicalSiteOrigin(requestOrigin: string) {
+  const trusted = trustedSiteOrigin(requestOrigin);
+  if (trusted) return trusted;
+
+  const deploymentEnvironment = process.env.VERCEL_ENV?.trim();
+  if (
+    deploymentEnvironment === "preview" ||
+    deploymentEnvironment === "production" ||
+    process.env.NODE_ENV === "production"
+  )
+    throw new Error("A trusted public site origin is required for SEO URLs");
   return requestOrigin;
 }

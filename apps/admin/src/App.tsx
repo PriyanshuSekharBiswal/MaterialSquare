@@ -119,6 +119,7 @@ export function App() {
       page: 1,
     });
   const [error, setError] = useState(""),
+    [recordsLoadError, setRecordsLoadError] = useState(""),
     [analyticsError, setAnalyticsError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
@@ -180,33 +181,19 @@ export function App() {
         "ADMIN",
         "SALES_MANAGER",
       ].includes(staff.role);
-      const terms = normalized.split(/\s+/).filter(Boolean);
-      const matches = (values: Array<string | null | undefined>) => {
-        const haystack = values.filter(Boolean).join(" ").toLocaleLowerCase();
-        return terms.every((part) => haystack.includes(part));
-      };
       const requests: Promise<AdminSearchRecord[]>[] = [];
       if (canSearchProducts) {
+        const params = new URLSearchParams({ material: term.trim().slice(0, 160) });
         requests.push(
-          request<
-            Array<{
-              name: string;
-              brand?: string | null;
-              categoryLabel?: string | null;
-              code?: string | null;
-              isPublished?: boolean;
-            }>
-          >("/products/catalogue")
-            .then((products) =>
-              products
-                .filter((product) =>
-                  matches([
-                    product.name,
-                    product.brand,
-                    product.categoryLabel,
-                    product.code,
-                  ]),
-                )
+          request<{ items: Array<{
+            name: string;
+            brand?: string | null;
+            categoryLabel?: string | null;
+            code?: string | null;
+            isPublished?: boolean;
+          }> }>(`/products/catalogue/matches?${params}`)
+            .then(({ items }) =>
+              items
                 .slice(0, 4)
                 .map((product) => ({
                   kind: "product" as const,
@@ -261,6 +248,8 @@ export function App() {
       tab === "overview" || tab === "customers" || tab === "followups";
     setLoading(needsWorkspaceData || !staff);
     setError("");
+    if (tab === "customers" || tab === "followups")
+      setRecordsLoadError("");
     setAnalyticsError("");
     const params = new URLSearchParams({
       q: search,
@@ -313,7 +302,11 @@ export function App() {
           setFollowups(result as Page<Followup>);
       })
       .catch((e) => {
-        if (active) setError(e.message);
+        if (active) {
+          setError(e.message);
+          if (tab === "customers" || tab === "followups")
+            setRecordsLoadError(e.message);
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -477,6 +470,8 @@ export function App() {
       }}
       onSearchRecords={searchAdminRecords}
       onMobileNavChange={setMobileNavOpen}
+      showNewFollowup={tab === "followups" && !activeCustomer && !activeDraft}
+      onNewFollowup={() => startFollowupDraft()}
       onRefresh={() => {
         setRevision((value) => value + 1);
         if (selected) void openCustomer(selected.id);
@@ -502,10 +497,10 @@ export function App() {
         />
       </div>}
       {visitedTabs.has("customers") && <div hidden={tab !== "customers"}>
-        <CustomerFollowupWorkspace tab="customers" customers={customers} followups={followups} query={query} setQuery={setQuery} setSearch={setSearch} status={status} setStatus={setStatus} setPage={setPage} page={page} loading={loading} busy={busy} selected={activeCustomer} setSelected={setSelected} openCustomer={openCustomer} draft={null} setDraft={setDraft} startDraft={startFollowupDraft} setTab={navigate} setError={setError} save={save} />
+        <CustomerFollowupWorkspace tab="customers" customers={customers} followups={followups} query={query} search={search} setQuery={setQuery} setSearch={setSearch} status={status} setStatus={setStatus} setPage={setPage} page={page} loading={loading} loadError={recordsLoadError} busy={busy} selected={activeCustomer} setSelected={setSelected} openCustomer={openCustomer} draft={null} setDraft={setDraft} startDraft={startFollowupDraft} setTab={navigate} setError={setError} save={save} />
       </div>}
       {visitedTabs.has("followups") && <div hidden={tab !== "followups"}>
-        <CustomerFollowupWorkspace tab="followups" customers={customers} followups={followups} query={query} setQuery={setQuery} setSearch={setSearch} status={status} setStatus={setStatus} setPage={setPage} page={page} loading={loading} busy={busy} selected={activeCustomer} setSelected={setSelected} openCustomer={openCustomer} draft={activeDraft} setDraft={setDraft} startDraft={startFollowupDraft} setTab={navigate} setError={setError} save={save} />
+        <CustomerFollowupWorkspace tab="followups" customers={customers} followups={followups} query={query} search={search} setQuery={setQuery} setSearch={setSearch} status={status} setStatus={setStatus} setPage={setPage} page={page} loading={loading} loadError={recordsLoadError} busy={busy} selected={activeCustomer} setSelected={setSelected} openCustomer={openCustomer} draft={activeDraft} setDraft={setDraft} startDraft={startFollowupDraft} setTab={navigate} setError={setError} save={save} />
       </div>}
       {visitedTabs.has("recent") && <div hidden={tab !== "recent"}><FeatureBoundary>
         {staff && <RecentActivity token={token} role={staff.role} onOpenCatalogue={() => navigate("catalogue")} onOpenContent={() => navigate("content")} onOpenSales={() => navigate("sales")} onOpenBusiness={() => navigate("business")} onOpenStaff={() => navigate("team")} />}

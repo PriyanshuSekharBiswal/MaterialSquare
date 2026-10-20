@@ -129,8 +129,8 @@ export default function DirectionGoogleMaps({ className = '' }) {
   const officeAddress = siteContent['contact.officeAddress'].trim();
   const serviceArea = siteContent['contact.location'].trim();
   const serviceRoutes = useMemo(
-    () => officeAddress ? routesForServiceArea(serviceArea) : [],
-    [officeAddress, serviceArea],
+    () => routesForServiceArea(serviceArea),
+    [serviceArea],
   );
   const mapRoutes = useMemo(() => serviceRoutes.map((route) => {
     const placement = MAP_LAYOUT.routes[route.id];

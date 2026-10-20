@@ -14,6 +14,7 @@ import {
 } from "react";
 import {
   ArrowLeft,
+  Plus,
   RefreshCw,
   Boxes,
   Truck,
@@ -206,16 +207,16 @@ export default function BusinessConsole({
   const [visitedSections, setVisitedSections] = useState<Set<Section>>(() => new Set([sectionFromLocation(role)]));
   const [transportView, setTransportView] = useState<
     "plan" | "challan" | "plans"
-  >("plan");
+  >("plans");
   const [selectedTransportationPlanId, setSelectedTransportationPlanId] =
     useState<string | null>(null);
   const [editTransportationPlanOnOpen, setEditTransportationPlanOnOpen] =
     useState(false);
-  const [expertView, setExpertView] = useState<"add" | "directory">("add");
+  const [expertView, setExpertView] = useState<"add" | "directory">("directory");
   const [selectedExpertId, setSelectedExpertId] = useState<string | null>(null);
-  const [blogView, setBlogView] = useState<"write" | "articles">("write");
+  const [blogView, setBlogView] = useState<"write" | "articles">("articles");
   const [selectedBlogId, setSelectedBlogId] = useState<string | null>(null);
-  const [commissionView, setCommissionView] = useState<"record" | "records">("record");
+  const [commissionView, setCommissionView] = useState<"record" | "records">("records");
   const [selectedCommissionId, setSelectedCommissionId] = useState<string | null>(null);
   const [loyaltyView, setLoyaltyView] = useState<"overview" | "settings">("overview");
   const [quotationRulesView, setQuotationRulesView] = useState<"overview" | "settings">("overview");
@@ -227,6 +228,10 @@ export default function BusinessConsole({
   const sectionMenuRef = useRef<HTMLDivElement>(null);
   const [records, setRecords] = useState<unknown[]>([]);
   const [recordsSection, setRecordsSection] = useState<Section | null>(null);
+  const [followupsPage, setFollowupsPage] = useState(1);
+  const followupsPageRef = useRef(1);
+  const [followupsHasMore, setFollowupsHasMore] = useState(false);
+  const [loadingMoreFollowups, setLoadingMoreFollowups] = useState(false);
   const loadSequence = useRef(0);
   const [settings, setSettings] = useState<ConsoleSettings | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
@@ -238,19 +243,19 @@ export default function BusinessConsole({
     const id = rest.join(":") || null;
     setSelectedTransportationPlanId(null);
     setEditTransportationPlanOnOpen(false);
-    setTransportView("plan");
+    setTransportView("plans");
     setSelectedExpertId(null);
-    setExpertView("add");
+    setExpertView("directory");
     setSelectedBlogId(null);
-    setBlogView("write");
+    setBlogView("articles");
     setSelectedCommissionId(null);
-    setCommissionView("record");
+    setCommissionView("records");
     setLoyaltyView("overview");
     setQuotationRulesView("overview");
     if (scope === "transport") {
       setSelectedTransportationPlanId(action === "detail" ? id : null);
       setEditTransportationPlanOnOpen(action === "detail");
-      setTransportView(action === "detail" ? "plans" : action === "challan" ? "challan" : action === "plans" ? "plans" : "plan");
+      setTransportView(action === "plan" ? "plan" : action === "challan" ? "challan" : "plans");
     } else if (scope === "experts") {
       setSelectedExpertId(action === "edit" ? id : null);
       setExpertView(action === "add" ? "add" : "directory");
@@ -297,6 +302,10 @@ export default function BusinessConsole({
     if (next !== "procurement") url.searchParams.delete("procurementView");
     window.history.pushState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
     setSection(next);
+    if (next === "experts") {
+      setSelectedExpertId(null);
+      setExpertView("directory");
+    }
     setMessage("");
     setError("");
   };
@@ -388,6 +397,7 @@ export default function BusinessConsole({
   );
   const refresh = useCallback(async () => {
     const sequence = ++loadSequence.current;
+    setLoadingMoreFollowups(false);
     setBusy(true);
     setError("");
     onContentReady(false);
@@ -440,6 +450,38 @@ export default function BusinessConsole({
           }
         }
         if (sequence === loadSequence.current) setSettings(resolved);
+      } else if (section === "followups") {
+        const pages: {
+          items: FollowupQuotation[];
+          page: number;
+          hasMore: boolean;
+        }[] = [];
+        const pageNumbers = Array.from(
+          { length: Math.max(1, followupsPageRef.current) },
+          (_, index) => index + 1,
+        );
+        for (let offset = 0; offset < pageNumbers.length; offset += 4) {
+          const batch = await Promise.all(pageNumbers.slice(offset, offset + 4).map((pageNumber) =>
+            request<{
+              items: FollowupQuotation[];
+              page: number;
+              hasMore: boolean;
+            }>(`${active.endpoint}?page=${pageNumber}&pageSize=50`),
+          ));
+          pages.push(...batch);
+        }
+        const lastPage = pages[pages.length - 1];
+        const page = {
+          ...lastPage,
+          items: [...new Map(pages.flatMap((result) => result.items).map((quote) => [quote.id, quote])).values()],
+        };
+        if (sequence === loadSequence.current) {
+          setRecords(page.items);
+          setRecordsSection(section);
+          followupsPageRef.current = page.page;
+          setFollowupsPage(page.page);
+          setFollowupsHasMore(page.hasMore);
+        }
       } else {
         const value = await request<unknown[]>(active.endpoint);
         if (sequence === loadSequence.current) {
@@ -459,6 +501,43 @@ export default function BusinessConsole({
       }
     }
   }, [active.endpoint, onContentReady, request, section]);
+  const loadMoreFollowups = async () => {
+    if (!followupsHasMore || loadingMoreFollowups) return;
+    const sequence = loadSequence.current;
+    const endpoint = active.endpoint;
+    setLoadingMoreFollowups(true);
+    setError("");
+    try {
+      const page = await request<{
+        items: FollowupQuotation[];
+        page: number;
+        hasMore: boolean;
+      }>(`${endpoint}?page=${followupsPage + 1}&pageSize=50`);
+      if (sequence !== loadSequence.current) return;
+      setRecords((current) => {
+        const rows = new Map(
+          (current as FollowupQuotation[]).map((quote) => [quote.id, quote]),
+        );
+        page.items.forEach((quote) => rows.set(quote.id, quote));
+        return [...rows.values()];
+      });
+      followupsPageRef.current = page.page;
+      setFollowupsPage(page.page);
+      setFollowupsHasMore(page.hasMore);
+    } catch (cause) {
+      if (sequence === loadSequence.current) {
+        setError(cause instanceof Error ? cause.message : "Could not load older quotations.");
+      }
+    } finally {
+      if (sequence === loadSequence.current) setLoadingMoreFollowups(false);
+    }
+  };
+  useEffect(() => {
+    if (section !== "followups") {
+      followupsPageRef.current = 1;
+      setFollowupsPage(1);
+    }
+  }, [section]);
   useEffect(() => {
     if (
       !visibleSections.some((entry) => entry.id === section) &&
@@ -559,48 +638,12 @@ export default function BusinessConsole({
       </div>}
       {visitedSections.has("transport") && <div hidden={section !== "transport"}>
         <>
-          <div
-            className="transportation-workflow-tabs"
-            role="group"
-            aria-label="Transportation tasks"
-          >
-            <button
-              type="button"
-              className={`transportation-workflow-tab${transportView === "plan" ? " active" : ""}`}
-              aria-pressed={transportView === "plan"}
-              onClick={() => {
-                navigateBusinessSubView("transport:plan");
-              }}
-            >
-              Plan delivery
-            </button>
-            <button
-              type="button"
-              className={`transportation-workflow-tab${transportView === "challan" ? " active" : ""}`}
-              aria-pressed={transportView === "challan"}
-              onClick={() => {
-                navigateBusinessSubView("transport:challan");
-              }}
-            >
-              Issue challan
-            </button>
-            <button
-              type="button"
-              className={`transportation-workflow-tab${transportView === "plans" ? " active" : ""}`}
-              aria-pressed={transportView === "plans"}
-              onClick={() => {
-                navigateBusinessSubView("transport:plans");
-              }}
-            >
-              Transportation plans{" "}
-              <span>{(visibleRecords as TransportationPlan[]).length}</span>
-            </button>
-          </div>
           <div hidden={transportView !== "plan"}>
             <TransportationPlanningForms
               busy={busy}
               submit={submit}
               mode="plan"
+              onBack={() => returnFromBusinessSubView("transport:plans", () => setTransportView("plans"))}
             />
           </div>
           <div hidden={transportView !== "challan"}>
@@ -608,13 +651,34 @@ export default function BusinessConsole({
               busy={busy}
               submit={submit}
               mode="challan"
+              onBack={() => returnFromBusinessSubView("transport:plans", () => setTransportView("plans"))}
             />
           </div>
           <div hidden={transportView !== "plans"}>
-            <h2>Transportation plans</h2>
-            {!(visibleRecords as TransportationPlan[]).length && (
-              <p className="bc-helper">No transportation plans yet.</p>
+            <div className="transportation-plans-heading">
+              <div>
+                <h2>Transportation plans</h2>
+                <p>Review scheduled deliveries and start a transportation task.</p>
+              </div>
+              <div className="transportation-plans-actions">
+                <button type="button" className="btn-sm btn-primary" onClick={() => navigateBusinessSubView("transport:plan")}>
+                  <Plus size={16} aria-hidden="true" /> Plan delivery
+                </button>
+                <button type="button" className="btn-sm btn-secondary" onClick={() => navigateBusinessSubView("transport:challan")}>
+                  <Plus size={16} aria-hidden="true" /> Issue challan
+                </button>
+              </div>
+            </div>
+            {(visibleRecords as TransportationPlan[]).length > 0 && (
+              <p className="transportation-plans-count">
+                {(visibleRecords as TransportationPlan[]).length} transportation {(visibleRecords as TransportationPlan[]).length === 1 ? "plan" : "plans"}
+              </p>
             )}
+            {recordsSection !== section ? (
+              <p className="bc-helper" role="status">Loading transportation plans…</p>
+            ) : !(visibleRecords as TransportationPlan[]).length ? (
+              <p className="bc-helper" role="status">No transportation plans yet.</p>
+            ) : null}
             {(visibleRecords as TransportationPlan[]).map((plan) => (
               <TransportationPlanCard
                 key={`${plan.id}-${plan.status}`}
@@ -633,6 +697,7 @@ export default function BusinessConsole({
         <DiscountRules
           rules={visibleRecords as DiscountRule[]}
           busy={busy}
+          loadingRecords={recordsSection !== section}
           submit={submit}
           mutate={mutate}
         />
@@ -644,6 +709,18 @@ export default function BusinessConsole({
           mutate={mutate}
           busy={busy}
         />
+        {followupsHasMore && (
+          <div className="admin-pagination-controls">
+            <button
+              type="button"
+              className="btn-sm btn-secondary"
+              disabled={loadingMoreFollowups || busy}
+              onClick={() => void loadMoreFollowups()}
+            >
+              {loadingMoreFollowups ? "Loading quotations…" : "Load older quotations"}
+            </button>
+          </div>
+        )}
       </div>}
       {visitedSections.has("brands") && <div hidden={section !== "brands"}>
         <PartnerBrandsManager
@@ -686,6 +763,7 @@ export default function BusinessConsole({
           activeView={blogView}
           onViewChange={(view) => navigateBusinessSubView(`blogs:${view}`)}
           onOpenEdit={(id) => navigateBusinessSubView(`blogs:edit:${id}`)}
+          embedded={embedded}
         />
       </div>}
       {visitedSections.has("commissions") && <div hidden={section !== "commissions"}>
@@ -957,12 +1035,13 @@ export default function BusinessConsole({
     return (
       <div className="embedded-business-view">
         <div className="embedded-subnav-bar" ref={sectionMenuRef}>
-          <h1 className="operations-current-section">{active.label}</h1>
+          <h2 className="operations-current-section">{active.label}</h2>
           {sectionMenuOpen && (
             <div className="embedded-subnav-items" id="business-section-menu">
               {visibleSections.map(({ id, label, icon: Icon }) => (
                 <button
                   className={`subnav-pill ${section === id ? "active" : ""}`}
+                  aria-current={section === id ? "page" : undefined}
                   key={id}
                   onClick={() => {
                     selectSection(id);
@@ -1022,6 +1101,7 @@ export default function BusinessConsole({
         {visibleSections.map(({ id, label, icon: Icon }) => (
           <button
             className={section === id ? "bc-nav active" : "bc-nav"}
+            aria-current={section === id ? "page" : undefined}
             key={id}
             onClick={() => {
               selectSection(id);

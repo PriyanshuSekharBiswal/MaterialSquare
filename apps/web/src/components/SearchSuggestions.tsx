@@ -255,7 +255,7 @@ export default function SearchSuggestions({
 
       {/* CASE 3: Query has NO MATCHES */}
       {!loading && trimmed && !hasMatches && (
-        <div className="suggestions-no-results">
+        <div className="suggestions-no-results" role="status">
           <p>No exact product matches found for <strong>"{query}"</strong></p>
           <span className="no-res-hint">
             Try a brand, product type, size, pack, colour or product code, or press Enter to search the catalogue.

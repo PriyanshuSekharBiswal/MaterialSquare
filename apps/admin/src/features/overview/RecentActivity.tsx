@@ -178,7 +178,7 @@ export default function RecentActivity({
       {loading && <p className="recent-changes-message" role="status">Loading recent activity…</p>}
       {error && <p className="recent-changes-message" role="alert">{error}</p>}
       {!loading && !error && data && items.length === 0 && (
-        <div className="recent-changes-empty"><Package size={20} aria-hidden="true" /><span>{data.items.length ? "No changes match these filters." : "No admin changes recorded in the past 7 days."}</span></div>
+        <div className="recent-changes-empty" role="status"><Package size={20} aria-hidden="true" /><span>{data.items.length ? "No changes match these filters." : "No admin changes recorded in the past 7 days."}</span></div>
       )}
       {!loading && !error && items.length > 0 && (
         <ul className="recent-changes-list recent-activity-list">

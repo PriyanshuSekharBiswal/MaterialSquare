@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { normalizeCatalogueCategory, resolveCatalogueCategoryId, STOREFRONT_CATEGORIES, type ManagedCatalogueCategory } from "@material-square/types";
+import { confirmAdminAction } from "../../components/confirmAdminAction";
 
 export type DiscountRule = {
   id: string;
@@ -23,6 +25,7 @@ export type DiscountRule = {
 type Props = {
   rules: DiscountRule[];
   busy: boolean;
+  loadingRecords: boolean;
   submit: (
     event: FormEvent<HTMLFormElement>,
     body: (data: FormData) => unknown,
@@ -102,6 +105,9 @@ function DiscountCategoryField({ value }: { value: string[] }) {
 
   return (
     <div className="discount-category-entry" ref={fieldRef}>
+      {[...new Set(selectedLabels)].map((label) => (
+        <input key={label} type="hidden" name="categories" value={label} />
+      ))}
       <button
         type="button"
         className="discount-category-trigger"
@@ -119,7 +125,6 @@ function DiscountCategoryField({ value }: { value: string[] }) {
             <label className="supplier-multiselect-option" key={category}>
               <input
                 type="checkbox"
-                name="categories"
                 value={category}
                 checked
                 onChange={() => setSelected((current) => current.filter((item) => item !== category))}
@@ -131,7 +136,6 @@ function DiscountCategoryField({ value }: { value: string[] }) {
             <label className="supplier-multiselect-option" key={category.id || category.label}>
               <input
                 type="checkbox"
-                name="categories"
                 value={category.label}
                 checked={selectedForOption(category)}
                 onChange={() => setSelected((current) => selectedForOption(category)
@@ -147,13 +151,20 @@ function DiscountCategoryField({ value }: { value: string[] }) {
   );
 }
 
-export default function DiscountRules({ rules, busy, submit, mutate }: Props) {
+export default function DiscountRules({ rules, busy, loadingRecords, submit, mutate }: Props) {
   const [editing, setEditing] = useState<DiscountRule | null>(null);
+  const [creating, setCreating] = useState(false);
   const [formVersion, setFormVersion] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
+  const showForm = Boolean(editing || creating);
   useEffect(() => {
-    if (editing) formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [editing, formVersion]);
+    if (showForm) formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [showForm, editing, formVersion]);
+  const backToList = () => {
+    setEditing(null);
+    setCreating(false);
+    if (editing) setFormVersion((value) => value + 1);
+  };
   const blankOptional = editing ? null : undefined;
   return (
     <>
@@ -161,6 +172,7 @@ export default function DiscountRules({ rules, busy, submit, mutate }: Props) {
         ref={formRef}
         key={`${editing?.id || "new"}-${formVersion}`}
         className="bc-form discount-rule-form"
+        hidden={!showForm}
         autoComplete="off"
         onSubmit={async (e) => {
           const saved = await submit(
@@ -196,15 +208,21 @@ export default function DiscountRules({ rules, busy, submit, mutate }: Props) {
           );
           if (saved) {
             setEditing(null);
+            setCreating(false);
             setFormVersion((value) => value + 1);
           }
         }}
       >
-        <h2>
-          {editing
-            ? `Edit ${editing.name}`
-            : "Configure an automatic quote discount"}
-        </h2>
+        <div className="discount-rule-form-heading">
+          <button type="button" className="bc-button" disabled={busy} onClick={backToList}>
+            <ArrowLeft size={15} aria-hidden="true" /> Back to discount rules
+          </button>
+          <h2>
+            {editing
+              ? `Edit ${editing.name}`
+              : "Configure an automatic quote discount"}
+          </h2>
+        </div>
         <div className="bc-fields">
           <label>
             Rule name
@@ -313,23 +331,20 @@ export default function DiscountRules({ rules, busy, submit, mutate }: Props) {
           <button className="bc-primary" disabled={busy}>
             Save discount rule
           </button>
-          {editing && (
-            <button
-              type="button"
-              className="bc-button"
-              disabled={busy}
-              onClick={() => {
-                setEditing(null);
-                setFormVersion((value) => value + 1);
-              }}
-            >
-              Cancel rule editing
-            </button>
-          )}
         </div>
       </form>
-      <h2>Discount rules</h2>
-      {rules.map((rule) => (
+      <div className="discount-rules-directory" hidden={showForm}>
+        <div className="discount-rules-heading">
+          <div>
+            <h2>Discount rules</h2>
+            <p>Manage automatic discounts applied to new quotations.</p>
+          </div>
+          <button type="button" className="bc-primary" onClick={() => { setEditing(null); setCreating(true); }}>
+            <Plus size={16} aria-hidden="true" /> Add discount rule
+          </button>
+        </div>
+        {loadingRecords ? <p className="bc-helper" role="status">Loading discount rules…</p> : rules.length === 0 ? <p className="bc-helper" role="status">No discount rules yet.</p> : null}
+        {rules.map((rule) => (
         <article className="business-record discount-rule-record" key={rule.id}>
           <div>
             <div className="discount-rule-title-row">
@@ -358,6 +373,7 @@ export default function DiscountRules({ rules, busy, submit, mutate }: Props) {
                 disabled={busy}
                 aria-label={`Edit ${rule.name}`}
                 onClick={() => {
+                  setCreating(false);
                   setEditing(rule);
                   setFormVersion((value) => value + 1);
                 }}
@@ -383,10 +399,16 @@ export default function DiscountRules({ rules, busy, submit, mutate }: Props) {
                 className="bc-button discount-rule-delete"
                 disabled={busy}
                 aria-label={`Delete ${rule.name}`}
-                onClick={() => {
-                  if (window.confirm(`Delete “${rule.name}” permanently? It will no longer apply to new quotations.`))
-                    void mutate(`/discount-rules/${rule.id}`, "DELETE", undefined);
-                }}
+                onClick={() => void (async () => {
+                  if (await confirmAdminAction({
+                    title: `Delete “${rule.name}”?`,
+                    message: "This discount rule will no longer apply to new quotations.",
+                    confirmLabel: "Delete rule",
+                    tone: "danger",
+                  })) {
+                    await mutate(`/discount-rules/${rule.id}`, "DELETE", undefined);
+                  }
+                })()}
               >
                 Delete
               </button>
@@ -399,7 +421,8 @@ export default function DiscountRules({ rules, busy, submit, mutate }: Props) {
             </div>
           </div>
         </article>
-      ))}
+        ))}
+      </div>
     </>
   );
 }

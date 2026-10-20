@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { formatEnumLabel } from "../../utils/formatEnumLabel";
 import ContentImageField from "../../components/ContentImageField";
 import type { FormSubmit, Mutate } from "../business/form-contracts";
@@ -32,6 +33,7 @@ type Props = {
   onOpenEdit: (blogId: string) => void;
   focusedBlog?: BlogPost;
   onExitFocusedEdit?: () => void;
+  embedded?: boolean;
 };
 
 const field = (data: FormData, key: string) =>
@@ -52,7 +54,9 @@ export default function BlogManagementPanel({
   onOpenEdit,
   focusedBlog,
   onExitFocusedEdit,
+  embedded = false,
 }: Props) {
+  const PanelHeading = embedded ? "h3" : "h2";
   const editingBlog = focusedBlog || null;
   const isFocusedEdit = Boolean(focusedBlog);
   const [blogPreview, setBlogPreview] = useState<{
@@ -64,30 +68,6 @@ export default function BlogManagementPanel({
 
   return (
     <>
-      {!isFocusedEdit && (
-        <div
-          className="transportation-workflow-tabs blog-management-tabs"
-          role="group"
-          aria-label="Blog management tasks"
-        >
-          <button
-            type="button"
-            className={`transportation-workflow-tab${activeView === "write" ? " active" : ""}`}
-            aria-pressed={activeView === "write"}
-            onClick={() => onViewChange("write")}
-          >
-            Write article
-          </button>
-          <button
-            type="button"
-            className={`transportation-workflow-tab${activeView === "articles" ? " active" : ""}`}
-            aria-pressed={activeView === "articles"}
-            onClick={() => onViewChange("articles")}
-          >
-            Articles <span>{records.length}</span>
-          </button>
-        </div>
-      )}
       {(isFocusedEdit || activeView === "write") && (
         <form
           key={editingBlog?.id || `new-blog-${formRevision}`}
@@ -105,7 +85,7 @@ export default function BlogManagementPanel({
                 summary: field(f, "summary"),
                 body: field(f, "body"),
                 featuredImageUrl: field(f, "image") || null,
-                authorName: field(f, "author") || undefined,
+                authorName: field(f, "author") || (editing ? null : undefined),
                 status: field(f, "status"),
                 sortOrder: Number(field(f, "sortOrder")),
               }),
@@ -116,11 +96,20 @@ export default function BlogManagementPanel({
                 setBlogPreview(null);
                 setFormRevision((value) => value + 1);
                 if (isFocusedEdit) onExitFocusedEdit?.();
+                else onViewChange("articles");
               }
             });
           }}
         >
-          <h2>{editingBlog ? "Edit article" : "Write a blog post"}</h2>
+          {!isFocusedEdit && (
+            <div className="blog-editor-heading">
+              <button type="button" className="btn-sm btn-secondary admin-back-button" onClick={() => onViewChange("articles")}>
+                <ArrowLeft size={15} aria-hidden="true" /> Back to articles
+              </button>
+              <PanelHeading>Write a blog post</PanelHeading>
+            </div>
+          )}
+          {isFocusedEdit && <PanelHeading>Edit article</PanelHeading>}
           <div className="bc-fields">
             <label>
               Title
@@ -228,7 +217,7 @@ export default function BlogManagementPanel({
       {blogPreview && (
         <article className="bc-form">
           <p>Draft preview — visible only to staff</p>
-          <h2>{blogPreview.title}</h2>
+          <PanelHeading>{blogPreview.title}</PanelHeading>
           <p>{blogPreview.summary}</p>
           {blogPreview.body.split(/\n\s*\n/).map((paragraph, index) => (
             <p key={index}>{paragraph}</p>
@@ -244,8 +233,16 @@ export default function BlogManagementPanel({
       )}
       {!isFocusedEdit && activeView === "articles" && (
         <section className="blog-article-list">
-          <h2>Articles</h2>
-          {!records.length && <p className="bc-helper">No articles yet.</p>}
+          <header className="blog-article-list-heading">
+            <div>
+              <PanelHeading>Articles</PanelHeading>
+              <p>Review published and draft articles, or write a new post.</p>
+            </div>
+            <button type="button" className="btn-sm btn-primary" onClick={() => onViewChange("write")}>
+              <Plus size={15} aria-hidden="true" /> Write article
+            </button>
+          </header>
+          {!records.length && <p className="bc-helper" role="status">No articles yet.</p>}
           {records.map((r) => (
             <article className="business-record blog-article-card" key={r.id}>
               <div className="blog-article-info">

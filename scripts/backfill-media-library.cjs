@@ -62,15 +62,15 @@ async function listImageObjects(s3, bucket) {
 async function main() {
   const bucket = process.env.AWS_S3_BUCKET;
   const publicBaseUrl = process.env.AWS_S3_PUBLIC_URL;
-  if (!bucket || !publicBaseUrl || !process.env.DATABASE_URL) {
+  if (!bucket || !publicBaseUrl || !process.env.DATABASE_URL || !process.env.AWS_REGION) {
     throw new Error(
-      "Set AWS_S3_BUCKET, AWS_S3_PUBLIC_URL, and DATABASE_URL before running the media-library backfill.",
+      "Set AWS_S3_BUCKET, AWS_S3_PUBLIC_URL, AWS_REGION, and DATABASE_URL before running the media-library backfill.",
     );
   }
   const apply = process.argv.includes("--apply");
   const prisma = new PrismaClient();
   const s3 = new S3Client({
-    region: process.env.AWS_REGION || "ap-south-1",
+    region: process.env.AWS_REGION,
     endpoint: process.env.AWS_S3_ENDPOINT,
     forcePathStyle: Boolean(process.env.AWS_S3_ENDPOINT),
   });
@@ -81,22 +81,27 @@ async function main() {
       listImageObjects(s3, bucket),
       prisma.mediaAsset.findMany({
         where: { key: { startsWith: PREFIX } },
-        select: { key: true },
+        select: { key: true, url: true },
       }),
     ]);
-    const indexedKeys = new Set(indexedAssets.map(({ key }) => key));
-    const missing = objects.filter(({ key }) => !indexedKeys.has(key));
+    const indexedByKey = new Map(indexedAssets.map(({ key, url }) => [key, url]));
+    const missing = objects.filter(({ key }) => !indexedByKey.has(key));
+    const urlChanges = objects.filter(({ key }) =>
+      indexedByKey.has(key) && indexedByKey.get(key) !== publicAssetUrl(publicBaseUrl, key),
+    );
+    const updates = [...missing, ...urlChanges];
     console.log(`Supported bucket images found: ${objects.length}`);
     console.log(`Already indexed: ${objects.length - missing.length}`);
     console.log(`Not yet indexed: ${missing.length}`);
+    console.log(`Existing URLs to update: ${urlChanges.length}`);
 
     if (!apply) {
       console.log("Dry run only. Pass --apply to index these files; bucket objects are never modified.");
       return;
     }
 
-    for (let index = 0; index < objects.length; index += WRITE_BATCH_SIZE) {
-      const batch = objects.slice(index, index + WRITE_BATCH_SIZE);
+    for (let index = 0; index < updates.length; index += WRITE_BATCH_SIZE) {
+      const batch = updates.slice(index, index + WRITE_BATCH_SIZE);
       await Promise.all(
         batch.map((asset) =>
           prisma.mediaAsset.upsert({
@@ -110,7 +115,7 @@ async function main() {
         ),
       );
     }
-    console.log(`Media library backfill complete. Indexed ${objects.length} bucket images.`);
+    console.log(`Media library backfill complete. Added ${missing.length} assets and repaired ${urlChanges.length} asset URLs.`);
   } finally {
     await prisma.$disconnect();
     s3.destroy();

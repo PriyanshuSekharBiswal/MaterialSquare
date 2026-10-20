@@ -27,6 +27,7 @@ export type AdminAuthContextType = {
     method?: string,
     body?: unknown,
     timeoutMs?: number,
+    callerSignal?: AbortSignal,
   ) => Promise<T>;
 };
 
@@ -76,37 +77,71 @@ export function AdminAuthProvider({
       method = "GET",
       body?: unknown,
       timeoutMs = 65000,
+      callerSignal?: AbortSignal,
     ): Promise<T> => {
       let response: Response;
-      try {
-        response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}${path}`, {
-          method,
-          credentials: "include",
-          cache: "no-store",
-          headers: { "Content-Type": "application/json" },
-          body: body === undefined ? undefined : JSON.stringify(body),
-          signal: AbortSignal.timeout(timeoutMs),
-        });
-      } catch {
-        throw new Error(
-          "The workspace is taking longer than usual to respond. Please try again shortly.",
-        );
-      }
-
-      if (response.status === 204) return undefined as T;
-      const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        if (response.status === 401 && path !== "/auth/staff/login") {
-          setToken("");
+      const timeoutSignal = AbortSignal.timeout(timeoutMs);
+      let cleanupSignalListeners = () => {};
+      let requestSignal = timeoutSignal;
+      if (callerSignal) {
+        if (typeof AbortSignal.any === "function") {
+          requestSignal = AbortSignal.any([timeoutSignal, callerSignal]);
+        } else {
+          const combined = new AbortController();
+          const forwardTimeout = () => combined.abort(timeoutSignal.reason);
+          const forwardCaller = () => combined.abort(callerSignal.reason);
+          if (callerSignal.aborted) combined.abort(callerSignal.reason);
+          timeoutSignal.addEventListener("abort", forwardTimeout, { once: true });
+          callerSignal.addEventListener("abort", forwardCaller, { once: true });
+          cleanupSignalListeners = () => {
+            timeoutSignal.removeEventListener("abort", forwardTimeout);
+            callerSignal.removeEventListener("abort", forwardCaller);
+          };
+          requestSignal = combined.signal;
         }
-        if (response.status >= 500) {
+      }
+      try {
+        try {
+          response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}${path}`, {
+            method,
+            credentials: "include",
+            cache: "no-store",
+            headers: { "Content-Type": "application/json" },
+            body: body === undefined ? undefined : JSON.stringify(body),
+            signal: requestSignal,
+          });
+        } catch (cause) {
+          if (callerSignal?.aborted) throw cause;
           throw new Error(
-            "The workspace is temporarily unavailable. Please try again shortly.",
+            "The workspace is taking longer than usual to respond. Please try again shortly.",
           );
         }
-        throw new Error(apiErrorMessage(data, path));
+
+        if (response.status === 204) return undefined as T;
+        const data = await response.json().catch((cause) => {
+          if (requestSignal.aborted) {
+            if (callerSignal?.aborted) throw cause;
+            throw new Error(
+              "The workspace is taking longer than usual to respond. Please try again shortly.",
+            );
+          }
+          return null;
+        });
+        if (!response.ok) {
+          if (response.status === 401 && path !== "/auth/staff/login") {
+            setToken("");
+          }
+          if (response.status >= 500) {
+            throw new Error(
+              "The workspace is temporarily unavailable. Please try again shortly.",
+            );
+          }
+          throw new Error(apiErrorMessage(data, path));
+        }
+        return data as T;
+      } finally {
+        cleanupSignalListeners();
       }
-      return data as T;
     },
     [setToken],
   );

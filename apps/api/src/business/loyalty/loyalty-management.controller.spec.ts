@@ -10,6 +10,7 @@ describe("loyalty settings audit history", () => {
     const upsert = jest.fn();
     const controller = new LoyaltyManagementController({
       loyaltyProgramSetting: { findUnique, upsert },
+      auditLog: { findFirst: jest.fn().mockResolvedValue(null) },
     } as never);
 
     await expect(controller.getSettings()).resolves.toEqual({
@@ -20,6 +21,8 @@ describe("loyalty settings audit history", () => {
       redemptionValuePerPoint: 0,
       minimumRedemptionPoints: 0,
       expiryAfterDays: null,
+      createdBy: null,
+      createdAt: null,
     });
     expect(findUnique).toHaveBeenCalledWith({ where: { id: "default" } });
     expect(upsert).not.toHaveBeenCalled();

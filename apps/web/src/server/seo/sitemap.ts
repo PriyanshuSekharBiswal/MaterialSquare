@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { canonicalSiteOrigin } from "./seo-origin.js";
+import { canonicalSiteOrigin, trustedSiteOrigin } from "./seo-origin.js";
 import { isPreviewDeployment } from "./seo-environment.js";
 
 function getRequestOrigin(req: IncomingMessage) {
@@ -35,9 +35,19 @@ export default async function handler(
   if (!requestOrigin) {
     res.writeHead(400, {
       "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
       "X-Robots-Tag": "noindex",
     });
     res.end(req.method === "HEAD" ? undefined : "Invalid website host");
+    return;
+  }
+  if (!trustedSiteOrigin(requestOrigin)) {
+    res.writeHead(503, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Robots-Tag": "noindex, nofollow",
+    });
+    res.end(req.method === "HEAD" ? undefined : "Sitemap is not configured");
     return;
   }
   const origin = canonicalSiteOrigin(requestOrigin);

@@ -7,6 +7,7 @@ import {
 import { Prisma } from "@prisma/client";
 import { buildCatalogueCategoryDirectory, catalogueCategoryLabel, normalizeCatalogueCategory, partnerBrandDefaultLogoUrl, resolveCatalogueCategoryId, STOREFRONT_CATEGORIES, type ManagedCatalogueCategory } from "@material-square/types";
 import { PrismaService } from "../prisma/prisma.service";
+import { paginatedResult, type Pagination } from "../common/pagination";
 
 function auditText(value: unknown): string {
   if (value === null || value === undefined || value === "") return "(empty)";
@@ -50,8 +51,6 @@ type CatalogueCodeSource = {
   code: string | null;
   brand: string;
   category: string;
-  sortOrder: number;
-  name: string;
 };
 
 function firstThreeCodeLetters(value: string) {
@@ -430,7 +429,7 @@ export class ProductsService {
       indiaDateParts.find((part) => part.type === type)?.value || "";
     const todayInIndia = `${datePart("year")}-${datePart("month")}-${datePart("day")}`;
     const listings = await this.prisma.catalogListing.findMany({
-      where: { isPublished: true },
+      where: { isPublished: true, deletedAt: null },
       select: {
         id: true,
         slug: true,
@@ -575,26 +574,186 @@ export class ProductsService {
     );
   }
 
-  async findCatalogue() {
-    const listings = await this.prisma.catalogListing.findMany({
-      where: {
-        deletedAt: null,
-        OR: [
-          { isPublished: true },
-          { draftExpiresAt: null },
-          { draftExpiresAt: { gt: new Date() } },
-        ],
-      },
-      include: { variants: { orderBy: { sortOrder: "asc" } } },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    });
-    const updatedCodes = updatedLegacyCatalogueCodes(listings);
+  async findCatalogue(pagination?: Pagination) {
+    const where = {
+      deletedAt: null,
+      OR: [
+        { isPublished: true },
+        { draftExpiresAt: null },
+        { draftExpiresAt: { gt: new Date() } },
+      ],
+    };
+    const catalogueOrderBy = [
+      { sortOrder: "asc" as const },
+      { name: "asc" as const },
+      { id: "asc" as const },
+    ];
+    const pageOrderBy = [
+      { createdAt: "desc" as const },
+      { id: "desc" as const },
+    ];
+    const [codeSources, listings, sortOrderSummary] = await Promise.all([
+      pagination
+        ? this.prisma.catalogListing.findMany({
+            where,
+            select: {
+              id: true,
+              code: true,
+              brand: true,
+              category: true,
+            },
+            orderBy: catalogueOrderBy,
+          })
+        : Promise.resolve(null),
+      this.prisma.catalogListing.findMany({
+        where,
+        ...(pagination
+          ? { skip: pagination.skip, take: pagination.pageSize + 1 }
+          : {}),
+        include: { variants: { orderBy: { sortOrder: "asc" } } },
+        orderBy: pagination ? pageOrderBy : catalogueOrderBy,
+      }),
+      pagination
+        ? this.prisma.catalogListing.aggregate({
+            where,
+            _max: { sortOrder: true },
+          })
+        : Promise.resolve(null),
+    ]);
+    const page = pagination ? paginatedResult(listings, pagination) : null;
+    const rows = page ? page.items : listings;
+    const updatedCodes = updatedLegacyCatalogueCodes(codeSources || listings);
+    const mapped = rows.map((listing) => ({
+      ...listing,
+      category: normalizeCatalogueCategory(listing.categoryLabel || listing.category),
+      categoryLabel: catalogueCategoryLabel(listing.categoryLabel || listing.category),
+      code: updatedCodes.get(listing.id) || listing.code,
+    }));
+    return page
+      ? {
+          ...page,
+          items: mapped,
+          maxSortOrder: sortOrderSummary?._max.sortOrder ?? -1,
+        }
+      : mapped;
+  }
+
+  async findCatalogueByIds(ids: string[], includeDeleted = false) {
+    if (!ids.length) return [];
+    const eligible: Prisma.CatalogListingWhereInput = {
+      deletedAt: null,
+      OR: [
+        { isPublished: true },
+        { draftExpiresAt: null },
+        { draftExpiresAt: { gt: new Date() } },
+      ],
+    };
+    const where = includeDeleted ? {} : eligible;
+    const [codeSources, listings] = await Promise.all([
+      this.prisma.catalogListing.findMany({
+        where: eligible,
+        select: { id: true, code: true, brand: true, category: true },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }, { id: "asc" }],
+      }),
+      this.prisma.catalogListing.findMany({
+        where: { ...where, id: { in: ids } },
+        include: { variants: { orderBy: { sortOrder: "asc" } } },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }, { id: "asc" }],
+      }),
+    ]);
+    const updatedCodes = updatedLegacyCatalogueCodes(codeSources);
     return listings.map((listing) => ({
       ...listing,
       category: normalizeCatalogueCategory(listing.categoryLabel || listing.category),
       categoryLabel: catalogueCategoryLabel(listing.categoryLabel || listing.category),
       code: updatedCodes.get(listing.id) || listing.code,
     }));
+  }
+
+  async findCatalogueMatches(
+    material: string,
+    brand = "",
+    unit = "",
+    pagination?: Pagination,
+  ) {
+    const terms = material
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    const searchClauses: Prisma.CatalogListingWhereInput[] = terms.map((term) => {
+      const insensitive = { contains: term, mode: "insensitive" as const };
+      return {
+        OR: [
+          { name: insensitive },
+          { slug: insensitive },
+          { code: insensitive },
+          { brand: insensitive },
+          { categoryLabel: insensitive },
+          { unit: insensitive },
+          { variants: { some: { label: insensitive } } },
+          { variants: { some: { code: insensitive } } },
+          { variants: { some: { unit: insensitive } } },
+        ],
+      };
+      });
+    const filters: Prisma.CatalogListingWhereInput[] = [];
+    if (brand) filters.push({ brand: { equals: brand, mode: "insensitive" } });
+    if (unit)
+      filters.push({
+        OR: [
+          { unit: { equals: unit, mode: "insensitive" } },
+          { variants: { some: { unit: { equals: unit, mode: "insensitive" } } } },
+        ],
+      });
+    const eligible = {
+      deletedAt: null,
+      OR: [
+        { isPublished: true },
+        { draftExpiresAt: null },
+        { draftExpiresAt: { gt: new Date() } },
+      ],
+    };
+    const codeSources = await this.prisma.catalogListing.findMany({
+      where: eligible,
+      select: { id: true, code: true, brand: true, category: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }, { id: "asc" }],
+    });
+    const updatedCodes = updatedLegacyCatalogueCodes(codeSources);
+    const generatedCodeMatchIds = codeSources
+      .filter(({ id, code }) => {
+        const searchableCode = (updatedCodes.get(id) || code || "").toLocaleLowerCase();
+        return terms.length > 0 && terms.every((term) => searchableCode.includes(term.toLocaleLowerCase()));
+      })
+      .map(({ id }) => id);
+    const search: Prisma.CatalogListingWhereInput = {
+      OR: [
+        { AND: searchClauses },
+        ...(generatedCodeMatchIds.length
+          ? [{ id: { in: generatedCodeMatchIds } }]
+          : []),
+      ],
+    };
+    const rows = await this.prisma.catalogListing.findMany({
+      where: { ...eligible, AND: [search, ...filters] },
+      skip: pagination?.skip ?? 0,
+      take: pagination ? pagination.pageSize + 1 : 101,
+      include: { variants: { orderBy: { sortOrder: "asc" } } },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }, { id: "asc" }],
+    });
+    const pageSize = pagination?.pageSize ?? 100;
+    const pageRows = rows.slice(0, pageSize);
+    return {
+      ...(pagination
+        ? { page: pagination.page, pageSize: pagination.pageSize }
+        : {}),
+      items: pageRows.map((listing) => ({
+        ...listing,
+        category: normalizeCatalogueCategory(listing.categoryLabel || listing.category),
+        categoryLabel: catalogueCategoryLabel(listing.categoryLabel || listing.category),
+        code: updatedCodes.get(listing.id) || listing.code,
+      })),
+      hasMore: rows.length > pageSize,
+    };
   }
 
   findInventory() {

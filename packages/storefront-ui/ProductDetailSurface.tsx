@@ -1,6 +1,6 @@
 import type { FormEvent, ReactNode } from "react";
 import { ArrowRight, ChevronDown, PackagePlus } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useInRouterContext } from "react-router-dom";
 import type { FaqEntry, WebsitePolicy } from "@material-square/types";
 import "./product-detail-surface.css";
 
@@ -66,6 +66,20 @@ export interface ProductDetailSurfaceProps {
 const formatPrice = (value: number | string) =>
   `₹${Number(value).toLocaleString("en-IN")}`;
 
+function SurfaceLink({
+  to,
+  preview,
+  children,
+}: {
+  to: string;
+  preview: boolean;
+  children: ReactNode;
+}) {
+  const inRouter = useInRouterContext();
+  if (!inRouter && preview) return <span>{children}</span>;
+  return inRouter ? <Link to={to}>{children}</Link> : <a href={to}>{children}</a>;
+}
+
 export default function ProductDetailSurface({
   title,
   brand,
@@ -108,6 +122,10 @@ export default function ProductDetailSurface({
   preview = false,
 }: ProductDetailSurfaceProps) {
   const activeImage = selectedImage || images[0] || "";
+  const showPhotoBanner = Boolean(
+    photoBanner?.trim() &&
+    photoBanner.trim().toLocaleLowerCase() !== offerLabel?.trim().toLocaleLowerCase(),
+  );
   const unitGroupPattern = /size|unit|pack|volume|capacity|weight/i;
   const preferredChoiceGroup = choiceGroups.find((group) =>
     unitGroupPattern.test(group.label),
@@ -186,13 +204,7 @@ export default function ProductDetailSurface({
           {group.presentation === "select" ? (
             <div className="shared-product-choice-select">
               <span>{group.label}</span>
-              {preview ? (
-                <div className="shared-product-choice-select-value">
-                  <span>{group.selectedValue || "Choose an option"}</span>
-                  <ChevronDown aria-hidden="true" size={18} />
-                </div>
-              ) : (
-                <details className="shared-product-choice-dropdown">
+              <details className="shared-product-choice-dropdown">
                   <summary aria-label={`Choose ${group.label}`}>
                     <span>{group.selectedValue || "Choose an option"}</span>
                     <ChevronDown aria-hidden="true" size={18} />
@@ -201,8 +213,11 @@ export default function ProductDetailSurface({
                     {group.choices.map((choice) => (
                       <button
                         type="button"
+                        className="shared-product-choice-option"
                         role="option"
                         aria-selected={choice.label === group.selectedValue}
+                        aria-disabled={choice.disabled || undefined}
+                        disabled={choice.disabled}
                         key={choice.label}
                         onClick={(event) => {
                           choice.onSelect?.();
@@ -215,7 +230,6 @@ export default function ProductDetailSurface({
                     ))}
                   </div>
                 </details>
-              )}
             </div>
           ) : (
             <>
@@ -231,7 +245,7 @@ export default function ProductDetailSurface({
                     type="button"
                     key={choice.label}
                     aria-pressed={choice.selected}
-                    disabled={choice.disabled || preview}
+                    disabled={choice.disabled}
                     className={`shared-product-choice${choice.selected ? " is-selected" : ""}`}
                     onClick={choice.onSelect}
                   >
@@ -266,7 +280,7 @@ export default function ProductDetailSurface({
           />
         </label>
       )}
-      {!preview && onQuantityChange && (
+      {(preview || onQuantityChange) && (
         <div className="shared-product-quantity-row">
           <label>
             <span>Quantity</span>
@@ -279,32 +293,26 @@ export default function ProductDetailSurface({
               step="any"
               required
               value={quantity}
-              onChange={(event) => onQuantityChange(event.target.value)}
+              readOnly={!onQuantityChange}
+              onChange={(event) => onQuantityChange?.(event.target.value)}
             />
           </label>
-          <button disabled={actionDisabled} className="shared-product-action">
+          <button
+            type={preview ? "button" : "submit"}
+            aria-disabled={preview || actionDisabled || undefined}
+            tabIndex={preview ? -1 : undefined}
+            disabled={actionDisabled}
+            className="shared-product-action"
+          >
             <PackagePlus size={16} />
             {actionLabel}
             <ArrowRight size={16} />
           </button>
         </div>
       )}
-      {preview && (
-        <>
-          <label className="shared-product-quantity">
-            <span>Quantity</span>
-            <input type="text" value={quantity} readOnly />
-          </label>
-          <button type="button" className="shared-product-action" disabled>
-            <PackagePlus size={16} />
-            Add to Material List
-            <ArrowRight size={16} />
-          </button>
-        </>
-      )}
 
       <p className="shared-product-shipping-note">
-        Incl GST <Link to="/shipping">Shipping</Link> calculated at checkout.
+        Incl. GST. <SurfaceLink to="/shipping" preview={preview}>Shipping</SurfaceLink> charges are confirmed on your quotation or order.
       </p>
 
       <div className="shared-product-accordions">
@@ -380,19 +388,19 @@ export default function ProductDetailSurface({
                 <p>{entry.answer}</p>
               </section>
             )) : <p>There are no published FAQs at the moment.</p>}
-            <p><Link to="/faq">View all FAQs</Link></p>
+            <p><SurfaceLink to="/faq" preview={preview}>View all FAQs</SurfaceLink></p>
           </div>
         </details>
         <details className="shared-product-accordion">
           <summary>Returns &amp; Exchange Policy</summary>
           <div className="shared-product-accordion-content">
-            {returnPolicy?.sections.map((section, index) => (
+            {returnPolicy?.published && returnPolicy.sections?.length ? returnPolicy.sections.map((section, index) => (
               <section key={`${section.heading}-${index}`}>
                 <h3>{section.heading}</h3>
                 <p style={{ whiteSpace: "pre-line" }}>{section.body}</p>
               </section>
-            )) || <p>Return policy details are being updated.</p>}
-            <p><Link to="/return-policy">Read full Returns &amp; Exchange Policy</Link></p>
+            )) : <p>Return policy details are being updated.</p>}
+            <p><SurfaceLink to="/return-policy" preview={preview}>Read full Returns &amp; Exchange Policy</SurfaceLink></p>
           </div>
         </details>
       </div>
@@ -401,66 +409,67 @@ export default function ProductDetailSurface({
   );
 
   return (
-    <article className={`shared-product-detail${preview ? " is-preview" : ""}`}>
-      <div className="shared-product-gallery">
-        <div className="shared-product-image">
-          {photoBanner && (
-            <span className="shared-product-photo-banner">{photoBanner}</span>
-          )}
-          {activeImage ? (
-            <img src={activeImage} alt={title} />
-          ) : (
-            <span>Product photo</span>
+    <div className="shared-product-detail-shell">
+      <article className={`shared-product-detail${preview ? ` is-preview${actionDisabled ? " is-action-disabled" : ""}` : ""}`}>
+        <div className="shared-product-gallery">
+          <div className="shared-product-image">
+            {showPhotoBanner && (
+              <span className="shared-product-photo-banner">{photoBanner}</span>
+            )}
+            {activeImage ? (
+              <img src={activeImage} alt={title} />
+            ) : (
+              <span>Product photo</span>
+            )}
+          </div>
+          {images.length > 1 && (
+            <div
+              className="shared-product-thumbnails"
+              aria-label="Product images"
+            >
+              {images.map((image, index) => (
+                <button
+                  type="button"
+                  key={`${image}-${index}`}
+                  className={image === activeImage ? "is-active" : ""}
+                  onClick={() => onImageSelect?.(image)}
+                  aria-label={`View product image ${index + 1}`}
+                >
+                  <img src={image} alt="" />
+                </button>
+              ))}
+            </div>
           )}
         </div>
-        {images.length > 1 && (
-          <div
-            className="shared-product-thumbnails"
-            aria-label="Product images"
-          >
-            {images.map((image, index) => (
-              <button
-                type="button"
-                disabled={preview}
-                key={`${image}-${index}`}
-                className={image === activeImage ? "is-active" : ""}
-                onClick={() => onImageSelect?.(image)}
-                aria-label={`View product image ${index + 1}`}
-              >
-                <img src={image} alt="" />
-              </button>
-            ))}
+
+        <div className="shared-product-information">
+          <div className="shared-product-kicker">
+            <span>{category}</span>
+            {code && <span title={code}>SKU · {code}</span>}
           </div>
+          <div className="shared-product-brand-line">
+            {brandMark || (
+              <span className="shared-product-brand-mark">
+                {brand.slice(0, 1).toUpperCase() || "B"}
+              </span>
+            )}
+            <div>
+              <strong>{brand}</strong>
+              {brandTagline && <small>{brandTagline}</small>}
+            </div>
+          </div>
+          <h1>{title}</h1>
+          {grade && <span className="shared-product-grade">{grade}</span>}
+        </div>
+
+        {preview ? (
+          <div className="shared-product-buy-box">{buyBoxContent}</div>
+        ) : (
+          <form className="shared-product-buy-box" onSubmit={onSubmit}>
+            {buyBoxContent}
+          </form>
         )}
-      </div>
-
-      <div className="shared-product-information">
-        <div className="shared-product-kicker">
-          <span>{category}</span>
-          {code && <span title={code}>SKU · {code}</span>}
-        </div>
-        <div className="shared-product-brand-line">
-          {brandMark || (
-            <span className="shared-product-brand-mark">
-              {brand.slice(0, 1).toUpperCase() || "B"}
-            </span>
-          )}
-          <div>
-            <strong>{brand}</strong>
-            {brandTagline && <small>{brandTagline}</small>}
-          </div>
-        </div>
-        <h1>{title}</h1>
-        {grade && <span className="shared-product-grade">{grade}</span>}
-      </div>
-
-      {preview ? (
-        <div className="shared-product-buy-box">{buyBoxContent}</div>
-      ) : (
-        <form className="shared-product-buy-box" onSubmit={onSubmit}>
-          {buyBoxContent}
-        </form>
-      )}
-    </article>
+      </article>
+    </div>
   );
 }

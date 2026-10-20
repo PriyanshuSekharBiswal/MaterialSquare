@@ -60,12 +60,12 @@ checks remain open until the saved Codex setting actually permits access.
 - Reran the full API suite after the audit-log redaction change: 29 suites
   passed, 249 tests passed, and 19 tests were skipped. The separate integration
   suite remains skipped because `TEST_DATABASE_URL` is not configured.
-- Confirmed in the current source that customer sessions set an HttpOnly
-  `ms_customer_session` cookie with a 365-day max age; the customer guard
-  renews it when fewer than 30 days remain, and explicit logout revokes the
-  server session and clears the cookie. The renewal unit test verifies the
-  one-year database expiry and cookie attributes. Browser-close/reopen
-  persistence is still not verified in the signed-in customer browser.
+- At the time of the October 8 audit, customer sessions used a one-year
+  database expiry and cookie max age. The current implementation instead
+  extends expiry to 90 days after authenticated activity and rotates the
+  token every 14 days. Explicit logout revokes the server session and clears
+  the cookie. Browser-close/reopen persistence remains unverified in the
+  signed-in customer browser.
 - Checked the privacy and terms pages in a fresh customer-facing localhost tab.
   Both routes show only the “being reviewed and is not published yet” notice.
   In the signed-in admin Website editor, both policies are marked “Draft only,”

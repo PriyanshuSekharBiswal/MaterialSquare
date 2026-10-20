@@ -1,7 +1,6 @@
 import { productMessage, whatsappLink } from '../messages';
 import type { MaterialItem, CatalogueProduct } from '../types';
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigationType, useSearchParams } from 'react-router-dom';
 import {
   Search,
@@ -29,6 +28,7 @@ import { formatContactPhone, resolveCatalogueCategoryId } from '@material-square
 import { formatQuantityUnit, formatQuantityUnitText } from "../quantity-format";
 import { useCatalogueCategories } from '../catalogue/useCatalogueCategories';
 import { customerCardFeatures } from '../catalogue/customer-display';
+import MarketplaceProductCard from '../../../../packages/storefront-ui/MarketplaceProductCard';
 
 const CATALOGUE_PAGE_SIZE = 16;
 const readVisibleProductCount = (locationKey: string) => {
@@ -262,7 +262,7 @@ export default function MarketplacePage({
     return searchQuery.trim()
       ? matches.sort((a, b) => scoreCatalogueSearch(b, searchQuery) - scoreCatalogueSearch(a, searchQuery))
       : matches;
-  }, [products, activeCategory, selectedBrand, searchQuery]);
+  }, [products, activeCategory, selectedBrand, searchQuery, managedCategories]);
 
   const listingCards = useMemo(() => {
     const cards = filteredProducts.flatMap((product) => {
@@ -600,7 +600,7 @@ export default function MarketplacePage({
                   <span>All Brands</span>
                 </button>
                 {visibleCatalogueBrands.map((brand) => {
-                  const isSelected = selectedBrand.toLowerCase() === brand.name.toLowerCase() || (selectedBrand && brand.name.toLowerCase().includes(selectedBrand.toLowerCase()));
+                  const isSelected = selectedBrand.toLocaleLowerCase() === brand.name.toLocaleLowerCase();
                   return (
                     <button
                       key={brand.name}
@@ -619,6 +619,41 @@ export default function MarketplacePage({
               </div>
             </div>
           </div>
+
+          {bomList.length > 0 && !isStickyDismissed && (
+            <div className="sticky-bom-notification-bar is-inline" role="region" aria-label="Material List Notification">
+              <div className="sticky-bom-content">
+                <div className="sticky-bom-info">
+                  <span className="badge-count-pill">{bomList.length}</span>
+                  <div className="sticky-bom-text-wrap">
+                    <strong className="sticky-bom-title">
+                      {bomList.length} item{bomList.length > 1 ? 's' : ''} in your Material List
+                    </strong>
+                    <span className="sticky-bom-sub">Review your list and send it to the team</span>
+                  </div>
+                </div>
+
+                <div className="sticky-bom-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary sticky-bom-view-btn"
+                    onClick={onOpenBOMDrawer}
+                  >
+                    View Material List
+                  </button>
+                  <button
+                    type="button"
+                    className="sticky-bom-close-btn"
+                    onClick={() => setIsStickyDismissed(true)}
+                    title="Dismiss notification"
+                    aria-label="Close notification"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Results Summary Bar */}
           <div className="results-summary-row reveal-text">
@@ -672,148 +707,57 @@ export default function MarketplacePage({
                 const cardMinOrderQuantity = queryVariant?.minOrderQuantity != null
                   ? formatQuantityUnit(queryVariant.minOrderQuantity, "")
                   : formatQuantityUnitText(product.minOrderQty, product.unit).replace(/\s*×\s*.*$/, "");
+                const colourValues = queryVariant ? [] : Array.from(new Set((product.variants || []).flatMap((option) => Object.entries(option.attributes || {})
+                  .filter(([key]) => /colou?r|shade|finish/i.test(key)).map(([, value]) => value.trim()).filter(Boolean))));
+                const priceCaption = queryVariant?.price != null || product.price != null
+                  ? 'Price per unit'
+                  : product.variants?.some((option) => option.price != null) ? 'Starting from' : 'Pricing';
+                const priceLabel = queryVariant?.price != null
+                  ? `₹${Number(queryVariant.price).toLocaleString('en-IN')}`
+                  : product.price == null
+                    ? product.variants?.some((option) => option.price != null)
+                      ? `₹${Math.min(...product.variants.filter((option) => option.price != null).map((option) => Number(option.price))).toLocaleString('en-IN')}`
+                      : 'Request a quote'
+                    : `₹${Number(product.price).toLocaleString('en-IN')}`;
                 return (
-                    <article
-                      key={`${product.id}:${queryVariant?.id || "product"}`}
-                      className="catalog-product-card"
-                      tabIndex={0}
-                      aria-label={`Open ${product.name}${optionLabel ? `, ${optionLabel}` : ""}`}
-                      onClick={(event) => {
-                        const target = event.target;
-                        if (target instanceof Element && target.closest('a, button, input, select, textarea, [role="button"]')) return;
-                        onOpenProduct(product, searchQuery, queryVariant?.id);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
-                        event.preventDefault();
-                        onOpenProduct(product, searchQuery, queryVariant?.id);
-                      }}
-                    >
-                    {/* Top Image & Category Pill */}
-                    <Link className="product-media-box" to={productHref} aria-label={`View ${product.name}${optionLabel ? `, ${optionLabel}` : ""}`}>
-                      <ProductImage src={cardImage} alt={product.name} />
-                      <div className="media-overlay-tags">
-                        {productCategoryLabel && <span className="product-cat-tag">{productCategoryLabel}</span>}
-                      </div>
-                      {cardBannerLabel && <span className={`catalog-card-offer${hasExplicitCardBanner ? ' is-explicit-offer' : ' is-calculated-offer'}`}>{cardBannerLabel}</span>}
-                    </Link>
-
-                    {/* Content Box */}
-                    <div className="product-card-body">
-                      <div className="brand-code-line">
-                        <div className="brand-title-badge">
-                          <span className="brand-mini-logo-frame" aria-hidden="true">
-                            <PartnerBrandLogo brand={matchedPartnerBrand || { name: product.brand }} className="marketplace-brand-logo" />
-                          </span>
-                          <span className="brand-title">{matchedPartnerBrand?.name || product.brand}</span>
-                        </div>
-                        <span className="product-sku-code" title={fullCardCode}>{cardCode}</span>
-                      </div>
-
-                      <h3 className="product-card-title"><Link to={productHref}>{product.name}</Link></h3>
-                      {cardSpecification && <div className="grade-badge-chip" aria-label={`Specification ${cardSpecification}`}><span>{cardSpecification}</span></div>}
-                      {optionLabel && <div className="catalogue-marketplace-option" aria-label={`Option ${optionLabel}`}><span>Option</span><strong>{optionLabel}</strong></div>}
-                      {!queryVariant && product.specs?.sizes && <p className="product-size-guide">Size guide: {product.specs.sizes}. Specify your requirement in product details.</p>}
-
-                      {(() => {
-                        const colourValues = queryVariant ? [] : Array.from(new Set((product.variants || []).flatMap((variant) => Object.entries(variant.attributes || {})
-                          .filter(([key]) => /colou?r|shade|finish/i.test(key))
-                          .map(([, value]) => value.trim()).filter(Boolean))));
-                        return colourValues.length > 0 ? (
-                          <div className="catalog-colour-preview" aria-label={`Available colours and finishes: ${colourValues.join(', ')}`}>
-                            <span>Colours &amp; finishes</span>
-                            <div className="catalog-colour-values">{colourValues.slice(0, 3).map((colour) => <small key={colour}>{colour}</small>)}{colourValues.length > 3 && <small>+{colourValues.length - 3}</small>}</div>
-                          </div>
-                        ) : null;
-                      })()}
-
-                      {/* Key features */}
-                      {customerCardFeatures(product.features).length > 0 && <ul className="product-features-preview">
-                        {customerCardFeatures(product.features).slice(0, 2).map((feat, idx) => {
-                          const categoryFeature = feat.match(/^(Category\s*[—:-]\s*)(.+)$/i);
-                          const displayFeatureCategory = categoryFeature
-                            ? categoryDirectory.get(resolveCatalogueCategoryId(categoryFeature[2], managedCategories))
-                            : undefined;
-                          if (categoryFeature && !displayFeatureCategory) return null;
-                          const displayFeature = categoryFeature
-                            ? `${categoryFeature[1]}${displayFeatureCategory}`
-                            : feat;
-                          return (
-                          <li key={idx}>
-                            <Check size={13} className="check-icon-green" />
-                            <span>{displayFeature}</span>
-                          </li>
-                          );
-                        })}
-                      </ul>}
-
-                      <div className="marketplace-card-footer">
-                      {/* Pricing & Min Order */}
-                      <div className="pricing-row">
-                        <div className="marketplace-card-price">
-                          <span className="rate-caption">{queryVariant?.price != null || product.price != null ? 'Price per unit' : product.variants?.some(option => option.price != null) ? 'Starting from' : 'Pricing'}</span>
-                          <span className="rate-amount">
-                            {queryVariant?.price != null ? `₹${Number(queryVariant.price).toLocaleString('en-IN')}` : product.price == null ? product.variants?.some(option => option.price != null) ? `₹${Math.min(...product.variants.filter(option => option.price != null).map(option => Number(option.price))).toLocaleString('en-IN')}` : 'Request a quote' : `₹${Number(product.price).toLocaleString('en-IN')}`}
-                          </span>
-                          {cardPrice != null && compareAtPrice != null && Number(compareAtPrice) > Number(cardPrice) && <del className="catalogue-card-compare-price">₹{Number(compareAtPrice).toLocaleString("en-IN")}</del>}
-                        </div>
-                        <div className="marketplace-card-pricing-meta">
-                          <span className={`catalogue-stock-pill status-${cardAvailability.toLocaleLowerCase().replaceAll('_', '-')}`}>{availabilityLabel(cardAvailability)}</span>
-                          <div className="min-order-pill">
-                            <Package size={12} />
-                            <span>MOQ: {cardMinOrderQuantity || 'Confirm'}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="product-actions-grid">
-                        <button
-                          type="button"
-                          className="btn-card-specs"
-                          onClick={() => onOpenProduct(product, searchQuery, queryVariant?.id)}
-                        >
-                          <Info size={14} /> View details
-                        </button>
-
-                        <button
-                          type="button"
-                          className={`btn-card-bom ${inBOM ? 'in-bom' : ''}`}
-                          onClick={() => queryVariant ? onOpenProduct(product, searchQuery, queryVariant.id) : inBOM ? onOpenBOMDrawer() : onToggleBOM(product)}
-                        >
-                          {queryVariant ? (
-                            <>
-                              <Plus size={14} /> Choose options
-                            </>
-                          ) : inBOM ? (
-                            <>
-                              <Check size={14} /> View quote list
-                            </>
-                          ) : (
-                            <>
-                              <Plus size={14} /> {product.specs?.sizes || product.variants?.length ? "Choose options" : "Add to quote list"}
-                            </>
-                          )}
-                        </button>
-
-                        {siteContent["contact.whatsappPhone"] && <a
-                          href={whatsappLink(productMessage(product), siteContent["contact.whatsappPhone"])}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn-card-whatsapp"
-                          title="Ask about this product on WhatsApp"
-                        >
-                          <WhatsAppIcon size={16} color="currentColor" />
-                        </a>}
-                      </div>
-                      </div>
-                    </div>
-                    </article>
+                  <MarketplaceProductCard
+                    key={`${product.id}:${queryVariant?.id || "product"}`}
+                    name={product.name}
+                    brand={matchedPartnerBrand || { name: product.brand }}
+                    code={cardCode}
+                    image={cardImage}
+                    imageContent={<ProductImage src={cardImage} alt={product.name} />}
+                    categoryLabel={productCategoryLabel}
+                    bannerLabel={cardBannerLabel}
+                    bannerKind={hasExplicitCardBanner ? "explicit" : "calculated"}
+                    specification={cardSpecification}
+                    optionLabel={optionLabel}
+                    sizeGuide={!queryVariant ? product.specs?.sizes : undefined}
+                    colours={colourValues}
+                    features={customerCardFeatures(product.features).flatMap((feature) => {
+                      const categoryFeature = feature.match(/^(Category\s*[—:-]\s*)(.+)$/i);
+                      const displayCategory = categoryFeature && categoryDirectory.get(resolveCatalogueCategoryId(categoryFeature[2], managedCategories));
+                      return categoryFeature ? displayCategory ? [`${categoryFeature[1]}${displayCategory}`] : [] : [feature];
+                    })}
+                    detailHref={productHref}
+                    priceCaption={priceCaption}
+                    priceLabel={priceLabel}
+                    compareAtPriceLabel={cardPrice != null && compareAtPrice != null && Number(compareAtPrice) > Number(cardPrice) ? `₹${Number(compareAtPrice).toLocaleString("en-IN")}` : undefined}
+                    availability={cardAvailability}
+                    availabilityLabel={availabilityLabel(cardAvailability)}
+                    minimumOrderLabel={`MOQ: ${cardMinOrderQuantity || "Confirm"}`}
+                    chooseOptions={Boolean(queryVariant || product.specs?.sizes || product.variants?.length)}
+                    inQuoteList={inBOM}
+                    whatsappHref={siteContent["contact.whatsappPhone"] ? whatsappLink(productMessage(product), siteContent["contact.whatsappPhone"]) : undefined}
+                    onOpenCard={() => onOpenProduct(product, searchQuery, queryVariant?.id)}
+                    onViewDetails={() => onOpenProduct(product, searchQuery, queryVariant?.id)}
+                    onChooseOptions={() => queryVariant ? onOpenProduct(product, searchQuery, queryVariant.id) : inBOM ? onOpenBOMDrawer() : onToggleBOM(product)}
+                  />
                 );
               })}
             </div>
           ) : (
-            <div className="no-products-state">
+            <div className="no-products-state" role={catalogueUnavailable ? "alert" : "status"}>
               {catalogueUnavailable ? (
                 <>
                   <h3>Published inventory is temporarily unavailable</h3>
@@ -882,45 +826,6 @@ export default function MarketplacePage({
 
       <FaqSection />
 
-      {/* Sticky BOM trigger floating bottom bar if items in list and not dismissed (Rendered via Portal to document.body so it is perfectly fixed to the viewport) */}
-      {typeof document !== 'undefined' &&
-        bomList.length > 0 &&
-        !isStickyDismissed &&
-        createPortal(
-          <div className="sticky-bom-notification-bar" role="region" aria-label="Material List Notification">
-            <div className="sticky-bom-content">
-              <div className="sticky-bom-info">
-                <span className="badge-count-pill">{bomList.length}</span>
-                <div className="sticky-bom-text-wrap">
-                  <strong className="sticky-bom-title">
-                    {bomList.length} item{bomList.length > 1 ? 's' : ''} in your Material List
-                  </strong>
-                  <span className="sticky-bom-sub">Review your list and send it to the team</span>
-                </div>
-              </div>
-
-              <div className="sticky-bom-actions">
-                <button
-                  type="button"
-                  className="btn btn-primary sticky-bom-view-btn"
-                  onClick={onOpenBOMDrawer}
-                >
-                  View Material List
-                </button>
-                <button
-                  type="button"
-                  className="sticky-bom-close-btn"
-                  onClick={() => setIsStickyDismissed(true)}
-                  title="Dismiss notification"
-                  aria-label="Close notification"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
     </div>
   );
 }

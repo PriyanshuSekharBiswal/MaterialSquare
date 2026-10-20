@@ -11,8 +11,17 @@ approval; it is not evidence that a claim or product detail is correct.
 - Confirm service areas, delivery terms, support hours, and all public promises.
 - Review product-brand partnerships, descriptions, certificates, specifications,
   and any claims about authenticity, delivery, stock, or response time.
-- Approve the privacy notice and website terms for the browser-local quote list
-  and external WhatsApp/email handoff.
+- Approve the privacy notice and website terms for the browser-local quote list,
+  saved customer RFQs/account data, and external WhatsApp/email handoff.
+- Verify the cookie/browser-storage inventory against deployed code: customer and
+  staff session cookies, guest and saved material lists, tab-session state,
+  staff-side editor recovery, analytics, security logs, and the OTP widget's
+  vendor-managed storage. Confirm whether any target jurisdiction requires a
+  consent or preference control before publishing the policies.
+- Confirm data-retention periods, the privacy/grievance contact, business legal
+  identity and address, privacy-request handling, and review the final policies
+  with qualified counsel. Update them when MSG91 or notification providers
+  change.
 
 ## Products and images
 
@@ -27,7 +36,7 @@ approval; it is not evidence that a claim or product detail is correct.
 
 ## Customer request journey
 
-Visitors search the published catalogue, add products and quantities to a
-browser-local quote list, review the request summary, then open WhatsApp or email
-to send it. The site does not claim that an external message was sent or
-delivered.
+Visitors search the published catalogue and add products and quantities to a
+browser-local quote list. Signed-in customers submit the list as an RFQ stored in
+their account and the staff queue. General enquiries may open WhatsApp or email;
+the site does not claim that an external message was sent or delivered.

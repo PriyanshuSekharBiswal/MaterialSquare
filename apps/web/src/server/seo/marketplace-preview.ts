@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { FaqEntry, SiteContent } from "@material-square/types";
 import { publicFaqEntries, SEO_ROUTE_DESCRIPTIONS } from "./runtime-types.js";
 import { customerProductDescription } from "../../catalogue/customer-display.js";
-import { canonicalSiteOrigin } from "./seo-origin.js";
+import { canonicalSiteOrigin, trustedSiteOrigin } from "./seo-origin.js";
 import { isPreviewDeployment } from "./seo-environment.js";
 import { setPageStructuredData } from "./structured-data.js";
 import { setSocialCardMetadata } from "./social-metadata.js";
@@ -166,7 +166,7 @@ function requestOrigin(req: IncomingMessage) {
   if (!host || !/^[a-zA-Z0-9.-]+(?::\d{1,5})?$/.test(host)) return null;
   const forwardedProtocol = req.headers["x-forwarded-proto"];
   const protocol = (Array.isArray(forwardedProtocol) ? forwardedProtocol[0] : forwardedProtocol)?.split(",")[0]?.trim();
-  return `${protocol === "http" && isPreviewDeployment() ? "http" : "https"}://${host}`;
+  return trustedSiteOrigin(`${protocol === "http" && isPreviewDeployment() ? "http" : "https"}://${host}`);
 }
 
 function apiOrigin() {
@@ -194,7 +194,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   }
   const origin = canonicalSiteOrigin(incomingOrigin);
   const incomingUrl = new URL(req.url || "/", incomingOrigin);
-  const filtered = ["q", "category", "brand"].some((key) => Boolean(incomingUrl.searchParams.get(key)?.trim()));
+  const filtered = ["q", "category", "brand", "availability"].some((key) => Boolean(incomingUrl.searchParams.get(key)?.trim()));
   const isPreview = isPreviewDeployment();
 
   try {

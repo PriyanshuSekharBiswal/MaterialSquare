@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
 import { PrismaService } from "../prisma/prisma.service";
-import { jwtSecret } from "./jwt-config";
+import { JWT_ISSUER, JWT_STAFF_AUDIENCE, jwtSecret } from "./jwt-config";
 import { staffSessionCookie } from "./staff-auth-cookie";
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -14,6 +14,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ]),
       ignoreExpiration: false,
       secretOrKey: jwtSecret(),
+      algorithms: ["HS256"],
+      issuer: JWT_ISSUER,
+      audience: JWT_STAFF_AUDIENCE,
     });
   }
   async validate(payload: { sub: string; type: string; ver?: number }) {

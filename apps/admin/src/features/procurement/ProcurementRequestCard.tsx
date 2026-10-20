@@ -1,9 +1,10 @@
 import PurchaseOrderRevision, {
   type RevisablePurchaseOrder,
 } from "./PurchaseOrderRevision";
-import { useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { FileText, X } from "lucide-react";
+import { confirmAdminAction } from "../../components/confirmAdminAction";
 import ServiceAreaPincodes from "../suppliers/ServiceAreaPincodes";
 import { formatQuantityUnit } from "../../quantity-format";
 import { formatEnumLabel } from "../../utils/formatEnumLabel";
@@ -154,6 +155,53 @@ export default function ProcurementRequestCard({
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<SupplierQuote | null>(null);
   const [sort, setSort] = useState("price");
+  const matchDialogRef = useRef<HTMLElement>(null);
+  const requestMatchDialogClose = useCallback(async () => {
+    if (busy) return;
+    const hasUnsavedQuote = Array.from(
+      matchDialogRef.current?.querySelectorAll<HTMLFormElement>("form") ?? [],
+    ).some((form) => Array.from(form.elements).some((control) => {
+      if (control instanceof HTMLInputElement) {
+        return control.type === "checkbox" || control.type === "radio"
+          ? control.checked !== control.defaultChecked
+          : control.value !== control.defaultValue;
+      }
+      if (control instanceof HTMLSelectElement) {
+        return control.value !== Array.from(control.options).find((option) => option.defaultSelected)?.value;
+      }
+      return control instanceof HTMLTextAreaElement && control.value !== control.defaultValue;
+    }));
+    if (hasUnsavedQuote && !(await confirmAdminAction({
+      title: "Discard unsaved supplier quote?",
+      message: "Entered prices, quantities, and notes haven’t been saved. Closing will discard them.",
+      confirmLabel: "Discard quote draft",
+      tone: "danger",
+    }))) return;
+    setMatchDialogOpen(false);
+  }, [busy]);
+  useEffect(() => {
+    if (!matchDialogOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || document.querySelector("dialog[open]")) return;
+      const dialog = matchDialogRef.current;
+      if (!dialog) return;
+      const activeElement = document.activeElement;
+      const activeDetails = activeElement instanceof HTMLElement
+        ? activeElement.closest<HTMLDetailsElement>("details[open]")
+        : null;
+      const openDetails = Array.from(dialog.querySelectorAll<HTMLDetailsElement>("details[open]"));
+      const detailsToClose = activeDetails ?? openDetails.at(-1);
+      if (detailsToClose) {
+        event.preventDefault();
+        detailsToClose.open = false;
+        detailsToClose.querySelector<HTMLElement>("summary")?.focus({ preventScroll: true });
+        return;
+      }
+      void requestMatchDialogClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [matchDialogOpen, requestMatchDialogClose]);
   const quotes = [...record.supplierQuotes].sort((a, b) =>
     sort === "lead"
       ? (a.leadTimeDays ?? Infinity) - (b.leadTimeDays ?? Infinity)
@@ -298,6 +346,7 @@ export default function ProcurementRequestCard({
       {matchDialogOpen && createPortal(
         <div className="procurement-match-overlay">
           <section
+            ref={matchDialogRef}
             className="procurement-match-dialog"
             role="dialog"
             aria-modal="true"
@@ -316,7 +365,8 @@ export default function ProcurementRequestCard({
                 type="button"
                 className="bc-button procurement-match-close"
                 aria-label="Close supplier matching"
-                onClick={() => setMatchDialogOpen(false)}
+                disabled={busy}
+                onClick={() => void requestMatchDialogClose()}
               >
                 <X size={19} aria-hidden="true" />
               </button>
@@ -347,7 +397,7 @@ export default function ProcurementRequestCard({
                 </>
               )}
               {!matching && matched && !candidates.length && (
-                <div className="procurement-match-empty">
+                <div className="procurement-match-empty" role="status">
                   <strong>No active suppliers match these materials.</strong>
                   <p>Review the supplier catalogue or update supplier product listings, then try matching again.</p>
                 </div>
@@ -374,7 +424,7 @@ export default function ProcurementRequestCard({
                       <strong>Service area</strong>
                       <ServiceAreaPincodes pincodes={supplier.servicePincodes} className="procurement-service-areas" />
                     </div>
-                  ) : <p>No service PINs recorded.</p>}
+                  ) : <p role="status">No service PINs recorded.</p>}
                   {supplier.matchedProducts?.map((product) => (
                     <p key={`${product.productName}-${product.brand}-${product.unit}`}>
                       Supplier listing: {product.productName} · {product.brand || "Brand unspecified"} · {product.category} · Available: {product.availableQuantity == null ? "Unknown" : formatQuantityUnit(product.availableQuantity, product.unit)}
@@ -469,7 +519,7 @@ export default function ProcurementRequestCard({
               ))}
             </div>
             <footer className="procurement-match-footer">
-              <button type="button" className="bc-button" onClick={() => setMatchDialogOpen(false)}>Close</button>
+              <button type="button" className="bc-button" disabled={busy} onClick={() => void requestMatchDialogClose()}>Close</button>
             </footer>
           </section>
         </div>,
@@ -492,10 +542,16 @@ export default function ProcurementRequestCard({
           )}
         </header>
       {!quotes.length ? (
-        <p>No supplier quotes recorded yet.</p>
+        <div className="procurement-quote-empty" role="status">
+          <FileText size={19} aria-hidden="true" />
+          <div>
+            <strong>No supplier quotes yet</strong>
+            <p>Supplier responses recorded above will appear here for side-by-side comparison.</p>
+          </div>
+        </div>
       ) : (
         <>
-          <div className="procurement-table procurement-quote-table">
+          <div className="table-scroll procurement-table procurement-quote-table">
             <table>
               <thead>
                 <tr>

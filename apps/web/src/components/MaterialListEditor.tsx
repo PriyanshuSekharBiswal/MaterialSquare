@@ -24,7 +24,7 @@ function readSavedItems(): MaterialItem[] {
 }
 
 export default function MaterialListEditor({ products = [] }: { products?: CatalogueProduct[] }) {
-  const { items, updateItems } = useCustomer();
+  const { items, updateItems, error } = useCustomer();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const focusItemId = searchParams.get("item");
@@ -126,6 +126,7 @@ export default function MaterialListEditor({ products = [] }: { products?: Catal
       <p>
         Keep items here for later. Select only the products or options you want included in a quotation now.
       </p>
+      {error && <p className="customer-error" role="alert">{error}</p>}
       {!items.length && (
         <p>
           Your list is empty. Add products if you know what you need, or attach a project plan in the request form and our team can help you work out a list.

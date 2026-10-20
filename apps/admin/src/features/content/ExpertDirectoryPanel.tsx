@@ -60,29 +60,26 @@ export default function ExpertDirectoryPanel({
 
   return (
     <>
-      {!isFocusedEdit && (
-        <div
-          className="transportation-workflow-tabs expert-directory-tabs"
-          role="group"
-          aria-label="Expert directory tasks"
-        >
+      {!isFocusedEdit && activeView === "directory" && (
+        <div className="supplier-list-heading">
+          <h2 className="supplier-list-title">Directory</h2>
           <button
             type="button"
-            className={`transportation-workflow-tab${activeView === "add" ? " active" : ""}`}
-            aria-pressed={activeView === "add"}
+            className="btn-sm btn-primary"
             onClick={() => onViewChange("add")}
           >
             Add provider
           </button>
-          <button
-            type="button"
-            className={`transportation-workflow-tab${activeView === "directory" ? " active" : ""}`}
-            aria-pressed={activeView === "directory"}
-            onClick={() => onViewChange("directory")}
-          >
-            Directory <span>{records.length}</span>
-          </button>
         </div>
+      )}
+      {!isFocusedEdit && activeView === "add" && (
+        <button
+          type="button"
+          className="bc-button btn-orange-outline supplier-page-back admin-back-button"
+          onClick={() => onViewChange("directory")}
+        >
+          Back to directory
+        </button>
       )}
       {(isFocusedEdit || activeView === "add") && (
         <form
@@ -125,6 +122,7 @@ export default function ExpertDirectoryPanel({
               : "Add a professional or service provider"}
           </h2>
           <fieldset disabled={busy} className="bc-fields">
+            <legend className="admin-sr-only">Professional profile details</legend>
             <label>
               Name
               <input
@@ -222,7 +220,6 @@ export default function ExpertDirectoryPanel({
       )}
       {!isFocusedEdit && activeView === "directory" && (
         <section className="expert-directory-list">
-          <h2>Directory</h2>
           {records.map((r) => (
             <article
               className="business-record expert-directory-card"

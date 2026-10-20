@@ -15,10 +15,13 @@ describe("CommissionsService", () => {
       select: {
         id: true,
         beneficiaryName: true,
+        beneficiaryPhone: true,
         amount: true,
         ratePct: true,
         basisAmount: true,
         status: true,
+        notes: true,
+        createdAt: true,
       },
       orderBy: { createdAt: "desc" },
     });

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Plus, Trash2, Upload } from "lucide-react";
 
 const customerPriceNote = (note: string | null | undefined) => {
@@ -7,6 +8,7 @@ const customerPriceNote = (note: string | null | undefined) => {
 
 export type EditableVariant = {
   id?: string;
+  draftKey?: string;
   code?: string | null;
   label: string;
   attributes: Record<string, string>;
@@ -33,13 +35,45 @@ function toBreaksText(rows: EditableVariant["quantityBreaks"]) {
 }
 
 function fromBreaksText(value: string) {
-  return value.split(";").map((entry) => entry.trim()).filter(Boolean).map((entry) => {
-    const [minimumQuantity, unitPrice] = entry.split("=").map(Number);
-    return { minimumQuantity, unitPrice };
-  }).filter((row) => Number.isFinite(row.minimumQuantity) && row.minimumQuantity > 0 && Number.isFinite(row.unitPrice) && row.unitPrice >= 0).sort((a, b) => a.minimumQuantity - b.minimumQuantity);
+  const rows: NonNullable<EditableVariant["quantityBreaks"]> = [];
+  for (const entry of value.split(";").map((part) => part.trim()).filter(Boolean)) {
+    const parts = entry.split("=");
+    if (parts.length !== 2 || !parts[0].trim() || !parts[1].trim()) return null;
+    const [minimumQuantity, unitPrice] = parts.map(Number);
+    if (!Number.isFinite(minimumQuantity) || minimumQuantity <= 0 || !Number.isFinite(unitPrice) || unitPrice < 0) return null;
+    rows.push({ minimumQuantity, unitPrice });
+  }
+  return rows.sort((a, b) => a.minimumQuantity - b.minimumQuantity);
 }
 
+function QuantityBreaksInput({ value, onChange }: {
+  value: EditableVariant["quantityBreaks"];
+  onChange: (rows: NonNullable<EditableVariant["quantityBreaks"]>) => void;
+}) {
+  const [text, setText] = useState(() => toBreaksText(value));
+  const serialized = toBreaksText(value);
+  useEffect(() => setText(serialized), [serialized]);
+  const commit = () => {
+    const rows = fromBreaksText(text);
+    if (rows === null) return;
+    setText(toBreaksText(rows));
+    onChange(rows);
+  };
+  const invalid = fromBreaksText(text) === null;
+  return <>
+    <input value={text} aria-invalid={invalid} placeholder="10 = 415; 30 = 405" onChange={(event) => setText(event.target.value)} onBlur={commit} onKeyDown={(event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commit();
+      }
+    }} />
+    {invalid && <small role="alert">Use “quantity = price” pairs separated by semicolons. This text is not saved.</small>}
+  </>;
+}
+
+let nextVariantDraftKey = 0;
 const newVariant = (sortOrder: number): EditableVariant => ({
+  draftKey: `draft-${Date.now().toString(36)}-${(++nextVariantDraftKey).toString(36)}-${Math.random().toString(36).slice(2)}`,
   label: "",
   attributes: {},
   unit: "",
@@ -70,8 +104,11 @@ export default function CatalogueVariantsEditor({
   defaultUnit?: string;
   busy?: boolean;
 }) {
+  const [attributeNameDrafts, setAttributeNameDrafts] = useState<Record<string, string>>({});
+
   function removeVariant(index: number) {
     onChange(variants.filter((_, rowIndex) => rowIndex !== index));
+    setAttributeNameDrafts({});
   }
 
   const update = (index: number, changes: Partial<EditableVariant>) => onChange(
@@ -122,7 +159,7 @@ export default function CatalogueVariantsEditor({
         </div>
       ) : (
         variants.map((variant, index) => (
-        <fieldset className="catalogue-variant-card" key={variant.id || index}>
+        <fieldset className="catalogue-variant-card" key={variant.id || variant.draftKey || index}>
           <legend>Option {index + 1}</legend>
           <button type="button" className="catalogue-remove-variant" aria-label={`Remove option ${index + 1}`} onClick={() => removeVariant(index)}>
             <Trash2 size={15} /> Remove
@@ -156,13 +193,48 @@ export default function CatalogueVariantsEditor({
               <div className="catalogue-attribute-presets" aria-label="Common option fields">
                 {(["Size", "Colour", "Pack", "Material", "Type", "Style"] as const).map((name) => <button type="button" key={name} disabled={Object.keys(variant.attributes || {}).some((key) => key.toLocaleLowerCase() === name.toLocaleLowerCase())} onClick={() => addAttribute(index, name)}>{name}</button>)}
               </div>
-              {Object.entries(variant.attributes || {}).map(([key, value], attributeIndex) => (
-                <div className="catalogue-attribute-row" key={`${key}-${attributeIndex}`}>
-                  <label>Variation<input value={key} maxLength={80} placeholder="Variation name" onChange={(event) => { const entries = Object.entries(variant.attributes || {}); entries[attributeIndex] = [event.target.value, value]; update(index, { attributes: Object.fromEntries(entries) }); }} /></label>
-                  <label>Value<input value={value} maxLength={120} placeholder="Enter value" onChange={(event) => { const entries = Object.entries(variant.attributes || {}); entries[attributeIndex] = [key, event.target.value]; update(index, { attributes: Object.fromEntries(entries) }); }} /></label>
-                  <button type="button" className="catalogue-remove-attribute" aria-label={`Remove variation ${attributeIndex + 1} from option ${index + 1}`} onClick={() => update(index, { attributes: Object.fromEntries(Object.entries(variant.attributes || {}).filter((_, rowIndex) => rowIndex !== attributeIndex)) })}><Trash2 size={14} /></button>
-                </div>
-              ))}
+              {Object.entries(variant.attributes || {}).map(([key, value], attributeIndex) => {
+                const variantDraftKey = variant.id || String(index);
+                const draftKey = `${variantDraftKey}:${attributeIndex}`;
+                const draftName = attributeNameDrafts[draftKey] ?? key;
+                const duplicateName = Object.keys(variant.attributes || {}).some(
+                  (existing, rowIndex) => rowIndex !== attributeIndex &&
+                    existing.trim().toLocaleLowerCase() === draftName.trim().toLocaleLowerCase(),
+                );
+                const commitName = () => {
+                  if (duplicateName || !draftName.trim()) {
+                    setAttributeNameDrafts((current) => {
+                      const next = { ...current };
+                      delete next[draftKey];
+                      return next;
+                    });
+                    return;
+                  }
+                  const entries = Object.entries(variant.attributes || {});
+                  entries[attributeIndex] = [draftName.trim(), value];
+                  update(index, { attributes: Object.fromEntries(entries) });
+                  setAttributeNameDrafts((current) => {
+                    const next = { ...current };
+                    delete next[draftKey];
+                    return next;
+                  });
+                };
+                return (
+                  <div className="catalogue-attribute-row" key={attributeIndex}>
+                    <label>Variation<input value={draftName} maxLength={80} placeholder="Variation name" aria-invalid={duplicateName || !draftName.trim()} onChange={(event) => setAttributeNameDrafts((current) => ({ ...current, [draftKey]: event.target.value }))} onBlur={commitName} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitName(); } }} />{duplicateName && <small role="alert">Use a unique variation name.</small>}{!draftName.trim() && <small role="alert">Enter a variation name.</small>}</label>
+                    <label>Value<input value={value} maxLength={120} placeholder="Enter value" onChange={(event) => { const entries = Object.entries(variant.attributes || {}); entries[attributeIndex] = [key, event.target.value]; update(index, { attributes: Object.fromEntries(entries) }); }} /></label>
+                    <button type="button" className="catalogue-remove-attribute" aria-label={`Remove variation ${attributeIndex + 1} from option ${index + 1}`} onClick={() => {
+                      setAttributeNameDrafts((current) => {
+                        const next = Object.fromEntries(
+                          Object.entries(current).filter(([draft]) => !draft.startsWith(`${variantDraftKey}:`)),
+                        );
+                        return next;
+                      });
+                      update(index, { attributes: Object.fromEntries(Object.entries(variant.attributes || {}).filter((_, rowIndex) => rowIndex !== attributeIndex)) });
+                    }}><Trash2 size={14} /></button>
+                  </div>
+                );
+              })}
               <button type="button" className="btn-sm btn-secondary" onClick={() => addAttribute(index)}><Plus size={13} /> Add custom variation</button>
             </fieldset>
             <details className="catalogue-variant-more">
@@ -176,7 +248,7 @@ export default function CatalogueVariantsEditor({
             <label>Offer starts<input type="date" value={(variant.offerStartsAt || "").slice(0, 10)} onChange={(event) => update(index, { offerStartsAt: event.target.value || null })} /></label>
             <label>Offer ends<input type="date" value={(variant.offerEndsAt || "").slice(0, 10)} onChange={(event) => update(index, { offerEndsAt: event.target.value || null })} /></label>
             <label>Price / tax note (optional)<input value={customerPriceNote(variant.priceNote)} maxLength={120} placeholder="e.g. GST included" onChange={(event) => update(index, { priceNote: event.target.value || null })} /></label>
-            <label className="catalogue-variant-breaks">Quantity breaks (minimum quantity = unit price)<input value={toBreaksText(variant.quantityBreaks)} placeholder="10 = 415; 30 = 405" onChange={(event) => update(index, { quantityBreaks: fromBreaksText(event.target.value) })} /></label>
+            <label className="catalogue-variant-breaks">Quantity breaks (minimum quantity = unit price)<QuantityBreaksInput key={variant.id || variant.draftKey || index} value={variant.quantityBreaks} onChange={(quantityBreaks) => update(index, { quantityBreaks })} /></label>
               </div>
             </details>
           </div>

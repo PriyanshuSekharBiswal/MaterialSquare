@@ -8,6 +8,7 @@ import {
   LogOut,
   Menu,
   Clock3,
+  Plus,
   RefreshCw,
   ShieldCheck,
   Tags,
@@ -20,6 +21,7 @@ import type { WorkspaceTab } from "../features/customers/contracts";
 import MaterialSquareLogo from "./MaterialSquareLogo";
 import GlobalAdminSearch, { type AdminSearchRecord } from "./GlobalAdminSearch";
 import { formatEnumLabel } from "../utils/formatEnumLabel";
+import { useAdminDialogFocus } from "./useAdminDialogFocus";
 
 export type AdminStaff = {
   id?: string;
@@ -123,6 +125,13 @@ function pageTitle(tab: WorkspaceTab) {
   return titles[tab];
 }
 
+function pageGroup(tab: WorkspaceTab) {
+  const group = navigationSections.find((section) =>
+    section.items.some((item) => item.id === tab),
+  )?.group;
+  return group?.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()) ?? "Operations";
+}
+
 function pageDescription(tab: WorkspaceTab) {
   const descriptions: Record<WorkspaceTab, string> = {
     overview: "Your recent work, customer enquiries and website activity in one place.",
@@ -160,6 +169,8 @@ type AdminWorkspaceLayoutProps = {
   onSearchRecords: (query: string) => Promise<AdminSearchRecord[]>;
   onMobileNavChange: (open: boolean) => void;
   onRefresh: () => void;
+  showNewFollowup: boolean;
+  onNewFollowup: () => void;
   onSignOut: () => void;
 };
 
@@ -180,8 +191,11 @@ export default function AdminWorkspaceLayout({
   onSearchRecords,
   onMobileNavChange,
   onRefresh,
+  showNewFollowup,
+  onNewFollowup,
   onSignOut,
 }: AdminWorkspaceLayoutProps) {
+  useAdminDialogFocus();
   const navigate = (next: WorkspaceTab) => {
     onNavigate(next);
     onMobileNavChange(false);
@@ -195,7 +209,15 @@ export default function AdminWorkspaceLayout({
     <div className="admin-layout">
       <div className="mobile-top-bar">
         <MaterialSquareLogo size={32} showText={true} lightMode={false} />
-        <details className="admin-top-menu">
+        <details
+          className="admin-top-menu"
+          onKeyDown={(event) => {
+            if (event.key !== "Escape" || !event.currentTarget.open) return;
+            event.preventDefault();
+            event.currentTarget.open = false;
+            event.currentTarget.querySelector("summary")?.focus();
+          }}
+        >
           <summary aria-label="Toggle admin menu">
             <Menu className="admin-top-menu-open-icon" size={20} />
             <X className="admin-top-menu-close-icon" size={20} />
@@ -344,12 +366,18 @@ export default function AdminWorkspaceLayout({
             <div className="admin-breadcrumb">
               <span>Material Square</span>
               <span aria-hidden="true">/</span>
-              <strong>Operations</strong>
+              <strong>{pageGroup(tab)}</strong>
             </div>
             <h1>{pageTitle(tab)}</h1>
             <p className="admin-page-description">{pageDescription(tab)}</p>
           </div>
           <div className="admin-header-actions">
+            {showNewFollowup && tab === "followups" && (
+              <button className="btn-sm btn-primary admin-create-followup" onClick={onNewFollowup}>
+                <Plus size={16} aria-hidden="true" />
+                <span>New follow-up</span>
+              </button>
+            )}
             {showGlobalSearch && (
               <GlobalAdminSearch
                 role={staff.role}

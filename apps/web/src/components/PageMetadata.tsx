@@ -296,8 +296,10 @@ export default function PageMetadata({ products = [], catalogueLoaded = false }:
     const isAccount = pathname === "/account" || pathname.startsWith("/account/");
     const isMaterialList = pathname === "/material-list";
     const marketplaceParams = new URLSearchParams(search);
-    const isFilteredMarketplace = pathname === "/marketplace" && ["q", "category", "brand"].some((key) => Boolean(marketplaceParams.get(key)?.trim()));
+    const isFilteredMarketplace = pathname === "/marketplace" && ["q", "category", "brand", "availability"].some((key) => Boolean(marketplaceParams.get(key)?.trim()));
     const isEmptyMarketplace = pathname === "/marketplace" && catalogueLoaded && products.length === 0;
+    const faqEntries = pathname === "/faq" ? publicFaqEntries(content) : [];
+    const isEmptyFaq = pathname === "/faq" && faqEntries.length === 0;
     const isBlogIndex = pathname === "/blogs";
     const hasServerRenderedBlogIndex = isBlogIndex && hasPageStructuredData(
       `${canonicalOrigin()}/blogs#webpage`,
@@ -349,6 +351,8 @@ export default function PageMetadata({ products = [], catalogueLoaded = false }:
             ? `${isConfiguredArea ? "Construction materials in" : "Check material delivery in"} ${area.name} | ${content["seo.siteTitle"]}`
             : isAccount
           ? `Customer account | ${content["seo.siteTitle"]}`
+          : pathname === "/faq"
+            ? `Frequently asked questions | ${content["seo.siteTitle"]}`
           : content[
             titleKeys[pathname] ||
               (pathname.startsWith("/blogs/") ? "seo.blogsTitle" : "seo.siteTitle")
@@ -356,7 +360,7 @@ export default function PageMetadata({ products = [], catalogueLoaded = false }:
 
     setCanonical(pathname);
     const managedPageDescription = managedPage ? websitePageDescription(managedPage) : "";
-    const shouldNoIndex = isAccount || isMaterialList || isUnpublishedPolicy || isFilteredMarketplace || isEmptyMarketplace || (isBlogIndex && !hasServerRenderedBlogIndex) || !isKnownRoute || (isBlogDetail && !hasServerRenderedBlogArticle) || Boolean(productId && !product) || Boolean(area && !isIndexableArea) || Boolean(managedPage && !managedPageDescription);
+    const shouldNoIndex = isAccount || isMaterialList || isUnpublishedPolicy || isFilteredMarketplace || isEmptyMarketplace || isEmptyFaq || (isBlogIndex && !hasServerRenderedBlogIndex) || !isKnownRoute || (isBlogDetail && !hasServerRenderedBlogArticle) || Boolean(productId && !product) || Boolean(area && !isIndexableArea) || Boolean(managedPage && !managedPageDescription);
     const robotsValue = isFilteredMarketplace || isEmptyMarketplace
       ? "noindex, follow"
       : shouldNoIndex ? "noindex, nofollow" : "index, follow";
@@ -480,6 +484,7 @@ export default function PageMetadata({ products = [], catalogueLoaded = false }:
             },
       };
       if (catalogueLoaded || !hasPageStructuredData(`${canonical}#webpage`)) {
+        const faqEntries = publicFaqEntries(content);
         setStructuredData({
           "@context": "https://schema.org",
           "@graph": [
@@ -491,6 +496,15 @@ export default function PageMetadata({ products = [], catalogueLoaded = false }:
                 { "@type": "ListItem", position: 2, name: "Construction materials", item: canonical },
               ],
             },
+            ...(faqEntries.length ? [{
+              "@type": "FAQPage",
+              "@id": `${canonical}#faq`,
+              mainEntity: faqEntries.map((entry) => ({
+                "@type": "Question",
+                name: entry.question,
+                acceptedAnswer: { "@type": "Answer", text: entry.answer },
+              })),
+            }] : []),
           ],
         });
       }
@@ -746,47 +760,6 @@ export default function PageMetadata({ products = [], catalogueLoaded = false }:
           },
         ],
       });
-    } else if (pathname === "/marketplace") {
-      const canonical = `${canonicalOrigin()}/marketplace`;
-      const faqEntries = publicFaqEntries(content);
-      setStructuredData({
-        "@context": "https://schema.org",
-        "@graph": [
-          {
-            "@type": "CollectionPage",
-            "@id": `${canonical}#webpage`,
-            url: canonical,
-            name: title,
-            description: metadataDescription,
-            mainEntity: {
-              "@type": "ItemList",
-              numberOfItems: products.length,
-              itemListElement: products.map((product, index) => ({
-                "@type": "ListItem",
-                position: index + 1,
-                url: `${canonicalOrigin()}/product/${encodeURIComponent(product.id)}`,
-                name: product.name,
-              })),
-            },
-          },
-          {
-            "@type": "BreadcrumbList",
-            itemListElement: [
-              { "@type": "ListItem", position: 1, name: "Home", item: `${canonicalOrigin()}/` },
-              { "@type": "ListItem", position: 2, name: "Construction materials", item: canonical },
-            ],
-          },
-          ...(faqEntries.length ? [{
-            "@type": "FAQPage",
-            "@id": `${canonical}#faq`,
-            mainEntity: faqEntries.map((entry) => ({
-              "@type": "Question",
-              name: entry.question,
-              acceptedAnswer: { "@type": "Answer", text: entry.answer },
-            })),
-          }] : []),
-        ],
-      });
     } else if (pathname === "/contact") {
       const canonical = `${canonicalOrigin()}/contact`;
       const faqEntries = publicFaqEntries(content);
@@ -816,6 +789,36 @@ export default function PageMetadata({ products = [], catalogueLoaded = false }:
               acceptedAnswer: { "@type": "Answer", text: entry.answer },
             })),
           }] : []),
+        ],
+      });
+    } else if (pathname === "/faq") {
+      const canonical = `${canonicalOrigin()}/faq`;
+      setStructuredData({
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebPage",
+            "@id": `${canonical}#webpage`,
+            url: canonical,
+            name: title,
+            description: metadataDescription,
+          },
+          ...(faqEntries.length ? [{
+            "@type": "FAQPage",
+            "@id": `${canonical}#faq`,
+            mainEntity: faqEntries.map(({ question, answer }) => ({
+              "@type": "Question",
+              name: question,
+              acceptedAnswer: { "@type": "Answer", text: answer },
+            })),
+          }] : []),
+          {
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: `${canonicalOrigin()}/` },
+              { "@type": "ListItem", position: 2, name: "Frequently asked questions", item: canonical },
+            ],
+          },
         ],
       });
     } else if (isBlogDetail && hasServerRenderedBlogArticle) {

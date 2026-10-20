@@ -11,6 +11,8 @@ import {
   CustomNavigationSchema,
   SocialLinksSchema,
   type SiteContentKey,
+  isBlockedContactValue,
+  type SiteContactKey,
 } from "@material-square/types";
 
 export const SITE_CONTENT_KEYS = Object.keys(
@@ -38,6 +40,21 @@ export const SiteContentSchema = z
           code: "custom",
           path: [key],
           message: "Every website content field is required",
+        });
+    }
+    for (const key of [
+      "contact.phone",
+      "contact.phoneDisplay",
+      "contact.whatsappPhone",
+      "contact.email",
+      "contact.officeAddress",
+      "contact.mapUrl",
+    ] as const satisfies readonly SiteContactKey[]) {
+      if (content[key] && isBlockedContactValue(key, content[key]))
+        ctx.addIssue({
+          code: "custom",
+          path: [key],
+          message: "Replace this staging contact value with verified production details",
         });
     }
     for (const key of SITE_CONTENT_KEYS.filter((key) =>
@@ -85,12 +102,38 @@ export const SiteContentSchema = z
         });
     for (const key of SITE_CONTENT_KEYS.filter((key) => key.startsWith("policy."))) {
       try {
-        if (!PolicySchema.safeParse(JSON.parse(content[key] || "")).success)
+        const parsedPolicy = PolicySchema.safeParse(JSON.parse(content[key] || ""));
+        if (!parsedPolicy.success)
           ctx.addIssue({
             code: "custom",
             path: [key],
             message: "Provide a heading and valid policy sections",
           });
+        else if (parsedPolicy.data.published) {
+          const publicPolicyText = [
+            parsedPolicy.data.title,
+            parsedPolicy.data.notice,
+            ...parsedPolicy.data.sections.flatMap(({ heading, body }) => [heading, body]),
+          ];
+          if (publicPolicyText.some((text) => text.includes("{{contactEmail}}")) && (
+            !content["contact.email"] ||
+            isBlockedContactValue("contact.email", content["contact.email"])
+          ))
+            ctx.addIssue({
+              code: "custom",
+              path: [key],
+              message: "Add a verified contact email used by this policy before publishing",
+            });
+          if (publicPolicyText.some((text) => text.includes("{{contactPhone}}")) && (
+            !content["contact.phone"] ||
+            isBlockedContactValue("contact.phone", content["contact.phone"])
+          ))
+            ctx.addIssue({
+              code: "custom",
+              path: [key],
+              message: "Add a verified contact phone used by this policy before publishing",
+            });
+        }
       } catch {
         ctx.addIssue({
           code: "custom",

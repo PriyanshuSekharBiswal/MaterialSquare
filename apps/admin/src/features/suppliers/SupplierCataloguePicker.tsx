@@ -18,6 +18,7 @@ type Props = {
   selectedProductNames: string[];
   onProductNamesChange: (productNames: string[]) => void;
   onBrandCatalogChange?: (brandCatalog: SupplierBrandCatalogEntry[]) => void;
+  onDraftStateChange?: (hasDraft: boolean) => void;
   saveLabel?: string;
 };
 
@@ -34,7 +35,7 @@ const displayCategory = (category: string, directory: ManagedCatalogueCategory[]
     ?? (key === "steel" ? "Steel & Reinforcement" : category.trim());
 };
 
-export default function SupplierCataloguePicker({ variants, brandOptions = [], selectedProductNames, onProductNamesChange, onBrandCatalogChange, saveLabel }: Props) {
+export default function SupplierCataloguePicker({ variants, brandOptions = [], selectedProductNames, onProductNamesChange, onBrandCatalogChange, onDraftStateChange, saveLabel }: Props) {
   const [brands, setBrands] = useState<string[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [productDraft, setProductDraft] = useState("");
@@ -43,6 +44,9 @@ export default function SupplierCataloguePicker({ variants, brandOptions = [], s
   const [open, setOpen] = useState<"brands" | "categories" | null>(null);
   const pickerRef = useRef<HTMLElement>(null);
   const productSuggestionsId = useId();
+  useEffect(() => {
+    onDraftStateChange?.(Boolean(productDraft.trim()));
+  }, [onDraftStateChange, productDraft]);
   useEffect(() => {
     const controller = new AbortController();
     fetch(`${import.meta.env.VITE_API_URL || "/api"}/products/categories`, { headers: { Accept: "application/json" }, signal: controller.signal })
@@ -133,7 +137,7 @@ export default function SupplierCataloguePicker({ variants, brandOptions = [], s
               {!brands.length ? <p className="supplier-empty-option">Choose one or more brands first.</p> : availableCategories.length ? availableCategories.map((category) => <label className="supplier-multiselect-option" key={category}>
                 <input type="checkbox" checked={categories.includes(category)} onChange={() => { const nextCategories = toggle(categories, category); setCategories(nextCategories); notifyBrandCatalog(brands, nextCategories); }} />
                 <span>{category}</span>
-              </label>) : <p className="supplier-empty-option">No categories are available for the selected brands right now.</p>}
+              </label>) : <p className="supplier-empty-option" role="status">No categories are available for the selected brands right now.</p>}
             </div>}
           </div>
           {!!categories.length && <div className="supplier-selected-values" aria-label="Selected categories">{categories.map((category) => <span key={category}>{category}<button type="button" className="supplier-chip-remove" aria-label={`Remove ${category}`} onClick={() => { const nextCategories = categories.filter((item) => item !== category); setCategories(nextCategories); notifyBrandCatalog(brands, nextCategories); }}>×</button></span>)}</div>}
@@ -154,6 +158,12 @@ export default function SupplierCataloguePicker({ variants, brandOptions = [], s
               onFocus={() => setProductFocused(true)}
               onBlur={() => setProductFocused(false)}
               onKeyDown={(event) => {
+                if (event.key === "Escape" && productFocused && productSuggestions.length > 0) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setProductFocused(false);
+                  return;
+                }
                 if (event.key === "Enter") {
                   event.preventDefault();
                   addProductName();

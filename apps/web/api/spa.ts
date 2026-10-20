@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { formatContactPhone, type FaqEntry, type PolicyKind, type SiteContent } from "@material-square/types";
 import { canonicalSiteOrigin } from "../src/server/seo/seo-origin.js";
 import { isPreviewDeployment } from "../src/server/seo/seo-environment.js";
-import { parsePolicy, SEO_ROUTE_DESCRIPTIONS, websitePageDescription } from "../src/server/seo/runtime-types.js";
+import { parsePolicy, publicFaqEntries, SEO_ROUTE_DESCRIPTIONS, websitePageDescription } from "../src/server/seo/runtime-types.js";
 import { setPageStructuredData } from "../src/server/seo/structured-data.js";
 import { setSocialCardMetadata } from "../src/server/seo/social-metadata.js";
 import { setSiteIdentityStructuredData } from "../src/server/seo/site-identity.js";
@@ -24,36 +25,50 @@ type PublishedPage = {
 };
 
 function renderPolicyFallback(
-  kind: "privacy" | "terms",
+  kind: PolicyKind,
   policy: ReturnType<typeof parsePolicy>,
   contactEmail: string,
+  contactPhone: string,
 ) {
   if (!policy.published) {
-    const label = kind === "privacy" ? "Privacy information" : "Website terms";
-    return `<noscript><main class="seo-static-fallback"><nav aria-label="Breadcrumb"><a href="/">Home</a> › ${kind === "privacy" ? "Privacy" : "Website terms"}</nav><h1>${label}</h1><p>This information is being reviewed and is not published yet.</p><a href="/contact">Contact Material Square</a></main></noscript>`;
+    const label = {
+      privacy: "Privacy information",
+      terms: "Website terms",
+      shipping: "Shipping policy",
+      returns: "Return policy",
+    }[kind];
+    return `<noscript><main class="seo-static-fallback"><nav aria-label="Breadcrumb"><a href="/">Home</a> › ${label}</nav><h1>${label}</h1><p>This information is being reviewed and is not published yet.</p><a href="/contact">Contact Material Square</a></main></noscript>`;
   }
   const sections = policy.sections
     .map((section) =>
-      `<section><h2>${escapeHtml(section.heading)}</h2><p>${escapeHtml(section.body.replaceAll("{{contactEmail}}", contactEmail)).replace(/\n/g, "<br />")}</p></section>`,
+      `<section id="${escapeHtml(section.heading.toLocaleLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""))}"><h2>${escapeHtml(section.heading.replaceAll("{{contactEmail}}", contactEmail).replaceAll("{{contactPhone}}", contactPhone))}</h2><p>${escapeHtml(section.body.replaceAll("{{contactEmail}}", contactEmail).replaceAll("{{contactPhone}}", contactPhone)).replace(/\n/g, "<br />")}</p></section>`,
     )
     .join("");
-  const otherPolicy = kind === "privacy" ? "terms" : "privacy";
-  const otherLabel = kind === "privacy" ? "Read website terms" : "Read privacy notice";
-  return `<noscript><main class="seo-static-fallback"><nav aria-label="Breadcrumb"><a href="/">Home</a> › ${kind === "privacy" ? "Privacy" : "Website terms"}</nav><h1>${escapeHtml(policy.title)}</h1><p>${escapeHtml(policy.notice)}</p>${sections}<nav aria-label="Related policies"><a href="/${otherPolicy}">${otherLabel}</a><a href="/contact">Contact Material Square</a></nav></main></noscript>`;
+  const cookieSection = policy.sections.find((section) => /cookie/i.test(section.heading));
+  const relatedPolicy = kind === "privacy"
+    ? `<a href="/terms">Read website terms</a>`
+    : kind === "terms"
+      ? `<a href="/privacy">Read privacy notice</a>`
+      : `<a href="/contact">Contact Material Square</a>`;
+  const cookieLink = kind === "privacy" && cookieSection
+    ? `<a href="/privacy#${escapeHtml(cookieSection.heading.toLocaleLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""))}">Cookie information</a>`
+    : "";
+  const replaceContact = (value: string) => value.replaceAll("{{contactEmail}}", contactEmail).replaceAll("{{contactPhone}}", contactPhone);
+  return `<noscript><main class="seo-static-fallback"><nav aria-label="Breadcrumb"><a href="/">Home</a> › ${escapeHtml(policy.title)}</nav><h1>${escapeHtml(replaceContact(policy.title))}</h1><p>${escapeHtml(replaceContact(policy.notice))}</p>${sections}<nav aria-label="Related policies">${relatedPolicy}${cookieLink}<a href="/contact">Contact Material Square</a></nav></main></noscript>`;
 }
 
 function applyPolicyMetadata(
   html: string,
-  kind: "privacy" | "terms",
+  kind: PolicyKind,
   policy: ReturnType<typeof parsePolicy>,
   canonical: string,
   siteTitle: string,
   content: Record<string, unknown>,
   isPreview: boolean,
 ) {
-  const description = SEO_ROUTE_DESCRIPTIONS[`/${kind}`];
+  const description = SEO_ROUTE_DESCRIPTIONS[new URL(canonical).pathname] || "";
   const title = `${policy.title} | ${siteTitle}`;
-  html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);
+  html = html.replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${escapeHtml(title)}</title>`);
   html = setMeta(html, "name", "description", description);
   html = setMeta(html, "name", "robots", isPreview || !policy.published ? "noindex, nofollow" : "index, follow");
   html = setMeta(html, "property", "og:title", title);
@@ -76,8 +91,65 @@ function applyPolicyMetadata(
   }]);
   return html.replace(
     /<noscript><main class="seo-static-fallback">[\s\S]*?<\/main><\/noscript>/i,
-    renderPolicyFallback(kind, policy, typeof content["contact.email"] === "string" ? content["contact.email"] : ""),
+    () => renderPolicyFallback(
+      kind,
+      policy,
+      typeof content["contact.email"] === "string" ? content["contact.email"] : "",
+      formatContactPhone(typeof content["contact.phone"] === "string" ? content["contact.phone"] : ""),
+    ),
   );
+}
+
+function renderFaqFallback(entries: FaqEntry[]) {
+  const answers = entries.map(({ question, answer }) =>
+    `<details><summary>${escapeHtml(question)}</summary><p>${escapeHtml(answer)}</p></details>`,
+  ).join("");
+  return `<noscript><main class="seo-static-fallback"><nav aria-label="Breadcrumb"><a href="/">Home</a> › Help and support</nav><h1>Frequently asked questions</h1><p>Answers to common questions about products, quotations, availability and delivery.</p>${answers || "<p>There are no published FAQs at the moment.</p>"}<a href="/contact">Contact Material Square</a></main></noscript>`;
+}
+
+function applyFaqMetadata(
+  html: string,
+  entries: FaqEntry[],
+  canonical: string,
+  siteTitle: string,
+  content: Record<string, unknown>,
+  isPreview: boolean,
+) {
+  const title = `Frequently asked questions | ${siteTitle}`;
+  const description = SEO_ROUTE_DESCRIPTIONS["/faq"];
+  html = html.replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${escapeHtml(title)}</title>`);
+  html = setMeta(html, "name", "description", description);
+  html = setMeta(html, "name", "robots", isPreview || !entries.length ? "noindex, nofollow" : "index, follow");
+  html = setMeta(html, "property", "og:title", title);
+  html = setMeta(html, "property", "og:site_name", siteTitle);
+  html = setMeta(html, "property", "og:description", description);
+  html = setMeta(html, "property", "og:url", canonical);
+  html = setMeta(html, "name", "twitter:title", title);
+  html = setMeta(html, "name", "twitter:description", description);
+  html = setSocialCardMetadata(html, new URL(canonical).origin);
+  html = setSiteIdentityStructuredData(html, new URL(canonical).origin, content);
+  html = html.replace(/<link\s+rel=["']canonical["'][^>]*>\s*/gi, "");
+  html = html.replace("</head>", `  <link rel="canonical" href="${escapeHtml(canonical)}" />\n</head>`);
+  html = setPageStructuredData(html, [
+    {
+      "@type": "WebPage",
+      "@id": `${canonical}#webpage`,
+      url: canonical,
+      name: title,
+      description,
+    },
+    ...(entries.length ? [{
+      "@type": "FAQPage",
+      "@id": `${canonical}#faq`,
+      mainEntity: entries.map(({ question, answer }) => ({
+        "@type": "Question",
+        name: question,
+        acceptedAnswer: { "@type": "Answer", text: answer },
+      })),
+    }] : []),
+  ]);
+  html = html.replace(/<noscript><main class="seo-static-fallback">[\s\S]*?<\/main><\/noscript>/i, "");
+  return html.replace(/(<div\s+id=["']root["'][^>]*>)/i, (root) => `${root}${renderFaqFallback(entries)}`);
 }
 
 function requestOrigin(req: IncomingMessage) {
@@ -114,8 +186,8 @@ function setMeta(
   const matcher = new RegExp(`<meta\\s+${kind}=["']${key}["'][^>]*>`, "i");
   const tag = `<meta ${kind}="${key}" content="${escapeHtml(value)}" />`;
   return matcher.test(html)
-    ? html.replace(matcher, tag)
-    : html.replace("</head>", `  ${tag}\n</head>`);
+    ? html.replace(matcher, () => tag)
+    : html.replace("</head>", () => `  ${tag}\n</head>`);
 }
 
 function pageFallback(page: PublishedPage) {
@@ -150,7 +222,7 @@ function applyManagedPageMetadata(
   const description = websitePageDescription(page);
   html = html.replace(
     /<title>[\s\S]*?<\/title>/i,
-    `<title>${escapeHtml(title)}</title>`,
+    () => `<title>${escapeHtml(title)}</title>`,
   );
   html = setMeta(html, "name", "description", description);
   html = setMeta(html, "name", "robots", noIndex ? "noindex, nofollow" : "index, follow");
@@ -189,7 +261,7 @@ function applyManagedPageMetadata(
   html = setPageStructuredData(html, [pageSchema]);
   return html.replace(
     /<noscript><main class="seo-static-fallback">[\s\S]*?<\/main><\/noscript>/i,
-    pageFallback(page),
+    () => pageFallback(page),
   );
 }
 
@@ -348,8 +420,14 @@ export default async function handler(
     });
     if (!response.ok) throw new Error("Published page list unavailable");
     const content = (await response.json()) as Record<string, unknown>;
-    if (pathname === "/privacy" || pathname === "/terms") {
-      const kind = pathname.slice(1) as "privacy" | "terms";
+    const policyKinds: Record<string, PolicyKind> = {
+      "/privacy": "privacy",
+      "/terms": "terms",
+      "/shipping": "shipping",
+      "/return-policy": "returns",
+    };
+    if (policyKinds[pathname]) {
+      const kind = policyKinds[pathname];
       const policy = parsePolicy(typeof content[`policy.${kind}`] === "string" ? content[`policy.${kind}`] as string : "", kind);
       const shell = await fetch(`${origin}/__app-shell.html`, { signal: AbortSignal.timeout(3500) });
       if (!shell.ok) throw new Error("Customer site shell unavailable");
@@ -360,6 +438,25 @@ export default async function handler(
       const canonical = `${canonicalOrigin}${pathname}`;
       const html = applyPolicyMetadata(await shell.text(), kind, policy, canonical, siteTitle, content, isPreview);
       const noIndex = isPreview || !policy.published;
+      res.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=120",
+        ...(noIndex ? { "X-Robots-Tag": "noindex, nofollow" } : {}),
+      });
+      res.end(req.method === "HEAD" ? undefined : html);
+      return;
+    }
+    if (pathname === "/faq") {
+      const entries = publicFaqEntries(content as SiteContent);
+      const shell = await fetch(`${origin}/__app-shell.html`, { signal: AbortSignal.timeout(3500) });
+      if (!shell.ok) throw new Error("Customer site shell unavailable");
+      const siteTitle = typeof content["seo.siteTitle"] === "string" && content["seo.siteTitle"].trim()
+        ? content["seo.siteTitle"].trim()
+        : "Material Square";
+      const isPreview = isPreviewDeployment();
+      const canonical = `${canonicalOrigin}${pathname}`;
+      const html = applyFaqMetadata(await shell.text(), entries, canonical, siteTitle, content, isPreview);
+      const noIndex = isPreview || entries.length === 0;
       res.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=120",
