@@ -622,11 +622,12 @@ test("customer OTP sign-in requires CAPTCHA before sending", async ({
     route.fulfill({
       contentType: "application/javascript",
       body: `window.initSendOTP = () => {
-        let ready = false, verified = false, sends = 0;
+        let verified = false, sends = 0;
         const count = document.createElement('output');
         count.setAttribute('aria-label', 'Mock send count');
         count.textContent = '0';
-        window.getWidgetData = () => ready ? {captchaValidations: true} : null;
+        // Config data arrives before the provider mounts its CAPTCHA UI.
+        window.getWidgetData = () => ({captchaValidations: true});
         window.isCaptchaVerified = () => verified;
         window.sendOtp = (phone, success) => { count.textContent = String(++sends); success({reqId:'req-captcha'}); };
         window.retryOtp = () => {};
@@ -637,7 +638,6 @@ test("customer OTP sign-in requires CAPTCHA before sending", async ({
           button.textContent = 'Mark test CAPTCHA verified';
           button.addEventListener('click', () => { verified = true; });
           document.getElementById('msg91-captcha').append(button, count);
-          ready = true;
         }, 1500);
       };`,
     }),

@@ -94,11 +94,17 @@ export async function initializeMsg91Widget(): Promise<void> {
         }
       }, 15000);
       const check = () => {
+        const widgetData = window.getWidgetData?.();
+        const captchaReady =
+          !widgetData?.captchaValidations ||
+          window.isCaptchaVerified?.() === true ||
+          Boolean(container?.childElementCount);
         if (
           window.sendOtp &&
           window.retryOtp &&
           window.verifyOtp &&
-          (!window.getWidgetData || window.getWidgetData())
+          (!window.getWidgetData || widgetData) &&
+          captchaReady
         ) {
           done = true;
           window.clearTimeout(timeout);
